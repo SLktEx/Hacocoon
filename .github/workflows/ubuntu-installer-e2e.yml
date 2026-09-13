@@ -25,25 +25,75 @@ concurrency:
   group: ubuntu-installer-e2e-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
+  classify:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 3
+    outputs:
+      full: ${{ steps.changes.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Select Ubuntu installer suite from changed paths
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          full=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            full=true
+          else
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/ubuntu-installer-changes.txt"
+            cat "$RUNNER_TEMP/ubuntu-installer-changes.txt"
+            while IFS= read -r path; do
+              case "$path" in
+                modules/runtime/incus/packaging/*|.goreleaser.yaml|scripts/install-ubuntu.sh|scripts/install.sh|tools/package_installers.py|tools/installer-user-journey-e2e.sh|tools/installer-network-security-e2e.sh|tools/installer-dhcp-diagnostics.sh|.github/workflows/ubuntu-installer-e2e.yml)
+                  full=true
+                  ;;
+              esac
+            done < "$RUNNER_TEMP/ubuntu-installer-changes.txt"
+          fi
+          printf 'full=%s\n' "$full" >> "$GITHUB_OUTPUT"
+          printf 'Ubuntu full installer E2E: %s\n' "$full"
+
   ubuntu-user-path:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 40
     env:
-      GOTOOLCHAIN: local
       HACO_E2E_VERSION: v0.0.0-e2e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.0
-          check-latest: false
+          go-version: 1.27.x
+          check-latest: true
           cache: false
+
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
 
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
@@ -116,7 +166,6 @@ jobs:
           command -v hacoq
           command -v incus
 
-          # Product CLI identity/help must work without touching runtime state.
           haco --version
           haco help
           set +e

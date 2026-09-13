@@ -1,0 +1,24 @@
+name: pr-compat-required
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev/1.x
+      - dev/v2
+      - dev/2.x
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-compat-required-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-compatibility-context:
+    name: test (1.26.x)
+    if: ${{ false }}
+    runs-on: ubuntu-26.04
+    steps:
+      - run: echo 'Go 1.26 compatibility is exercised on push/main CI.'

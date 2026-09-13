@@ -46,24 +46,92 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-installer-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+
 jobs:
-  windows-user-path:
+  classify:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 3
+    outputs:
+      validation: ${{ steps.changes.outputs.validation }}
+      full: ${{ steps.changes.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Select Windows CI suites from changed paths
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          validation=false
+          full=false
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            validation=true
+            full=true
+          else
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/windows-changes.txt"
+            cat "$RUNNER_TEMP/windows-changes.txt"
+
+            while IFS= read -r path; do
+              case "$path" in
+                cmd/haco-wsl/*|cmd/haco-review/*|internal/wslreclaim/*|internal/reclaimclient/*|internal/desktopreview/*|scripts/install-windows.bat|scripts/install-windows.ps1|tools/windows-installer-user-path-e2e.py|tools/test_windows_user_path.py|tools/windows-installer-restart-e2e.py|tools/windows-installer-cached-restart-e2e.py|tools/verify_installed_source_guard.py|tools/test_installed_source_guard.py|tools/windows_dns_diagnostic.ps1|tools/test_windows_dns_diagnostic.ps1|tools/windows_ssh_diagnostic.ps1|tools/test_windows_ssh_diagnostic.ps1|tools/test_native_access_runner.py|tools/test_reclamation_user_path.py|tools/reclamation_retention.py|tools/test_reclamation_retention.py|.github/workflows/windows-all-scripts-e2e.yml)
+                  validation=true
+                  ;;
+              esac
+
+              case "$path" in
+                .goreleaser.yaml|cmd/haco-product/*|cmd/haco-wsl/*|cmd/haco-review/*|internal/wslreclaim/*|internal/reclaimclient/*|internal/desktopreview/*|internal/sshclient/*|modules/runtime/incus/*|modules/standard/egressproxy/*|scripts/install-windows.bat|scripts/install-windows.ps1|scripts/install.sh|scripts/setup-wsl-host-interop.py|tools/package_installers.py|tools/windows-installer-user-path-e2e.py|tools/windows-installer-restart-e2e.py|tools/windows-installer-cached-restart-e2e.py|tools/installed-egress-check/*|tools/test_installed_egress.ps1|tools/test_windows_environment_ssh.ps1|tools/verify_installed_source_guard.py|tools/test_installed_source_guard.py|tools/test_windows_environment_transfer.ps1|tools/windows_dns_diagnostic.ps1|tools/windows_ssh_diagnostic.ps1|tools/windows-native-access-e2e.py|tools/windows-reclamation-linux-e2e.py|tools/windows-reclamation-user-path-e2e.py|tools/setup-vscode-acceptance.ps1|tools/test_vscode_environment.ps1|tools/test_host_customization.ps1|tools/package_vscode_acceptance.py|tools/vscode-acceptance/*|.github/workflows/windows-all-scripts-e2e.yml)
+                  full=true
+                  ;;
+              esac
+            done < "$RUNNER_TEMP/windows-changes.txt"
+          fi
+
+          printf 'validation=%s\n' "$validation" >> "$GITHUB_OUTPUT"
+          printf 'full=%s\n' "$full" >> "$GITHUB_OUTPUT"
+          printf 'Windows validation: %s\nWindows full E2E: %s\n' "$validation" "$full"
+
+  windows-validation:
+    needs: classify
+    if: needs.classify.outputs.validation == 'true'
     runs-on: windows-latest
-    timeout-minutes: 70
+    timeout-minutes: 10
     steps:
       - name: Checkout candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.0
-          check-latest: false
+          go-version: 1.27.x
+          check-latest: true
           cache: false
+
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/AppData/Local/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Test native Windows reclamation boundaries
         shell: pwsh
@@ -71,12 +139,95 @@ jobs:
           go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl
           if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
 
+      - name: Validate Windows E2E drivers and observers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
+          python ./tools/test_installed_source_guard.py
+          if ($LASTEXITCODE -ne 0) { throw "Source guard observer regressions failed." }
+          python ./tools/test_windows_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path assertion regressions failed." }
+          python ./tools/test_reclamation_retention.py
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
+          python ./tools/test_reclamation_user_path.py
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
+
+      - name: Verify Windows installer components on PowerShell 5.1
+        shell: powershell
+        run: |
+          python ./tools/test_native_access_runner.py
+          if ($LASTEXITCODE -ne 0) { throw "Native acceptance runner regression failed" }
+          ./tools/test_windows_installer.ps1
+          ./tools/test_windows_installer_exit.ps1
+          ./tools/test_windows_dns_diagnostic.ps1
+          pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
+          if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }
+
+  candidate-artifacts:
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      HACO_E2E_VERSION: v0.0.0-e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
       - name: Install pinned GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: v2.17.1
           install-only: true
+      - name: Build release-equivalent candidate artifacts once
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag "$HACO_E2E_VERSION" "$GITHUB_SHA"
+          goreleaser release --clean --skip=publish
+          test -f dist/haco_linux_amd64.tar.gz
+          test -f dist/haco_review_windows_amd64.zip
+          test -f dist/haco_wsl_windows_amd64.zip
+          test -f dist/checksums.txt
+      - name: Upload Windows E2E candidate artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-e2e-dist
+          path: |
+            dist/haco_linux_amd64.tar.gz
+            dist/haco_review_windows_amd64.zip
+            dist/haco_wsl_windows_amd64.zip
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  windows-user-path:
+    needs: [classify, candidate-artifacts]
+    if: needs.classify.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Prepare pinned portable VS Code client
         shell: pwsh
@@ -93,24 +244,11 @@ jobs:
           & wsl.exe --list --verbose 2>&1 | ForEach-Object { Write-Host $_ }
           $global:LASTEXITCODE = 0
 
-      - name: Build release-equivalent candidate artifacts
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $candidateVersion = "v0.0.0-e2e"
-          git tag $candidateVersion $env:GITHUB_SHA
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create local E2E release tag." }
-          goreleaser release --clean --skip=publish
-          if ($LASTEXITCODE -ne 0) { throw "GoReleaser candidate build failed." }
-          @(
-            "dist/haco_linux_amd64.tar.gz",
-            "dist/haco_linux_arm64.tar.gz",
-            "dist/checksums.txt"
-          ) | ForEach-Object {
-            if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {
-              throw "Release-equivalent build is missing $_."
-            }
-          }
+      - name: Download release-equivalent candidate artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-e2e-dist
+          path: dist
 
       - name: Build and extract release-equivalent Windows package
         shell: pwsh
@@ -167,21 +305,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
           python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
-          python ./tools/test_installed_source_guard.py
-          if ($LASTEXITCODE -ne 0) { throw "Source guard observer regressions failed." }
-          python ./tools/test_windows_user_path.py
-          if ($LASTEXITCODE -ne 0) { throw "Windows user-path assertion regressions failed." }
-
-      - name: Verify Windows installer components on PowerShell 5.1
-        shell: powershell
-        run: |
-          python ./tools/test_native_access_runner.py
-          if ($LASTEXITCODE -ne 0) { throw "Native acceptance runner regression failed" }
-          ./tools/test_windows_installer.ps1
-          ./tools/test_windows_installer_exit.ps1
-          ./tools/test_windows_dns_diagnostic.ps1
-          pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
-          if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }
 
       - name: Reject Hacocoon test overrides before user path
         shell: pwsh
@@ -260,12 +383,7 @@ jobs:
         id: reclamation
         if: ${{ !cancelled() && steps.reclamation_linux.outcome == 'success' }}
         shell: pwsh
-        run: |
-          python ./tools/test_reclamation_retention.py
-          if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
-          python ./tools/test_reclamation_user_path.py
-          if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
-          python ./tools/windows-reclamation-user-path-e2e.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+        run: python ./tools/windows-reclamation-user-path-e2e.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
       # A failed launch may still have a live worker; do not restart WSL then.
       - name: Verify installed native notification review route
