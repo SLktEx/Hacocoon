@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.58**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.59**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -27,7 +27,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | コントローラー所有の資格情報によるfetch/pullと内容を固定したpush。制限付きの単一ref fast-forward push承認。大きなpack、ブランチ作成・削除、force push、LFS/submodule、不明な結果からの一般的な復旧は通常手順では非対応。 |
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
 | [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
-| [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host設定とEnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
+| [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host実体ごとの自動設定、明示的なscriptのみの再適用と非公開出力・終了値の記録、EnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
 | [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。出力取得のみで対話stdin/TTYは非対応。後始末失敗時は所有記録を保持。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |

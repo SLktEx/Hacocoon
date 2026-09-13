@@ -268,45 +268,73 @@ Windows/WSL claims are limited to the commit-bound real-host acceptance in imple
 
 ## Saved customization recipes
 
-Status: **implemented explicit controller setup/replay; Windows GHA acceptance passed at bcc1baf**.
+Status: **implemented**. Automatic application is bound to the owned Incus Host
+incarnation. The previous explicit save/replay path passed Windows GHA at
+`bcc1baf`; the new automatic/recreation and result paths require current-head
+installed acceptance.
 
-`haco setup --script <path>` saves and runs a user-selected Bash recipe after normal
-Host preparation. `haco setup` replays its saved snapshot; editing the original file
-has no effect until another explicit `--script` update. `haco setup --clear-script`
-removes the saved recipe without executing it. No new top-level command is required.
-
-The client reads a regular UTF-8 file of at most 1 MiB. UTF-8 BOM and Windows CRLF
-are normalized. The controller stores the snapshot privately at
-`/var/lib/hacocoon/host-customization/recipe.sh` (under its configured Hacocoon root).
-It verifies the owned trusted Host and supplies the bytes on stdin to
-`/bin/bash -se` in `/root` through a fixed transient systemd unit. The unit refuses
-overlapping runs and stops its process group after at most 14 minutes, including
-when the controller exits. A shorter request deadline reduces that limit. The recipe is never executed on the Physical Host and
-is never copied to an Environment. Project files are not searched for hooks.
-
-For example, inside trusted `haco-host`:
-
-```sh
-cat > ~/host-setup.sh <<'SH'
-install -d -m 0755 "$HOME/.local/bin"
-cat > "$HOME/.local/bin/hello-haco" <<'HELLO'
-#!/bin/sh
-echo "hello from haco-host"
-HELLO
-chmod 0755 "$HOME/.local/bin/hello-haco"
-SH
-haco setup --script ~/host-setup.sh
-haco setup
-haco setup --clear-script
+```bash
+haco setup --script ~/host-setup.sh   # save a snapshot and apply after provisioning
+haco setup                          # provision; apply only on an unapplied Host
+haco setup --reapply-script          # run only the saved user script again
+haco setup --script-result           # inspect last stdout, stderr and exit code
+haco setup --clear-script            # disable future application
 ```
 
-Write replayable recipes. Setup reports failure and retains the saved recipe if a
-step fails; it does not roll back earlier user commands. Script stdout/stderr are
-not forwarded to controller diagnostics because they may contain credentials.
-To inspect a recipe's own output, run the original script directly in the trusted
-Host. Unsafe stored-file permissions or links fail closed and require inspection
-of the controller-owned configuration. Explicit controller setup after Host recreation can reuse the snapshot; real
-recreation acceptance and implicit recreation outside setup remain unverified. See [ADR 0019](../adr/0019-trusted-host-customization.md).
+Setup finishes Hacocoon's mandatory provisioning before user customization. Normal
+controller-backed Host shell entry uses the same preparation path, including after
+Host recreation. Successful scripts are not replayed on entry, ordinary commands,
+upgrades or reprovision of the same Host. A new provider `volatile.uuid` applies
+the saved snapshot again. Only `--script` replaces it; editing the original file
+does not silently change the saved recipe. `--reapply-script` skips mandatory
+provisioning and requires an already owned, running Host. These two additional
+flags are Host-only; explicit Environment setup retains its Workspace recipe rules.
+
+The client reads a regular UTF-8 file of at most 1 MiB; an executable bit is not
+needed. UTF-8 BOM and CRLF are normalized. `~/` resolves in the client account.
+From PowerShell, use the installed Linux client on the WSL Physical Host:
+
+```powershell
+wsl.exe -d Hacocoon --exec /usr/local/bin/haco setup --script 'C:\Users\Example\host-setup.sh'
+wsl.exe -d Hacocoon --exec /usr/local/bin/haco setup --script-result
+```
+
+WSL resolves Windows drive paths through its own `wslpath`, including spaces and
+configured drive mounts. From inside trusted `haco-host`, use its existing
+projected Linux path, such as `/mnt/c/Users/Example/host-setup.sh`. No native
+Windows `haco.exe` or manual newline/chmod conversion is required.
+
+The controller keeps `host-customization/recipe.sh` and `result.json` beneath its
+private Hacocoon root (normally `/var/lib/hacocoon`). The record contains the
+provider incarnation, normalized script SHA-256, running/succeeded/failed state,
+exit code and bounded output. A durable running record precedes execution;
+completion replaces it atomically. Failure or interrupted/unknown completion
+blocks automatic retries on that incarnation, including after controller restart.
+Inspect the result, correct the script with `--script`, or deliberately use
+`--reapply-script`. The last result survives clearing; clearing does not undo user
+changes. A pre-existing recipe with no execution record is applied once on the
+next setup/entry, then follows the incarnation rule.
+
+Scripts must tolerate explicit replay and partial effects. Hacocoon cannot roll
+back arbitrary commands. The owned Host executes as root in `/root`, with
+`HOME=/root`, using `/bin/bash -se` and bounded stdin through the fixed
+`hacocoon-user-setup` systemd unit. That unit refuses overlapping executions and
+terminates descendants after at most 14 minutes (less for a shorter deadline),
+even if the controller exits. The private store lock serializes recipe changes
+and execution. Malformed, linked, public or foreign-owned state fails closed.
+
+The script is trusted Host code: it can use the Host's existing authority. No new
+Physical Host socket, credentials, environment variables, mount or controller
+route is granted, and no script is executed on the Physical Host or distributed
+to an ordinary Environment. Repository hooks are never discovered automatically.
+
+Script stdout/stderr are retained separately (64 KiB per stream, with explicit
+truncation markers/counts) and displayed only by `--script-result`. They may
+contain secrets; treat this explicit command output as sensitive. They are never
+application logs, progress-stage fields or audit data. Nonzero exit fails setup;
+`-1` means no reliable process exit was captured. A controller crash may leave a
+running record without captured output; it does not establish success or permit
+automatic replay. See [ADR 0019](../adr/0019-trusted-host-customization.md).
 
 ## Nested OCI runtimes
 

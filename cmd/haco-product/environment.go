@@ -8,9 +8,11 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -120,6 +122,12 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		result, err = client.ForwardEnvironment(ctx, pos[0], core.LocalPortRequest{Protocol: protocol, HostPort: port, TargetPort: targetPort})
 	case "create":
 		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
+		if err == nil && strings.HasPrefix(workspace, "managed:") {
+			connectErr := client.ConnectGit(ctx, pos[0])
+			if connectErr != nil && !isUnsupportedControllerError(connectErr) {
+				err = connectErr
+			}
+		}
 	case "delete":
 		err = client.DeleteEnvironment(ctx, pos[0])
 		result = "Environment deleted; Workspace and persistent resources retained"
@@ -191,4 +199,9 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		return 1
 	}
 	return 0
+}
+
+func isUnsupportedControllerError(err error) bool {
+	var status *control.StatusError
+	return errors.As(err, &status) && status.Code == "unsupported"
 }

@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.58**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.59**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -21,7 +21,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Ordinary Git](guides/git-workflow.md) | partial | Fetch/pull and fixed-content push through controller-owned credentials; bounded single-ref fast-forward push approval. Large packs, branch creation/deletion, force push, LFS/submodules and general ambiguous-result recovery remain unsupported in product flow. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
 | [Network / DNS](design/egress-authorization.md) | implemented | Controller-owned Standard proxy, Incus lower-layer direct-egress guard and trusted source-bound DNS. Resolve and connect permissions are separate. A read-only kernel source-guard observer exists; full packaged Windows and spoofed-packet acceptance remain separate. VPN/NRPT, restart combinations and broad supported-Incus acceptance remain incomplete. |
-| [Setup recipes / preview](design/project-setup.md) | partial | Host recipe and Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
+| [Setup recipes / preview](design/project-setup.md) | partial | Host recipes apply once per incarnation with explicit script-only retry and private output/exit receipts; Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
 | [Temporary execution](design/temporary-execution.md) | implemented | `haco run` creates an ephemeral Env and always requests cleanup, retaining explicit Workspaces. Captured output only; no interactive stdin/TTY. Failed cleanup retains ownership. |
 | [Persistent OCI](design/persistent-oci-store.md) | partial | Automatic per-Workspace Store initialization/reuse, exclusive attach and independent stopped copies; optional `--no-oci`. Host area copy boundary and bounded completed-copy recovery exist. Broader installed runtime/version acceptance and Docker Store compatibility remain. |
 | [Base build](design/base-images-and-custom-environments.md) | implemented | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |

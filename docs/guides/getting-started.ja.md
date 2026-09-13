@@ -66,13 +66,14 @@ URLとブランチを利用権限のあるリポジトリの**既存ブランチ
 haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
-haco git connect sample-dev
 haco env status sample-dev
 ```
 
 取得元のチェックアウトは信頼されたHostに残ります。Workspaceにはファイルと `.git` の
 独立したコピーが作られ、Environmentの `/workspace` に接続されます。
-Gitのremoteは `haco://sample` となり、登録済みの接続先を仲介して利用します。
+Gitのremoteは `haco://sample` となり、Environment作成時にmanaged Git brokerが自動で
+配線されます。この配線だけでは上流remoteへ通信せず、実際のネットワーク通信は後で
+`git fetch` や `git push` などを実行した時点で始まります。
 
 作成時は既定のBaseを使い、設定されていればWorkspace専用のOCI Storeをコピーまたは再利用します。
 コンテナを使わない場合の明示的な選択肢は
