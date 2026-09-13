@@ -67,7 +67,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		must(err)
 		path := filepath.Join(dir, "base.json")
 		must(os.WriteFile(path, data, 0600))
-		command := exec.CommandContext(ctx, binary, "base", "build", path)
+		command := exec.CommandContext(ctx, binary, "base", "build", "--json", path)
 		var stderr strings.Builder
 		command.Stderr = &stderr
 		out, err := command.Output()

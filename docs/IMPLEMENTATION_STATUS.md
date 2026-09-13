@@ -90,3 +90,8 @@ COM launches and adds fixed failure diagnostics. Native Windows COM regressions
 fail against the prior implementation and pass after correction. The installed
 Windows failure at #611 remains unresolved until its route reruns; component
 classification coverage is not proof of that failure's cause.
+
+Combined #616 native acceptance is now partial: packaged Ubuntu and Incus
+Core/standalone plus earlier Btrfs journeys passed. Base-build's stale implicit-JSON
+fixture failed and is corrected in `codex/base-build-json-fixture`; its native
+rerun and later skipped storage checks remain pending. See acceptance evidence.

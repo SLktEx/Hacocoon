@@ -82,3 +82,7 @@ Windowsの確認は非表示COM helperから通知内のページ・選択欄で
 後続の開発修正で、native COM二重起動の古い要求拒否を保持し、固定分類の失敗診断を追加しました。
 実Windows COM回帰は旧実装でFAIL、修正後PASSです。#611の導入済みWindows失敗は経路の再確認まで
 未解決とします。この構成要素の分類回帰だけで、その失敗原因を特定したとは扱いません。
+
+統合#616の実機確認はpartialです。配布物Ubuntu、Incus Core／standaloneと先行Btrfs経路は
+成功しました。Base buildの旧fixtureがJSONを明示せず失敗し、`codex/base-build-json-fixture`で
+修正しています。実機再実行と後続でSKIPされたstorage確認は残件です。受入証拠を参照してください。

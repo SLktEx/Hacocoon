@@ -469,3 +469,18 @@ PASSです。この実行では通知表示・履歴は明示SKIPで、人によ
 不一致時も固定分類・終了値・期待文一致の真偽値だけを出します。#611の旧logではこのCOM分類が
 失敗原因か判断できないため、導入済みの失敗は未解決です。native COM構成要素試験でWindows設定、
 既存登録、基盤データを変更していません。
+
+## main統合後の実Base build fixture失敗
+
+#616 head `6d5a713f`のUbuntu `34742660449`はPASS。Incus `34742660441`は
+standaloneとCore egress／lifecycle、owned-Btrfsの通常create／run、trim、tree capture、
+aggregate snapshot／CoW、native volume importがPASSでした。後続Base build
+（job `103684889525`）はJSON読取りで`invalid character 'b' looking for beginning of value`
+となりFAIL。main #602で人向け出力が既定になった後も、試験のCLI呼び出しが`--json`を
+付けていませんでした。workflowのcleanupは両方PASS、後続persistent-copy／Store整理と
+private registryはSKIPです。Base buildの受入完了とは扱いません。
+
+`codex/base-build-json-fixture`はE2E呼び出しでJSONを明示し、同じbuild定義を使う
+人向け／JSON出力のcontroller往復回帰を追加します。製品の出力・lifecycle権限は変えません。
+Go 1.26.8の関連回帰と標準ローカルtestはPASS。実Incus Base buildと後続SKIPは再実行待ちです。
+観測時の#616 testはqueued、Windowsは実行中で、#619の新runも未完了でした。
