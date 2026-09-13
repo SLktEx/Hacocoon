@@ -2,11 +2,14 @@ package incus
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
@@ -45,20 +48,12 @@ func prepareHostRecipeRecreation(t *testing.T, ctx context.Context, runtime *Run
 	verify()
 	return func() {
 		t.Helper()
-		// Incus start precedes guest systemd readiness. Only read-only probes repeat.
+		// This fixture has no NIC. network-online may keep overall boot in
+		// "starting" while basic.target and the service manager are usable.
 		readyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		for {
-			result, _ := runtime.runner.Run(readyCtx, "incus", "exec", trustedHostName, "--project", runtime.project, "--", "/usr/bin/systemctl", "is-system-running", "--wait")
-			state := strings.TrimSpace(result.Stdout)
-			if !result.StdoutTruncated && (state == "running" || state == "degraded") {
-				break
-			}
-			select {
-			case <-readyCtx.Done():
-				t.Fatal("recreated fixture systemd did not become ready")
-			case <-time.After(100 * time.Millisecond):
-			}
+		if err := waitHostRecipeManager(readyCtx, runtime.runner, runtime.project); err != nil {
+			t.Fatal(err)
 		}
 		second, err := runtime.TrustedHostIdentity(ctx)
 		if err != nil || second == first {
@@ -69,5 +64,44 @@ func prepareHostRecipeRecreation(t *testing.T, ctx context.Context, runtime *Run
 		apply(recipes.Update{})
 		verify()
 		t.Log("PASS real Host recipe auto-application after recreation and no repeat on the same incarnation")
+	}
+}
+
+func waitHostRecipeManager(ctx context.Context, runner host.Runner, project string) error {
+	for {
+		result, err := runner.Run(ctx, "incus", "exec", trustedHostName, "--project", project, "--", "/usr/bin/systemctl", "is-active", "basic.target")
+		if err == nil && result.ExitCode == 0 && !result.StdoutTruncated && strings.TrimSpace(result.Stdout) == "active" {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("recreated fixture service manager did not become ready: %w", ctx.Err())
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func TestHostRecipeReadinessDoesNotWaitForNetworkOnline(t *testing.T) {
+	want := []string{"exec", trustedHostName, "--project", "fixture-project", "--", "/usr/bin/systemctl", "is-active", "basic.target"}
+	runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+		if name != "incus" || !reflect.DeepEqual(args, want) {
+			t.Fatalf("readiness depends on unrelated boot jobs: %s %v", name, args)
+		}
+		return host.Result{Stdout: "active\n"}, nil
+	}}
+	if err := waitHostRecipeManager(context.Background(), runner, "fixture-project"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHostRecipeReadinessFailsClosed(t *testing.T) {
+	for _, result := range []host.Result{{Stdout: "activating\n"}, {Stdout: "active\n", ExitCode: 1}, {Stdout: "active\n", StdoutTruncated: true}} {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) { return result, nil }}
+		err := waitHostRecipeManager(ctx, runner, "fixture-project")
+		cancel()
+		if err == nil {
+			t.Fatal("unconfirmed service manager accepted")
+		}
 	}
 }
