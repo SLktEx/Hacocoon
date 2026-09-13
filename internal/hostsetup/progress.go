@@ -29,7 +29,7 @@ func emit(ctx context.Context, e Event) {
 }
 func ValidStage(s string) bool {
 	switch s {
-	case "setup", "client_validation", "project", "storage", "copy_recovery", "trusted_host_inspect", "trusted_host_create", "trusted_host_network", "controller_endpoint", "trusted_host_start", "wsl_interop", "client_mode", "client_provision", "host_storage", "notification_setup", "customization":
+	case "setup", "client_validation", "project", "storage", "copy_recovery", "trusted_host_inspect", "trusted_host_create", "trusted_host_network", "controller_endpoint", "trusted_host_start", "host_tools", "wsl_interop", "client_mode", "client_provision", "host_storage", "notification_setup", "customization":
 		return true
 	}
 	return false
