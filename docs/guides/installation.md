@@ -170,5 +170,9 @@ explicit PowerShell invocation is:
 Replace `Hacocoon` with the installed WSL name and `demo` with the running Env
 name. Open the printed Windows loopback address in your application. Ctrl+C
 closes the listener and active connections. The same candidate product must be
-installed in WSL. Linux `haco env tunnel` does not automatically delegate yet.
+installed in WSL. From its normal Host terminal, use
+`haco env tunnel --target-port 8080 demo` to choose the installed Windows client
+automatically. No helper path or distribution option is required. Native Linux
+keeps its local listener. Missing Windows integration fails with next steps;
+there is no fallback listener in a different location.
 See [acceptance scope](../status/acceptance-evidence.md#windows-tunnel-client-candidate).

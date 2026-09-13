@@ -362,8 +362,9 @@ There is no guest endpoint registration or new management authority. See
 ## Client TCP listeners
 
 Status: **implemented candidate** for Linux clients using the private UDS.
-`haco env tunnel --target-port 8080 demo` listens in the running client's network
-namespace and carries each TCP connection through a controller byte session.
+`haco env tunnel --target-port 8080 demo` listens locally on native Linux and
+automatically uses the installed Windows companion from WSL/trusted Host entry.
+Each TCP connection travels through a controller byte session.
 The output gives the local address and next action. `--listen` defaults to
 `127.0.0.1:0` (automatic port), `--address` to Env-local `127.0.0.1`, and
 `--duration` to `1h` (range `1s`–`1h`). Explicit numeric loopback IPv4/IPv6 is
@@ -389,7 +390,7 @@ remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
 No persistent Incus forwarding device is created; the existing `env forward`
 and SSH/preview lifecycle remain available. The native Windows companion below
 implements the Windows listener candidate; installed acceptance remains separate.
-A Linux trusted-Host client still listens inside that Host. Generic process
+A native Linux trusted-Host client listens inside that Host. Generic process
 caller consolidation remains partial. See [ADR 0072](../adr/0072-client-stream-forwarding.md).
 
 ## Windows process transport
@@ -414,8 +415,7 @@ bridge's dial is bounded to ten seconds and its lifetime to one hour.
 
 Native Windows-to-WSL fixture byte delivery is verified separately from installed
 product acceptance. The public Windows listener companion and installer placement
-are **implemented candidates**; automatic delegation from Linux `haco env tunnel`
-remains **planned**. The internal stdio entry is not an additional user CLI. See [ADR 0073](../adr/0073-wsl-process-transport.md).
+and automatic delegation from WSL `haco env tunnel` are **implemented candidates**. The internal stdio entry is not an additional user CLI. See [ADR 0073](../adr/0073-wsl-process-transport.md).
 
 ## Native Windows tunnel client
 
@@ -431,6 +431,32 @@ On failure it directs the user to the selected WSL's `haco doctor` and applicati
 The installer permanently places the matching amd64/arm64 client and prints its
 absolute help command. No user PATH mutation is required. `haco-wsl.exe` keeps
 its installation/reclamation responsibilities. See [installer ownership](installer.md#windows-client-placement).
-This public entry is explicit; ordinary Linux `haco env tunnel` still listens in
-its own namespace. Automatic Windows selection from that entry and installed
-Windows/WSL/Incus acceptance remain unfinished.
+The explicit companion entry remains available. Ordinary WSL `haco env tunnel`
+selects its installed Windows client automatically; installed Windows/WSL/Incus
+acceptance remains unfinished.
+
+## Automatic Windows tunnel entry
+
+Status: **implemented candidate**. WSL hints select the desktop route, not
+permission. The CLI first prepares the exact Env incarnation, discovers the
+controller's read-only WSL registration/installation identity, and resolves the
+installer-owned per-user companion. Native Linux keeps its local listener.
+Missing interop, companion or ownership fails with bilingual next-action guidance;
+there is no fallback listener in another namespace.
+
+A bounded private request contains the prepared target, loopback listener,
+language and original absolute deadline. It contains no command text, credentials
+or provider route. The native helper selects `wsl.exe --distribution-id` and
+checks the saved installation nonce and current exact Env selection before
+listening. Every subsequent upstream retains controller generation/lease checks.
+The manual `--distribution` entry continues to use an explicit user selection.
+
+The request is four-byte big-endian length plus at most 8192 JSON bytes, with
+strict fields and a ten-second read deadline. No subsequent requests are allowed.
+The parent's open input pipe is a lifetime lease: EOF cancels the listener and
+upstreams; extra bytes fail. The parent's cancellation closes that pipe, waits
+for child completion, and kills only that child after ten seconds if necessary.
+The original deadline is not restarted on delegation. Output and diagnostics
+remain separate. Native Windows component acceptance is distinct from the
+ordinary installed journey in `tools/windows-tunnel-entry-e2e.py`.
+See [ADR 0074](../adr/0074-windows-tunnel-delegation.md).

@@ -65,3 +65,7 @@ The Windows companion is `haco-tunnel.exe --distribution <WSL name> --target-por
 Its defaults and bounds match Linux; its listener is on Windows. Put the required
 `--distribution` selector first. `--help` provides bilingual vertical help. See
 [installation](../guides/installation.md#windows-tcp-client).
+
+On WSL/trusted Host entry, ordinary `haco env tunnel` automatically places its
+listener on Windows using the matching installed companion. Native Linux keeps
+its local listener. See [automatic selection and failure behavior](../design/controller-client-transport.md#automatic-windows-tunnel-entry).

@@ -87,8 +87,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.64 | Notification-contained Approval | 実装済み |
 | v0.65 | Client TCP Stream Forwarding | 実装済み |
 | v0.66 | Native Windows TCP Client | 実装候補 — 導入済み経路の受入とLinux入口の自動委譲は残件 |
+| v0.67 | Automatic Windows Tunnel Entry | 実装済み |
 
-現在のmilestone位置は **v0.66**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.67**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -130,3 +131,7 @@ transport基本処理は限定した検証範囲です。導入済みIncus受入
 `wsl.exe`を通す経路は別残件であり、M3完了や配布済みreleaseではありません。
 
 v0.66候補はmain `f47a9a41`の既存SSH/WSL/CI成果を統合しています。統合と重複整理であり、新しい番号は消費しません。配布・本線M0〜M5の完了を意味しません。
+
+v0.67は通常WSL／trusted HostコマンドからWindows転送を自動起動し、正確な導入先・Env選択と親による寿命管理を行う進捗です。
+ローカルと実Windowsの構成要素検証は[受入記録](acceptance-evidence.ja.md#windows-tunnel-delegation)を参照してください。
+導入済みWindows/WSL/Incusの確認は残件で、M3完了・main反映・releaseではありません。

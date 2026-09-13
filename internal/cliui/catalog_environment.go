@@ -3,6 +3,8 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"forward.delegate_invalid":       {"The Windows tunnel request was incomplete, invalid or expired. Run haco env tunnel again.", "Windows転送の要求が不完全・不正、または期限切れです。haco env tunnel を再実行してください。"},
+	"forward.windows_unavailable":    {"The Windows connection could not be opened for this installation. Run haco doctor and check Windows integration and the installed tunnel client, then retry. No local fallback listener was opened.", "このインストール先のWindows接続を開始できませんでした。haco doctor でWindows連携と導入済みの転送クライアントを確認してから再実行してください。代わりのローカル待受は開始していません。"},
 	"forward.windows_next":           {"Next: open WSL %s and run haco doctor; check that the Environment and its application service are running.", "次にWSL %s を開いて haco doctor を実行し、開発環境と接続先アプリが起動しているか確認してください。"},
 	"forward.distribution":           {"Installed Hacocoon WSL distribution on this PC", "このPCに導入済みのHacocoon WSL名"},
 	"forward.command":                {"Forward a local TCP listener through the controller to an Environment", "手元のTCP接続をcontroller経由で開発環境へ転送する"},

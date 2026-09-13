@@ -5,6 +5,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
 )
 
 type Operation string
@@ -21,7 +23,24 @@ type Invocation struct {
 }
 
 func Plan(distribution, systemRoot string, operation Operation) (Invocation, error) {
-	if !distributionPattern.MatchString(distribution) || !rootPattern.MatchString(systemRoot) || (operation != Review && operation != ControlStdio) {
+	if !distributionPattern.MatchString(distribution) {
+		return Invocation{}, errors.New("invalid fixed WSL invocation")
+	}
+	return fixedPlan("--distribution", distribution, systemRoot, operation)
+}
+
+// RegisteredPlan retains the discovered registration instead of reselecting a
+// possibly replaced distribution by its display name. Installation identity is
+// checked through the controller before a delegated listener is opened.
+func RegisteredPlan(target reclamation.WSLTarget, systemRoot string) (Invocation, error) {
+	if target.Validate() != nil {
+		return Invocation{}, errors.New("invalid WSL installation")
+	}
+	return fixedPlan("--distribution-id", target.RegistrationID, systemRoot, ControlStdio)
+}
+
+func fixedPlan(selector, distribution, systemRoot string, operation Operation) (Invocation, error) {
+	if !rootPattern.MatchString(systemRoot) || (operation != Review && operation != ControlStdio) {
 		return Invocation{}, errors.New("invalid fixed WSL invocation")
 	}
 	root := strings.TrimRight(systemRoot, "\\")
@@ -30,5 +49,5 @@ func Plan(distribution, systemRoot string, operation Operation) (Invocation, err
 			return Invocation{}, errors.New("invalid Windows system root")
 		}
 	}
-	return Invocation{File: root + "\\System32\\wsl.exe", Args: []string{"--distribution", distribution, "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", string(operation)}, Env: []string{"SystemRoot=" + root, "WINDIR=" + root}}, nil
+	return Invocation{File: root + "\\System32\\wsl.exe", Args: []string{selector, distribution, "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", string(operation)}, Env: []string{"SystemRoot=" + root, "WINDIR=" + root}}, nil
 }

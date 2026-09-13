@@ -63,3 +63,6 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 Windowsの公開companionは`haco-tunnel.exe --distribution <WSL名> --target-port <ポート> [--listen <loopback-ip:port>] [--address <loopback-ip>] [--duration <duration>] <Env名>`です。
 転送の既定値・上限はLinuxと共通で、Windows上に待受を置きます。`--distribution`は最初に
 指定します。日英の縦ヘルプは`--help`で表示できます。[導入](../guides/installation.ja.md#windowsのtcp転送クライアント)を参照してください。
+
+WSL／trusted Hostの通常入口の`haco env tunnel`は、対応する導入済みクライアントを使ってWindows側で待ち受けます。
+通常のLinuxはローカル待受を維持します。[自動選択と失敗時の動作](../design/controller-client-transport.ja.md#windows転送の自動起動)を参照してください。

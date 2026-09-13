@@ -28,6 +28,10 @@ func (w *forwardReadyWriter) Write(p []byte) (int, error) {
 }
 
 func TestClientForwardDisplaysUsableAddressInBothLanguages(t *testing.T) {
+	// This component covers the native Linux listener. The Windows entry has
+	// separate delegation/lifetime tests and installed acceptance.
+	t.Setenv("WSL_INTEROP", "")
+	t.Setenv("WSL_DISTRO_NAME", "")
 	server := control.NewServer()
 	if err := server.Register(controlapi.MethodForwardPrepare, func(_ context.Context, payload json.RawMessage) (any, error) {
 		var target core.EnvironmentTCPForward

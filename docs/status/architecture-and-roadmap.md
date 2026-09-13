@@ -388,8 +388,8 @@ Remaining delivery work:
   notification/long-input acceptance; retain verified later SSH/PTY results.
 - M2: fresh notification/VS Code answers and authenticated Git acceptance. All-heads
   fetch never grants main push; exact write decisions remain separate.
-- M3: ordinary Linux-entry delegation to Windows listeners, installed Windows TCP
-  acceptance, Host/backend/disabled DNS modes and checks in environments outside
+- M3: automatic WSL-entry delegation is implemented in `codex/windows-tunnel-entry`;
+  installed Windows TCP acceptance remains pending, alongside Host/backend/disabled DNS modes and checks in environments outside
   ordinary networks, including VPN/NRPT. Consolidate remaining process callers.
 - M4: actual Packer HCL2/external-shell Base builds (#566), ordinary-Env cache
   collection and independent CoW generations (#570), safe bulk cleanup and measured
