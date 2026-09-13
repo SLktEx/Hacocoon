@@ -36,6 +36,9 @@ func (s *EnvironmentJSONStore) EnvironmentInstance(ctx context.Context, expected
 	if err := validateResourceGenerations(data); err != nil {
 		return "", err
 	}
+	if err := validateEnvironmentResources(data); err != nil {
+		return "", err
+	}
 	current, ok := data.Environments[expected.Name]
 	if err := validateEphemeralIdentities(data); err != nil {
 		return "", err

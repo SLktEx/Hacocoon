@@ -16,6 +16,10 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}
 
+	if err := validateEnvironmentResources(*data); err != nil {
+		return err
+	}
+
 	for id, copy := range data.WorkspaceCopies {
 		saved, ok := data.Snapshots[copy.SnapshotID]
 		if (data.Version < 13 || data.Version > environmentStateVersion) || !validSnapshotWorkspaceCopy(id, copy) || !ok || saved.State != "ready" {

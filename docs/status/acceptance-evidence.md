@@ -1120,3 +1120,54 @@ ready marker was observed, but only about 42 ms remained in its existing shared
 five-second deadline when waiting for exit 37; the wait timed out. Earlier
 missing-prompt failures remain unresolved too. This is a failed whole-suite run,
 not evidence that either earlier failure was fixed. No deadline was extended.
+
+
+<a id="environment-owned-data"></a>
+## Env-owned disposable data lifecycle
+
+Implementation `c4b7af503f77a6f02e08bb23529bd1f79c8e64a8` on `codex/cache-env-attachments` adds canonical
+multi-resource reservation, immutable origin receipts, creation completion,
+parent runtime-absence fencing and shared child cleanup. Checkpoint v0.70 is
+**partial**. The production selector and Incus placement are not enabled; no
+ordinary-Env cache, path collection, snapshot/transfer of added areas or new
+real-host acceptance is claimed.
+
+Focused Go 1.26.8 Core/state/persistent-resource/Workspace/architecture/Incus tests
+pass. Component tests exercise actual catalog and service transitions, with fake
+provider resources: all-or-none reservation, repeated/concurrent claims, creation
+and verification failure, source/reset lifetime, unknown and positively completed
+copies, failed runtime/data deletion and retry, retained Workspace/OCI and malformed
+catalog rejection. The Environment-focused race run passes three repetitions.
+
+The maintained local `tools/ci-local.sh test` run (Go 1.27.1, shuffle 615) fails
+`TestLoginBootstrapPTYDoesNotStartHostSetup` after 6.70 seconds because the Bash
+input prompt was not observed. All other Go packages pass. Its later vet/notification/
+packaging stages are skipped in that run. Independently, vet, three JavaScript
+syntax checks, all 32 notification tests and two packaging tests pass. This does
+not resolve earlier PTY failures or make the whole CI run successful.
+
+A whole-tree Windows cross-build fails on unchanged Linux-only targets:
+`syscall.Stat_t` in Incus Host code and `clientforward.DesktopCommand` in the Linux
+product CLI. The configured Windows clients (`haco-review`, `haco-wsl`, `haco-tunnel`)
+and changed shared Core/state/resource/Workspace packages pass the separate Windows
+amd64 cross-build. No native Windows execution or fresh notification answer ran.
+
+Documentation consistency and 18 checker regressions pass. The initial source
+comparison exposed export/working-copy line-ending differences; no product-code
+difference remained. After normalizing only ten documentation files, documentation
+and architecture were rechecked and all 1,484 committed files matched byte-for-byte.
+The first race invocation failed in WSL argument delivery before tests ran; the
+corrected invocation is the three-pass run above. No test deadline, authority or
+isolation guarantee was relaxed.
+
+Parent #644 at `d29ce0a4061a4e4c1d107d4f3a65714b9775b665` now has successful
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34782161147),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34782161107) and
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34782161134) workflows.
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34782161108), job
+103791018485, passes steps 13–20, including ordinary SSH, tunnel exit 0,
+temporary TTY and reclamation. Step 21 again fails notification activation with
+`reason=unavailable`; native/child-exit/duration remain unrecorded. This does not
+resolve the earlier clear-stage failure, Japanese Windows, human GUI responses or
+the original SSH-failure reproduction. The earlier failed native-cache fixture
+and its retained creating resource also remain unresolved.

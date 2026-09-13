@@ -33,7 +33,7 @@ func (s *Service) deleteRuntimeForCleanup(parent context.Context, ref string) er
 func (s *Service) finalizeEnvironmentForCleanup(parent context.Context, environmentID string) error {
 	cleanupCtx, cancel := s.newCleanupContext(parent)
 	defer cancel()
-	if err := s.store.FinalizeEnvironmentDelete(cleanupCtx, environmentID); err != nil {
+	if err := s.finalizeAbsentEnvironment(cleanupCtx, environmentID); err != nil {
 		return errors.Join(err, core.ErrRecoveryRequired)
 	}
 	return nil
@@ -53,6 +53,19 @@ func (s *Service) newCleanupContext(parent context.Context) (context.Context, co
 // A provider success includes its owned network cleanup; absence of only the
 // instance is insufficient when another cleanup component failed.
 func (s *Service) deleteAndFinalize(ctx context.Context, name, ref string) error {
+	// A durable absence receipt belongs to the old creation. Do not send another
+	// delete to a provider name that could since have been reused outside Hacocoon.
+	lease, leaseErr := s.store.GetWorkspaceLease(ctx, name)
+	if leaseErr != nil && !errors.Is(leaseErr, core.ErrNotFound) {
+		return leaseErr
+	}
+	if lease.RuntimeAbsent {
+		if lease.RuntimeRef != ref {
+			return core.ErrCapabilityStale
+		}
+		return s.finalizeAbsentEnvironment(ctx, name)
+	}
+
 	if err := s.runtime.DeleteEnvironment(ctx, ref); !core.EnvironmentDeletionComplete(err) {
 		cause := fmt.Errorf("delete runtime %q: %w", ref, err)
 		lease, leaseErr := s.store.GetWorkspaceLease(ctx, name)
@@ -65,7 +78,7 @@ func (s *Service) deleteAndFinalize(ctx context.Context, name, ref string) error
 		lease.State = core.WorkspaceLeaseCleanupRequired
 		return errors.Join(cause, s.markEnvironmentRecovery(ctx, lease), core.ErrRecoveryRequired)
 	}
-	if err := s.store.FinalizeEnvironmentDelete(ctx, name); err != nil {
+	if err := s.finalizeAbsentEnvironment(ctx, name); err != nil {
 		return errors.Join(fmt.Errorf("finalize environment deletion %q: %w", name, err), core.ErrRecoveryRequired)
 	}
 	return nil

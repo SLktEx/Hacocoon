@@ -924,3 +924,45 @@ raceがPASSしました。文書整合性と18件のchecker回帰もPASSです�
 （6.64秒）しました。今回はBashの入力待ち表示を観測しましたが、共通の5秒期限の残りが約42 msで、
 終了37を待つ処理が時間切れになりました。以前の入力待ち表示が来ない失敗も未解決のままです。
 全体を成功にせず、以前の失敗の修正確認にも読み替えません。期限は延長していません。
+
+
+<a id="environment-owned-data"></a>
+## Env用使い捨て領域のライフサイクル
+
+`codex/cache-env-attachments` の実装 `c4b7af503f77a6f02e08bb23529bd1f79c8e64a8` で、複数領域の一括予約、元世代の記録、
+作成完了、Env実体不在の記録と子領域の共通回収を追加しました。v0.70は **partial** です。
+製品の対象選択とIncus配置は未有効化で、通常Envのキャッシュ利用・指定パス収集・
+追加領域のsnapshot/transfer・新しい実機受入の成功とは扱いません。
+
+Go 1.26.8のCore/state/保存領域/Workspace/責務検査/Incus集中回帰がPASSしました。
+実際のカタログとサービスを、模擬した基盤資源につないで、一括予約、重複・同時取得、
+作成・検証の失敗、元世代の更新・リセット後の寿命、結果不明と完了済みのコピー、
+Env・子領域の削除失敗と再試行、Workspace・OCIの保持、不正カタログの拒否を確認しています。
+Environment関連のrace 3回もPASSです。
+
+標準ローカル `tools/ci-local.sh test`（Go 1.27.1、shuffle 615）は、既存の
+`TestLoginBootstrapPTYDoesNotStartHostSetup` でBash入力待ち表示を観測できず、6.70秒でFAIL。
+その他のGo packageはPASSでした。その実行の後続vet・通知・packagingはSKIPですが、
+独立したvet、JavaScript構文3件、通知32試験、packaging 2試験はPASSです。
+以前のPTY失敗は未解決で、全体CI成功には読み替えません。
+
+全体をWindows向けにビルドした試行は、変更していないLinux専用部分の
+Incus Hostの `syscall.Stat_t` と製品CLIの `clientforward.DesktopCommand` でFAILしました。
+配布設定のWindowsクライアント `haco-review`・`haco-wsl`・`haco-tunnel` と、変更した
+共通Core/state/保存領域/Workspace packageのWindows amd64向けビルドは別途PASSしています。
+Windows上での実行や新規の通知回答は未実施です。
+
+文書整合性と18 checker回帰がPASSしました。初回のソース照合はexport・作業コピーの改行差でFAILし、
+製品コードの内容差は残りませんでした。文書10件の改行だけをそろえ、文書と責務検査を再確認した後、
+commit内の1,484ファイル全てがbyte単位で一致しました。最初のrace呼び出しはWSLへの引数受け渡しで失敗し、
+製品試験は未実行でした。修正後が上記3回のPASSです。試験期限・権限・隔離は緩めていません。
+
+親PR #644の `d29ce0a4061a4e4c1d107d4f3a65714b9775b665` は、
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34782161147)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34782161107)、
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34782161134) がPASSしました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34782161108) のjob 103791018485は、
+step13〜20の通常SSH・tunnel終了0・一時TTY・reclaimがPASS。
+通知step21は再びactivationの `reason=unavailable` でFAILし、native/child_exit/durationは未記録です。
+以前のclear失敗、日本語Windows、人のGUI回答、元のSSH障害の再現を解決済みにはしません。
+以前失敗したnative cache fixtureと、残した作成途中の試験領域の復旧・回収も未解決です。

@@ -43,6 +43,9 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if len(spec.Attachments) != 0 {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	// Maintenance requires durable ownership before preparation or attachment.
 	// Receipt-free entry points cannot acquire this authority.
 	if spec.ResourceMaintenance {

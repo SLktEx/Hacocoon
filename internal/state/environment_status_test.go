@@ -55,7 +55,7 @@ func TestReadyEnvironmentObservesLifecycleWithoutWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(core.ErrRecoveryRequired)
-	if got, err := st.GetEnvironment(ctx, "demo"); err != nil || got != env {
+	if got, err := st.GetEnvironment(ctx, "demo"); err != nil || !got.Equal(env) {
 		t.Fatalf("cleanup cannot find retained metadata: %#v %v", got, err)
 	}
 	if err := st.FinalizeEnvironmentDelete(ctx, "demo"); err != nil {

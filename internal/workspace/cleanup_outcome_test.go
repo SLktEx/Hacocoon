@@ -96,7 +96,7 @@ func TestDeleteRetainsAggregateWhenAbsentRuntimeStillNeedsCleanup(t *testing.T) 
 				t.Fatalf("ownership lost: %#v, %v", held, err)
 			}
 			if !pending {
-				if current, err := st.GetEnvironment(ctx, "demo"); err != nil || current != env {
+				if current, err := st.GetEnvironment(ctx, "demo"); err != nil || !current.Equal(env) {
 					t.Fatalf("ready data lost: %#v %v", current, err)
 				}
 			}

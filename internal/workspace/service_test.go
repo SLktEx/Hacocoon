@@ -176,7 +176,7 @@ func TestCreateRejectsInvalidInputsBeforeRuntime(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error")
 			}
-			if runtime.createSpec != (core.EnvironmentRuntimeSpec{}) {
+			if !reflect.DeepEqual(runtime.createSpec, core.EnvironmentRuntimeSpec{}) {
 				t.Fatalf("runtime called with %#v", runtime.createSpec)
 			}
 		})
@@ -193,7 +193,7 @@ func TestCreateRefusesExistingEnvironment(t *testing.T) {
 	if !errors.Is(err, core.ErrAlreadyExists) {
 		t.Fatalf("error = %v", err)
 	}
-	if runtime.createSpec != (core.EnvironmentRuntimeSpec{}) {
+	if !reflect.DeepEqual(runtime.createSpec, core.EnvironmentRuntimeSpec{}) {
 		t.Fatalf("runtime called with %#v", runtime.createSpec)
 	}
 }
@@ -269,7 +269,7 @@ func TestCreateRefusesConflictingWorkspaceLease(t *testing.T) {
 	if !errors.Is(err, core.ErrWorkspaceBusy) {
 		t.Fatalf("error = %v", err)
 	}
-	if runtime.createSpec != (core.EnvironmentRuntimeSpec{}) {
+	if !reflect.DeepEqual(runtime.createSpec, core.EnvironmentRuntimeSpec{}) {
 		t.Fatalf("runtime called with %#v", runtime.createSpec)
 	}
 }

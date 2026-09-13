@@ -4,8 +4,9 @@
 
 Status: **partial**. Atomic selection of complete managed sources and detached
 Incus cache-volume copying are implemented on this development candidate.
-Host configuration, selected-path collection from ordinary Environments,
-Environment enrollment/placement, generation history, batch clearing and real
+Env-owned disposable resource reservation, materialization and cleanup now share
+canonical lifecycle transitions. Incus attachment delivery and Host configuration
+are not enabled. Selected-path collection, enrollment/placement, history, clearing and real
 cache-workflow acceptance remain planned. There is no public cache command yet.
 See [remaining work](../status/architecture-and-roadmap.md).
 
@@ -52,6 +53,44 @@ and retains old resources. Producers from before reset remain stale even when
 the generation number is zero again. Reset does not erase CoW copies, Workspace,
 OCI data or snapshot references, and is not proof of physical space reclamation.
 
+## Env-owned disposable data
+
+Status: **implemented lifecycle slice; native placement is planned**. A trusted
+Host selector supplies named areas and exact origin generations. The common Env
+transaction reserves the Workspace, retained OCI reference, all fresh child
+identities and any source-copy reservations before a provider request. Ordinary
+resource create/copy/delete cannot adopt or release an Env-owned child.
+
+Each Env keeps a bounded, canonically ordered list of independent data references,
+placement targets and immutable origin receipts. Origin is provenance after copy
+completion: advancing/resetting/deleting a former source does not invalidate an
+existing Env. In-flight copying still pins its source through the shared catalog.
+The existing exclusive copy reservation is retained; simultaneous uses of one
+source may be refused as busy while preparation is unfinished.
+
+Materialization claims each planned child exactly once. An empty volume records
+positive creation before verification; a copy uses the existing completed-copy
+receipt and recovery. Failed or ambiguous creation remains owned. No runtime is
+requested until every selected resource is ready. Unsupported runtimes refuse
+selection before reservation instead of silently dropping areas.
+
+Canonical Env deletion first proves complete runtime/network absence, then records
+that fact durably and fences child creation. Shared resource deletion verifies
+absence of each exact child before releasing its ownership. The Env and Workspace
+lease survive until all children are absent. Unstarted children can be cancelled;
+unknown in-flight creation cannot. Child cleanup continues independently after a
+sibling fails. Retained Workspace and OCI data are never included in child cleanup.
+A retry after the durable runtime-absence receipt does not delete that runtime name
+again. A missing runtime reference alone is not evidence of absence.
+
+Incus create/restore/archive and snapshot planning currently refuse these added
+attachments. Existing ordinary Envs without them keep their snapshot/copy/transfer
+paths. The Standard selector is not registered in production; this slice exposes
+no new public cache operation and has no normal-Env/native cache acceptance.
+Normalized Core paths are not permission to mount arbitrary guest system paths:
+Incus placement must still validate ownership, mount/link boundaries, protected
+paths and resume state before support is enabled. See [ADR 0077](../adr/0077-environment-owned-disposable-data.md).
+
 ## Provider and persistence boundaries
 
 The Incus adapter recognizes `build-cache` volumes through the existing owned
@@ -60,18 +99,21 @@ fresh ownership, matching resource kinds and detached sources. Source config is
 not copied wholesale. Attached cache sources are refused; they cannot use trusted
 Host OCI pause/resume or OCI attachment/maintenance/import paths.
 
-Catalog format 15 adds generation selections. Supported earlier formats remain
+Catalog format 15 introduced generation selections; format 16 adds Env-owned
+children and runtime-absence receipts. Supported earlier formats remain
 readable without writes during observation; the first mutation upgrades the
 catalog. Format 9 remains unsupported. Generation fields under earlier formats,
-invalid ownership or incomplete selected resources fail closed. Older binaries
-that do not understand format 15 must refuse it; do not replace an installed
+invalid ownership or incomplete selected resources fail closed. Format-16
+attachment fields in older catalogs, orphan children, conflicting identities,
+nonmatching Env/lease data and invalid creation/absence states also fail closed. Older binaries
+that do not understand format 16 must refuse it; do not replace an installed
 controller merely to run these tests.
 
 ## Completion still required
 
 The foundation does not yet define the public Host configuration format, securely
 resolve configured paths, enroll pre-existing Envs, attach multiple cache areas,
-collect stopped writers, track Env origin/history or clear selected/all Env copies.
+collect stopped writers, expose origin/history or clear selected/all Env copies.
 Those changes must extend canonical lifecycle ownership rather than assemble
 independent resource/lease operations in orchestration code. Env-local cache copies
 must be disposable while contracted Workspace and OCI data remain retained.
