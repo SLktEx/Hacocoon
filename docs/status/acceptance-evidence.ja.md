@@ -704,6 +704,8 @@ hosted の初回実行 4 件（[test](https://github.com/SLktEx/Hacocoon/actions
 
 ## Windows接続候補へのmain統合
 
+統合実装commit: `44a30b1a0f03f639f3df76eaf5730c37dc50e3ea`.
+
 `codex/windows-main-sync`はmain `f47a9a41e5c175b8f7a4dca41680595be1687c99`を
 PR #634候補へ統合しています。#631のSSH接続、#625のWSL起動修正、#612の共通build/cacheを
 再利用します。導入済み統合候補の受入は未実施です。
@@ -730,3 +732,5 @@ fixtureのprivate login profileで実際のBash入力待ち表示を観測して
 入力消失などの原因を断定しません。過去の実Windows起動FAILの原因証明や受入の代替でもありません。
 
 実PTYのresize・SIGWINCH・切断はraceで10回PASS。統合候補をWindows amd64へbuildし、実Windowsでclient/controller/TCPの8並行1MiB往復・半切断・cancel・待受回収、日英help・不正引数拒否がPASSです。新規WSL/Incusへの導入、通常入口からWindows待受への自動委譲、arm64実行、fresh GUI回答は未確認です。
+
+`44a30b1a`のGit archiveを新しい一時領域へそのまま展開し、記録された実行属性のまま標準ローカルCI全体を再実行してPASSしました。

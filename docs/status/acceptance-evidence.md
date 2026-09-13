@@ -825,6 +825,8 @@ At `d1c7480bd69157fb65974e9e2f2673e2ffffe4b6`, repository, Ubuntu and all requir
 
 ## Main integration into the Windows connection candidate
 
+Integration implementation commit: `44a30b1a0f03f639f3df76eaf5730c37dc50e3ea`.
+
 `codex/windows-main-sync` integrates main `f47a9a41e5c175b8f7a4dca41680595be1687c99`
 into the PR #634 candidate, reusing #631 portless SSH, #625 WSL startup routing and
 #612 shared CI build/cache changes. Installed combined-candidate acceptance is
@@ -861,3 +863,5 @@ PTY transcript, so input loss or another root cause is not established. This is
 not root-cause proof or native acceptance for the older Windows startup failures.
 
 Real PTY resize/SIGWINCH/disconnect tests pass ten race repetitions. Integrated Windows amd64 builds pass actual Windows client/controller/TCP eight-concurrent 1 MiB round trips, half-close, cancellation/listener cleanup, bilingual help and invalid-argument refusal. New WSL/Incus installation, automatic delegation from ordinary entry, arm64 execution and fresh GUI decisions remain unverified.
+
+The exact `44a30b1a` Git archive also passes a fresh complete maintained local CI run with its recorded executable modes preserved.
