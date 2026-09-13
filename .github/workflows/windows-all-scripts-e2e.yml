@@ -62,16 +62,34 @@ jobs:
           $candidateVersion = "v0.0.0-e2e"
           git tag $candidateVersion $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw "Failed to create local E2E release tag." }
-          goreleaser release --clean --skip=publish
+
+          # The packaged Windows acceptance below exercises only amd64. Keep the
+          # production GoReleaser configuration and ldflags, but remove the unused
+          # arm64 half of every current build matrix for this E2E candidate.
+          $releaseConfig = Get-Content -LiteralPath ./.goreleaser.yaml -Raw
+          $matrix = "goarch: [amd64, arm64]"
+          $matrixCount = ([regex]::Matches($releaseConfig, [regex]::Escape($matrix))).Count
+          if ($matrixCount -ne 9) {
+            throw "Expected 9 dual-arch GoReleaser build matrices, found $matrixCount; review the E2E projection before changing release config."
+          }
+          $releaseConfig = $releaseConfig.Replace($matrix, "goarch: [amd64]")
+          $e2eConfig = Join-Path $env:RUNNER_TEMP "goreleaser-windows-amd64-e2e.yaml"
+          [System.IO.File]::WriteAllText($e2eConfig, $releaseConfig)
+
+          goreleaser release --config $e2eConfig --clean --skip=publish
           if ($LASTEXITCODE -ne 0) { throw "GoReleaser candidate build failed." }
           @(
             "dist/haco_linux_amd64.tar.gz",
-            "dist/haco_linux_arm64.tar.gz",
+            "dist/haco_review_windows_amd64.zip",
+            "dist/haco_wsl_windows_amd64.zip",
             "dist/checksums.txt"
           ) | ForEach-Object {
             if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {
               throw "Release-equivalent build is missing $_."
             }
+          }
+          if (Test-Path -LiteralPath "dist/haco_linux_arm64.tar.gz" -PathType Leaf) {
+            throw "amd64-only Windows acceptance unexpectedly built arm64 release artifacts."
           }
 
       - name: "[fixture] Build and extract release-equivalent Windows package"
