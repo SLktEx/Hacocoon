@@ -38,7 +38,6 @@ jobs:
         run: python3 tools/check_docs.py
       - name: "[fixture] Test documentation consistency regressions"
         run: python3 tools/test_check_docs.py
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -50,6 +49,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   workflow-policy:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -84,7 +84,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -96,6 +95,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   release-config:
     runs-on: ubuntu-26.04
     timeout-minutes: 8
@@ -126,6 +126,15 @@ jobs:
           go-version: 1.27.0
           check-latest: false
           cache: false
+      - name: "[infrastructure] Restore trusted Go caches"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-
       - name: "[infrastructure] Install GoReleaser"
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
@@ -192,7 +201,6 @@ jobs:
             hacocoon-ubuntu-amd64.tar.gz hacocoon-ubuntu-arm64.tar.gz; do
             test -f "release-payload-test/$path"
           done
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -204,6 +212,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   build:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -224,6 +233,15 @@ jobs:
           go-version: 1.27.0
           check-latest: false
           cache: false
+      - name: "[infrastructure] Restore trusted Go caches"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-
       - name: "[product] Build Linux binaries"
         env:
           CGO_ENABLED: 0
@@ -239,7 +257,15 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-vscode" ./cmd/haco-vscode
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
-
+      - name: "[infrastructure] Upload shared Linux amd64 CI binaries"
+        if: matrix.goarch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-linux-amd64-binaries
+          path: dist/build/linux-amd64/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -251,6 +277,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   aws-plugin:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
@@ -265,7 +292,6 @@ jobs:
           "$RUNNER_TEMP/aws-sdk/bin/pip" install botocore==1.40.76
       - name: "[product] Verify AWS identity, signing scope and redirect refusal without AWS access"
         run: HACO_AWS_TEST_PYTHON="$RUNNER_TEMP/aws-sdk/bin/python" bash tools/ci-local.sh aws
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -277,6 +303,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   test:
     name: test (${{ matrix.go-series }})
     runs-on: ubuntu-26.04
@@ -300,6 +327,15 @@ jobs:
           go-version: ${{ matrix.go-version }}
           check-latest: false
           cache: false
+      - name: "[infrastructure] Restore trusted Go caches"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.go-version }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ matrix.go-version }}-
       - name: "[product] Go unit and integration tests"
         run: go test -count=1 -shuffle=615 ./...
       - name: "[fixture] Go static analysis"
@@ -340,7 +376,6 @@ jobs:
           node --check test/js/agent_workspace_tools.test.js
           node --check test/js/agent_workspace_tool_security.test.js
           node --test test/js/agent_workspace_client.test.js test/js/agent_workspace_tools.test.js test/js/agent_workspace_tool_security.test.js
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -352,6 +387,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   race:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -366,9 +402,17 @@ jobs:
           go-version: 1.27.0
           check-latest: false
           cache: false
+      - name: "[infrastructure] Restore trusted Go caches"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-
       - name: "[product] Go race tests"
         run: go test -race -count=1 ./...
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -380,7 +424,9 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   e2e:
+    needs: build
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -394,8 +440,35 @@ jobs:
           go-version: 1.27.0
           check-latest: false
           cache: false
+      - name: "[infrastructure] Restore trusted Go caches"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-1.27.0-
+      - name: "[infrastructure] Download shared Linux amd64 CI binaries"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-linux-amd64-binaries
+          path: ${{ runner.temp }}/haco-ci-bin
+      - name: "[infrastructure] Route repeated E2E builds to shared binaries"
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP"/haco-ci-bin/*
+          chmod +x tools/ci-go-build-wrapper.sh
+          real_go="$(command -v go)"
+          wrapper_dir="$RUNNER_TEMP/haco-go-wrapper"
+          mkdir -p "$wrapper_dir"
+          ln -sf "$GITHUB_WORKSPACE/tools/ci-go-build-wrapper.sh" "$wrapper_dir/go"
+          printf 'HACO_REAL_GO=%s\n' "$real_go" >> "$GITHUB_ENV"
+          printf 'HACO_CI_BIN_DIR=%s\n' "$RUNNER_TEMP/haco-ci-bin" >> "$GITHUB_ENV"
+          printf '%s\n' "$wrapper_dir" >> "$GITHUB_PATH"
       - name: "[fixture] Validate E2E shell syntax"
-        run: bash -n test/e2e/*.sh
+        run: bash -n test/e2e/*.sh tools/ci-go-build-wrapper.sh
       - name: "[product] Shipped command black-box E2E"
         run: bash test/e2e/commands.sh
       - name: "[product] Capability E2E"
@@ -404,7 +477,6 @@ jobs:
         run: bash test/e2e/git_github.sh
       - name: "[product] Orchestrator E2E"
         run: bash test/e2e/orchestrator.sh
-
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
         run: python tools/ci_diagnostics.py --output ci-substrate.json
@@ -416,6 +488,7 @@ jobs:
           path: ci-substrate.json
           if-no-files-found: error
           retention-days: 30
+
   test-evidence:
     needs: [docs, workflow-policy, release-config, build, aws-plugin, test, race, e2e]
     if: ${{ !cancelled() }}
