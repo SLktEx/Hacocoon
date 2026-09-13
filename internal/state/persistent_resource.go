@@ -140,6 +140,12 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 		if owner != "" && r.Owner != owner {
 			return core.ErrCapabilityStale
 		}
+		if generationReferences(*d, id) {
+			return core.ErrStorageBusy
+		}
+		if core.ValidGenerationResource(r.Ref()) && !r.SourceOnly {
+			return core.ErrIncompatibleState
+		}
 		if reviewed && (r.SourceOnly || (r.State != "ready" && r.State != "deleting")) {
 			return core.ErrRecoveryRequired
 		}
@@ -183,6 +189,9 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 // Only the provider-owning service may finalize after positively proving absence.
 func (s *EnvironmentJSONStore) FinalizePersistentResourceDelete(_ context.Context, r core.PersistentResource) error {
 	return s.resourceTransaction(func(d *environmentFileState) error {
+		if generationReferences(*d, r.ID) {
+			return core.ErrStorageBusy
+		}
 		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || r.State != "deleting" {
 			return fmt.Errorf("persistent resource ownership changed: %w", core.ErrIncompatibleState)
 		}
@@ -204,7 +213,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 	}
 
 	for _, r := range data.PersistentResources {
-		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion) {
+		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && (data.Version < 13 || data.Version > environmentStateVersion) {
 			return core.ErrIncompatibleState
 		}
 		if r.State == "created" && (r.RestoreSource == "" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{})) {

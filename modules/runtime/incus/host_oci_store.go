@@ -55,7 +55,7 @@ except Exception:
 `
 
 func (b *PersistentResourceBackend) PrepareHostSource(ctx context.Context, source core.PersistentResource) error {
-	if !source.SourceOnly || source.ID != "oci-source:host" || source.State != "creating" || source.WorkspaceID != "" {
+	if source.Kind != OCIStoreKind || !source.SourceOnly || source.ID != "oci-source:host" || source.State != "creating" || source.WorkspaceID != "" {
 		return core.ErrInvalidArgument
 	}
 	unlock, err := lockHostOperation(ctx, b.Runtime.project)
@@ -96,6 +96,9 @@ func (b *PersistentResourceBackend) PrepareHostSource(ctx context.Context, sourc
 }
 
 func (b *PersistentResourceBackend) VerifyHostSource(ctx context.Context, source core.PersistentResource) error {
+	if source.Kind != OCIStoreKind {
+		return core.ErrInvalidArgument
+	}
 	observed, err := b.observe(ctx, source)
 	if err != nil {
 		return err

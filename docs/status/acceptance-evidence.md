@@ -6,6 +6,53 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="cache-generation-foundation"></a>
+## Cache generation foundation
+
+Implementation `2a0e94990710bd3db9143f97d8fa5c4934b6a664` (v0.69) adds atomic source selection and
+detached `build-cache` provider volumes. Go 1.26.8 Core/state/resource/architecture/
+Incus regressions and three targeted race repetitions passed. Source verification
+found 1,474 byte-identical files between the final tested copy and this commit.
+Documentation consistency and 18 checker regressions passed.
+
+Production changes passed the other packages in standard local test CI (Go
+1.27.1, shuffle 615), but `TestLoginBootstrapPTYDoesNotStartHostSetup` failed
+waiting for the Bash input prompt (6.64 s). Its earlier failures remain unresolved.
+The later CI stages were skipped in that execution; separately, `go vet`, client
+syntax, 32 notification-client tests and two packaging tests passed. These split
+results do not turn the full CI run into a pass. The new opt-in native cache
+fixture was added after that full run and executed separately.
+
+Real Incus 6.0.5/Btrfs provider acceptance used a dedicated 1 GiB pool and random
+8 MiB fixture data. Two independent copies took 3.837846024 s. `btrfs filesystem
+du --raw -s` reported total/shared 8,388,608 bytes and exclusive 0 for each of the
+source and two copies, before mutation. Contents, independent mutation, current
+source deletion refusal, copies surviving reset/source deletion, native snapshot
+reference refusal and exact fixture cleanup passed (16.45 s total). This measures
+small synthetic data extents, not total pool allocation or giant-repository speed.
+
+The first native attempt failed before publication because the test process
+could not see the daemon's separate storage mount namespace. Pool/project
+`haco-cache-15c4cf3cbcded3c0` and catalog
+`/var/lib/haco-cache-generation-2844418008/state.json` retain a creating owned
+source at generation zero; no forced catalog edit or cleanup bypass was used.
+The successful attempt ran the same compiled fixture in the existing daemon
+mount namespace, without changing isolation/authorization settings, and removed
+its own pool/project `haco-cache-969c95ea6a2e3bc9`. It does not clean or resolve the
+first attempt's retained source. This privileged fixture seeds and observes only
+its own volumes; it is not ordinary-Env collection or installed client acceptance.
+
+Host-selected paths, compatibility enrollment, multiple Env attachments,
+automatic stopped collection, history/clear operations and actual large-repository
+measurement remain open in [the cache contract](../design/cache-generations.md).
+
+Parent Packer PR #643 (`80a687d0`) subsequently passed test 34778540239, Ubuntu
+34778540205 and Incus 34778540180. Windows 34778540191/job 103781180868 passed
+steps 13–20, including tunnel exit 0, but notification step 21 failed at
+`stage=activation, reason=unavailable`; native/child exit/duration were unrecorded.
+Fresh notification answers and actual Packer completion remain unverified.
+
+
 ## Temporary-run ownership and streams
 
 `9f4cf5105f01c5da7dfe40e080651979789c799b` (PR #590) passed test
