@@ -51,7 +51,6 @@ jobs:
         run: bash tools/ci-incus.sh cleanup-standalone
 
   incus-core-e2e:
-    needs: incus-standalone
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
