@@ -360,8 +360,10 @@ HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
   -v -timeout 18m ./modules/runtime/incus
 ```
 
-試験は専用のプロジェクト、プール、ネットワークを作り、成功時に削除します。失敗時は
-表示した所有対象を調査用に保持します。結果は[検証証拠](../status/acceptance-evidence.ja.md#installation)を参照してください。
+試験は専用のプロジェクトとプールを作り、成功時に削除します。ネットワークは通常の
+Host 処理で検証・構成する `haco-host0` を使い、管理基盤として保持します。
+既存の別 Host がそのネットワークを利用している場合は拒否します。失敗時は表示した
+所有対象を調査用に保持します。結果は[検証証拠](../status/acceptance-evidence.ja.md#installation)を参照してください。
 
 
 ## Host 入口の言語

@@ -372,8 +372,10 @@ HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
   -v -timeout 18m ./modules/runtime/incus
 ```
 
-The fixture creates its own project, pool and network, and cleans them after a
-pass. Failure retains its printed ownership identities for inspection. See
+The fixture creates its own project and pool, and cleans them after a pass.
+It uses normal Host setup to verify/configure `haco-host0`, which remains managed
+infrastructure. An existing different Host consuming that network is refused.
+Failure retains its printed ownership identities for inspection. See
 [acceptance evidence](../status/acceptance-evidence.md#installation) for results.
 
 

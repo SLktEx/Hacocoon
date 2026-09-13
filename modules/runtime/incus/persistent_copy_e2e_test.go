@@ -225,11 +225,14 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
 	var verifyRuntimeCopy func(core.PersistentResource)
-	toolingNetwork := ""
 	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
-		toolingNetwork = "h599-" + hex.EncodeToString(nonce[:4])
-		command("network", "create", toolingNetwork, "ipv4.address=auto", "ipv4.nat=true", "ipv6.address=none")
-		command("config", "device", "add", trustedHostName, "eth0", "nic", "network="+toolingNetwork, "--project", project)
+		// Use normal Host networking, including scoped Docker FORWARD rules.
+		// Its verified persistent bridge remains managed infrastructure after
+		// the fixture is removed; never delete it as disposable test storage.
+		if err := runtime.ensureTrustedHostNetwork(ctx); err != nil {
+			t.Fatal("standard Host network", err)
+		}
+		command("config", "device", "add", trustedHostName, "eth0", "nic", "name=eth0", "network="+trustedHostNetwork, "--project", project)
 		// Match normal Host setup: its NIC is present when the guest boots.
 		// Minimal images need not configure a NIC hot-plugged after boot.
 		command("stop", trustedHostName, "--project", project, "--timeout", "60")
@@ -329,9 +332,6 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		t.Fatal(err)
 	}
 	command("delete", trustedHostName, "--project", project, "--force")
-	if toolingNetwork != "" {
-		command("network", "delete", toolingNetwork)
-	}
 	if err := service.Delete(ctx, source.ID); err != nil {
 		t.Fatal(err)
 	}
