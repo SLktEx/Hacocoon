@@ -9,8 +9,9 @@ from pathlib import Path
 def validate(record):
     patterns = {"nonce": r"[a-f0-9]{16}", "workspace": r"import-[a-f0-9]{16}",
                 "oci": r"oci:import-[a-f0-9]{16}", "snapshot": r"snap-[a-f0-9]{32}",
-                "commit": r"[a-f0-9]{40}"}
-    if not isinstance(record, dict) or set(record) != {"version", *patterns} or type(record["version"]) is not int or record["version"] != 1:
+                "commit": r"[a-f0-9]{40}", "base": r"win-base-[a-f0-9]{16}",
+                "base_revision": r"sha256:[a-f0-9]{64}"}
+    if not isinstance(record, dict) or set(record) != {"version", *patterns} or type(record["version"]) is not int or record["version"] != 2:
         raise RuntimeError("Invalid retention fixture manifest")
     for key, pattern in patterns.items():
         if not isinstance(record[key], str) or not re.fullmatch(pattern, record[key]):
@@ -59,6 +60,12 @@ def run(args, timeout=900):
 
 def verify(record, host, guest):
     record = validate(record)
+    # This journey checks retained data, using the Base already built through
+    # the public CLI. It must not resolve a moving external default image again.
+    expected_base = {"name": record["base"], "revision": record["base_revision"]}
+    base = json.loads(host("base", "inspect", "--json", record["base"]))
+    if not isinstance(base, dict) or any(base.get(k) != v for k, v in expected_base.items()):
+        raise RuntimeError("Retained Base identity changed or unavailable")
     def saved():
         rows = json.loads(host("snapshot", "list", "--json"))
         if not isinstance(rows, list):
@@ -78,7 +85,10 @@ def verify(record, host, guest):
              'test "$(cat untracked)" = untracked; test "$(cat continued)" = continued-over-ssh; '
              'test "$(cat /var/lib/hacocoon-oci/transfer-marker)" = oci-kept; ')
     guest(restored, check + 'test "$(cat /root/transfer-marker)" = rootfs-kept')
-    host("env", "create", "--workspace", "managed:" + record["workspace"], "--resource", record["oci"], current)
+    created = json.loads(host("env", "create", "--json", "--base", record["base"],
+                              "--workspace", "managed:" + record["workspace"], "--resource", record["oci"], current))
+    if not isinstance(created, dict) or created.get("name") != current or created.get("base") != expected_base:
+        raise RuntimeError("Reattached Environment Base identity unproven")
     guest(current, check + 'test ! -e /root/transfer-marker')
     if saved() != before:
         raise RuntimeError("Source snapshot changed during restore")

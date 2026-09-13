@@ -1,6 +1,6 @@
 # Installed G1 acceptance; called by the existing Windows SSH fixture.
 function Invoke-InstalledEnvironmentTransfer {
-    param([string]$BaseName, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory, [string]$ReclamationManifest)
+    param([string]$BaseName, [string]$BaseRevision, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory, [string]$ReclamationManifest)
     if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Transfer fixture requires the disposable GHA user' }
     $nonce = [guid]::NewGuid().ToString('N').Substring(0,16)
     $source = 'win-ssh-' + $nonce
@@ -135,7 +135,8 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','delete','--yes',$repository) 'Delete exact transfer source repository registration')
         if ($retainForReclaim) {
             $manifest = $ReclamationManifest
-            $record = @{version=1; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit} | ConvertTo-Json -Compress
+            if ($BaseName -cnotmatch '^win-base-[a-f0-9]{16}$' -or $BaseRevision -cnotmatch '^sha256:[a-f0-9]{64}$') { throw 'Invalid retained Base receipt' }
+            $record = @{version=2; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit; base=$BaseName; base_revision=$BaseRevision} | ConvertTo-Json -Compress
             $stream = [IO.File]::Open($manifest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
             try { $bytes=[Text.UTF8Encoding]::new($false).GetBytes($record); $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
             Write-Host 'Detached imported Workspace, OCI and snapshot retained for reclamation acceptance'

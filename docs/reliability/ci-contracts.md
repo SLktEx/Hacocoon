@@ -120,6 +120,14 @@ to construct deletion authority.
 
 ## Acceptance layers and remaining limits
 
+Windows reclamation retention uses the Base already built through the public CLI
+for the transfer fixture. Its manifest records the exact name and revision, and
+the later reattachment verifies that receipt before and after ordinary
+`haco env create --base`. The Base remains with its retained fixture; it is not
+deleted before the later consumer runs. This data-retention assertion does not
+implicitly resolve a moving external default image again. Initial installation
+and default Base acquisition remain on the ordinary product path.
+
 Main retains repository/native validation; manual `real-git-push-e2e` and the
 authenticated private-registry scenario add credential/provider compatibility.
 `windows-wsl-image-cache` prepares a verified download cache; it is not acceptance.

@@ -103,6 +103,12 @@ project の識別子は検証した JSON から取得する。Incus の CSV 表�
 
 ## その他の受入と残る制約
 
+Windows reclamation のデータ保持検証には、transfer fixture が公開 CLI で構築済みの
+Base を使う。manifest に正確な名前と revision を記録し、後続の再接続では通常の
+`haco env create --base` の前後でその記録を検証する。Base は保持 fixture とともに残し、
+後続処理が使う前には削除しない。このデータ保持の assertion では、変動する外部の既定
+イメージを暗黙に再解決しない。初回インストールと既定 Base の取得は通常の製品経路に残る。
+
 main の repository/native 検証、manual `real-git-push-e2e` と private-registry 検証は
 互換性を追加する。`windows-wsl-image-cache` は download cache で、受入ではない。
 公開・attestation・公開済み artifact の install は #370 の release 境界に残る。
