@@ -18,6 +18,8 @@ const (
 	MethodGitConnect      = "git.connect"
 	MethodGitPending      = "git.pending"
 	MethodGitDecide       = "git.decide"
+	MethodGitStatus       = "git.status"
+	MethodGitReconcile    = "git.reconcile"
 )
 
 type RepositoryCloneRequest struct {
@@ -37,12 +39,36 @@ type GitDecisionRequest struct {
 	Approved bool   `json:"approved"`
 }
 
+type GitStatusRequest struct {
+	Environment string `json:"environment"`
+	RequestID   string `json:"request_id,omitempty"`
+}
+
+func gitStatusHandler(broker *gitrepo.Broker, reconcile bool) control.Handler {
+	return func(ctx context.Context, payload json.RawMessage) (any, error) {
+		var req GitStatusRequest
+		decoder := json.NewDecoder(bytes.NewReader(payload))
+		decoder.DisallowUnknownFields()
+		if len(payload) > 4096 || decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF {
+			return nil, control.ErrInvalidArgument
+		}
+		if reconcile {
+			result, err := broker.ReconcilePush(ctx, req.Environment, req.RequestID)
+			return result, translateError(err)
+		}
+		result, err := broker.PushStatus(ctx, req.Environment, req.RequestID)
+		return result, translateError(err)
+	}
+}
+
 func RegisterRepositories(server *control.Server, repositories *gitrepo.RepositoryService, broker *gitrepo.Broker) error {
 	registrations := []struct {
 		method  string
 		handler control.Handler
 	}{
 		{MethodRepositoryManage, repositoryManageHandler(repositories)},
+		{MethodGitStatus, gitStatusHandler(broker, false)},
+		{MethodGitReconcile, gitStatusHandler(broker, true)},
 		{MethodRepositoryClone, func(ctx context.Context, payload json.RawMessage) (any, error) {
 			var req RepositoryCloneRequest
 			if json.Unmarshal(payload, &req) != nil {
@@ -111,6 +137,16 @@ func (c *Client) ConnectGit(ctx context.Context, environment string) error {
 func (c *Client) PendingGit(ctx context.Context) ([]gitrepo.Proposal, error) {
 	var response []gitrepo.Proposal
 	err := c.wire.Call(ctx, MethodGitPending, nil, &response)
+	return response, err
+}
+
+func (c *Client) GitPushStatus(ctx context.Context, request GitStatusRequest, reconcile bool) (gitrepo.PushStatus, error) {
+	method := MethodGitStatus
+	if reconcile {
+		method = MethodGitReconcile
+	}
+	var response gitrepo.PushStatus
+	err := c.wire.Call(ctx, method, request, &response)
 	return response, err
 }
 func (c *Client) DecideGit(ctx context.Context, id string, approved bool) error {

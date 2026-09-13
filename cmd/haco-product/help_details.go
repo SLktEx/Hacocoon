@@ -37,6 +37,7 @@ func init() {
 	}
 	set([]string{"env list", "repo list", "workspace list", "plugin oci store list"}, nil, []cliui.HelpField{json})
 	set([]string{"version"}, nil, []cliui.HelpField{json})
+	set([]string{"git status", "git reconcile"}, []cliui.HelpField{env}, []cliui.HelpField{json, field("--request <request-id>", "git.recovery.request")}, "git.recovery.next")
 	set([]string{"doctor"}, []cliui.HelpField{field("[environment]", "detail.doctor_env")}, []cliui.HelpField{json})
 	set([]string{"setup"}, []cliui.HelpField{field("[environment]", "detail.setup_env")}, []cliui.HelpField{field("--script <path>", "detail.setup_script"), field("--clear-script", "detail.setup_clear")})
 	set([]string{"config"}, nil, []cliui.HelpField{field("--edit", "detail.config_edit"), field("--file <file>", "detail.config_file")})

@@ -392,3 +392,30 @@ stale/malformed refusal and listener cleanup passed. Human toast clicks/fresh GU
 decisions and VPN/NRPT were explicitly skipped. Japanese Windows native acceptance
 and the local existing WSLInterop failure remain unresolved. These results predate
 the new GUI session and must not be relabeled as its acceptance or as distribution.
+
+
+## Durable push reconciliation candidate
+
+Implementation `42aa706fd2fec31f1c3f565337e246aafc12f752` on
+`codex/git-push-reconciliation` adds status and read-only reconciliation for
+Issue #470. The final source passed `bash tools/ci-local.sh test` and the docs
+checker in an independent Linux copy. Related packages also passed on Go 1.26.8;
+that check preceded the final controller round-trip fixture (product code was the same).
+
+Real local Git fixtures passed remote write followed by lost acknowledgement,
+restarted broker state, identical competing branch creation, current old/new/
+absent/diverged observations, fresh read denial, active-operation refusal,
+generation replacement during approval, changed source ownership, and failed
+start/confirmation/observation persistence. Corrupt, duplicate and incomplete
+receipts fail closed. No push is replayed; matching OIDs retain original uncertainty.
+Controller routing and bilingual human/JSON results are covered separately.
+
+Initial focused tests failed because the existing collection fixture supplied
+neither generation nor the required audit sink; it now uses the common service
+and exact generation. The first run with the new controller round-trip test
+failed because it compared a transported status to a Core sentinel; it now checks
+the existing `recovery_required` wire code. The final full local retry passed.
+Neither failure was hidden by changing production permissions or error semantics.
+Authenticated external Git, the new installed Host agent operation, and ordinary
+Windows/WSL use of these commands are **not run**, not passed. Historical Git
+acceptance and earlier native workflow passes do not substitute for this slice.

@@ -181,6 +181,8 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
 	audit := capabilityapp.NewJSONLAudit(auditPath)
+	gitBroker.PushAudit = audit
+	gitBroker.AuditHistory = eventsapp.New(auditPath)
 	capabilities, err := capabilityapp.New(
 		policy,
 		approval,

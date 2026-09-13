@@ -81,6 +81,22 @@ func New(path string) *Service { return &Service{path: path} }
 // successfully emitted event. Memory use is bounded by one audit record plus
 // the caller's own callback state.
 func (s *Service) Stream(ctx context.Context, offset int64, emit func(Event) error) (int64, error) {
+	if emit == nil {
+		return offset, core.ErrInvalidArgument
+	}
+	return s.StreamAudit(ctx, offset, func(audit core.CapabilityAuditEvent, next int64) error {
+		return emit(Event{
+			RequestID: audit.RequestID, Time: audit.Time, Source: "capability", Type: audit.Type,
+			Environment: audit.Environment, Capability: audit.Capability, Action: audit.Action,
+			Resource: audit.Resource, Attributes: clone(audit.Attributes), Decision: audit.Decision,
+			Approved: audit.Approved, Success: audit.Success, Reason: audit.Reason, NextOffset: next,
+		})
+	})
+}
+
+// StreamAudit exposes the same bounded, validated records to trusted recovery
+// services without extending the public interaction-event projection.
+func (s *Service) StreamAudit(ctx context.Context, offset int64, emit func(core.CapabilityAuditEvent, int64) error) (int64, error) {
 	if s == nil || s.path == "" || offset < 0 || emit == nil {
 		return offset, core.ErrInvalidArgument
 	}
@@ -103,7 +119,7 @@ func (s *Service) Stream(ctx context.Context, offset int64, emit func(Event) err
 	if offset > info.Size() {
 		return offset, fmt.Errorf("event offset %d exceeds current audit size %d (log may have been truncated or rotated): %w", offset, info.Size(), core.ErrInvalidArgument)
 	}
-	if offset > 0 && offset < info.Size() {
+	if offset > 0 {
 		var previous [1]byte
 		if _, err := file.ReadAt(previous[:], offset-1); err != nil {
 			return offset, fmt.Errorf("validate event offset %d: %w", offset, err)
@@ -116,7 +132,9 @@ func (s *Service) Stream(ctx context.Context, offset int64, emit func(Event) err
 		return offset, fmt.Errorf("seek capability audit to %d: %w", offset, err)
 	}
 
-	scanner := bufio.NewScanner(file)
+	// Fix the read boundary so a concurrent writer cannot extend a recovery
+	// scan indefinitely. A partial final append is refused, never accepted.
+	scanner := bufio.NewScanner(io.LimitReader(file, info.Size()-offset))
 	scanner.Buffer(make([]byte, 64*1024), maxAuditRecordBytes+2)
 	scanner.Split(scanJSONLRecord)
 	currentOffset := offset
@@ -159,23 +177,10 @@ func (s *Service) Stream(ctx context.Context, offset int64, emit func(Event) err
 				Err:        errors.New("required time/type field is missing"),
 			}
 		}
-		event := Event{
-			RequestID:   audit.RequestID,
-			Time:        audit.Time,
-			Source:      "capability",
-			Type:        audit.Type,
-			Environment: audit.Environment,
-			Capability:  audit.Capability,
-			Action:      audit.Action,
-			Resource:    audit.Resource,
-			Attributes:  clone(audit.Attributes),
-			Decision:    audit.Decision,
-			Approved:    audit.Approved,
-			Success:     audit.Success,
-			Reason:      audit.Reason,
-			NextOffset:  currentOffset,
+		if !bytes.HasSuffix(rawRecord, []byte{'\n'}) {
+			return recordOffset, &AuditCorruptionError{Line: line, ByteOffset: recordOffset, Kind: CorruptionIncomplete, Err: errors.New("audit record has no terminating newline")}
 		}
-		if err := emit(event); err != nil {
+		if err := emit(audit, currentOffset); err != nil {
 			return recordOffset, err
 		}
 	}

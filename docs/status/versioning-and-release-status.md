@@ -85,8 +85,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.60 | Reviewed Git Branch Creation | implemented on development candidate; native acceptance pending |
 | v0.61 | Local GUI Approval Review | implemented on development candidate; installed GUI acceptance pending |
 | v0.62 | Temporary Process Streams | implemented on development candidate; native pipe/TTY acceptance pending |
+| v0.63 | Durable Git Push Reconciliation | ✅ implemented |
 
-The current milestone position is **v0.62**. This declaration and the table mirror YAML.
+The current milestone position is **v0.63**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 

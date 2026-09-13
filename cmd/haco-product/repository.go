@@ -30,6 +30,9 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if namespace == "workspace" && len(args) > 0 && (args[0] == "prepare" || args[0] == "fork") {
 		return workflowCommand(ctx, args, out, diagnostic)
 	}
+	if namespace == "git" && len(args) > 0 && (args[0] == "status" || args[0] == "reconcile") {
+		return gitRecoveryCommand(ctx, args, out, diagnostic)
+	}
 	usage := func() int {
 		commandHelp(diagnostic, namespace, cliLanguage())
 		return 2

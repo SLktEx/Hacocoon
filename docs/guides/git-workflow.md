@@ -57,6 +57,36 @@ is deny, then require-approval, then allow, regardless of rule order.
 Git's trusted upstream traffic needs no guest GitHub credential or authenticated
 proxy. Package downloads and application DNS require their separate network rules.
 
+## Inspect an interrupted push
+
+On the trusted management side, use the Env name after a failed or interrupted push:
+
+```bash
+haco git status sample-dev
+haco git reconcile sample-dev
+```
+
+`status` reads the latest requested push's durable record without contacting the
+remote. `reconcile` makes a fresh, separately authorized exact-branch read. It
+shows whether the current remote matches the proposed commit, the old commit,
+has no such branch, or has diverged. Equality alone does not establish who changed
+the remote: an unconfirmed original push stays unconfirmed. The original common
+capability completion and the Git confirmation receipt remain separate JSON facts.
+Neither command repeats a push or restores an interrupted approval.
+
+Use `--json` for recorded identities/OIDs and `--request <request-id>` to inspect
+an older request. Put options before the Env name. While a request is active,
+wait for it to end. A missing dispatch record, changed Env generation/source
+owner, missing current connection or corrupt audit refuses reconciliation;
+inspect retained evidence rather than guessing another target. Older records
+without dispatch ownership cannot be reconciled through this command.
+
+Then fetch inside the Env, review your local branch against the remote, and submit
+a new ordinary push if still needed. It receives a new Policy decision and exact
+remote lease. Main push approval is preserved. This feature is implemented on the
+development branch; fresh authenticated external/installed-client acceptance is
+pending. See [the evidence contract](../adr/0070-git-push-reconciliation-evidence.md).
+
 ## Fetch, commit and push
 
 In the Environment, use ordinary `git status`, `git fetch origin`,
