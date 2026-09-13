@@ -35,12 +35,54 @@ type PolicyFile struct {
 }
 
 type FilePolicyEvaluator struct {
-	path string
-	now  func() time.Time
+	path               string
+	now                func() time.Time
+	baselineRules      []PolicyRule
+	baselineConfigured bool
 }
 
 func NewFilePolicyEvaluator(path string) *FilePolicyEvaluator {
 	return &FilePolicyEvaluator{path: path, now: time.Now}
+}
+
+// ConfigureBaselineRules installs product-owned narrow grants that are checked
+// only after all matching operator and saved Policy rules. They are not written
+// to policy.json and therefore cannot be widened by guest-controlled state.
+// Configuration belongs to trusted composition and must finish before the
+// evaluator is served concurrently.
+func (e *FilePolicyEvaluator) ConfigureBaselineRules(rules []PolicyRule) error {
+	if e == nil {
+		return core.ErrInvalidArgument
+	}
+	if e.baselineConfigured {
+		return core.ErrIncompatibleState
+	}
+	cloned := make([]PolicyRule, 0, len(rules))
+	for index, rule := range rules {
+		if rule.Decision != core.PolicyAllow || rule.ExpiresAt != nil || rule.EnvironmentInstance != "" ||
+			rule.Environment != "*" || rule.Resource == "*" || strings.TrimSpace(rule.Reason) == "" {
+			return fmt.Errorf("baseline rule %d is not a narrow static allow: %w", index, core.ErrInvalidArgument)
+		}
+		for key, value := range rule.Attributes {
+			if key == "*" || value == "*" {
+				return fmt.Errorf("baseline rule %d contains a wildcard attribute: %w", index, core.ErrInvalidArgument)
+			}
+		}
+		clone := rule
+		if rule.Attributes != nil {
+			clone.Attributes = make(map[string]string, len(rule.Attributes))
+			for key, value := range rule.Attributes {
+				clone.Attributes[key] = value
+			}
+		}
+		cloned = append(cloned, clone)
+	}
+	if err := validatePolicy(PolicyFile{Default: core.PolicyDeny, Rules: cloned}); err != nil {
+		return fmt.Errorf("validate baseline policy: %w", err)
+	}
+	e.baselineRules = cloned
+	e.baselineConfigured = true
+	return nil
 }
 
 func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityRequest) (core.PolicyEvaluation, error) {
@@ -60,6 +102,17 @@ func (e *FilePolicyEvaluator) Evaluate(_ context.Context, req core.CapabilityReq
 		if index >= len(policy.Rules) && rule.Environment != "*" && rule.EnvironmentInstance != req.EnvironmentInstance {
 			continue
 		}
+		if !ruleMatches(rule, req) {
+			continue
+		}
+		if decisionPriority(rule.Decision) > decisionPriority(selected.Decision) {
+			selected = core.PolicyEvaluation{Decision: rule.Decision, Reason: rule.Reason}
+		}
+	}
+	if selected.Decision != "" {
+		return selected, nil
+	}
+	for _, rule := range e.baselineRules {
 		if !ruleMatches(rule, req) {
 			continue
 		}
