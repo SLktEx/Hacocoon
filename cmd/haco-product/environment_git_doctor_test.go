@@ -108,15 +108,15 @@ func TestEnvironmentDoctorGitlessManagedWorkspaceIsSkipped(t *testing.T) {
 	}
 }
 
-func TestEnvironmentDoctorExternalWorkspaceSkipsGitStatus(t *testing.T) {
+func TestEnvironmentDoctorExternalWorkspaceOmitsGitCheck(t *testing.T) {
 	f := &gitDoctorFixture{workspacePath: "/work", applicable: true, connected: true, guestHealthy: true}
 	report, err := diagnoseEnvironmentWithGit(context.Background(), f, "dev")
 	if err != nil {
 		t.Fatal(err)
 	}
 	check, ok := environmentCheck(report, "git_broker")
-	if !ok || check.Status != "skipped" || f.statusCalls != 0 {
-		t.Fatalf("check=%+v statusCalls=%d", check, f.statusCalls)
+	if ok || f.statusCalls != 0 {
+		t.Fatalf("check=%+v present=%v statusCalls=%d", check, ok, f.statusCalls)
 	}
 }
 
