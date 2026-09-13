@@ -334,3 +334,26 @@ export／delete／importと保持データからの再作成がPASSです。publ
 通知の所有権・古い／不正要求拒否・listener cleanupもPASSです。人間のtoast click／新GUI回答とVPN／NRPTは明示SKIPです。
 日本語Windows実機確認と既存ローカルWSLInteropの失敗は未解決です。この結果は新GUI session実装前であり、
 その受け入れや配布済みを意味しません。
+
+
+## push中断後の照合候補
+
+`codex/git-push-reconciliation`の実装
+`42aa706fd2fec31f1c3f565337e246aafc12f752`は、Issue #470の保存記録確認と
+読み取りだけの照合を追加します。最終ソースは独立したLinuxコピーで
+`bash tools/ci-local.sh test`と文書検査がPASSです。関連packageはGo 1.26.8でもPASS。
+そちらは最後のcontroller往復fixture追加前で、製品コードは同じです。
+
+実際のローカルGitで、リモート変更後の応答喪失、broker再起動、同一commitの競合作成、
+現在の新旧commit・不存在・別commitの照合、新しい読み取り拒否、実行中の照合拒否、
+承認待ち中のEnv世代変更、取得元所有者変更、送信前・送信確認・観測記録の保存失敗を確認しました。
+破損・重複・未完了の記録は拒否します。pushは再送せず、OIDが一致しても元の未確認状態を保持します。
+controllerの経路と日英表示・JSONも回帰対象です。
+
+初回の集中試験は既存の集合fixtureにEnv世代と必須監査sinkがなくFAILとなり、
+共通serviceと正確な世代を持つfixtureへ更新しました。controller往復fixture追加後の
+初回全体試験は、通信上のエラーをCoreのsentinelと比較してFAIL。既存の
+`recovery_required`通信コードを検査するよう修正し、最終全体再試験がPASSです。
+製品の権限・エラー契約を緩和して解決していません。
+外部認証Git、新しい導入済みHost agent操作、通常Windows/WSLからの新コマンド利用は
+**未実施**であり、成功ではありません。過去のGit受入や先行native CIで代替しません。
