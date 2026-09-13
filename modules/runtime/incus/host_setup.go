@@ -29,6 +29,9 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return fmt.Errorf("prepare owned trusted host: %w", err)
 	}
+	if err := hostsetup.Step(ctx, "host_tools", func() error { return r.ensureTrustedHostTools(ctx) }); err != nil {
+		return err
+	}
 	if err := r.ensureTrustedHostClientMode(ctx); err != nil {
 		return err
 	}

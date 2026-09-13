@@ -39,7 +39,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	flags := flag.NewFlagSet("haco approve", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	list := flags.Bool("list", false, "list pending requests without deciding")
-	jsonResult := flags.Bool("json", false, "print the decision receipt as JSON")
+	jsonResult := flags.Bool("json", false, "machine-readable result")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -47,7 +47,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		return 2
 	}
 	if flags.NArg() > 1 || (*list && flags.NArg() != 0) {
-		fmt.Fprintln(diagnostic, "Usage: haco approve [--json] [request-id] | haco approve --list")
+		fmt.Fprintln(diagnostic, "Usage: haco approve [--json] [request-id] | haco approve --list [--json]")
 		return 2
 	}
 	requests, err := client.PendingApprovals(ctx)
@@ -57,7 +57,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	}
 	if *list {
 		// The full details are read through the trusted management boundary.
-		if err := json.NewEncoder(out).Encode(requests); err != nil {
+		if err := writeCLIResult(out, requests, *jsonResult); err != nil {
 			return 1
 		}
 		return 0
@@ -76,7 +76,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	}
 	fmt.Fprintf(diagnostic, "[waiting_approval] %d pending request(s); no decision has been submitted.\n", len(requests))
 	if !interactiveInput(in) {
-		fmt.Fprintln(diagnostic, "Approval remains pending. Use a terminal to review, or haco approve --list for scripts.")
+		fmt.Fprintln(diagnostic, "Approval remains pending. Use a terminal to review, or haco approve --list --json for scripts.")
 		return 2
 	}
 	reader := bufio.NewReader(io.LimitReader(in, 4096))

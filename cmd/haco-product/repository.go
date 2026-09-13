@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -28,7 +27,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return workflowCommand(ctx, args, out, diagnostic)
 	}
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> <id> <URL> | haco repo list [--json] | haco repo delete [--yes] <id> | haco workspace create --repo <id> <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git connect <environment> | haco git pending | haco git approve [--save env|all|ask-env|ask-all] <id> | haco git deny [--save env|all|ask-env|ask-all] <id>")
+		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> [--json] <id> <URL> | haco repo list [--json] | haco repo delete [--yes] <id> | haco workspace create --repo <id> [--json] <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git connect [--json] <environment> | haco git pending [--json] | haco git approve [--save env|all|ask-env|ask-all] [--json] <id> | haco git deny [--save env|all|ask-env|ask-all] [--json] <id>")
 		return 2
 	}
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
@@ -42,6 +41,12 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if namespace == "workspace" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
 		return managedWorkspaceCommand(ctx, args, os.Stdin, out, diagnostic)
 	}
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	if len(args) == 0 {
 		return usage()
 	}
@@ -130,9 +135,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)
 		return 1
 	}
-	encoder := json.NewEncoder(out)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(result); err != nil {
+	if err := writeCLIResult(out, result, jsonOutput); err != nil {
 		fmt.Fprintln(diagnostic, "haco: cannot write result")
 		return 1
 	}

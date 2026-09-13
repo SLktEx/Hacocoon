@@ -32,3 +32,14 @@ func TestStagesFailureCancellationAndNoRawOutput(t *testing.T) {
 		t.Fatal("called after cancellation")
 	}
 }
+
+func TestHostToolsStageIsPreserved(t *testing.T) {
+	var events []Event
+	ctx := Observe(context.Background(), func(e Event) { events = append(events, e) })
+	if err := Step(ctx, "host_tools", func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || events[0].Stage != "host_tools" || events[1].Stage != "host_tools" || events[0].State != "running" || events[1].State != "succeeded" {
+		t.Fatalf("events=%+v", events)
+	}
+}

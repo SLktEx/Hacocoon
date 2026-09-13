@@ -47,14 +47,16 @@ haco doctor
 ## 独立したプロジェクトデータを作る
 
 次の操作はEnvironmentではなく、**信頼されたhaco-host内**で行います。
-Gitを用意し、非公開リポジトリの利用やpushが必要な場合だけGitHub CLIで認証します。
+`haco setup` は標準Hostツールとして `git` とGitHub CLI (`gh`) を保証するため、
+手動でパッケージを導入する必要はありません。非公開リポジトリの利用やpushが必要な場合だけ
+GitHub CLIで認証します。
 
 ```bash
-apt-get update
-apt-get install -y git gh
 # 非公開リポジトリの利用、または書き込み権限があるリポジトリへのpush用:
 gh auth login --hostname github.com --git-protocol https
 ```
+
+認証情報、dotfiles、個人・組織固有の追加ツールは標準Hostツールには含めません。
 
 以下の公開リポジトリは読み取りとローカル編集に使えます。自分の開発では、
 URLとブランチを利用権限のあるリポジトリの**既存ブランチ**に置き換えます。
