@@ -25,7 +25,7 @@ type Definition struct {
 }
 
 func (d Definition) Validate() error {
-	if !NamePattern.MatchString(string(d.Name)) || d.Name == d.From || strings.TrimSpace(d.Run) == "" || len(d.Run) > MaxScriptBytes || strings.ContainsRune(d.Run, 0) {
+	if !NamePattern.MatchString(string(d.Name)) || reservedOfficialBuildName(d.Name) || d.Name == d.From || strings.TrimSpace(d.Run) == "" || len(d.Run) > MaxScriptBytes || strings.ContainsRune(d.Run, 0) {
 		return core.ErrInvalidArgument
 	}
 	return nil
@@ -38,22 +38,35 @@ type Environments interface {
 	DeleteTemporary(context.Context, string, core.Workspace) error
 	PublishTemporaryBase(context.Context, string, core.Workspace, core.BaseName) (core.BaseInfo, error)
 }
-type Service struct{ Environments Environments }
+type Service struct {
+	Environments    Environments
+	OfficialNetwork OfficialNetwork
+}
 type Result struct {
 	Base    core.BaseInfo `json:"base"`
 	Builder string        `json:"builder,omitempty"`
 	State   string        `json:"state"`
 }
 
+type buildOptions struct {
+	logicalName    core.BaseName
+	parentBaseOnly bool
+	networkHosts   []string
+}
+
 // Build has no crash-replay catalog. Canonical Env leases and native image
 // properties retain exact identities when a process or publication fails.
-func (s *Service) Build(ctx context.Context, d Definition) (result Result, err error) {
+func (s *Service) Build(ctx context.Context, d Definition) (Result, error) {
 	if s == nil || s.Environments == nil {
-		return result, core.ErrUnsupported
+		return Result{}, core.ErrUnsupported
 	}
-	if err = d.Validate(); err != nil {
-		return result, err
+	if err := d.Validate(); err != nil {
+		return Result{}, err
 	}
+	return s.build(ctx, d, buildOptions{})
+}
+
+func (s *Service) build(ctx context.Context, d Definition, options buildOptions) (result Result, err error) {
 	work, err := core.NewTemporaryWorkspace()
 	if err != nil {
 		return result, err
@@ -63,8 +76,18 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 		return result, err
 	}
 	name := "build-" + hex.EncodeToString(nonce[:])
-	result = Result{Base: core.BaseInfo{Name: d.Name}, Builder: name, State: "failed"}
-	env, err := s.Environments.Create(ctx, core.EnvironmentSpec{Name: name, Base: d.From, TemporaryWorkspace: &work, SkipDefaultResource: true})
+	resultName := d.Name
+	if options.logicalName != "" {
+		resultName = options.logicalName
+	}
+	result = Result{Base: core.BaseInfo{Name: resultName}, Builder: name, State: "failed"}
+	env, err := s.Environments.Create(ctx, core.EnvironmentSpec{
+		Name:                name,
+		Base:                d.From,
+		TemporaryWorkspace:  &work,
+		SkipDefaultResource: true,
+		ParentBaseOnly:      options.parentBaseOnly,
+	})
 	if err != nil {
 		return result, err
 	}
@@ -85,6 +108,16 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 			result.Builder = ""
 		}
 	}()
+	if len(options.networkHosts) > 0 {
+		if s.OfficialNetwork == nil {
+			return result, core.ErrUnsupported
+		}
+		release, acquireErr := s.OfficialNetwork.AcquireOfficialBuild(ctx, env.Name, options.networkHosts)
+		if acquireErr != nil {
+			return result, acquireErr
+		}
+		defer release()
+	}
 	exec, err := s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
 	if err != nil || exec.ExitCode != 0 {
 		return result, fmt.Errorf("Base build script failed (exit %d): %w", exec.ExitCode, core.ErrRuntimeUnavailable)
@@ -98,11 +131,15 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	if err = s.Environments.StopForWorkspace(ctx, env.Name, work.ID); err != nil {
 		return result, err
 	}
-	result.Base, err = s.Environments.PublishTemporaryBase(ctx, env.Name, work, d.Name)
+	published, err := s.Environments.PublishTemporaryBase(ctx, env.Name, work, d.Name)
 	if err != nil {
 		preserve = true
 		result.State = "publication-unconfirmed"
 		return result, err
+	}
+	result.Base = published
+	if options.logicalName != "" {
+		result.Base.Name = options.logicalName
 	}
 	result.State = "ready"
 	return result, nil
