@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.67**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.68**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on this development candidate. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -25,7 +25,7 @@ This page describes current code reality on this development candidate. Start wi
 | [Setup recipes / preview](design/project-setup.md) | partial | Host recipes apply once per incarnation with explicit script-only retry and private output/exit receipts; Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
 | [Temporary execution](design/temporary-execution.md) | implemented | `haco run` uses generation-bound cleanup and retains selected Workspace/OCI data. Captured output is default; `-i` streams pipes and `-it` uses a real terminal. Incus 7.0.1 pipe/PTY and ordinary Windows ConPTY acceptance passed; see scoped evidence. Failed cleanup retains ownership. |
 | [Persistent OCI](design/persistent-oci-store.md) | partial | Automatic per-Workspace Store initialization/reuse, exclusive attach and independent stopped copies; optional `--no-oci`. Host area copy boundary and bounded completed-copy recovery exist. Broader installed runtime/version acceptance and Docker Store compatibility remain. |
-| [Base build](design/base-images-and-custom-environments.md) | implemented | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |
+| [Base build](design/base-images-and-custom-environments.md) | partial | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. [Packer HCL2/external-shell provisioning](design/packer-base-builds.md) is partial on this candidate: guest-only execution and bounded file transfer are implemented; installed acceptance remains open. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |
 | [Snapshots / restore / copy](design/environment-snapshots.md) | implemented | Stopped managed Workspace/OCI and independently saved rootfs; restore/copy creates a new Env and fresh authority. External Workspace capture, in-place replacement and arbitrary live application consistency are unsupported. |
 | [Retained-object cleanup](guides/data-lifetime.md) | implemented | Reviewed Workspace, built Base, whole Store and source-repository deletion; references/native children protect retained objects. Positive absence is required before releasing ownership. |
 | [Individual OCI images](design/oci-image-deletion.md) | partial | Attached, Host and detached nerdctl image list/delete, including reviewed unused candidates. Detached delivery is Linux amd64 only; full installed-controller acceptance and detached Docker remain incomplete. |

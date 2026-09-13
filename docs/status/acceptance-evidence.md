@@ -1017,3 +1017,46 @@ with Bash alive and 118 PTY output bytes but no ready marker; the next two pass.
 The routing already reached Bash in that failure. Raw profile/terminal output
 was not exposed, and no product change or timing relaxation was used. The missing
 prompt cause remains unresolved; this is not proof of a toolchain defect.
+
+
+PR #642 at `750b7e069337561bfbdc76e1824eb7482a127cba` now passes test
+34774457312, Ubuntu 34774457603 and Incus 34774457355. Windows run
+34774457337/job 103769879451 passes steps 13–20, including ordinary native
+SSH/VS Code, the automatic tunnel's `TUNNEL-EXIT:0` and cleanup, temporary TTY
+and public reclamation. This verifies the installed interruption fix after
+#638/#640 failed. Step 21 still fails notification review, now with
+`stage=activation`, `reason=unavailable`; native/child-exit/duration are
+unrecorded. Do not equate this with the older clear-stage failure or claim fresh
+human notification answers. Earlier failures remain in their scoped records.
+
+
+<a id="guest-packer"></a>
+## Guest Packer provisioning
+
+The `codex/packer-base-build` candidate adds actual Packer invocation, HCL2 and
+separate shell-file transport through the canonical Base service. Local Go
+1.26.8 component/CLI tests verify stage ordering, early failure, source bounds,
+link/special-file refusal, exact temporary cleanup and private-output opt-in.
+They do not execute the Packer binary or prove installed acceptance.
+
+On the existing `hacocoon-second` WSL/Incus 6.0.5 installation, the controller is
+v0.57 at `ac67fadbe1a3b2359e6b41438e3f34d392f49a78`. Its older Base command does
+not accept the new HCL request or `--json` argument. The rejected argument check
+created nothing. A normal legacy Base definition then ran the candidate's exact
+guest preparation/stages (not an HCL-to-JSON implementation) for dedicated name
+`packer-check-f33f425edda2`. It failed preparation with exit 90; a fixed numeric
+diagnostic rerun classified missing OpenSSH tools (171). Both reported failed
+with no retained builder. The candidate now prepares dependencies as a normal
+plugin operation inside the disposable Env.
+
+The updated normal build of `packer-check-69f98b715ee0` failed dependency setup
+(exit 89). An independent normal `haco run --no-oci --json` of the same dependency
+script returned guest exit 100: the installed proxy rejected Ubuntu archive and
+security HTTP requests with 403. The receipt confirmed `cleaned_up: true`; no
+approval remained pending when inspected. Do not attribute this to a particular
+policy/source-identity cause without further evidence. No allow rule, source
+registration, network bypass, package injection outside the product path or
+installed-controller replacement was applied. Full Packer execution, Base
+publication/revision reuse, custom-plugin failure, arm64 runtime and the new
+installed Windows-to-WSL command remain unverified. The earlier legacy Base
+acceptance still applies only to its recorded scope.

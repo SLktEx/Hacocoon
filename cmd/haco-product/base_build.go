@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/basebuild"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"io"
 	"os"
+	"os/signal"
+	"strings"
 	"time"
 )
 
@@ -50,15 +53,33 @@ func runBaseBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco:", flagErr)
 		return 2
 	}
-	args = clean
-	if len(args) != 1 || args[0] == "--help" {
-		fmt.Fprintln(os.Stderr, "Usage: haco base build <definition.json> [--json]")
-		if len(args) == 1 && args[0] == "--help" {
+	flags := flag.NewFlagSet("base build", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	name := flags.String("name", "", cliMessage("base.packer_name"))
+	from := flags.String("from", "", cliMessage("base.packer_from"))
+	output := flags.Bool("output", false, cliMessage("base.packer_output"))
+	flags.Usage = func() { commandHelp(os.Stderr, "base build", cliLanguage()) }
+	if err := flags.Parse(clean); err != nil {
+		if err == flag.ErrHelp {
 			return 0
 		}
 		return 2
 	}
-	d, err := readBaseDefinition(args[0])
+	if flags.NArg() != 1 {
+		flags.Usage()
+		return 2
+	}
+	var d basebuild.Definition
+	var err error
+	if *name == "" && *from == "" && strings.HasSuffix(flags.Arg(0), ".json") {
+		d, err = readBaseDefinition(flags.Arg(0))
+	} else {
+		d.Name, d.From = core.BaseName(*name), core.BaseName(*from)
+		d.Packer, err = readPackerContext(flags.Arg(0))
+		if err == nil {
+			err = d.Validate()
+		}
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 2
@@ -68,14 +89,28 @@ func runBaseBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	result, err := client.BuildBase(ctx, d)
+	if !*output {
+		result.Result.Execution = nil
+	}
+	if *output && !jsonOutput && result.Result.Execution != nil {
+		// Explicit private output is quoted so guest terminal controls cannot
+		// masquerade as prompts. It never enters the structured error/log chain.
+		fmt.Fprintf(os.Stderr, "Packer stdout: %q\nPacker stderr: %q\n", result.Result.Execution.Stdout, result.Result.Execution.Stderr)
+		result.Result.Execution = nil
+	}
 	if e := writeCLIResult(os.Stdout, result.Result, jsonOutput); e != nil {
 		return 1
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
+		if d.Packer != nil && result.Result.Stage != "" {
+			fmt.Fprintln(os.Stderr, cliMessage("base.packer_failed"))
+		}
 		return 1
 	}
 	return 0

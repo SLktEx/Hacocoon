@@ -21,11 +21,22 @@ var NamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,62}$`)
 type Definition struct {
 	Name core.BaseName `json:"name"`
 	From core.BaseName `json:"from,omitempty"`
-	Run  string        `json:"run"`
+	// Run is the historical JSON definition, retained during HCL migration.
+	Run    string          `json:"run,omitempty"`
+	Packer *PackerTemplate `json:"packer,omitempty"`
 }
 
 func (d Definition) Validate() error {
-	if !NamePattern.MatchString(string(d.Name)) || d.Name == d.From || strings.TrimSpace(d.Run) == "" || len(d.Run) > MaxScriptBytes || strings.ContainsRune(d.Run, 0) {
+	if !NamePattern.MatchString(string(d.Name)) || d.Name == d.From {
+		return core.ErrInvalidArgument
+	}
+	if d.Packer != nil {
+		if d.Run != "" {
+			return core.ErrInvalidArgument
+		}
+		return d.Packer.Validate()
+	}
+	if strings.TrimSpace(d.Run) == "" || len(d.Run) > MaxScriptBytes || strings.ContainsRune(d.Run, 0) {
 		return core.ErrInvalidArgument
 	}
 	return nil
@@ -38,11 +49,21 @@ type Environments interface {
 	DeleteTemporary(context.Context, string, core.Workspace) error
 	PublishTemporaryBase(context.Context, string, core.Workspace, core.BaseName) (core.BaseInfo, error)
 }
-type Service struct{ Environments Environments }
+type Execute func(context.Context, core.ExecutionRequest) (core.ExecutionResult, error)
+type PackerProvisioner interface {
+	Provision(context.Context, PackerTemplate, Execute) error
+}
+type Service struct {
+	Environments Environments
+	Packer       PackerProvisioner
+}
 type Result struct {
 	Base    core.BaseInfo `json:"base"`
 	Builder string        `json:"builder,omitempty"`
 	State   string        `json:"state"`
+	Stage   string        `json:"stage,omitempty"`
+	// Execution is private build output for the requesting client, never logs.
+	Execution *core.ExecutionResult `json:"execution,omitempty"`
 }
 
 // Build has no crash-replay catalog. Canonical Env leases and native image
@@ -53,6 +74,9 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	}
 	if err = d.Validate(); err != nil {
 		return result, err
+	}
+	if d.Packer != nil && s.Packer == nil {
+		return result, core.ErrUnsupported
 	}
 	work, err := core.NewTemporaryWorkspace()
 	if err != nil {
@@ -85,14 +109,28 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 			result.Builder = ""
 		}
 	}()
-	exec, err := s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
-	if err != nil || exec.ExitCode != 0 {
-		return result, fmt.Errorf("Base build script failed (exit %d): %w", exec.ExitCode, core.ErrRuntimeUnavailable)
+	execute := func(ctx context.Context, request core.ExecutionRequest) (core.ExecutionResult, error) {
+		return s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, request)
+	}
+	if d.Packer != nil {
+		if err = s.Packer.Provision(ctx, *d.Packer, execute); err != nil {
+			var failure *ProvisionFailure
+			if errors.As(err, &failure) {
+				result.Stage = failure.Stage
+				result.Execution = &failure.Execution
+			}
+			return result, err
+		}
+	} else {
+		execution, runErr := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
+		if runErr != nil || execution.ExitCode != 0 {
+			return result, fmt.Errorf("Base build script failed (exit %d): %w", execution.ExitCode, core.ErrRuntimeUnavailable)
+		}
 	}
 	// Instance-local cleanup runs only inside the untrusted guest. Never execute
 	// definition text on the Host or include captured guest output in diagnostics.
-	exec, err = s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-c", cleanInstance}})
-	if err != nil || exec.ExitCode != 0 {
+	execution, err := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-c", cleanInstance}})
+	if err != nil || execution.ExitCode != 0 {
 		return result, fmt.Errorf("Base instance cleanup failed: %w", core.ErrRuntimeUnavailable)
 	}
 	if err = s.Environments.StopForWorkspace(ctx, env.Name, work.ID); err != nil {

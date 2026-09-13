@@ -837,3 +837,39 @@ Windows34772703625/job103765084905はstep17で再び`TUNNEL-EXIT:1`となり、s
 最初は7.15秒でFAILし、Bashは生存、PTY出力118 byte、入力待ちmarkerなしでした。続く2回はPASSです。
 失敗時も分岐先は既にBashへ到達していました。profile／端末の生出力は出さず、製品や期限も変更していません。
 表示が来ない原因は未解決であり、toolchainの不具合と断定しません。
+
+
+PR #642の`750b7e069337561bfbdc76e1824eb7482a127cba`は、test34774457312・
+Ubuntu34774457603・Incus34774457355がPASSしました。Windows34774457337／
+job103769879451はstep13〜20がPASSし、通常のnative SSH／VS Code、自動転送の
+`TUNNEL-EXIT:0`と回収、一時TTY、公開reclaimを確認しました。#638／#640で失敗した
+中断処理は導入済み経路でも修正を確認できました。step21の通知回答は依然FAILで、今回は
+`stage=activation`・`reason=unavailable`、native／子の終了値／経過時間は未記録です。
+以前のclear段階の失敗と同じ原因とせず、人の新規通知回答も確認済みにしません。
+過去の失敗記録はそれぞれの確認範囲とともに保持します。
+
+
+<a id="guest-packer"></a>
+## Env内のPacker構築
+
+`codex/packer-base-build`候補は、実Packerの呼び出しとHCL2・別ファイルのshell転送を
+共通Baseサービスへ追加しています。ローカルGo 1.26.8の部品・CLIテストで、段階の順序、
+失敗時の停止、入力上限、リンク・特殊ファイル拒否、正確な一時Env削除、明示指定時だけの
+非公開出力を確認しました。これらはPacker本体を実行しておらず、導入済み受入の証明ではありません。
+
+既存`hacocoon-second`のWSL／Incus 6.0.5では、controllerはv0.57の
+`ac67fadbe1a3b2359e6b41438e3f34d392f49a78`です。旧Baseコマンドは新しいHCL要求と
+`--json`引数に未対応で、引数拒否時には何も作成していません。その後、通常の旧Base定義から
+候補のゲスト準備・Packer各段階を実行しました。これはHCL→JSON変換による製品実装ではなく、
+旧導入版での実行確認です。専用名`packer-check-f33f425edda2`は準備時に終了90でFAILし、
+固定の数値分類による再試行でOpenSSH不足（171）を確認しました。いずれも残ったbuilderなしの
+failed結果でした。候補には、通常のplugin処理として一時Env内で依存ツールを準備する処理を追加しています。
+
+修正後の通常ビルド`packer-check-69f98b715ee0`も依存ツール準備でFAIL（終了89）しました。
+同じ依存スクリプトを通常の`haco run --no-oci --json`で分離確認すると、ゲスト終了100で、
+Ubuntuのarchive／securityへのHTTP取得が既存proxyから403で拒否されていました。
+結果は`cleaned_up: true`で、確認時に承認待ちはありませんでした。特定のpolicy・送信元照合が原因と
+断定しません。許可ルール追加・送信元登録の修復・通信制限回避・製品経路外でのパッケージ注入・
+導入済みcontrollerの置き換えはしていません。実Packerの完走、Base公開・revision再利用、
+外部plugin失敗、arm64実行、新しいWindows→WSLコマンドの導入済み受入は未確認です。
+過去の旧Base作成の受入は、それぞれの記録された範囲で保持します。
