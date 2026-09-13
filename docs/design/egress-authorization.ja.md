@@ -64,23 +64,62 @@ Environment の自己申告名は信頼せず、Incus の状態とコントロ�
 
 接続ごとの承認には `require-approval` を使います。Environment、ホスト名、プロトコル、ポートは監査する権限範囲に残します。
 
+## 製品既定の package repository 許可
+
+Environment 全体は引き続き default-deny ですが、公式 Base 契約で使う Ubuntu package
+repository だけは、製品所有の限定的な egress baseline として次を許可します。
+
+- `archive.ubuntu.com` の HTTP 80 / HTTPS 443
+- `security.ubuntu.com` の HTTP 80 / HTTPS 443
+- `ports.ubuntu.com` の HTTP 80 / HTTPS 443
+
+これは `apt` プロセスへの特権ではなく、正確な `network.egress/connect` 接続先への許可です。
+guest の `/etc/apt/sources*` を読んで一覧を増やさないため、PPA、third-party repository、
+任意 mirror を追加しても通信権限は増えません。公式 Ubuntu Base から build した custom Base が
+同じ標準 repository を保持している場合にも、この固定 baseline は利用できます。
+
+一致する管理者ルールや保存済み判断を先に評価します。そのため既存の
+`deny > require-approval > allow` が維持され、管理者は baseline の接続先でも明示的に拒否または
+承認必須へできます。明示ルールがない場合だけ package baseline を評価し、その後に Policy の
+default を使います。baseline は製品コードであり revision-bound な管理者設定ではないため、
+`haco config` と `policy.json` には直列化しません。[ADR 0063](../adr/0063-default-package-repository-egress.ja.md)
+を参照してください。
+
 ## 起動経路
 
 インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。`hacoq egress serve` は旧機能です。
 
 コントローラーとプロキシの終了は連動し、CONNECT を含む全接続を閉じます。ヘッダー上限は16 KiB、読取期限は10秒、保持接続上限は256です。通信失敗は固定の構造化メッセージで記録し、任意の panic 出力を含めません。
 
-デーモンは継承した標準入力を読みません。Policy がなければ拒否します。承認が必要な要求は上限付きの待機列に置き、信頼された Host の `haco approve` で確認します。保存と実行には Policy・監査・識別の確認を適用します。設定編集には `haco config` を使います。[承認待ち](pending-approval-review.ja.md)と [ADR 0028](../adr/0028-pending-approval-sessions.ja.md)を参照してください。
+デーモンは継承した標準入力を読みません。Policy がない場合も、上記の固定 package baseline 以外は
+拒否します。承認が必要な要求は上限付きの待機列に置き、信頼された Host の `haco approve` で
+確認します。保存と実行には Policy・監査・識別の確認を適用します。管理者 Policy の編集には
+`haco config` を使い、package baseline の接続先をさらに制限する場合は一致する `deny` または
+`require-approval` を追加します。[承認待ち](pending-approval-review.ja.md)と
+[ADR 0028](../adr/0028-pending-approval-sessions.ja.md)を参照してください。
 
 Git push は別の権限操作です。Host の再利用可能な Git 認証情報を Environment に渡して有効化しません。
 
 ## 検証範囲
 
-Windows の導入手順が成功した後、同じ導入済みコントローラーでパケットを検証します。通常ユーザーの管理 API から検証用の読み取り専用 Workspace／Environment を作成し、固定 HTTPS 検査を実行して正規の経路で削除します。第二のコントローラー、旧 CLI、製品設定の上書き、NAT・ファイアウォール・マウント修復を使いません。
+Windows の導入手順が成功した後、同じ導入済みコントローラーで検証します。まず管理者 Policy を
+一切作成する前に、通常ユーザーの管理 API client が使い捨て Environment を作成し、静かな
+`apt-get update` と標準 package の再インストールを実行します。その後、一時的な APT source に
+`example.com` を追加し、その host が Standard proxy で引き続き 403 になることを確認します。
+これにより、固定 package repository は既定で利用でき、guest の source list 編集では baseline を
+拡張できないことの両方を検証します。
 
-検証用 Policy は対象 Environment の github.com:443 だけを許可します。既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接 TCP 拒否、管理ソケットの非公開を確認します。
+別の packet 検証では読み取り専用 Workspace／Environment を作成し、固定 HTTPS 検査を実行して
+正規の経路で削除します。第二のコントローラー、旧 CLI、製品設定の上書き、NAT・ファイアウォール・
+マウント修復を使いません。検証用 Policy は対象 Environment の `github.com:443` だけを許可します。
+既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。
 
-このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
+packet 検査は証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接
+TCP 拒否、管理ソケットの非公開を確認します。この検証は、別途検証する製品 CLI や設定 UI の証拠を
+兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、
+SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。baseline の回帰試験では
+package host / protocol / port の正確な集合と、明示的な制限が baseline より優先することも固定します。
+実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
 
 ## 通信元観測の責任者
 

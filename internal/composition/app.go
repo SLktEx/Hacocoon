@@ -182,6 +182,9 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
+	if err := policy.ConfigureBaselineRules(defaultPolicyBaseline()); err != nil {
+		return nil, err
+	}
 	audit := capabilityapp.NewJSONLAudit(auditPath)
 	capabilities, err := capabilityapp.New(
 		policy,

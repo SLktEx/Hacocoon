@@ -73,23 +73,69 @@ The implementation uses the existing exact-resource policy model. A permanent al
 
 Use `require-approval` instead of `allow` when the existing approval provider must approve each connection request. The Environment, hostname, protocol and port stay in the audited authority scope.
 
+## Product package-repository baseline
+
+The overall Environment policy remains default-deny, but Hacocoon has one narrow
+product-owned egress baseline for the Ubuntu package repositories used by the
+official Base contract:
+
+- `archive.ubuntu.com` on HTTP 80 and HTTPS 443;
+- `security.ubuntu.com` on HTTP 80 and HTTPS 443;
+- `ports.ubuntu.com` on HTTP 80 and HTTPS 443.
+
+These are exact `network.egress/connect` destinations, not permission granted to
+the `apt` process. Guest `/etc/apt/sources*` files are never read to extend this
+list, so adding a PPA, third-party repository or arbitrary mirror does not grant
+network authority. The fixed baseline also remains useful for custom Bases built
+from an official Ubuntu Base that retain the same standard repositories.
+
+Matching administrator or saved Policy rules are evaluated first. The existing
+`deny > require-approval > allow` precedence therefore lets an administrator
+restrict or approval-gate any baseline destination. Only when no explicit rule
+matches is the package baseline considered, followed by the configured Policy
+default. The baseline is product code, not revision-bound operator configuration,
+so `haco config` and `policy.json` do not serialize it. See
+[ADR 0063](../adr/0063-default-package-repository-egress.md).
+
 ## Operational path
 
 The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service. New `haco` needs no egress-serving command, and the retained `hacoq egress serve` is legacy functionality.
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
-The daemon never consumes ambient stdin. Missing Policy denies traffic. Controller require-approval waits in a bounded Standard queue for haco approve on the trusted Host. Persistence and execution still pass through the existing Policy, audit and identity checks. Use haco config for ordinary Policy editing; no automatic allow is added. See [pending review](pending-approval-review.md) and [ADR 0028](../adr/0028-pending-approval-sessions.md). Installed acceptance of the new review path remains separate.
+The daemon never consumes ambient stdin. Missing Policy denies traffic except for
+the fixed package-repository baseline above. Controller require-approval waits in
+a bounded Standard queue for `haco approve` on the trusted Host. Persistence and
+execution still pass through the existing Policy, audit and identity checks. Use
+`haco config` for ordinary operator Policy editing; add an explicit matching
+`deny` or `require-approval` to restrict a package baseline destination. See
+[pending review](pending-approval-review.md) and
+[ADR 0028](../adr/0028-pending-approval-sessions.md). Installed acceptance of the
+review path remains separate.
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
 
 ## Acceptance boundary
 
-The Windows workflow adds a separate installed-controller packet check after the exact BAT journey succeeds. An ordinary Physical Host API client creates one read-only Workspace/Environment, executes a static HTTPS probe from that Workspace, and deletes through the same controller. It starts no second controller and uses no legacy CLI or product environment override. The documented administrator `policy.json` operation grants only that Environment's `github.com` HTTPS port 443; an existing Policy is never overwritten, and cleanup removes only the unchanged acceptance Policy. This is explicit policy configuration, not installer or network repair.
+The Windows workflow adds installed-controller checks after the exact BAT journey
+succeeds. Before creating any acceptance Policy, an ordinary Physical Host API
+client creates a disposable Environment and runs quiet `apt-get update` plus a
+standard package reinstall. It then writes a temporary third-party APT source for
+`example.com` and proves that the Standard proxy still returns 403 for that host.
+This demonstrates both that the fixed package repositories work by default and
+that guest source-list edits cannot widen the baseline.
 
-The probe requires certificate-verified HTTPS through the installed proxy, proxy 403 for an unapproved hostname, and refusal of a direct TCP connection to a public endpoint first proved reachable from the Physical Host. It also checks that management socket paths are absent. Guest route startup is only observed; no packages, NAT exceptions, firewall changes, service overrides or mount repairs are injected. This is controller/provider packet acceptance, not a claim that the planned product Environment CLI or ordinary policy UI is implemented. Commit-bound results belong in implementation status.
+A separate packet check then creates one read-only Workspace/Environment, executes
+a static HTTPS probe from that Workspace, and deletes through the same controller.
+It starts no second controller and uses no legacy CLI or product environment
+override. The documented administrator `policy.json` operation grants only that
+Environment's `github.com` HTTPS port 443; an existing Policy is never overwritten,
+and cleanup removes only the unchanged acceptance Policy. This is explicit policy
+configuration, not installer or network repair.
 
-Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
+The probe requires certificate-verified HTTPS through the installed proxy, proxy 403 for an unapproved hostname, and refusal of a direct TCP connection to a public endpoint first proved reachable from the Physical Host. It also checks that management socket paths are absent. Guest route startup is only observed; no NAT exceptions, firewall changes, service overrides or mount repairs are injected. This is controller/provider packet acceptance, not a claim that the planned product Environment CLI or ordinary policy UI is implemented. Commit-bound results belong in implementation status.
+
+Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift and trusted source-IP mapping. Baseline regression also pins the exact package host/protocol/port set and proves explicit restrictions outrank it. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
 
 ## Source observation ownership
 
