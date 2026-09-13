@@ -3,6 +3,7 @@ import json
 import re
 import subprocess
 import tempfile
+from pathlib import Path
 
 
 def validate(record):
@@ -27,15 +28,28 @@ def load_manifest(name):
     return validate(json.loads(raw))
 
 
-def run(args):
+def failure_reason(raw):
+    # Return compiled vocabulary only. These observations never authorize a retry.
+    for reason in ("not_found", "already_exists", "invalid_argument", "unsupported",
+                   "unavailable", "denied", "busy", "incompatible_state",
+                   "recovery_required", "canceled", "timeout", "failed"):
+        if re.search(rb"(?m)^\[failed\] operation=environment_create stage=controller reason=" +
+                     reason.encode() + rb"\r?$", raw):
+            return reason
+    return "unclassified"
+
+
+def run(args, timeout=900):
     # No raw guest output is published. Exceptions expose fixed failure categories.
-    with tempfile.TemporaryFile() as output:
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as diagnostic:
         try:
-            result = subprocess.run(args, stdout=output, stderr=subprocess.DEVNULL, timeout=900)
+            result = subprocess.run(args, stdout=output, stderr=diagnostic, timeout=timeout)
         except subprocess.TimeoutExpired:
             raise RuntimeError("Retention operation timed out; fixture retained") from None
         if result.returncode:
-            raise RuntimeError("Retention operation failed; fixture retained")
+            diagnostic.seek(0)
+            reason = failure_reason(diagnostic.read(65536))
+            raise RuntimeError(f"Retention operation failed: exit_code={result.returncode} reason={reason}; fixture retained")
         output.seek(0)
         data = output.read(65537)
     if len(data) > 65536:
@@ -77,7 +91,26 @@ def verify(record, host, guest):
 def verify_installed(record, registration):
     prefix = ["wsl.exe", "--distribution-id", registration, "--user", "root", "--exec", "incus", "exec"]
     def host(*args):
-        return run([*prefix, "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco", *args])
+        try:
+            return run([*prefix, "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco", *args])
+        except RuntimeError:
+            # The original operation is never repeated. Only fixed-vocabulary
+            # observations are printed; diagnostic failure preserves the primary.
+            try:
+                script = Path(__file__).with_name("reclamation_diagnostics.py").read_text(encoding="utf-8")
+                observed = run([*prefix[:-2], "python3", "-c", script], timeout=30)
+                data = json.loads(observed)
+                # Re-project even the diagnostic process output as untrusted.
+                allowed = {"base_resolution", "seed_resolution", "project", "root_storage",
+                           "routed_substrate", "sandbox_proxy", "instance_init", "runtime_unavailable",
+                           "cleanup_incomplete", "stale_identity", "workspace_busy", "storage_busy"}
+                labels = data.get("observations", []) if isinstance(data, dict) else []
+                if not isinstance(labels, list) or any(not isinstance(x, str) or x not in allowed for x in labels):
+                    labels = []
+                print(json.dumps({"retention_controller_observations": sorted(set(labels))}), flush=True)
+            except (OSError, RuntimeError, ValueError, TypeError):
+                print('Retention controller observations unavailable', flush=True)
+            raise
     def guest(name, script):
         return run([*prefix, "haco-" + name, "--project", "hacocoon", "--", "/bin/sh", "-ec", script])
     verify(record, host, guest)

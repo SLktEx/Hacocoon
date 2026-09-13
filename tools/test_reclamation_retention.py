@@ -1,10 +1,15 @@
 import json
+import contextlib
+import io
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 import unittest
 from unittest.mock import Mock
 import reclamation_retention as subject
+import reclamation_diagnostics
 
 RECORD = {"version": 1, "nonce": "1" * 16, "workspace": "import-" + "2" * 16,
           "oci": "oci:import-" + "3" * 16, "snapshot": "snap-" + "4" * 32, "commit": "5" * 40}
@@ -74,6 +79,40 @@ class RetentionTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             subject.verify(RECORD, host, guest)
         guest.assert_not_called()
+
+    def test_native_failure_preserves_exit_and_fixed_reason_without_output(self):
+        script = "import sys; print('private stdout'); print('[failed] operation=environment_create stage=controller reason=busy', file=sys.stderr); print('Authorization: Bearer private-token', file=sys.stderr); sys.exit(23)"
+        with self.assertRaisesRegex(RuntimeError, 'exit_code=23 reason=busy') as error:
+            subject.run([sys.executable, '-c', script])
+        self.assertNotIn('private', str(error.exception))
+        self.assertEqual(subject.failure_reason(b'[failed] operation=environment_create stage=controller reason=private-token'), 'unclassified')
+
+    def test_controller_projection_returns_only_compiled_labels(self):
+        raw = json.dumps({'MESSAGE': 'resolve Base private-token from https://user:password@example.invalid: runtime unavailable', 'SECRET': 'private-token'}).encode()
+        self.assertEqual(reclamation_diagnostics.project(raw), {'state': 'observed', 'observations': ['base_resolution', 'runtime_unavailable']})
+        for raw in (b'not JSON private-token', b'[]', b'null'):
+            self.assertEqual(reclamation_diagnostics.project(raw), {'state': 'invalid'})
+        self.assertEqual(reclamation_diagnostics.project(b' ' * ((1 << 20) + 1)), {'state': 'oversized'})
+
+    def test_failure_observation_is_read_only_bounded_and_preserves_original(self):
+        primary = RuntimeError('primary operation failure')
+        for diagnostic in (RuntimeError('diagnostic failure'), '{"observations": ["private-token"]}', '{"observations": ["base_resolution"]}'):
+            with self.subTest(diagnostic=diagnostic), patch.object(subject, 'run', side_effect=[primary, diagnostic]) as run, contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(RuntimeError) as error:
+                    subject.verify_installed(RECORD, 'registration')
+                self.assertIs(error.exception, primary)
+                self.assertEqual(run.call_count, 2)
+                command = run.call_args.args[0]
+                self.assertEqual(command[:7], ['wsl.exe', '--distribution-id', 'registration', '--user', 'root', '--exec', 'python3'])
+                self.assertEqual(run.call_args.kwargs, {'timeout': 30})
+                self.assertNotIn('private-token', output.getvalue())
+
+    def test_timeout_never_repeats_mutation(self):
+        with patch.object(subject.subprocess, 'run', side_effect=subprocess.TimeoutExpired('private-command', 900)) as run:
+            with self.assertRaisesRegex(RuntimeError, 'timed out') as error:
+                subject.run(['private-command'])
+            self.assertEqual(run.call_count, 1)
+            self.assertNotIn('private-command', str(error.exception))
 
 if __name__ == "__main__":
     unittest.main()
