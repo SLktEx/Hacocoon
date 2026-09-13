@@ -55,10 +55,20 @@ func delegateWindows(ctx context.Context, client *controlapi.Client, request pre
 	if !ok {
 		return 1, errors.New("tunnel deadline required")
 	}
-	cmd := exec.CommandContext(ctx, helper, "_delegate")
+	cmd := windowsCompanionCommand(ctx, helper, "_delegate")
 	cmd.Env = interopEnvironment()
 	cmd.Dir = filepath.Dir(helper)
 	return runCompanion(ctx, cmd, delegation{Version: 1, Installation: target, Request: request, Expires: deadline.UnixMilli()}, out, diagnostic)
+}
+
+func windowsCompanionCommand(ctx context.Context, executable string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, executable, args...)
+	// The foreground CLI owns interruption. Keep the interop relay out of its
+	// terminal process group so SIGINT cannot kill it before the pipe lease
+	// delivers cancellation and the exact child has finished. This is still a
+	// directly owned, waited child; parent loss closes its inherited lease.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
 }
 
 func interopEnvironment() []string {

@@ -971,3 +971,49 @@ terminal-session match. Native SSH, VS Code and the preceding transfer checks
 report success, but this does not establish tunnel ownership/traffic/cancellation
 acceptance. Steps 18–21, including notification review, are skipped. This run
 cannot resolve the older #635 notification clear failure.
+
+<a id="windows-tunnel-interruption"></a>
+## Windows tunnel foreground interruption
+
+Implementation `297b30954153c9699a7aac356ddfca3030c57f6a` on
+`codex/windows-tunnel-cancel` addresses #638's installed Ctrl+C failure after
+listener readiness. In Windows run 34770808189 the driver reaches its
+interrupt step only after native owner verification, eight 1 MiB half-close
+exchanges and application completion. The terminal then reports `TUNNEL-EXIT:1`
+instead of the required zero, so complete cancellation acceptance failed.
+
+A Linux regression owns a private process session, transfers 1 MiB through a
+real companion and controller, then sends SIGINT to its foreground group. The
+previous shared-group launch fails with `signal: interrupt`: the child is killed
+before its pipe lease can deliver graceful cancellation. Giving the interop
+child its own process group passes ten race repetitions of the forwarding
+package, including child, upstream and listener reaping. No result code is
+normalized and no timeout, approval, interop setting or existing Env is changed.
+This establishes the local signal-ownership defect, not yet a successful rerun
+of installed Windows Ctrl+C. The full local command again fails the existing
+login-bootstrap PTY prompt deadline; earlier failures remain unresolved.
+That test takes 6.68 seconds in this run. The actual Windows amd64 companion
+regressions pass separately: exact target replacement refusal, parent EOF and
+extra-byte handling, 1 MiB transfer and child/upstream/listener reaping.
+The Windows binary builds and the 18 documentation-checker regressions pass.
+v0.67 is unchanged; this is a cancellation fix, not M3 completion or distribution.
+
+The candidate also merges main `266cc47f0d1e898b92a4f700f02a7e02e9c7e412`
+at `e82db9607b0a3973b986fe002fc6af0ea4b2be59`, reusing #637's trusted Linux
+Go caches and #639's amd64-only Windows acceptance build. The projection guard
+is adapted to this candidate's ten binaries, including `haco-tunnel`. Actual
+PowerShell projection preserves every release-config field except architecture;
+the maintained workflow-policy checks pass. Distribution still builds both
+architectures. This does not measure a new installed CI duration.
+
+Parent #640 `b0ab1858b67278e3b070e9c3d339abbddd28416b` passes test
+34772703642, Ubuntu 34772703628 and Incus 34772703619. Windows 34772703625,
+job 103765084905, again reports `TUNNEL-EXIT:1` in step 17; steps 18–21 are
+skipped. Its notification diagnostic change has no new installed acceptance.
+
+A separate Go 1.27 diagnostic copy retains the five-second login fixture bound
+and reports only fixed observations: its first run fails after 7.15 seconds,
+with Bash alive and 118 PTY output bytes but no ready marker; the next two pass.
+The routing already reached Bash in that failure. Raw profile/terminal output
+was not exposed, and no product change or timing relaxation was used. The missing
+prompt cause remains unresolved; this is not proof of a toolchain defect.

@@ -20,6 +20,13 @@ lease. Parent loss or cancellation closes it; the child cancels its listener and
 upstreams. The parent reaps that exact child, with a bounded forced-stop fallback.
 No detached launcher, service, extra management listener or guest endpoint exists.
 
+The Linux interop child has its own process group. Only the foreground CLI
+receives the terminal's interrupt; it closes the lease and waits for the child.
+Sharing the foreground group can kill the interop relay before pipe cancellation
+completes. Moving the child out of that group does not detach it from its owner
+or create a new session. Do not replace a canceled child's nonzero exit with
+success: retain real failures and the existing bounded forced-stop fallback.
+
 The installed binary runs as the existing Windows user, who already owns its
 application directory. Linux path/record checks reject static foreign ownership;
 they are not a Windows file-pinning or ACL guarantee. Normal Envs have no drive,

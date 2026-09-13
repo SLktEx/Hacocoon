@@ -127,3 +127,8 @@ Native notification diagnostics preserve child cancellation/deadline expiry and
 numeric exit/duration observations. The existing bounds, cleanup and approval
 refusal remain; earlier installed clear failures and fresh GUI answers are still
 unresolved. See [acceptance evidence](status/acceptance-evidence.md#native-toast-process-diagnostics).
+
+The WSL tunnel interop child now uses a separate process group so terminal
+interruption leaves its parent-owned pipe cancellation and reaping intact.
+The foreground-signal regression passes; installed Ctrl+C acceptance remains
+pending. See [evidence](status/acceptance-evidence.md#windows-tunnel-interruption).

@@ -416,6 +416,8 @@ CLIはEnvの正確な作成世代を準備し、controllerから読み取り専�
 要求は4 byteのbig-endian長と最大8192 byteの厳密なJSONで、読み取りは10秒までです。追加の要求は受け付けません。
 親が保持する入力pipeを寿命の目印とし、EOFで待受・転送先を終了、余分なbyteは失敗にします。
 親のキャンセルはpipeを閉じ、終了を待ち、10秒応答しない場合は起動した子だけを終了します。
+Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所有するCLIが受けてpipe経由で中断します。
+親による直接の終了待ちは維持し、子の非zero終了を成功へ置換しません。
 委譲しても元の期限を延ばしません。結果と診断出力を分離します。実Windowsの構成要素試験と、
 `tools/windows-tunnel-entry-e2e.py`の通常導入経路は別の証拠です。
 [ADR 0074](../adr/0074-windows-tunnel-delegation.ja.md)を参照してください。

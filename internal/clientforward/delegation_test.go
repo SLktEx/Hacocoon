@@ -178,6 +178,11 @@ func TestCompanionChild(t *testing.T) {
 }
 
 func TestRealCompanionCancellationReapsChild(t *testing.T) {
+	testRealCompanionCancellation(t, exec.CommandContext, func(cancel context.CancelFunc) { cancel() })
+}
+
+func testRealCompanionCancellation(t *testing.T, command func(context.Context, string, ...string) *exec.Cmd, interrupt func(context.CancelFunc)) {
+	t.Helper()
 	d := testDelegation()
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
@@ -219,7 +224,7 @@ func TestRealCompanionCancellationReapsChild(t *testing.T) {
 	}
 	childCtx, stop := context.WithCancel(ctx)
 	defer stop()
-	cmd := exec.CommandContext(childCtx, exe, "-test.run=^TestCompanionChild$")
+	cmd := command(childCtx, exe, "-test.run=^TestCompanionChild$")
 	cmd.Env = append(os.Environ(), "HACO_TEST_TUNNEL_CHILD=1", "HACO_TEST_TUNNEL_CONTROLLER="+management.Addr().String())
 	ready := make(readyOutput, 1)
 	var diagnostic bytes.Buffer
@@ -256,7 +261,7 @@ func TestRealCompanionCancellationReapsChild(t *testing.T) {
 	if err := <-writeDone; err != nil || !bytes.Equal(data, answer) {
 		t.Fatal("binary exchange", err)
 	}
-	stop()
+	interrupt(stop)
 	select {
 	case err := <-done:
 		if err != nil {

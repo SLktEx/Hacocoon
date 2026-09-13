@@ -456,6 +456,9 @@ strict fields and a ten-second read deadline. No subsequent requests are allowed
 The parent's open input pipe is a lifetime lease: EOF cancels the listener and
 upstreams; extra bytes fail. The parent's cancellation closes that pipe, waits
 for child completion, and kills only that child after ten seconds if necessary.
+The Linux interop child is outside the foreground terminal process group, so
+Ctrl+C reaches the owning CLI and cancellation uses that pipe lease. It remains
+a directly waited child; nonzero child failures are not rewritten as success.
 The original deadline is not restarted on delegation. Output and diagnostics
 remain separate. Native Windows component acceptance is distinct from the
 ordinary installed journey in `tools/windows-tunnel-entry-e2e.py`.

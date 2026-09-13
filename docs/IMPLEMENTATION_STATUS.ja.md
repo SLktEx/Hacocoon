@@ -111,3 +111,7 @@ controller UDSへの橋渡し、型付きclientの接続差し替えを開発候
 native通知の診断は子のキャンセル／期限切れと数値の終了値・所要時間を保持します。
 既存の上限・回収・承認拒否は維持し、過去の導入済みclear失敗と新規GUI回答は未解決です。
 [受入記録](status/acceptance-evidence.ja.md#native-toast-process-diagnostics)を参照してください。
+
+WSL転送のinterop子を独立したprocess groupへ移し、端末の中断時にも親がpipeを閉じて子の終了を待つ処理を維持します。
+前面groupへの実信号を使う回帰はPASSですが、導入済みCtrl+C受入は残件です。
+[受入記録](status/acceptance-evidence.ja.md#windows-tunnel-interruption)を参照してください。
