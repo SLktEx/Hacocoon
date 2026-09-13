@@ -15,6 +15,11 @@ PRIVILEGED_ENV_RE = re.compile(
     rf"\b(HACO_E2E_INCUS|HACO_EXPERIMENTAL_EC2)\s*[:=]\s*{ACTIVE_TRUE}\b",
     re.IGNORECASE,
 )
+SECRET_ACCESS_RE = re.compile(r"\$\{\{\s*secrets(?:\.|\[)")
+EXACT_SECRET_REF_RE = re.compile(r"\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+SONAR_SCAN_ACTION = "SonarSource/sonarqube-scan-action"
+SONAR_SECRET_NAME = "SONAR_TOKEN"
+SONAR_WORKFLOW = ".github/workflows/quality.yml"
 BLOCK_SCALARS = {"|", ">", "|-", ">-", "|+", ">+"}
 
 
@@ -447,6 +452,43 @@ def _check_runner(path: Path, node: YAMLNode, violations: list[Violation]) -> No
     violations.append(Violation(path, node.line, f"runner declaration is ambiguous: {value!r}"))
 
 
+def _check_pr_secrets(path: Path, root: YAMLNode, text: str, violations: list[Violation]) -> None:
+    allowed_lines: set[int] = set()
+    normalized_path = path.as_posix()
+    is_quality_workflow = normalized_path == SONAR_WORKFLOW or normalized_path.endswith("/" + SONAR_WORKFLOW)
+
+    if is_quality_workflow:
+        for node in _walk(root):
+            if node.key != SONAR_SECRET_NAME or node.value != "${{ secrets.SONAR_TOKEN }}":
+                continue
+            if not _has_ancestor_key(node, "env"):
+                continue
+            step = _nearest_list_item(node)
+            if step is None or _first_descendant(step, "run") is not None:
+                continue
+            uses_node = _first_descendant(step, "uses")
+            if uses_node is None or not isinstance(uses_node.value, str) or "@" not in uses_node.value:
+                continue
+            action, ref = uses_node.value.rsplit("@", 1)
+            if action == SONAR_SCAN_ACTION and FULL_SHA_RE.fullmatch(ref):
+                allowed_lines.add(node.line)
+
+    for match in SECRET_ACCESS_RE.finditer(text):
+        line = text[: match.start()].count("\n") + 1
+        exact_match = EXACT_SECRET_REF_RE.match(text, match.start())
+        secret_name = exact_match.group(1) if exact_match is not None else None
+        if secret_name == SONAR_SECRET_NAME and line in allowed_lines:
+            continue
+        violations.append(
+            Violation(
+                path,
+                line,
+                "repository/environment secrets are not permitted in PR workflows except SONAR_TOKEN "
+                "on the pinned SonarQube scan action in .github/workflows/quality.yml",
+            )
+        )
+
+
 def check_text(path: Path, text: str) -> list[Violation]:
     violations: list[Violation] = []
     try:
@@ -562,10 +604,7 @@ def check_text(path: Path, text: str) -> list[Violation]:
             )
 
     if is_pr:
-        secret_match = re.search(r"\$\{\{\s*secrets\.", text)
-        if secret_match:
-            line = text[: secret_match.start()].count("\n") + 1
-            violations.append(Violation(path, line, "repository/environment secrets are not permitted in PR workflows"))
+        _check_pr_secrets(path, root, text, violations)
         for match in PRIVILEGED_ENV_RE.finditer(text):
             line = text[: match.start()].count("\n") + 1
             violations.append(Violation(path, line, f"{match.group(1)} must remain disabled in normal PR CI"))
