@@ -5,6 +5,8 @@
 [はじめての開発環境](getting-started.ja.md)を終えた方向けに、Gitの権限設定、
 複数リポジトリ、承認の保存を説明します。認証は信頼された `haco-host` に残し、
 EnvironmentにはGit専用の仲介接続だけを渡します。
+managed Git WorkspaceからEnvironmentを作成すると、この仲介接続は自動で配線されます。
+`haco git connect <env>` は明示的な再接続・復旧用として引き続き利用できます。
 
 <a id="configure-git-policy"></a>
 ## Gitの権限設定
@@ -101,11 +103,11 @@ haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
 haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
 haco workspace create --repo first,second both
 haco env create --workspace managed:both both-dev
-haco git connect both-dev
 ```
 
 `/workspace/first` と `/workspace/second` で作業し、それぞれ独立した `.git` を使います。
-両方の取得元にPolicyを設定します。一つの利用権の予約が集合全体を所有し、
+Environment作成時に全managed memberのbrokerが自動で配線されますが、この時点では上流remoteへ
+通信しません。両方の取得元にPolicyを設定します。一つの利用権の予約が集合全体を所有し、
 メンバーを別々に貸し出すことはできません。各マウントの外に書いたデータはEnvironmentだけに属します。
 メンバー構成の変更と、中断した集合の復旧は延期されています。
 
