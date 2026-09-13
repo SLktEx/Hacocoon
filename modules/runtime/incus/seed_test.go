@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -123,6 +124,10 @@ func TestToolingBasePackagesExcludeDockerEngine(t *testing.T) {
 }
 
 func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
+	if toolingDockerAliasPath != "/usr/bin/docker" {
+		t.Fatalf("docker alias path=%q; package installs must be able to replace it", toolingDockerAliasPath)
+	}
+
 	runner := &fakeRunner{}
 	provider, err := NewSandboxProvider(New(runner))
 	if err != nil {
@@ -147,6 +152,52 @@ func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
 		}
 		if !found {
 			t.Fatalf("missing docker alias command %q: %#v", want, runner.calls)
+		}
+	}
+}
+
+func TestWriteToolingProvisionFilesRetainsDockerCompatibilityUnits(t *testing.T) {
+	files, err := writeToolingProvisionFiles(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		files.socketUnit:  hacocoonDockerSocketUnit,
+		files.serviceUnit: hacocoonDockerServiceUnit,
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Fatalf("provisioned unit %s differs from pinned content", path)
+		}
+	}
+}
+
+func TestMaskVendorDockerUnitsReservesDockerSocketForHacocoon(t *testing.T) {
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.maskVendorDockerUnits(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls=%d want=1: %#v", len(runner.calls), runner.calls)
+	}
+	joined := strings.Join(runner.calls[0].args, " ")
+	for _, fragment := range []string{
+		"-- /bin/sh -c",
+		"systemctl disable --now",
+		"docker.service",
+		"docker.socket",
+		"ln -sfn /dev/null",
+		"systemctl daemon-reload",
+	} {
+		if !strings.Contains(joined, fragment) {
+			t.Fatalf("vendor Docker mask command missing %q: %q", fragment, joined)
 		}
 	}
 }
