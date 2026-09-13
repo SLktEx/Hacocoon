@@ -230,6 +230,10 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		toolingNetwork = "h599-" + hex.EncodeToString(nonce[:4])
 		command("network", "create", toolingNetwork, "ipv4.address=auto", "ipv4.nat=true", "ipv6.address=none")
 		command("config", "device", "add", trustedHostName, "eth0", "nic", "network="+toolingNetwork, "--project", project)
+		// Match normal Host setup: its NIC is present when the guest boots.
+		// Minimal images need not configure a NIC hot-plugged after boot.
+		command("stop", trustedHostName, "--project", project, "--timeout", "60")
+		command("start", trustedHostName, "--project", project)
 		verifyRuntimeCopy = prepareStandardHostToolingCopy(t, ctx, runtime, source, command)
 	} else {
 		verifyRuntimeCopy = prepareHostRuntimeCopy(t, ctx, runtime, source, command)

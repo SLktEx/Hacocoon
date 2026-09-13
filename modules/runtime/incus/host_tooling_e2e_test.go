@@ -16,6 +16,18 @@ func prepareStandardHostToolingCopy(t *testing.T, ctx context.Context, runtime *
 	t.Helper()
 	backend := &PersistentResourceBackend{Runtime: runtime}
 	if err := backend.ProvisionHostTools(ctx, source); err != nil {
+		// Report only fixed probe exit codes, never guest/package output.
+		for _, probe := range []struct{ name, script string }{
+			{"busctl_present", "test -x /usr/bin/busctl"},
+			{"system_bus_socket", "test -S /run/dbus/system_bus_socket"},
+			{"system_manager", "/usr/bin/busctl --system --timeout=2s get-property org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager Version"},
+			{"private_manager", "/usr/bin/systemctl show --property=Version"},
+			{"guest_ipv4", "ip -4 -o address show dev eth0 | grep -q 'inet '"},
+			{"archive_dns", "timeout 5 getent ahostsv4 archive.ubuntu.com"},
+		} {
+			result, runErr := runtime.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", runtime.project, "--", "/bin/sh", "-ec", probe.script)
+			t.Logf("Host tooling probe %s: exit=%d runner_error=%t", probe.name, result.ExitCode, runErr != nil)
+		}
 		t.Fatal(err)
 	}
 	guest := func(name, script string) string {
