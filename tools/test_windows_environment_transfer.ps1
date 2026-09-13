@@ -45,7 +45,7 @@ git -C "$dir/repository" -c user.name=Transfer -c user.email=transfer@example.in
         $phase = 'source-ssh'
         Update-SSHTestPolicy 'add' $source
         $policyAdded = $true
-        $first = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--key',$PublicKeyWsl,$source) 'Prepare source SSH through installed package Policy').Stdout | ConvertFrom-Json
+        $first = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--json','--key',$PublicKeyWsl,$source) 'Prepare source SSH through installed package Policy').Stdout | ConvertFrom-Json
         $configure = {
             param($Connection)
             if ($Connection.kind -ne 'ssh' -or $Connection.host -ne '127.0.0.1' -or $Connection.user -ne 'root' -or [int]$Connection.port -lt 1 -or [int]$Connection.port -gt 65535 -or [int]$Connection.target_port -ne 22) { throw 'Invalid transfer SSH boundary' }
@@ -99,7 +99,7 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         if (($null -ne $base -and $null -ne $base.Value) -or $status.environment.runtime_ref -eq $sourceStatus.environment.runtime_ref -or $status.environment.workspace.id -eq $sourceStatus.environment.workspace.id) { throw 'Imported management identity or Base dependency is stale' }
         $phase = 'imported-ssh'
         # No package Policy is granted to the imported Env: sshd comes from saved rootfs.
-        $second = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--key',$PublicKeyWsl,$destination) 'Prepare imported SSH without inheriting source grants').Stdout | ConvertFrom-Json
+        $second = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--json','--key',$PublicKeyWsl,$destination) 'Prepare imported SSH without inheriting source grants').Stdout | ConvertFrom-Json
         if ($second.host_public_key -eq $first.host_public_key) { throw 'Imported Env reused the source SSH host key' }
         & $configure $second
         $check = 'set -eu; cd /workspace; test "$(git rev-parse HEAD)" = ' + $commit + '; test "$(cat committed-locally)" = unpushed; test "$(cat tracked)" = uncommitted; test "$(cat untracked)" = untracked; test "$(cat /root/transfer-marker)" = rootfs-kept; test "$(cat /var/lib/hacocoon-oci/transfer-marker)" = oci-kept; test ! -e /var/lib/hacocoon-control.sock; test ! -e /var/lib/incus/unix.socket; printf continued-over-ssh > continued; printf transfer-ssh-ok'

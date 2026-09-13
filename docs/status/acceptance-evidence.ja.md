@@ -25,6 +25,16 @@ main向け#479では共通導入、doctorと必要なvendor daemon/export/fixtur
 上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
 切り出し自体のパッケージ・実機CI結果は独立PRで確認してください。
 
+切り出し`9a4dc42`で[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125)、
+[実Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134)は成功しました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114)も新規導入・再起動・再導入、
+egress、transfer、reclaimと保持データ復元は成功しましたが、desktop全体は承認操作と
+後続preview setupで失敗しました。承認fixtureが端末必須のCLIへパイプで回答していたため、
+専用PTYへ修正し、JSONの応答と時間制限付きの子プロセスcleanupを維持します。
+mainの出力変更に合わせ、受入試験でJSONを読む呼び出しには`--json`を明示します。
+修正後の統合候補は別途実機結果が必要で、元のWindows全体の失敗は保持します。
+
 <a id="installation"></a>
 
 ## インストールとHost

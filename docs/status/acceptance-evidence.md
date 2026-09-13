@@ -26,6 +26,17 @@ vendor-daemon/export/fixture fixes. The preceding integrated-candidate passes
 are not a native rerun of that extraction or evidence of publication. Its own
 packaged/native CI results must be checked on the independent PR.
 
+At extraction `9a4dc42`, [repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125) and
+[real Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134) passed.
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114) passed fresh
+installation/restart/reinstall, egress, transfer, reclaim and retained-data restore,
+but the desktop aggregate failed approval review and subsequent preview setup.
+The approval fixture piped answers into a terminal-only command. It now uses a
+private PTY, preserving JSON receipts and bounded child cleanup; acceptance readers
+also request `--json` explicitly after main's output change. The corrected combined
+candidate requires its own native result; the failed Windows aggregate remains a failure.
+
 <a id="installation"></a>
 
 ## Installation and Host

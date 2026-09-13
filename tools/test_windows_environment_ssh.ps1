@@ -163,7 +163,7 @@ try {
     $definition = @{name=$BuiltBaseName; run="printf '#!/bin/sh\necho windows-base-tool-ok\n' > /usr/local/bin/haco-base-tool`nchmod 0755 /usr/local/bin/haco-base-tool`n"} | ConvertTo-Json -Compress
     [IO.File]::WriteAllText($BaseDefinition, $definition, [Text.UTF8Encoding]::new($false))
     $translatedDefinition = Invoke-Wsl @('--exec','wslpath','-u','-a',$BaseDefinition) 'Translate test Base definition'
-    $built = Invoke-HacoHost @('/usr/local/bin/haco','base','build',$translatedDefinition.Stdout.Trim()) 'Build and register test Base through ordinary haco'
+    $built = Invoke-HacoHost @('/usr/local/bin/haco','base','build','--json',$translatedDefinition.Stdout.Trim()) 'Build and register test Base through ordinary haco'
     $builtResult = $built.Stdout.Trim() | ConvertFrom-Json
     if ($builtResult.state -ne 'ready' -or $builtResult.base.name -ne $BuiltBaseName -or $builtResult.base.revision -notmatch '^sha256:[a-f0-9]{64}$') { throw 'Incomplete test Base build' }
     $BuiltBaseFingerprint = $builtResult.base.revision.Substring(7)
@@ -191,7 +191,7 @@ try {
         Write-Host 'SKIP: VPN/NRPT acceptance requires an available VPN and private test name.'
     }
 
-    $sshArgs = @('/usr/local/bin/haco', 'env', 'ssh', '--key', $PublicKeyWsl)
+    $sshArgs = @('/usr/local/bin/haco', 'env', 'ssh', '--json', '--key', $PublicKeyWsl)
     if ($Port -ne 0) { $sshArgs += @('--port', $Port.ToString()) }
     $sshArgs += $EnvironmentName
     $prepared = Invoke-HacoHost $sshArgs 'Prepare loopback-only SSH from trusted haco-host'
@@ -270,8 +270,8 @@ umask 077
 before=$(mktemp /tmp/haco-config-before-XXXXXX)
 after=$(mktemp /tmp/haco-config-after-XXXXXX)
 trap 'rm -f "$before" "$after"' EXIT
-haco config > "$before"
-haco config --file "$before" > "$after"
+haco config --json > "$before"
+haco config --json --file "$before" > "$after"
 python3 - "$before" "$after" <<'PY'
 import json, re, sys
 with open(sys.argv[1]) as f: before = json.load(f)
