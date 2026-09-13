@@ -29,8 +29,8 @@ func runSetup(args []string) int {
 func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("haco setup", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	scriptPath := flags.String("script", "", "save and run a UTF-8 bash script in the Host or selected Environment")
-	clear := flags.Bool("clear-script", false, "remove the selected saved script without running it")
+	scriptPath := flags.String("script", "", cliMessage("detail.setup_script"))
+	clear := flags.Bool("clear-script", false, cliMessage("detail.setup_clear"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			fmt.Fprintln(stdout, "Usage: haco setup [--script <path> | --clear-script] [environment]")

@@ -39,15 +39,15 @@ func baseManageCommand(ctx context.Context, client baseImageClient, args []strin
 	flags := flag.NewFlagSet("haco base "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco base list --all [--json] | haco base delete [--yes] <name-or-fingerprint>")
+		commandHelp(diagnostic, "base "+args[0], cliLanguage())
 	}
 	var all, machine, yes bool
 	switch args[0] {
 	case "list":
-		flags.BoolVar(&all, "all", false, "show every retained built-image revision")
-		flags.BoolVar(&machine, "json", false, "machine-readable image metadata")
+		flags.BoolVar(&all, "all", false, cliMessage("detail.base_all"))
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		flags.BoolVar(&yes, "yes", false, "confirm deletion of the reviewed Base image")
+		flags.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		flags.Usage()
 		return 2

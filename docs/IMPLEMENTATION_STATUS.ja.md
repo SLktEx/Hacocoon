@@ -12,7 +12,7 @@
 |---|---|---|
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。英語Windows配布物の入場／interopは確認済み。日本語Windows新規導入は未確認。 |
 | [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。構成メンバーの編集と準備中断からの一般的な復旧は未完了。 |
-| [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
+| [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効。別Baseは通常の環境再作成で選択。 |
 | [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したループバック SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
 | [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | 全heads fetch/pull（1024 heads・pack合計32 MiB）とcontroller所有の資格情報による内容固定push。単一refの新規ブランチ作成とfast-forward更新を正確なrefで個別承認し、作成競合は拒否。大きなpack、ブランチ削除、force／複数ref push、LFS/submodule、不明な結果からの一般的な復旧は非対応。全heads／新規pushの実Env受入は未確認。 |
@@ -46,26 +46,18 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 実装済み（開発候補のみ）: [Workspace入口・独立fork](design/workspace-workflow.md)、[TCP/UDP接続](design/network-connections.md)、[日常操作・setup診断](reference/daily-workflow.ja.md)。main反映・配布・統合候補の実機確認とは区別します。
 
 
-M1は**partial**です。階層別の日英ヘルプ、日常失敗・保持／再開の日本語案内、BATの共通
-終了表示・待機省略、nativeの同種失敗通知抑制を実装しました。正規化したWSL→Host sessionの
-言語引き継ぎとWindows／WSL通常入場の自動選択は実装済みで、配布物の言語受入と残る翻訳は
-未完了です。共通Incus 7.0 LTSは
-Ubuntu配布物と範囲を限定したWindows受入が成功しました。別経路のCore／Btrfs CIは6.0.5のまま
-だったため共通導入処理へ統一しました。7.0.1でCoreとBtrfsの個別操作は成功し、全体jobは
-残るfixture修正後の再試験待ちです。承認／previewは試験修正後に
-成功しました。`3cac2e95`でWindows転送・公開reclaim・native通知経路も成功しましたが、
-人によるトースト操作／GUI回答はSKIPです。
-[commitごとの証拠](status/acceptance-evidence.ja.md)を参照してください。配布済み・実機での言語転送完了ではありません。
+M1は**partial**です。階層別の日英ヘルプに位置引数・オプション・既定値を追加し、日常の失敗・
+保持／再開案内、BATの共通終了表示・待機省略、nativeの同種失敗通知抑制を実装しました。
+`0c79f820`では英語WindowsからHostへの表示言語一致と、有効なIncus 7.0.1 Core／Btrfs、
+Ubuntu／Windows配布物のworkflowがすべてPASSです。通常SSH／VS Code、移送、public reclaim、
+通知経路を確認しました。残る結果・エラーの翻訳、日本語Windows経路、元のSSH失敗再現、
+導入済み長文入力／resizeは未完了です。人間のtoast／新GUI回答は未確認です。
+[検証証拠](status/acceptance-evidence.ja.md)を参照してください。開発ブランチ上の実装・確認であり、
+main反映済み・配布済みを意味しません。
 
 VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表示snapshotに束縛したprivate sessionを使用します。`e7ba7987`で導入済み画面の描画・古い要求の拒否がPASS、新規要求への人の回答とWindows通知内回答は残件です。[承認の契約](design/pending-approval-review.ja.md)と[検証証拠](status/acceptance-evidence.ja.md)を参照してください。
 
 一時runのcleanupは共通lifecycle APIで正確な作成identityを必須にし、未完了runが
 ある間の名前再利用を拒否します。旧記録のidentity不足は復旧待ちとして保持します。
 所有権修正は`9f4cf510`で全native workflowがPASSです。後続stdin／TTYも同じlifecycleを使い、
-その実機確認は残件です。[一時実行](design/temporary-execution.ja.md)を参照してください。
-
-最新M1候補`0c79f820`では、有効なIncus 7.0.1 Core／BtrfsとUbuntu／Windows配布物のworkflowがすべてPASSです。
-英語WindowsからHostへの表示言語一致、通常SSH／VS Code、移送、public reclaim、通知起動を確認しました。
-M1は部分完了で、help／optionsの翻訳全体、日本語Windows経路、元のSSH失敗再現、導入済み長文入力／resizeが残ります。
-人間のtoast／新GUI回答は未確認です。[検証証拠](status/acceptance-evidence.ja.md)を参照してください。
-開発ブランチ上の実装と確認であり、main反映済み・配布済みを意味しません。
+実Incusのpipe／PTYは`b3169814`でPASSです。Windowsの入力確認はFAILし、driver修正後の再確認待ちです。[一時実行](design/temporary-execution.ja.md)を参照してください。

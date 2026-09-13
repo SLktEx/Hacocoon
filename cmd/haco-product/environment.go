@@ -64,9 +64,9 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var jsonOutput, noOCI bool
 	switch args[0] {
 	case "forward":
-		flags.StringVar(&protocol, "protocol", "tcp", "tcp or udp")
-		flags.IntVar(&port, "port", 0, "Physical Host loopback port (automatic by default)")
-		flags.IntVar(&targetPort, "target-port", 0, "Environment destination port")
+		flags.StringVar(&protocol, "protocol", "tcp", cliMessage("detail.protocol"))
+		flags.IntVar(&port, "port", 0, cliMessage("flag.ssh_port"))
+		flags.IntVar(&targetPort, "target-port", 0, cliMessage("detail.target_port"))
 	case "create":
 		flags.BoolVar(&noOCI, "no-oci", false, cliMessage("flag.no_oci"))
 		flags.StringVar(&workspace, "workspace", "", cliMessage("flag.workspace"))

@@ -46,10 +46,9 @@ is never proof of implementation or acceptance.
 | G3 — reconstruct and compare elsewhere | One managed cross-WSL fixture and two native split-image imports passed. Unified-image import and new-Env boot from those images remain unverified. Whole-installation restore, guest-visible ownership/link/ACL/xattr comparisons, credentials/settings and broader application/client acceptance remain. |
 | G4 — reviewed replacement | Planned. Retain the old WSL/data until required independent restore and comparison succeed. Inventory or one imported bundle never authorizes deletion. |
 
-`switch-base` is disabled and on hold, with no return scheduled. It does not block
-A–C. If future evidence justifies a convenience operation, reconsider its necessity,
-Workspace/OCI/snapshot semantics and UX first; ordinary delete/create already preserves
-retained data. Historical [ADR 0011](../adr/0011-managed-workspace-base-switch.md)
+`switch-base` is disabled and its return is not planned. Ordinary delete/create
+preserves retained Workspace and OCI data while selecting another Base.
+Historical [ADR 0011](../adr/0011-managed-workspace-base-switch.md)
 does not reinstate a public command.
 
 ## Persistent data and OCI direction
@@ -330,3 +329,14 @@ Incus/Windows acceptance remains pending; M3 remains partial. Next validate the
 maintained native pipe/PTY fixture, then continue client forwarding and corporate
 VPN/DNS gaps independently. [ADR 0069](../adr/0069-bounded-process-streams.md) owns
 the transport decision; M4/M5 remain in scope.
+
+
+The next M1 help candidate is on `codex/cli-help-details`, following #591.
+Individual product/Host help now describes arguments, options, defaults and
+requirements in both languages; product FlagSet descriptions reuse that catalog.
+Setup/configuration/approval/doctor/reclaim/version help returns locally, and
+remaining long subcommand usage lists route through the shared hierarchy.
+Human result/error translations and Japanese Windows acceptance remain partial.
+The obsolete switch-base return hint now directs users to normal recreation;
+no return is planned. Next complete the CLI regressions and review this slice,
+while preserving #591's separate Windows input failure and correction evidence.

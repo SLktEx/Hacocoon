@@ -22,14 +22,14 @@ func managedWorkspaceCommand(ctx context.Context, args []string, in io.Reader, o
 	flags := flag.NewFlagSet("haco workspace "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco workspace list [--json] | haco workspace delete [--yes] <workspace>")
+		commandHelp(diagnostic, "workspace "+args[0], cliLanguage())
 	}
 	var machine, yes bool
 	switch args[0] {
 	case "list":
-		flags.BoolVar(&machine, "json", false, "machine-readable retained Workspaces")
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		flags.BoolVar(&yes, "yes", false, "confirm deletion of this Workspace and all its Git data")
+		flags.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		flags.Usage()
 		return 2

@@ -9,7 +9,8 @@ Status: **partial**. The local Unix-domain protocol, Physical Host controller, t
 ## Summary
 
 The product client exposes Base list/inspect and normal Environment create/delete.
-`switch-base` is currently disabled without a scheduled return. SSH configuration
+`switch-base` is disabled and its return is not planned. Use a new Environment
+with the retained Workspace to select another Base. SSH configuration
 reads existing loopback connection metadata. Optional `plugin.oci.store` manages
 persistent OCI data through the trusted controller; it is never registered on
 the Environment Git-only endpoint. `environment.create` can atomically reserve
