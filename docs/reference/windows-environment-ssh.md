@@ -21,8 +21,8 @@ for ownership and recovery.
 
 The installed Windows acceptance fixture records editor, project setup, preview
 and Environment doctor failures separately and continues the independent probes.
-For the initial native SSH probe, a timeout records only allowlisted client
-progress and fixed fixture markers: connection, authentication, session, received
+Native SSH failures record only allowlisted client progress, stream failure reasons
+and fixed fixture markers: connection, authentication, session, received
 exit status and command progress. Raw verbose SSH output and key/peer details
 are not emitted. These observations diagnose a failure and never replace pinned
 host-key checks or successful completion. The five-minute deadline is unchanged.
@@ -109,7 +109,9 @@ Environment deletion removes its grants and retains Workspace/OCI Store data.
 Keep the client private key on Windows throughout. The maintained
 [`tools/test_windows_environment_ssh.ps1`](../../tools/test_windows_environment_ssh.ps1)
 uses an isolated Windows key directory, a dedicated pin, a mismatch rejection
-probe, `/workspace` verification and cleanup; it never installs user SSH config.
+probe, `/workspace` verification and cleanup. On the disposable GitHub Actions user,
+it also installs the managed Include and tests parallel cold reconnect and standard
+VS Code Remote-SSH. Local manual runs preserve the operator's SSH configuration.
 
 After a fresh candidate ZIP passes the ordinary Windows installer gate, run
 `python tools/windows-native-access-e2e.py --require-non-c` on a machine with

@@ -181,10 +181,10 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		return dailyFailure(diagnostic, "environment_"+args[0], "controller", name, err)
 	}
 	if args[0] == "delete" {
-		cleanupDesktopSSH(ctx, pos[0], "", diagnostic)
+		cleanupDesktopSSH(ctx, client, pos[0], "", diagnostic)
 	}
 	if args[0] == "disconnect" {
-		cleanupDesktopSSH(ctx, pos[0], pos[1], diagnostic)
+		cleanupDesktopSSH(ctx, client, pos[0], pos[1], diagnostic)
 	}
 	if mutating {
 		fmt.Fprintf(diagnostic, "[succeeded] environment_%s\n", args[0])

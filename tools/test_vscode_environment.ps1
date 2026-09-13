@@ -31,6 +31,12 @@ $alias = 'haco-' + $EnvironmentName
 $settings['remote.SSH.remotePlatform'] = @{ $alias = 'linux' }
 [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 try {
+    # The previous successful editor setup includes Microsoft's standard client.
+    # haco open used to install it; the cold test now starts with a saved-folder URI.
+    & $code --install-extension ms-vscode-remote.remote-ssh
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to install standard Remote-SSH client.' }
+    $extensions = & $code --list-extensions
+    if ($LASTEXITCODE -ne 0 -or $extensions -notcontains 'ms-vscode-remote.remote-ssh') { throw 'Standard Remote-SSH client is missing.' }
     & $code --install-extension $vsix
     if ($LASTEXITCODE -ne 0) { throw 'Failed to install disposable UI observer.' }
     # SSH setup has already persisted this target. Simulate shutdown, then make
