@@ -25,23 +25,47 @@ func runDoctor(args []string) int {
 	return doctor(ctx, args, os.Stdout, os.Stderr)
 }
 
+func writeDoctorUsage(out io.Writer) {
+	fmt.Fprintln(out, "Usage: haco doctor [--json] [environment]")
+	fmt.Fprintln(out, "       haco doctor --fix [--json] <environment>")
+}
+
+func parseDoctorArgs(args []string) (jsonOutput, fix bool, target string, ok bool) {
+	for _, arg := range args {
+		switch arg {
+		case "--json":
+			if jsonOutput {
+				return false, false, "", false
+			}
+			jsonOutput = true
+		case "--fix":
+			if fix {
+				return false, false, "", false
+			}
+			fix = true
+		default:
+			if arg == "" || strings.HasPrefix(arg, "-") || target != "" {
+				return false, false, "", false
+			}
+			target = arg
+		}
+	}
+	if fix && target == "" {
+		return false, false, "", false
+	}
+	return jsonOutput, fix, target, true
+}
+
 func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, "Usage: haco doctor [--json] [environment]")
+		writeDoctorUsage(stdout)
 		return 0
 	}
-	jsonOutput := false
-	if len(args) > 0 && args[0] == "--json" {
-		jsonOutput = true
-		args = args[1:]
-	}
-	if len(args) > 1 || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
-		fmt.Fprintln(stderr, "haco: usage: haco doctor [--json] [environment]")
+	jsonOutput, fix, target, ok := parseDoctorArgs(args)
+	if !ok {
+		fmt.Fprint(stderr, "haco: ")
+		writeDoctorUsage(stderr)
 		return 2
-	}
-	target := ""
-	if len(args) == 1 {
-		target = args[0]
 	}
 	logger, err := logging.NewFromEnv(stderr)
 	if err != nil {
@@ -58,9 +82,15 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return fail("Cannot open the Physical Host controller client")
 	}
 	if target != "" {
-		report, err := diagnoseEnvironment(ctx, client, target)
+		report, err := diagnoseEnvironmentWithGit(ctx, client, target)
 		if err != nil {
 			return fail("Could not inspect Environment; check haco env list and controller availability")
+		}
+		if fix {
+			report, err = repairEnvironmentGitBroker(ctx, client, target, report)
+			if err != nil {
+				return fail("Could not repair the managed Git broker; inspect local broker wiring and retry")
+			}
 		}
 		return writeEnvironmentDoctor(stdout, report, jsonOutput)
 	}

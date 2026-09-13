@@ -90,7 +90,7 @@ func diagnoseEnvironment(ctx context.Context, c environmentDoctorClient, name st
 func writeEnvironmentDoctor(out io.Writer, report environmentDoctorReport, asJSON bool) int {
 	healthy := true
 	for _, check := range report.Checks {
-		if check.Status != "ok" {
+		if check.Status == "failed" {
 			healthy = false
 		}
 	}

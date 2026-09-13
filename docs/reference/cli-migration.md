@@ -15,7 +15,7 @@ its deletion. Product commands do not silently fall back to legacy composition.
 | `haco create/list/status/delete` | `haco env create/list/status/delete`; managed Workspace preparation is explicit |
 | Direct `haco ssh` with a name | `haco ssh setup [env]` then `haco open --client ssh [env]`; manual public key route is `haco env ssh` |
 | `haco exec/shell` on a retained Env | Ordinary SSH; `haco run -- ...` for a new temporary Env |
-| Host-side Git worktree capability | Managed `repo clone` → `workspace create` → `env create` → `git connect` and ordinary guest Git |
+| Host-side Git worktree capability | Managed `repo clone` → `workspace create` → `env create` with automatic broker wiring and ordinary guest Git; use `haco doctor --fix <env>` only for local broker recovery |
 | `haco host ensure` / old bootstrap | `haco setup`; `hacoq host ensure` now refuses before composition |
 | Seed/Docker plugin commands, raw event export, resource-budget flags | Retained legacy surfaces below; no assumed product equivalent |
 | `haco env switch-base`, old OCI distribution | Disabled/removed public behavior; preserve data with the [ordinary recreation lifecycle](../guides/data-lifetime.md) |
