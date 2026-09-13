@@ -243,7 +243,10 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		if err != nil {
 			return err
 		}
-		return backend.EnableHostOCI(ctx, source)
+		if err := backend.EnableHostOCI(ctx, source); err != nil {
+			return err
+		}
+		return backend.ProvisionHostTools(ctx, source)
 	})
 	environments.ConfigureDefaultResource(workspaceStores.Resolve)
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
