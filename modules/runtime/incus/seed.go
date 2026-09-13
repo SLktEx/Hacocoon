@@ -23,7 +23,7 @@ const seedHostNamespace = "hacocoon-seed"
 
 const (
 	toolingNerdctlPath     = "/usr/local/bin/nerdctl"
-	toolingDockerAliasPath = "/usr/local/bin/docker"
+	toolingDockerAliasPath = "/usr/bin/docker"
 )
 
 var nestedOCIConfig = map[string]string{
@@ -38,6 +38,54 @@ var toolingBasePackages = []string{
 	"containernetworking-plugins",
 	"openssh-server",
 }
+
+var vendorDockerUnits = []string{
+	"docker.service",
+	"docker.socket",
+}
+
+const hacocoonDockerSocketUnit = `[Unit]
+Description=Hacocoon OCI plugin Docker Engine API compatibility socket
+Documentation=https://docs.docker.com/engine/
+
+[Socket]
+ListenStream=/run/docker.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=docker
+RemoveOnStop=true
+Service=hacocoon-docker.service
+
+[Install]
+WantedBy=sockets.target
+`
+
+const hacocoonDockerServiceUnit = `[Unit]
+Description=Hacocoon OCI plugin Docker Engine compatibility daemon
+Documentation=https://docs.docker.com/engine/
+Requires=hacocoon-docker.socket containerd.service
+After=hacocoon-docker.socket containerd.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+ExecReload=/bin/kill -s HUP $MAINPID
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=2
+Delegate=yes
+KillMode=process
+OOMScoreAdjust=-500
+`
+
+const maskVendorDockerUnitsScript = `set -eu
+for unit in docker.service docker.socket; do
+    systemctl disable --now "$unit" >/dev/null 2>&1 || true
+    ln -sfn /dev/null "/etc/systemd/system/$unit"
+done
+systemctl daemon-reload
+`
 
 func (p *SandboxProvider) ResolveParentBase(ctx context.Context, name core.BaseName) (core.BaseRef, error) {
 	if p == nil || p.BaseProvider == nil {
@@ -142,6 +190,15 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if err := p.installToolingDockerAlias(ctx, builder); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
+	if err := p.pushBuilderFile(ctx, builder, files.socketUnit, "/etc/systemd/system/hacocoon-docker.socket", 0o644); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.pushBuilderFile(ctx, builder, files.serviceUnit, "/etc/systemd/system/hacocoon-docker.service", 0o644); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.maskVendorDockerUnits(ctx, builder); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
 	if err := p.guestExec(ctx, builder, "systemctl", "enable", "containerd.service"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("enable containerd in tooling Base: %w", err))
 	}
@@ -157,6 +214,17 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 	if err := p.expectGuestUnitFileState(ctx, builder, "containerd.service", "enabled"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	for _, unit := range vendorDockerUnits {
+		if err := p.expectGuestUnitFileState(ctx, builder, unit, "masked"); err != nil {
+			return seedbuild.BuildResult{}, cleanup(err)
+		}
+	}
+	if err := p.expectGuestUnitFileState(ctx, builder, "hacocoon-docker.socket", "disabled"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.expectGuestUnitFileState(ctx, builder, "hacocoon-docker.service", "static"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 
@@ -285,15 +353,25 @@ func (p *SandboxProvider) BuildSeed(ctx context.Context, plan seedbuild.BuildPla
 }
 
 type toolingProvisionFiles struct {
-	policyRC string
+	policyRC    string
+	socketUnit  string
+	serviceUnit string
 }
 
 func writeToolingProvisionFiles(dir string) (toolingProvisionFiles, error) {
 	files := toolingProvisionFiles{
-		policyRC: filepath.Join(dir, "policy-rc.d"),
+		policyRC:    filepath.Join(dir, "policy-rc.d"),
+		socketUnit:  filepath.Join(dir, "hacocoon-docker.socket"),
+		serviceUnit: filepath.Join(dir, "hacocoon-docker.service"),
 	}
 	if err := os.WriteFile(files.policyRC, []byte("#!/bin/sh\nexit 101\n"), 0o755); err != nil {
 		return toolingProvisionFiles{}, fmt.Errorf("write package service-start policy: %w", err)
+	}
+	if err := os.WriteFile(files.socketUnit, []byte(hacocoonDockerSocketUnit), 0o644); err != nil {
+		return toolingProvisionFiles{}, fmt.Errorf("write Docker compatibility socket unit: %w", err)
+	}
+	if err := os.WriteFile(files.serviceUnit, []byte(hacocoonDockerServiceUnit), 0o644); err != nil {
+		return toolingProvisionFiles{}, fmt.Errorf("write Docker compatibility service unit: %w", err)
 	}
 	return files, nil
 }
@@ -322,6 +400,13 @@ func (p *SandboxProvider) installToolingDockerAlias(ctx context.Context, builder
 	}
 	if err := p.guestExec(ctx, builder, "test", toolingNerdctlPath, "-ef", toolingDockerAliasPath); err != nil {
 		return fmt.Errorf("verify docker CLI resolves to nerdctl: %w", err)
+	}
+	return nil
+}
+
+func (p *SandboxProvider) maskVendorDockerUnits(ctx context.Context, builder string) error {
+	if err := p.guestExec(ctx, builder, "/bin/sh", "-c", maskVendorDockerUnitsScript); err != nil {
+		return fmt.Errorf("reserve Docker service/socket for Hacocoon compatibility: %w", err)
 	}
 	return nil
 }
