@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/ci-incus-cleanup-library.sh"
 
 readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
 export INCUS_CONF="$CLIENT_CONF"
@@ -17,34 +18,21 @@ require_github_hosted_runner() {
 }
 
 cleanup_project() {
-  local project="$1"
-  local instance unexpected=0
-
-  while IFS= read -r instance; do
-    [[ -n "$instance" ]] || continue
-    case "$instance" in
-      haco-*) ;;
-      *)
-        echo "ERROR: refusing to force-delete CI-owned project '$project' with unexpected instance '$instance'" >&2
-        unexpected=1
-        ;;
-    esac
-  done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
-
-  [[ "$unexpected" == "0" ]] || return 1
-  printf 'yes\n' | incus project delete "$project" --force
+  ci_delete_project "$1"
 }
 
 main() {
   require_github_hosted_runner
   local project failed=0
 
+  local projects
+  projects="$(incus project list --format csv -c n)" || return 1
   while IFS= read -r project; do
     [[ -n "$project" ]] || continue
     case "$project" in
       hacocoon|haco-e2e-*) cleanup_project "$project" || failed=1 ;;
     esac
-  done < <(incus project list --format csv -c n 2>/dev/null || true)
+  done <<< "$projects"
 
   [[ "$failed" == "0" ]] || fail "Incus project cleanup was incomplete"
 }

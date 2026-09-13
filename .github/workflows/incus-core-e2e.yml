@@ -29,16 +29,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate standalone Incus E2E helpers
+      - name: "[fixture] Validate standalone Incus E2E helpers"
         run: bash -n tools/ci-incus.sh test/e2e/incus_standalone.sh
-      - name: Install and initialize Incus substrate
+      - name: "[infrastructure] Install and initialize Incus substrate"
         run: bash tools/ci-incus.sh setup
-      - name: Verify standalone Incus system containers
+      - name: "[infrastructure] Verify standalone Incus system containers"
         run: bash tools/ci-incus.sh standalone
-      - name: Capture standalone Incus diagnostics
+      - name: "[fixture] Capture standalone Incus diagnostics"
         if: failure()
         run: bash tools/ci-incus.sh diagnostics
-      - name: Upload standalone Incus diagnostics
+      - name: "[fixture] Upload standalone Incus diagnostics"
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -46,12 +46,25 @@ jobs:
           path: ${{ runner.temp }}/incus-diagnostics/
           if-no-files-found: error
           retention-days: 7
-      - name: Clean up standalone Incus resources
+      - name: "[fixture] Clean up standalone Incus resources"
         if: always()
         run: bash tools/ci-incus.sh cleanup-standalone
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: |
+            ci-substrate.json
+            ci-test-results.jsonl
+            ci-failure-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   incus-core-e2e:
-    needs: incus-standalone
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
@@ -62,14 +75,14 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Validate Core and CLI E2E helper syntax
+      - name: "[fixture] Validate Core and CLI E2E helper syntax"
         run: bash -n tools/ci-incus.sh tools/ci-incus-core.sh tools/ci-incus-project-cleanup.sh test/e2e/incus.sh
-      - name: Prepare proven Incus substrate for Hacocoon Core
+      - name: "[infrastructure] Prepare proven Incus substrate for Hacocoon Core"
         run: bash tools/ci-incus.sh setup
-      - name: Allow leased workspace owner in Incus root idmap
+      - name: "[infrastructure] Allow leased workspace owner in Incus root idmap"
         run: |
           uid="$(id -u)"
           gid="$(id -g)"
@@ -79,22 +92,36 @@ jobs:
           if ! awk -F: -v id="$gid" '$1 == "root" && id >= $2 && id - $2 < $3 { found=1 } END { exit found ? 0 : 1 }' /etc/subgid; then
             printf 'root:%s:1\n' "$gid" | sudo tee -a /etc/subgid >/dev/null
           fi
-      - name: Run Hacocoon egress policy against real Incus
+      - name: "[product] Run Hacocoon egress policy against real Incus"
         run: bash tools/ci-incus-core.sh egress
-      - name: Run Hacocoon Core and shipped CLI lifecycle against real Incus
+      - name: "[product] Run Hacocoon Core and shipped CLI lifecycle against real Incus"
         run: bash tools/ci-incus.sh core
-      - name: Capture Hacocoon and Incus diagnostics
+      - name: "[fixture] Capture Hacocoon and Incus diagnostics"
         if: failure()
         run: |
           bash tools/ci-incus.sh diagnostics
           bash tools/ci-incus-core.sh diagnostics
-      - name: Delete CI-owned Incus projects and pools
+      - name: "[fixture] Delete CI-owned Incus projects and pools"
         if: always()
         run: bash tools/ci-incus-project-cleanup.sh
-      - name: Clean up Hacocoon Core E2E resources
+      - name: "[fixture] Clean up Hacocoon Core E2E resources"
         if: always()
         run: bash tools/ci-incus.sh cleanup-core
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: |
+            ci-substrate.json
+            ci-test-results.jsonl
+            ci-failure-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   incus-owned-btrfs:
     runs-on: ubuntu-26.04
     timeout-minutes: 45
@@ -106,84 +133,97 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Validate real Incus storage CLI E2E helpers
+      - name: "[fixture] Validate real Incus storage CLI E2E helpers"
         run: |
           bash -n tools/ci-incus-core.sh tools/ci-incus-storage-cli.sh
           python3 tools/test_cleanup_ci_base_asset.py
-      - name: Prepare real Incus substrate
+      - name: "[infrastructure] Prepare real Incus substrate"
         run: |
           printf 'INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'HACO_CI_INCUS_CONF=%s/haco-incus-client\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           bash tools/ci-incus-core.sh setup
-      - name: Prepare normal-user haco CLI acceptance
+      - name: "[fixture] Prepare normal-user haco CLI acceptance"
         id: reclaim_substrate
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: Run normal haco create and run against Incus-owned Btrfs
+      - name: "[product] Run normal haco create and run against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
-      - name: Verify Incus pool trim retains volume and snapshot
-        if: ${{ !cancelled() && steps.reclaim_substrate.outcome == 'success' }}
+      - name: "[product] Verify Incus pool trim retains volume and snapshot"
         run: |
           go test -c -o "$RUNNER_TEMP/reclaim-storage.test" ./modules/runtime/incus
-          sudo env HACO_E2E_RECLAIM_TRIM=1 "$RUNNER_TEMP/reclaim-storage.test" -test.run='^TestRealIncusPoolTrimPreservesVolumeAndSnapshot$' -test.v -test.timeout=6m
-      - name: Verify ordinary tar tree capture
+          python3 tools/ci_required_tests.py --expect TestRealIncusPoolTrimPreservesVolumeAndSnapshot -- sudo env HACO_E2E_RECLAIM_TRIM=1 "$RUNNER_TEMP/reclaim-storage.test" -test.run='^TestRealIncusPoolTrimPreservesVolumeAndSnapshot$' -test.v -test.timeout=6m
+      - name: "[product] Verify ordinary tar tree capture"
         run: sudo env HACO_E2E_PLAIN_EVACUATION=1 python3 tools/test_evacuation_capture_native.py
-      - name: Prepare pinned OCI runtime transfer assets
+      - name: "[infrastructure] Prepare pinned OCI runtime transfer assets"
         run: |
           python3 tools/prepare-oci-runtime-fixture.py "$RUNNER_TEMP/oci-runtime-assets"
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/oci-runtime-assets/oci-transfer-probe" ./modules/runtime/incus/testdata/oci-transfer-probe
-      - name: Verify retained Bases, aggregate snapshots and component COW
+      - name: "[product] Verify retained Bases, aggregate snapshots and component COW"
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"
           go build -o "$RUNNER_TEMP/snapshot-cli" ./cmd/haco-product
           go build -o "$RUNNER_TEMP/import-controller" ./cmd/haco-controller
           go test -c -o "$RUNNER_TEMP/snapshot-storage.test" ./modules/runtime/incus
-          sudo env HACO_E2E_BASE_ASSET=1 HACO_E2E_SNAPSHOT_VOLUME=1 HACO_E2E_SNAPSHOT_ROOTFS=1 HACO_E2E_SNAPSHOT_BASE=1 HACO_E2E_SNAPSHOT_AGGREGATE=1 HACO_E2E_WORKSPACE_DELETE=1 \
+          python3 tools/ci_required_tests.py --expect TestRealIncusBaseAssetE2E,TestRealIncusSnapshotAggregateE2E,TestRealIncusSnapshotBaseE2E,TestRealIncusSnapshotRootfsE2E,TestRealIncusSnapshotVolumesE2E,TestRealIncusSourceDeletionE2E,TestRealIncusWorkspaceDeletionE2E -- sudo env HACO_E2E_BASE_ASSET=1 HACO_E2E_SNAPSHOT_VOLUME=1 HACO_E2E_SNAPSHOT_ROOTFS=1 HACO_E2E_SNAPSHOT_BASE=1 HACO_E2E_SNAPSHOT_AGGREGATE=1 HACO_E2E_WORKSPACE_DELETE=1 \
             HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_IMPORT_CONTROLLER="$RUNNER_TEMP/import-controller" GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted \
             HACO_E2E_TRANSFER_OCI=1 HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=25m
-      - name: Verify owned native volume import
+      - name: "[product] Verify owned native volume import"
         run: |
-          sudo env HACO_E2E_INCUS_VOLUME_IMPORT=1 "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncusOwnedVolumeImportE2E$' -test.v -test.timeout=7m
-      - name: Verify definition-driven Base build and immutable revisions
+          python3 tools/ci_required_tests.py --expect TestRealIncusOwnedVolumeImportE2E -- sudo env HACO_E2E_INCUS_VOLUME_IMPORT=1 "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncusOwnedVolumeImportE2E$' -test.v -test.timeout=7m
+      - name: "[product] Verify definition-driven Base build and immutable revisions"
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"
-          sudo env HACO_E2E_BASE_BUILD=1 HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
+          python3 tools/ci_required_tests.py --expect TestRealIncusBaseBuildE2E -- sudo env HACO_E2E_BASE_BUILD=1 HACO_E2E_SNAPSHOT_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncusBaseBuildE2E$' -test.v -test.timeout=12m
-      - name: Verify independent persistent Store COW with real Btrfs
+      - name: "[product] Verify independent persistent Store COW with real Btrfs"
         run: |
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/oci-runtime-assets/oci-probe" ./modules/runtime/incus/testdata/oci-probe
           go test -c -o "$RUNNER_TEMP/persistent-copy.test" ./modules/runtime/incus
-          sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_INCUS_VOLUME_TRANSFER=1 HACO_E2E_READABLE_DATA_EVACUATION=1 HACO_E2E_SAVED_READABLE_DATA_EVACUATION=1 HACO_E2E_FAILED_DELETE_EVACUATION=1 HACO_E2E_INCUS_ROOTFS_TRANSFER=1 HACO_E2E_SAVED_ROOTFS_EVACUATION=1 \
+          python3 tools/ci_required_tests.py --expect TestRealIncusCompletedHostCopyRecoveryE2E,TestRealIncusFailedDeleteReadableDataEvacuationE2E,TestRealIncusHostAreaCopyE2E,TestRealIncusOwnedVolumeExportE2E,TestRealIncusPersistentCopyE2E,TestRealIncusReadableDataEvacuationE2E,TestRealIncusRootfsTransferE2E,TestRealIncusSavedReadableDataEvacuationE2E,TestRealIncusSavedRootfsEvacuationE2E,TestRealIncusSnapshotRootfsExportE2E,TestRealIncusVolumeTransferE2E -- sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_INCUS_VOLUME_TRANSFER=1 HACO_E2E_READABLE_DATA_EVACUATION=1 HACO_E2E_SAVED_READABLE_DATA_EVACUATION=1 HACO_E2E_FAILED_DELETE_EVACUATION=1 HACO_E2E_INCUS_ROOTFS_TRANSFER=1 HACO_E2E_SAVED_ROOTFS_EVACUATION=1 \
             HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
             "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncus(PersistentCopy|HostAreaCopy|CompletedHostCopyRecovery|VolumeTransfer|ReadableDataEvacuation|SavedReadableDataEvacuation|FailedDeleteReadableDataEvacuation|RootfsTransfer|SavedRootfsEvacuation|SnapshotRootfsExport|OwnedVolumeExport)E2E$' -test.v -test.timeout=22m
-      - name: Verify retained Store maintenance through native adapter and controller CLI
+      - name: "[product] Verify retained Store maintenance through native adapter and controller CLI"
         run: |
           go build -o "$RUNNER_TEMP/maintenance-controller" ./cmd/haco-controller
           incus image copy images:ubuntu/26.04 haco-ci: --target-project hacocoon --alias haco-maintenance-fixture-base
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; rows=[i for i in json.load(sys.stdin) if i.get("type") == "container" and any(a.get("name") == "haco-maintenance-fixture-base" for a in i.get("aliases", []))]; assert len(rows) == 1; print(rows[0]["fingerprint"])')"
-          sudo env HACO_E2E_RESOURCE_MAINTENANCE=1 GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted \
+          python3 tools/ci_required_tests.py --expect TestRealIncusResourceMaintenancePreparationE2E -- sudo env HACO_E2E_RESOURCE_MAINTENANCE=1 GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted \
             HACO_E2E_MAINTENANCE_CONTROLLER="$RUNNER_TEMP/maintenance-controller" HACO_E2E_MAINTENANCE_CLI="$RUNNER_TEMP/snapshot-cli" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
             HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
             "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncusResourceMaintenancePreparationE2E$' -test.v -test.timeout=22m
-      - name: Capture storage CLI diagnostics
+      - name: "[fixture] Capture storage CLI diagnostics"
         if: failure()
         run: |
           bash tools/ci-incus-storage-cli.sh diagnostics
           bash tools/ci-incus-core.sh diagnostics
-      - name: Clean up storage CLI resources
+      - name: "[fixture] Clean up storage CLI resources"
         if: always()
         run: bash tools/ci-incus-storage-cli.sh cleanup
-      - name: Clean up Incus resources
+      - name: "[fixture] Clean up Incus resources"
         if: always()
         run: bash tools/ci-incus-core.sh cleanup
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: |
+            ci-substrate.json
+            ci-test-results.jsonl
+            ci-failure-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   authenticated-private-registry:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
@@ -197,15 +237,15 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Start preinstalled containerd
+      - name: "[infrastructure] Start preinstalled containerd"
         run: |
           command -v containerd
           containerd --version
           sudo systemctl enable --now containerd
-      - name: Install pinned nerdctl
+      - name: "[infrastructure] Install pinned nerdctl"
         run: |
           archive="/tmp/nerdctl-${NERDCTL_VERSION}-linux-amd64.tar.gz"
           curl --fail --silent --show-error --location \
@@ -215,8 +255,34 @@ jobs:
           printf '%s  %s\n' "$NERDCTL_AMD64_SHA256" "$archive" | sha256sum --check --strict
           sudo tar -xzf "$archive" -C /usr/local/bin nerdctl
           nerdctl --version
-      - name: Run authenticated private-registry Host acquisition acceptance
+      - name: "[product] Run authenticated private-registry Host acquisition acceptance"
         run: |
           sudo --preserve-env=PATH,GOTOOLCHAIN env \
             HACO_E2E_PRIVATE_REGISTRY=1 \
             go test -count=1 -run '^TestPrivateRegistryHostAcquisitionAcceptance$' ./modules/runtime/incus
+
+  incus-core-e2e-evidence:
+    needs: [incus-standalone, incus-core-e2e, incus-owned-btrfs]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify required jobs and same-commit history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_history.py --gate --output ci-evidence.json
+      - name: Retain CI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-core-e2e-evidence-${{ github.run_attempt }}
+          path: ci-evidence.json
+          if-no-files-found: error
+          retention-days: 30

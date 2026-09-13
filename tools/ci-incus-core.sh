@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/ci-incus-cleanup-library.sh"
 
 readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
@@ -56,105 +57,32 @@ configure_workspace_owner_idmap() {
 }
 
 setup() {
-  local server_version
-
   require_github_hosted_runner
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-    incus-base \
-    dnsmasq-base iptables
-
+  # Every independent runner uses the same reviewed LTS source and readiness.
+  bash "$(dirname "${BASH_SOURCE[0]}")/ci-incus.sh" setup
   configure_workspace_owner_idmap
-
-  # The Hacocoon sandbox keeps Incus bridge filtering enabled. GitHub-hosted
-  # Ubuntu does not guarantee that br_netfilter is loaded before the job.
-  sudo modprobe br_netfilter
-  [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter IPv4 hooks unavailable"
-  [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter IPv6 hooks unavailable"
-
-  sudo incus admin init --minimal
-
-  # Run Hacocoon as the ordinary runner user, not root. Keep the TLS client in
-  # the same runner-local INCUS_CONF used by tools/ci-incus.sh so independent
-  # workflow steps do not fall back to Incus' root-owned local Unix socket.
-  install -d -m 0700 "$CLIENT_CONF"
-  incus remote generate-certificate
-  sudo incus config set core.https_address 127.0.0.1:8443
-  sudo incus config trust add-certificate "$CLIENT_CONF/client.crt"
-  incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
-  incus remote switch "$CI_REMOTE"
-
-  incus version
-  server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
-  [[ -n "$server_version" ]] || fail "could not determine Incus server version"
-  dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required"
-  incus profile show default --project default >/dev/null
 }
 
 run_test() {
   require_github_hosted_runner
   export HACO_E2E_INCUS=1
-  go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
+  python3 tools/ci_required_tests.py --expect TestRealIncusWorkspaceLifecycleE2E -- go test -v -timeout=10m -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
 }
 
 run_egress_test() {
   require_github_hosted_runner
   [[ -s "$CLIENT_CONF/config.yml" ]] || fail "trusted Incus TLS client is missing at $CLIENT_CONF; run tools/ci-incus.sh setup first"
   export HACO_E2E_INCUS=1
-  go test -count=1 -run '^TestRealIncusEgressProxyE2E$' ./modules/runtime/incus
+  python3 tools/ci_required_tests.py --expect TestRealIncusEgressProxyE2E -- go test -v -timeout=10m -count=1 -run '^TestRealIncusEgressProxyE2E$' ./modules/runtime/incus
 }
 
 diagnostics() {
   require_github_hosted_runner
-  set +e
-
-  echo '::group::Incus version'
-  incus version
-  echo '::endgroup::'
-
-  echo '::group::Incus projects and instances'
-  incus project list
-  incus list --all-projects
-  echo '::endgroup::'
-
-  echo '::group::Hacocoon shared Incus resources'
-  incus network list --project default
-  incus network acl list --project default
-  incus profile list --project default
-  echo '::endgroup::'
-
-  echo '::group::Incus instance logs'
-  while IFS=, read -r project instance; do
-    [[ -n "$project" && -n "$instance" ]] || continue
-    case "$project:$instance" in
-      haco-e2e-*:haco-*) incus info "$instance" --project "$project" --show-log || true ;;
-    esac
-  done < <(incus list --all-projects --format csv -c p,n 2>/dev/null || true)
-  echo '::endgroup::'
-
-  echo '::group::Incus daemon journal'
-  sudo journalctl -u incus --no-pager -n 300
-  echo '::endgroup::'
+  python3 tools/ci_diagnostics.py --output "${GITHUB_WORKSPACE:-$PWD}/ci-failure-substrate.json"
 }
 
 cleanup_project() {
-  local project="$1"
-  local instance
-  local unexpected=0
-
-  while IFS= read -r instance; do
-    [[ -n "$instance" ]] || continue
-    case "$instance" in
-      haco-*) ;;
-      *)
-        echo "ERROR: refusing to force-delete project '$project' with unexpected instance '$instance'" >&2
-        unexpected=1
-        ;;
-    esac
-  done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
-
-  [[ "$unexpected" == "0" ]] || return 1
-  printf 'yes\n' | incus project delete "$project" --force
+  ci_delete_project "$1"
 }
 
 cleanup() {
@@ -162,12 +90,14 @@ cleanup() {
   local project
   local failed=0
 
+  local projects
+  projects="$(incus project list --format csv -c n)" || return 1
   while IFS= read -r project; do
     [[ -n "$project" ]] || continue
     case "$project" in
       haco-e2e-*) cleanup_project "$project" || failed=1 ;;
     esac
-  done < <(incus project list --format csv -c n 2>/dev/null || true)
+  done <<< "$projects"
 
   if incus profile show "$SANDBOX_PROFILE" --project default >/dev/null 2>&1; then
     incus profile delete "$SANDBOX_PROFILE" --project default || failed=1

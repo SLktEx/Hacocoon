@@ -108,3 +108,22 @@ The forwarding entry first stopped because noninteractive sudo was unavailable;
 the same kernel regression passed in a separate root-owned network namespace (3.25s).
 These integration checks do not establish installed Incus, Windows/WSL product journeys,
 private registry or live OCI acceptance of the merged candidate.
+
+<a id="ci-reliability"></a>
+
+## PR CI reliability incidents (#615)
+
+These historical observations belong to [#615](https://github.com/SLktEx/Hacocoon/issues/615).
+A successful rerun is evidence of an incident, not its resolution. Current routing
+and gate semantics are owned by [PR verification contracts](../reliability/ci-contracts.md).
+
+| Candidate / evidence | Finding and resolution status |
+|---|---|
+| `f3ef57b3ea028e10e942418a8408edd89a94b605` / [attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/1), [attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/2) | `test (1.26.x)` failed `TestSizedInteractivePTYReadlineResizeAndExit` waiting for the resized terminal marker; the same SHA passed on attempt 2. Fixture synchronization now waits for a foreground command before resize, avoiding readline's terminal-size restoration window. The three Linux sized-PTY regressions passed 100 repetitions locally with Go 1.27.0; this does not establish hosted native acceptance. |
+| `69c85fb5214ba1a4a81c2c50cdec9d789c924315` / [storage attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34738362521/job/103675967861) | `TestRealIncusResourceMaintenancePreparationE2E` expected interactive decline but supplied a pipe; shipped CLI correctly refused nonterminal confirmation with exit 2. The fixture now supplies a real Linux PTY, with a child-process terminal/read regression. Native maintenance revalidation is required. |
+| `84062060e0ef465e73ec45b43b6ed785ce879d81` / [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34740317809/job/103678816517) | Post-termination ordinary Host entry reported `Host setup is busy`; the harness then waited for its deadline. The harness now fails immediately on that product error and records phase timing. The underlying busy condition remains unresolved; fail-fast reporting is not a product fix or successful Windows acceptance. |
+
+At the uncommitted #615 working candidate based on `7b4e2356d73a163b31e784a0a5b7400fed1a05cf`,
+full Go test/vet, race, shipped-command fixture E2E, documentation and workflow policy
+passed on the local Linux validation environment. Real Incus and packaged Windows/WSL
+were not run there. Commit-bound hosted results must be recorded separately.

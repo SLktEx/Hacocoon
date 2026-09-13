@@ -167,7 +167,9 @@ PY
   [[ "$("$HACO_BIN" exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
   haco_stop_test_controller
   "$HACO_BIN" delete "$ENV_NAME"
-  if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
+  local remaining
+  remaining="$(incus list "$INSTANCE" --project "$PROJECT" --format csv -c n)" || fail "instance absence is unknown"
+  if grep -Fxq -- "$INSTANCE" <<< "$remaining"; then
     fail "named Environment instance remained after hacoq delete"
   fi
 }

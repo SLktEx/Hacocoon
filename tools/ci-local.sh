@@ -35,6 +35,12 @@ run_docs() {
 run_workflow_policy() {
   need python3
   section "workflow-policy"
+  python3 tools/check_ci_contracts.py
+  python3 tools/test_ci_diagnostics.py
+  python3 tools/test_ci_cleanup.py
+  python3 tools/test_ci_required_tests.py
+  python3 tools/test_ci_history.py
+  python3 tools/test_ci_contracts.py
   python3 tools/check_workflow_policy.py
   python3 tools/test_workflow_policy.py
   python3 tools/test_real_git_push_target.py

@@ -14,6 +14,25 @@ spec.loader.exec_module(gate)
 
 
 class EnvironmentBoundaryTest(unittest.TestCase):
+    def test_host_entry_error_is_terminal_without_rerun(self):
+        for text in ("haco: enter trusted haco-host: internal: Host setup is busy\n",
+                     "haco: enter trusted haco-host: unavailable\n"):
+            with self.assertRaisesRegex(RuntimeError, "product: ordinary Host entry failed"):
+                gate.reject_failed_host_entry(text)
+        gate.reject_failed_host_entry("[HACO-HOST] root@haco-host:~# ")
+        gate.reject_failed_host_entry("some unrelated diagnostic mentions Host setup\n")
+
+    def test_phase_preserves_failure_and_calls_action_once(self):
+        from unittest.mock import Mock
+        action = Mock(side_effect=RuntimeError("test failure"))
+        with patch("builtins.print") as output:
+            with self.assertRaisesRegex(RuntimeError, "test failure"):
+                gate.run_phase("restart", action)
+        action.assert_called_once_with()
+        records = [json.loads(call.args[0]) for call in output.call_args_list]
+        self.assertEqual([r["state"] for r in records], ["started", "failed"])
+        self.assertIn("duration_ms", records[1])
+
     def test_retention_flags_are_not_allowed_in_the_product_environment(self):
         for name in ("HACO_E2E_RECLAIM_RETENTION", "HACO_RECLAIM_RETENTION_MANIFEST"):
             with patch.dict(gate.os.environ, {name: "fixture"}, clear=True):

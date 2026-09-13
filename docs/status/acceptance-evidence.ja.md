@@ -106,3 +106,21 @@ Linux kernel規模の性能や負荷を統制したbenchmarkを示しません�
 同じkernel回帰試験をrootの専用network namespaceで実行して3.25秒で成功しました。
 これらは統合候補の導入済みIncus・Windows/WSL製品経路・非公開registry・稼働OCIの
 実機確認を意味しません。
+
+<a id="ci-reliability"></a>
+
+## PR CI の信頼性に関する障害 (#615)
+
+以下の過去の観測は [#615](https://github.com/SLktEx/Hacocoon/issues/615) に属する。
+rerun の成功は障害の証拠であり、解決ではない。現在の routing と gate の意味は
+[PR 検証契約](../reliability/ci-contracts.ja.md) が所有する。
+
+| 候補 / 証拠 | 判明した事実と解決状況 |
+|---|---|
+| `f3ef57b3ea028e10e942418a8408edd89a94b605` / [attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/1)、[attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/2) | `test (1.26.x)` の `TestSizedInteractivePTYReadlineResizeAndExit` が端末サイズ更新のマーカー待ちで失敗し、同じ SHA の attempt 2 は成功した。readline による端末サイズ復元との競合を避けるため、foreground コマンド開始の観測後に resize する。Linux の sized-PTY 回帰3件はローカル Go 1.27.0 で100回反復成功した。hosted native acceptance の成功は意味しない。 |
+| `69c85fb5214ba1a4a81c2c50cdec9d789c924315` / [storage attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34738362521/job/103675967861) | `TestRealIncusResourceMaintenancePreparationE2E` が対話拒否を期待しながら pipe を渡し、shipped CLI は非端末の確認を exit 2 で正しく拒否した。fixture を実 Linux PTY に変更し、子プロセスの端末判定と読み取りの回帰を追加した。native maintenance の再検証は必要。 |
+| `84062060e0ef465e73ec45b43b6ed785ce879d81` / [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34740317809/job/103678816517) | terminate 後の通常 Host entry が `Host setup is busy` を返し、harness は期限まで待ち続けた。現在は製品エラーで直ちに失敗し、phase の所要時間を記録する。busy の根本原因は未解決であり、即時失敗は製品修正や Windows acceptance 成功ではない。 |
+
+`7b4e2356d73a163b31e784a0a5b7400fed1a05cf` を基にした #615 の未コミット作業候補では、
+ローカル Linux 検証環境で全 Go test/vet、race、shipped command の fixture E2E、文書と workflow policy が成功した。
+同環境では実 Incus と packaged Windows/WSL は未実施。commit に結び付く hosted 結果は別途記録する。

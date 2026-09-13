@@ -33,11 +33,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Check documentation consistency
+      - name: "[fixture] Check documentation consistency"
         run: python3 tools/check_docs.py
-      - name: Test documentation consistency regressions
+      - name: "[fixture] Test documentation consistency regressions"
         run: python3 tools/test_check_docs.py
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   workflow-policy:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -46,25 +57,43 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate workflow trust boundary
-        run: python3 tools/check_workflow_policy.py
-      - name: Test workflow trust policy
+      - name: "[fixture] Validate workflow trust boundary"
+        run: |
+          python3 tools/check_workflow_policy.py
+          python3 tools/check_ci_contracts.py
+          python3 tools/test_ci_diagnostics.py
+          python3 tools/test_ci_cleanup.py
+          python3 tools/test_ci_required_tests.py
+          python3 tools/test_ci_history.py
+          python3 tools/test_ci_contracts.py
+      - name: "[fixture] Test workflow trust policy"
         run: |
           python3 tools/test_workflow_policy.py
           python3 tools/test_real_git_push_target.py
-      - name: Test public release readiness policy
+      - name: "[fixture] Test public release readiness policy"
         run: python3 tools/test_public_release_readiness.py
-      - name: Validate Renovate fail-closed policy
+      - name: "[fixture] Validate Renovate fail-closed policy"
         run: python3 tools/check_renovate_policy.py
-      - name: Test Renovate policy regressions
+      - name: "[fixture] Test Renovate policy regressions"
         run: python3 tools/test_renovate_policy.py
-      - name: Scan complete Git history for secrets
+      - name: "[fixture] Scan complete Git history for secrets"
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   release-config:
     runs-on: ubuntu-26.04
     timeout-minutes: 8
@@ -72,15 +101,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Test release tag trust validation
+      - name: "[fixture] Test release tag trust validation"
         run: bash tools/test_release_tag_trust.sh
-      - name: Validate release provenance contract
+      - name: "[fixture] Validate release provenance contract"
         run: python3 tools/check_release_provenance.py
-      - name: Test installer archive safety
+      - name: "[fixture] Test installer archive safety"
         run: bash tools/test_install_archive_safety.sh
-      - name: Test architecture-specific installer packaging
+      - name: "[fixture] Test architecture-specific installer packaging"
         run: python3 tools/test_installer_packages.py
-      - name: Test installer identity and managed WSL first launch
+      - name: "[fixture] Test installer identity and managed WSL first launch"
         run: |
           python3 tools/test_install_identity.py
           python3 tools/test_install_network.py
@@ -89,23 +118,27 @@ jobs:
           python3 tools/test_wsl_oobe_config.py
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Install GoReleaser
+      - name: "[infrastructure] Install GoReleaser"
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           distribution: goreleaser
           version: v2.17.1
           install-only: true
-      - name: Validate GoReleaser configuration
+      # actionlint 1.7.12 predates the hosted Ubuntu 26.04 label already used by
+      # this repository. Suppress only that exact obsolete label diagnostic.
+      - name: "[fixture] Validate Actions syntax and expressions"
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= -ignore '^label "ubuntu-26.04" is unknown'
+      - name: "[fixture] Validate GoReleaser configuration"
         run: goreleaser check
-      - name: Validate installer and CI shell syntax
+      - name: "[fixture] Validate installer and CI shell syntax"
         run: bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
-      - name: Validate Windows installer syntax
+      - name: "[fixture] Validate Windows installer syntax"
         shell: pwsh
         run: '[scriptblock]::Create((Get-Content -Raw "scripts/install-windows.ps1")) | Out-Null'
-      - name: Validate pre/main/post installer boundary
+      - name: "[fixture] Validate pre/main/post installer boundary"
         shell: bash
         run: |
           set -euo pipefail
@@ -123,13 +156,11 @@ jobs:
           ! grep -q 'hacocoon-login' scripts/install.sh
           ! grep -q -- '--set-default-version' scripts/install-windows.ps1
           ! grep -q -- '--shutdown' scripts/install-windows.ps1
-      - name: Validate Docker compatibility systemd units
+      - name: "[fixture] Validate Docker compatibility systemd units"
         run: bash tools/ci-local.sh systemd
-      - name: Dry-run release packaging on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: "[product] Dry-run release packaging"
         run: goreleaser release --snapshot --clean --skip=publish
-      - name: Validate release artifacts on main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: "[fixture] Validate release artifacts"
         shell: bash
         run: |
           set -euo pipefail
@@ -155,6 +186,17 @@ jobs:
             test -f "release-payload-test/$path"
           done
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   build:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
@@ -170,10 +212,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Build linux/${{ matrix.goarch }} binaries
+      - name: "[product] Build Linux binaries"
         env:
           CGO_ENABLED: 0
           GOOS: linux
@@ -189,6 +231,17 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   aws-plugin:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
@@ -196,22 +249,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Prepare optional AWS SDK test environment
+      - name: "[fixture] Prepare optional AWS SDK test environment"
         run: |
           python3 -m venv "$RUNNER_TEMP/aws-sdk"
           "$RUNNER_TEMP/aws-sdk/bin/pip" install botocore==1.40.76
-      - name: Verify AWS identity, signing scope and redirect refusal without AWS access
+      - name: "[product] Verify AWS identity, signing scope and redirect refusal without AWS access"
         run: HACO_AWS_TEST_PYTHON="$RUNNER_TEMP/aws-sdk/bin/python" bash tools/ci-local.sh aws
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   test:
+    name: test (${{ matrix.go-series }})
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        go-version:
-          - 1.26.x
-          - 1.27.x
+        include:
+          - go-version: 1.26.7
+            go-series: 1.26.x
+          - go-version: 1.27.0
+            go-series: 1.27.x
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -219,17 +286,17 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go-version }}
-          check-latest: true
+          check-latest: false
           cache: false
-      - run: go test -count=1 -shuffle=on ./...
-      - run: go vet ./...
-      - name: Test native WSL trusted-host interop
+      - name: "[product] Go unit and integration tests"
+        run: go test -count=1 -shuffle=615 ./...
+      - name: "[fixture] Go static analysis"
+        run: go vet ./...
+      - name: "[fixture] Test native WSL trusted-host interop"
         run: python3 tools/test_wsl_host_interop.py
-      - name: Test trusted-host forwarding in an isolated Linux network
-        if: matrix.go-version == '1.27.x'
+      - name: "[fixture] Test trusted-host forwarding in an isolated Linux network"
         run: bash tools/ci-local.sh forwarding
-      - name: Smoke-test the new product CLI without runtime state
-        if: matrix.go-version == '1.27.x'
+      - name: "[product] Smoke-test the new product CLI without runtime state"
         run: |
           set -euo pipefail
           go build -o "$RUNNER_TEMP/haco" ./cmd/haco-product
@@ -239,8 +306,7 @@ jobs:
             echo 'unimplemented product command unexpectedly succeeded' >&2
             exit 1
           fi
-      - name: Test Browser and VS Code notification clients
-        if: matrix.go-version == '1.27.x'
+      - name: "[fixture] Test Browser and VS Code notification clients"
         run: |
           node --check pkg/interactionhttp/web/app.js
           node --check clients/vscode-notify/extension.js
@@ -253,8 +319,7 @@ jobs:
           python3 tools/test_evacuation_capture.py
           python3 tools/test_evacuation_files.py
           python3 tools/package_vscode_notifications.py "$RUNNER_TEMP/hacocoon-notifications.vsix"
-      - name: Test VS Code agent workspace client
-        if: matrix.go-version == '1.27.x'
+      - name: "[fixture] Test VS Code agent workspace client"
         run: |
           node --check clients/vscode-agent-workspace/agent-workspace.js
           node --check clients/vscode-agent-workspace/tool-contract.js
@@ -264,6 +329,17 @@ jobs:
           node --check test/js/agent_workspace_tool_security.test.js
           node --test test/js/agent_workspace_client.test.js test/js/agent_workspace_tools.test.js test/js/agent_workspace_tool_security.test.js
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   race:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -273,11 +349,23 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - run: go test -race -count=1 ./...
+      - name: "[product] Go race tests"
+        run: go test -race -count=1 ./...
 
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   e2e:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
@@ -287,16 +375,53 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.27.x
-          check-latest: true
+          go-version: 1.27.0
+          check-latest: false
           cache: false
-      - name: Validate E2E shell syntax
+      - name: "[fixture] Validate E2E shell syntax"
         run: bash -n test/e2e/*.sh
-      - name: Shipped command black-box E2E
+      - name: "[product] Shipped command black-box E2E"
         run: bash test/e2e/commands.sh
-      - name: Capability E2E
+      - name: "[product] Capability E2E"
         run: bash test/e2e/capability.sh
-      - name: Git/GitHub E2E
+      - name: "[product] Git/GitHub E2E"
         run: bash test/e2e/git_github.sh
-      - name: Orchestrator E2E
+      - name: "[product] Orchestrator E2E"
         run: bash test/e2e/orchestrator.sh
+
+      - name: Record bounded substrate evidence
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: Retain substrate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
+  test-evidence:
+    needs: [docs, workflow-policy, release-config, build, aws-plugin, test, race, e2e]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify required jobs and same-commit history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_history.py --gate --output ci-evidence.json
+      - name: Retain CI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-evidence-${{ github.run_attempt }}
+          path: ci-evidence.json
+          if-no-files-found: error
+          retention-days: 30
