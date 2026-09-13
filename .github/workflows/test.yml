@@ -38,14 +38,74 @@ jobs:
       - name: Test documentation consistency regressions
         run: python3 tools/test_check_docs.py
 
+  suite-selection:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 3
+    outputs:
+      git: ${{ steps.changes.outputs.git }}
+      aws: ${{ steps.changes.outputs.aws }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Select optional PR suites from changed paths
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git_suite=true
+          aws_suite=true
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git_suite=false
+            aws_suite=false
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/ci-suite-changes.txt"
+            cat "$RUNNER_TEMP/ci-suite-changes.txt"
+
+            while IFS= read -r path; do
+              case "$path" in
+                modules/standard/gitrepo/*|internal/controlapi/git*|internal/capability/*|internal/control/*|internal/core/*|modules/standard/approvals/*|cmd/haco/*|cmd/haco-controller/*|cmd/haco-product/*|modules/runtime/incus/repository.go|test/e2e/git_github.sh|go.mod|go.sum|.github/workflows/test.yml)
+                  git_suite=true
+                  ;;
+              esac
+              case "$path" in
+                modules/capability/aws/*|internal/controlapi/aws*|internal/composition/*|tools/ci-local.sh|go.mod|go.sum|.github/workflows/test.yml)
+                  aws_suite=true
+                  ;;
+              esac
+            done < "$RUNNER_TEMP/ci-suite-changes.txt"
+          fi
+
+          printf 'git=%s\n' "$git_suite" >> "$GITHUB_OUTPUT"
+          printf 'aws=%s\n' "$aws_suite" >> "$GITHUB_OUTPUT"
+          printf 'Git/GitHub E2E: %s\nAWS plugin E2E: %s\n' "$git_suite" "$aws_suite"
+
   workflow-policy:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ github.event_name == 'pull_request' && 1 || 0 }}
           persist-credentials: false
+      - name: Fetch only the PR commit range for secret scanning
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
+        run: |
+          set -euo pipefail
+          depth=$((PR_COMMITS + 2))
+          git fetch --no-tags --depth="$depth" origin "$BASE_SHA" "$HEAD_SHA"
       - name: Validate workflow trust boundary
         run: python3 tools/check_workflow_policy.py
       - name: Test workflow trust policy
@@ -58,7 +118,7 @@ jobs:
         run: python3 tools/check_renovate_policy.py
       - name: Test Renovate policy regressions
         run: python3 tools/test_renovate_policy.py
-      - name: Scan complete Git history for secrets
+      - name: Scan PR commits or push history for secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -92,6 +152,15 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
       - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
@@ -155,15 +224,10 @@ jobs:
             test -f "release-payload-test/$path"
           done
 
-  build:
+  build-amd64:
+    name: build (amd64)
     runs-on: ubuntu-26.04
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        goarch:
-          - amd64
-          - arm64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -173,11 +237,75 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
-      - name: Build linux/${{ matrix.goarch }} binaries
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Build linux/amd64 binaries
         env:
           CGO_ENABLED: 0
           GOOS: linux
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: amd64
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/build/${GOOS}-${GOARCH}"
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco" ./cmd/haco-product
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/hacoq" ./cmd/haco
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-controller" ./cmd/haco-controller
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-host" ./cmd/haco-host
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-vscode" ./cmd/haco-vscode
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-agent-host" ./cmd/haco-agent-host
+          go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
+      - name: Smoke-test product CLI from the shared build
+        run: |
+          set -euo pipefail
+          haco="dist/build/linux-amd64/haco"
+          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$haco" --version
+          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$haco" help
+          if env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$haco" env; then
+            echo 'unimplemented product command unexpectedly succeeded' >&2
+            exit 1
+          fi
+      - name: Upload linux/amd64 CI binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-linux-amd64-binaries
+          path: dist/build/linux-amd64/
+          if-no-files-found: error
+          retention-days: 1
+
+  build-arm64:
+    name: build (arm64)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Build linux/arm64 binaries
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
         run: |
           set -euo pipefail
           mkdir -p "dist/build/${GOOS}-${GOARCH}"
@@ -190,6 +318,8 @@ jobs:
           go build -trimpath -ldflags='-s -w' -o "dist/build/${GOOS}-${GOARCH}/haco-notify" ./cmd/haco-notify
 
   aws-plugin:
+    needs: suite-selection
+    if: needs.suite-selection.outputs.aws == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -209,9 +339,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version:
-          - 1.26.x
-          - 1.27.x
+        go-version: ${{ fromJSON(github.event_name == 'pull_request' && '["1.27.x"]' || '["1.26.x","1.27.x"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -221,6 +349,15 @@ jobs:
           go-version: ${{ matrix.go-version }}
           check-latest: true
           cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
       - run: go test -count=1 -shuffle=on ./...
       - run: go vet ./...
       - name: Test native WSL trusted-host interop
@@ -228,17 +365,6 @@ jobs:
       - name: Test trusted-host forwarding in an isolated Linux network
         if: matrix.go-version == '1.27.x'
         run: bash tools/ci-local.sh forwarding
-      - name: Smoke-test the new product CLI without runtime state
-        if: matrix.go-version == '1.27.x'
-        run: |
-          set -euo pipefail
-          go build -o "$RUNNER_TEMP/haco" ./cmd/haco-product
-          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" --version
-          env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" help
-          if env -u HACO_ROOT -u HACO_CONTROL_SOCKET "$RUNNER_TEMP/haco" env; then
-            echo 'unimplemented product command unexpectedly succeeded' >&2
-            exit 1
-          fi
       - name: Test Browser and VS Code notification clients
         if: matrix.go-version == '1.27.x'
         run: |
@@ -265,6 +391,7 @@ jobs:
           node --test test/js/agent_workspace_client.test.js test/js/agent_workspace_tools.test.js test/js/agent_workspace_tool_security.test.js
 
   race:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -276,9 +403,19 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
       - run: go test -race -count=1 ./...
 
   e2e:
+    needs: [build-amd64, suite-selection]
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -290,13 +427,41 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
+      - name: Restore trusted Go caches
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: hacocoon-go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            hacocoon-go-${{ runner.os }}-${{ runner.arch }}-
+      - name: Download shared linux/amd64 CI binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ci-linux-amd64-binaries
+          path: ${{ runner.temp }}/haco-ci-bin
+      - name: Route repeated E2E builds to shared binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x "$RUNNER_TEMP"/haco-ci-bin/*
+          chmod +x tools/ci-go-build-wrapper.sh
+          real_go="$(command -v go)"
+          wrapper_dir="$RUNNER_TEMP/haco-go-wrapper"
+          mkdir -p "$wrapper_dir"
+          ln -sf "$GITHUB_WORKSPACE/tools/ci-go-build-wrapper.sh" "$wrapper_dir/go"
+          printf 'HACO_REAL_GO=%s\n' "$real_go" >> "$GITHUB_ENV"
+          printf 'HACO_CI_BIN_DIR=%s\n' "$RUNNER_TEMP/haco-ci-bin" >> "$GITHUB_ENV"
+          printf '%s\n' "$wrapper_dir" >> "$GITHUB_PATH"
       - name: Validate E2E shell syntax
-        run: bash -n test/e2e/*.sh
+        run: bash -n test/e2e/*.sh tools/ci-go-build-wrapper.sh
       - name: Shipped command black-box E2E
         run: bash test/e2e/commands.sh
       - name: Capability E2E
         run: bash test/e2e/capability.sh
       - name: Git/GitHub E2E
+        if: needs.suite-selection.outputs.git == 'true'
         run: bash test/e2e/git_github.sh
       - name: Orchestrator E2E
         run: bash test/e2e/orchestrator.sh
