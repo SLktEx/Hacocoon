@@ -343,7 +343,13 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		t.Fatal(err)
 	}
 	// Recreate only the same disposable fixture name from its exact Base.
-	command("launch", imageFingerprint, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue)
+	recreate := []string{"launch", imageFingerprint, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey + "=" + trustedHostRoleValue}
+	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
+		// Preserve the normal Host boot substrate during the recipe fixture's
+		// recreation as well, before waiting for its service manager.
+		recreate = append(recreate, "--network", trustedHostNetwork, "--config", "security.nesting=true")
+	}
+	command(recreate...)
 	verifyRecipeRecreation()
 	if err := runtime.verifyTrustedHostOwnership(ctx); err != nil {
 		t.Fatal(err)
