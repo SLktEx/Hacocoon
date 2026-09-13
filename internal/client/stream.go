@@ -55,6 +55,7 @@ func (s *Service) DialStream(ctx context.Context, target core.StreamTarget) (net
 			var err error
 			conn, err = dialer.DialEnvironmentNetwork(ctx, env.RuntimeRef, instance, "tcp", 22)
 			if err == nil {
+				conn = s.trackStream(streamBinding{env.Name, instance, target.Grant}, conn)
 				return nil
 			}
 			// sshd may start after the guest reports running. Retry only refusal.

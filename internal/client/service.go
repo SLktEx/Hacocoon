@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -25,6 +26,8 @@ type accessRuntime interface {
 }
 
 type Service struct {
+	streamMu  sync.Mutex
+	streams   map[streamBinding]map[*ownedStream]struct{}
 	lifecycle accessLifecycle
 	runtime   accessRuntime
 	store     environmentStore
@@ -101,6 +104,7 @@ func (s *Service) Unforward(ctx context.Context, name, connectionID string) erro
 	if strings.HasPrefix(connectionID, "ssh-") {
 		if s.lifecycle != nil {
 			return s.lifecycle.WithClientAccess(ctx, name, nil, true, nil, func(env core.Environment, instance string) error {
+				s.closeStreams(streamBinding{env.Name, instance, connectionID})
 				return s.runtime.RevokeSSHAccess(ctx, env.RuntimeRef, connectionID)
 			})
 		}

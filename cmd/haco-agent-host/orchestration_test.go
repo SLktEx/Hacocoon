@@ -99,7 +99,7 @@ func TestNormalizeOrchestrationPrepareArgs(t *testing.T) {
 		"--session", "session-a",
 		"--json",
 		"--code", "code-insiders",
-		"--host-port", "2222",
+		"--identity", "/tmp/identity",
 		"/tmp/worktree-a",
 	})
 	if err != nil {
@@ -112,7 +112,7 @@ func TestNormalizeOrchestrationPrepareArgs(t *testing.T) {
 		"--no-launch",
 		"--session", "session-a",
 		"--code", "code-insiders",
-		"--host-port", "2222",
+		"--identity", "/tmp/identity",
 		"/tmp/worktree-a",
 	}
 	if !reflect.DeepEqual(passthrough, want) {

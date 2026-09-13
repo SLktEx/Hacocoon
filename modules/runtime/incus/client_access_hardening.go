@@ -230,7 +230,6 @@ func clientConnectionFromProxy(id, listen, connect string) (core.ClientConnectio
 	if protocol == "tcp" && strings.HasPrefix(id, "ssh-") && targetPort == 22 {
 		connection.Kind = "ssh"
 		connection.User = "root"
-		connection.Command = fmt.Sprintf("ssh -p %d root@127.0.0.1", listenPort)
 	}
 	return connection, nil
 }

@@ -65,7 +65,7 @@ func connectionsCommand(ctx context.Context, app *composition.App, args []string
 
 func forwardCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) != 5 || args[1] != "--host-port" || args[3] != "--target-port" {
-		return fmt.Errorf("usage: haco forward <environment> --target-port <port>: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco forward <environment> --host-port <port> --target-port <port>: %w", core.ErrInvalidArgument)
 	}
 	hostPort, err := parsePort(args[2])
 	if err != nil {

@@ -29,7 +29,9 @@ unknown or recovery-required targets fail closed.
 SSH grants live in controller-owned Incus configuration and survive stop/reboot.
 A pending grant is durably recorded before public-key installation. Only a fully
 validated host-key result can publish a ready grant. Revocation disables the grant,
-removes its managed public-key marker, then removes grant metadata. Ambiguous
+removes its managed public-key marker, then removes grant metadata. A controller
+disconnect closes every live stream for that exact generation/grant under the
+lifecycle lock; other grants remain connected. Ambiguous
 cleanup retains evidence and refuses streams. Guest data cannot publish authority.
 Private keys stay on the client; host keys remain pinned with strict checking.
 
