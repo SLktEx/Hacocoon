@@ -929,7 +929,9 @@ platform setting was relaxed.
 <a id="native-toast-process-diagnostics"></a>
 ## Native notification process diagnostics
 
-`codex/native-toast-clear` investigates #635 Windows run 34768317303,
+Implementation `8eeac2b8786a476277080568a32a79dcf39fced4` in
+[PR #640](https://github.com/SLktEx/Hacocoon/pull/640), stacked on #638,
+investigates #635 Windows run 34768317303,
 job 103753188863 step 21 (`stage=clear`, `reason=unavailable`, no native code).
 A controlled local sandbox probe fails even a constant PowerShell method call
 with `MethodInvocationNotSupportedInConstrainedLanguage`. The exact same fixed
@@ -959,6 +961,7 @@ Windows arm64 cross-build pass (arm64 execution untested). The maintained full
 local test command fails the existing login-bootstrap PTY prompt deadline again
 (6.73 seconds for that test); it is not a full-suite pass and the earlier failure
 remains unresolved. No timeout or platform setting was relaxed.
+Documentation consistency and all 18 checker regressions pass independently.
 
 Parent #638 at `3ed748bf44e11839f6c6c0e07fb6de29746154d4` passes test
 34770808202, Ubuntu 34770808200 and Incus 34770808191. Windows run

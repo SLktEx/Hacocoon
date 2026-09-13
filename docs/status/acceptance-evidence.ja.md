@@ -779,7 +779,8 @@ commit済み文書、既存native-access driverの5回帰、新driverのPython�
 <a id="native-toast-process-diagnostics"></a>
 ## native通知プロセスの診断
 
-`codex/native-toast-clear`は#635のWindows34768317303、job103753188863のstep21
+実装`8eeac2b8786a476277080568a32a79dcf39fced4`の
+[PR #640](https://github.com/SLktEx/Hacocoon/pull/640)（base #638）は、#635のWindows34768317303、job103753188863のstep21
 （`stage=clear`、`reason=unavailable`、native番号なし）を調査しています。
 ローカルの隔離probeでは定数を返すだけのPowerShell methodも`MethodInvocationNotSupportedInConstrainedLanguage`で失敗しました。
 隔離の外で同じ固定probeを実行すると、定数応答2329 ms、最初の空履歴clear4281 ms、再clear3469 msで全て終了0でした。
@@ -798,6 +799,7 @@ Windows amd64の回帰は実子の停止、native失敗番号、非公開出力�
 Go 1.26.8の対象テストとrace 10回、Windows amd64テスト、Windows arm64ビルドはPASSです（arm64実行は未確認）。
 標準ローカル全体テストでは既存のlogin-bootstrap PTY入力待ち期限が再度FAILしました（試験全体6.73秒）。
 全体PASSとは扱わず、以前の失敗も未解決です。期限やplatform設定は緩めていません。
+文書整合性とcheckerの18回帰は独立してPASSしました。
 
 親#638の`3ed748bf44e11839f6c6c0e07fb6de29746154d4`はtest34770808202、Ubuntu34770808200、
 Incus34770808191がPASSです。Windows34770808189、job103759936727はstep17の新しい通常入口tunnel driverでFAILしました。
