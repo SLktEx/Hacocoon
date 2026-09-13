@@ -20,6 +20,7 @@ DIGESTS = {
     "arm64": "6e4b687f1d138e750a3c8372abc0f81d3d7490b6359c48c0562fc7dfe98859b2",
 }
 MAX_ARCHIVE = 512 << 20
+MAX_TOOL = 128 << 20
 BINARIES = ("containerd", "containerd-shim-runc-v2", "ctr", "runc", "nerdctl", "buildkitd", "buildctl")
 CNI = ("bridge", "host-local", "loopback", "portmap", "firewall", "tuning")
 ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
@@ -86,6 +87,54 @@ def read_file(path, limit):
         return data
 
 
+def file_digest(path):
+    """Hash one exact installed tool without following links or accepting drift."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or info.st_mode & 0o022 or stat.S_IMODE(info.st_mode) != 0o755
+                or info.st_size <= 0 or info.st_size > MAX_TOOL):
+            raise ValueError("unsafe installed tooling file")
+        digest = hashlib.sha256()
+        while True:
+            chunk = stream.read(1 << 20)
+            if not chunk:
+                break
+            digest.update(chunk)
+        return digest.hexdigest()
+
+
+def tooling_targets():
+    return tuple("/usr/local/bin/" + name for name in BINARIES) + tuple(
+        "/usr/local/libexec/cni/" + name for name in CNI)
+
+
+def tooling_stamp_path(arch):
+    return "/var/lib/hacocoon/host-tooling/nerdctl-full-" + VERSION + "-linux-" + arch + ".complete"
+
+
+def tooling_manifest(arch):
+    lines = ["version=" + VERSION, "arch=" + arch, "archive_sha256=" + DIGESTS[arch]]
+    for path in tooling_targets():
+        lines.append(file_digest(path) + "  " + path)
+    return ("\n".join(lines) + "\n").encode()
+
+
+def tooling_ready(arch):
+    """Reuse only an exact root-owned payload previously completed by us."""
+    try:
+        recorded = read_file(tooling_stamp_path(arch), 4096)
+        current = tooling_manifest(arch)
+    except FileNotFoundError:
+        return False
+    if recorded != current:
+        return False
+    for name in BINARIES:
+        run(["/usr/local/bin/" + name, "--version"])
+    return True
+
+
 def publish(path, data, mode, previous=None):
     """Publish each fixed file atomically; never overwrite a custom installation."""
     directory(os.path.dirname(path))
@@ -116,6 +165,15 @@ def publish(path, data, mode, previous=None):
         if os.path.exists(temporary):
             os.unlink(temporary)
     return True
+
+
+def publish_completion_stamp(path, data):
+    """Refresh only our bounded root-owned completion state after full validation."""
+    try:
+        previous = read_file(path, 4096)
+    except FileNotFoundError:
+        previous = None
+    publish(path, data, 0o644, previous=previous)
 
 
 def run(argv, timeout=120):
@@ -180,7 +238,7 @@ def selected_files(archive):
         if member.name not in wanted:
             continue
         if (member.name in selected or not member.isfile() or member.size <= 0
-                or member.size > 128 << 20 or member.mode & 0o6000):
+                or member.size > MAX_TOOL or member.mode & 0o6000):
             raise ValueError("invalid tooling archive entry")
         total += member.size
         if total > MAX_ARCHIVE:
@@ -192,7 +250,10 @@ def selected_files(archive):
 
 
 def tooling():
-    path = download(architecture())
+    arch = architecture()
+    if tooling_ready(arch):
+        return
+    path = download(arch)
     with tarfile.open(path, "r:gz") as archive:
         for target, member in selected_files(archive):
             with archive.extractfile(member) as stream:
@@ -202,6 +263,7 @@ def tooling():
             publish(target, data, 0o755)
     for name in BINARIES:
         run(["/usr/local/bin/" + name, "--version"])
+    publish_completion_stamp(tooling_stamp_path(arch), tooling_manifest(arch))
 
 
 def services():
