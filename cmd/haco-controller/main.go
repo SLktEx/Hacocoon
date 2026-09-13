@@ -104,7 +104,7 @@ func main() {
 	if err := controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities); err != nil {
 		fail(err)
 	}
-	if err := controlapi.RegisterHost(server, app.Runtime); err != nil {
+	if err := controlapi.RegisterHost(server, app); err != nil {
 		fail(err)
 	}
 	if err := controlapi.RegisterProjectSetup(server, app.ProjectSetup); err != nil {

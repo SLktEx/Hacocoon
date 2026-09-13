@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -16,11 +18,22 @@ const MaxScriptBytes = 1 << 20
 
 // Update is explicit caller intent. Nil Script replays the stored recipe.
 type Update struct {
-	Script *string `json:"script,omitempty"`
-	Clear  bool    `json:"clear_script,omitempty"`
+	Script     *string `json:"script,omitempty"`
+	Clear      bool    `json:"clear_script,omitempty"`
+	Reapply    bool    `json:"reapply_script,omitempty"`
+	ResultOnly bool    `json:"script_result,omitempty"`
 }
 
 func (u Update) Validate() error {
+	selected := 0
+	for _, option := range []bool{u.Script != nil, u.Clear, u.Reapply, u.ResultOnly} {
+		if option {
+			selected++
+		}
+	}
+	if selected > 1 {
+		return fmt.Errorf("setup script options are mutually exclusive")
+	}
 	if u.Clear && u.Script != nil {
 		return fmt.Errorf("script and clear_script are mutually exclusive")
 	}
@@ -45,6 +58,9 @@ func (s *Service) Apply(ctx context.Context, update Update) (resultErr error) {
 	defer cancel()
 	if err := update.Validate(); err != nil {
 		return err
+	}
+	if update.Reapply || update.ResultOnly {
+		return fmt.Errorf("Host-only setup options")
 	}
 	if s == nil || s.Execute == nil {
 		return fmt.Errorf("setup recipe executor is unavailable")
@@ -77,6 +93,13 @@ func (s *Service) Apply(ctx context.Context, update Update) (resultErr error) {
 }
 
 func ReadScript(path string) ([]byte, error) {
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		path = filepath.Join(home, path[2:])
+	}
 	f, err := openInput(path)
 	if err != nil {
 		return nil, err
