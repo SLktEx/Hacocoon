@@ -15,7 +15,7 @@ haco open --client ssh my-dev
 A single Environment needs no name. With several, run `haco open` or
 `haco ssh setup` in a terminal and select a number from the Environment/Workspace
 list. Blank input cancels. Scripts should supply the name explicitly. Setup manages Windows-owned keys, host-key
-pins and the SSH include, resumes stopped Environments and reuses matching
+pins and the SSH include. ProxyCommand resumes stopped Environments and reuses matching
 connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
 for ownership and recovery.
 
@@ -28,6 +28,35 @@ are not emitted. These observations diagnose a failure and never replace pinned
 host-key checks or successful completion. The five-minute deadline is unchanged.
 Any recorded failure still fails the job after host-key refusal checks and
 cleanup. A later PASS marker never erases an earlier failure.
+
+## Reconnect from VS Code after reboot
+
+After successful setup and opening `/workspace`, select `haco-my-dev` from
+Remote Explorer → SSH Targets, or open its recent remote folder. Standard
+Remote-SSH reads the managed Include; no Hacocoon extension is required.
+
+A generated fragment has this shape (the encoded target is intentionally abbreviated):
+
+```sshconfig
+Host haco-my-dev
+  HostName haco-my-dev
+  User root
+  IdentityFile ~/.ssh/hacocoon/identity
+  StrictHostKeyChecking yes
+  HostKeyAlias haco-my-dev
+  UserKnownHostsFile ~/.ssh/hacocoon/known-<pin-id>
+  ProxyCommand C:/Windows/System32/wsl.exe --distribution Hacocoon --exec /usr/local/bin/haco stream <encoded-target>
+```
+
+WSL starts normally and the client waits up to two minutes for the enabled
+controller service. Only the same stopped Environment may resume. A deleted,
+replaced, revoked or recovery-required target fails; no install/repair, new
+Environment or Workspace adoption occurs. `haco ssh cleanup` removes positively
+stale managed fragments without deleting unrelated targets or the shared key.
+
+This is the implemented reconnect route. Actual reboot, GUI selection and supported
+Incus-version acceptance must be read from the commit-bound evidence, not inferred
+from a successful OpenSSH config parse or editor launch.
 
 ## Advanced manual configuration
 
@@ -43,21 +72,21 @@ conversion and does not assume a particular drive letter.
 From the trusted Host, prepare access and generate configuration:
 
 ```bash
-haco env ssh --key <projected-public-key-path> --port 22229 my-dev
+haco env ssh --key <projected-public-key-path> my-dev
 haco env ssh-config my-dev
 ```
 
-Save the generated text as a UTF-8 file on Windows. It contains a loopback host,
-port, root user and `StrictHostKeyChecking yes`. It does not embed a private key
+Save the generated text as a UTF-8 file on Windows. It contains a stable alias, root user, strict checking and a creation-bound
+ProxyCommand through the saved WSL distribution. It does not embed a private key
 or edit the user's `.ssh/config`.
 
 The `haco env ssh` JSON response includes `host_public_key`. Hacocoon reads only
 the Environment's public Ed25519 host key through the trusted provider channel,
 validates its SSH wire structure and drops its comment. Use that value for
 pinning; ordinary users no longer need to invoke Incus as an administrator.
-Malformed keys fail preparation and trigger managed key/proxy cleanup.
+Malformed keys fail preparation and trigger managed key/grant cleanup.
 
-Put `[127.0.0.1]:22229 ssh-ed25519 <public-key-data>` into a dedicated Windows
+Put `haco-my-dev ssh-ed25519 <public-key-data>` into a dedicated Windows
 `known_hosts` file. An unauthenticated `ssh-keyscan` result alone is not trusted
 identity. With the generated configuration, run Windows native OpenSSH:
 
@@ -68,15 +97,15 @@ identity. With the generated configuration, run Windows native OpenSSH:
   haco-my-dev "pwd && test -d /workspace"
 ```
 
-The path is Windows `127.0.0.1:<port>` to WSL Physical Host loopback, through an
-Incus loopback proxy into Environment sshd. No raw Incus socket is projected to
+The path is Windows OpenSSH stdio through ProxyCommand, `wsl.exe`, the controller
+UDS and the generic byte session to Environment sshd port 22. No raw Incus socket is projected to
 the guest. Windows drives, `/init`, WSL sockets and Windows executable authority
 remain exclusive to trusted `haco-host`. Host-key mismatch fails before remote
 execution; after intentionally recreating an Environment, verify the new public
 key through the trusted channel before updating the pin.
 
 Use `haco env disconnect my-dev <connection-id>` to revoke this access. Normal
-Environment deletion removes its listener and retains Workspace/OCI Store data.
+Environment deletion removes its grants and retains Workspace/OCI Store data.
 Keep the client private key on Windows throughout. The maintained
 [`tools/test_windows_environment_ssh.ps1`](../../tools/test_windows_environment_ssh.ps1)
 uses an isolated Windows key directory, a dedicated pin, a mismatch rejection

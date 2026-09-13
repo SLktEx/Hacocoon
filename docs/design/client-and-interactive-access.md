@@ -1,62 +1,72 @@
 # Client and interactive access
 
-Status: **implemented**. Client-specific acceptance is tracked in
-[implementation status](../IMPLEMENTATION_STATUS.md).
-
-Clients use standard SSH or a constrained local connection. Hacocoon owns Environment
-identity and connection lifecycle; clients retain private keys and IDE configuration.
-No IDE brand, remote UI or agent router is a Core requirement.
+Ordinary SSH uses OpenSSH ProxyCommand through the controller UDS and generic
+bidirectional byte sessions. The Environment still runs sshd on port 22. No
+ordinary SSH Host port, loopback listener or Incus proxy device is allocated.
+See [ADR 0065](../adr/0065-portless-ssh-controller-streams.md) for ownership and
+rejected alternatives. Real-host acceptance is distinct from implementation.
 
 ## Ordinary product route
 
-From trusted Host, `haco ssh setup [env]` installs/reuses the client key and pinned
-configuration; `haco open --client ssh [env]` opens a shell in `/workspace`.
-Plain `haco open [env]` defaults to VS Code. Stopped Envs resume under the canonical
-lifecycle. An ambiguous selection requires a terminal choice or an explicit name.
+`haco ssh setup [env]` installs or reuses client-owned keys, a strict host-key pin
+and a stable `haco-<name>` SSH target. `haco open [env]` uses the same setup and
+launches standard VS Code Remote-SSH on `/workspace`; `--client ssh` opens a shell.
+SSH setup is editor-neutral. No Hacocoon extension is required.
 
-[Getting started](../guides/getting-started.md) owns the complete user procedure.
-[Windows SSH reference](../reference/windows-environment-ssh.md) covers manual keys,
-loopback transport and strict host-key pinning. Product commands are
-`haco env status`, `haco env ssh`, `ssh-config` and `disconnect`, not historical
-root-level status/forward/unforward commands.
+After one successful setup, select the alias in VS Code's standard Remote Explorer
+SSH Targets or reopen the recent remote `/workspace` folder. On Windows,
+ProxyCommand invokes the saved WSL distribution through `wsl.exe`, waits for the
+existing controller, and requests the saved target. It does not require a terminal,
+manual WSL startup, another `haco open`, or a Hacocoon-specific VS Code command.
+
+[Getting started](../guides/getting-started.md) owns first use and
+[Windows SSH](../reference/windows-environment-ssh.md) owns configuration examples.
 
 ## Connection authority
 
-SSH receives only a structurally validated OpenSSH public key. The private key never
-enters the Environment. Reserve the loopback proxy before installing a connection-scoped
-managed key; a failed reservation cannot leave a grant behind. Later setup failure
-cleans the reserved proxy. Revocation removes the managed key before the proxy;
-unrelated authorized keys are preserved. It does not stop sshd merely because other
-clients may use it.
+The controller validates the Environment creation ID, Workspace binding, access
+mode, active lease, provider ownership and persistent SSH grant before opening a
+stream. A stopped Environment is resumed under the canonical lifecycle lock.
+Concurrent SSH/VS Code reconnects cannot create duplicate runtimes. Missing,
+deleted, replaced, revoked or recovery-required targets fail closed. Matching a
+name never authorizes adoption, recreation, repair or Policy changes.
 
-The Incus adapter derives native connections from owned proxy devices and reconciles
-them without a second connection-state database. Results are revalidated as loopback-only;
-an omitted protocol normalizes to TCP. Broad/LAN/public exposure is not this contract.
-Guest-supplied address/key/connection data never establishes provider ownership.
+The provider persists a pending grant before installing its managed public key.
+A ready grant contains the validated public host key. Revocation disables the
+grant, removes its key marker and then removes metadata. It preserves unrelated
+keys and does not stop sshd. Client private keys never enter an Environment.
+Controller UDS and raw Incus sockets are not projected to ordinary Environments.
 
-Service authentication remains the service/client's responsibility. Code-server or
-another web application can run inside an Env; use [restricted preview](development-preview.md)
-for supported HTTP access rather than opening an unrestricted network listener.
+Only service `ssh` is exposed by this stream adapter. Clients cannot select a Host
+address or arbitrary destination. Byte sessions preserve EOF/half-close and use
+separate cancellation/completion control. ProxyCommand stdout carries only SSH
+bytes; safe diagnostics use stderr. Abandoned half-closed sessions drain for at
+most 30 seconds.
 
-## Reusable client contract
+## Configuration ownership and migration
 
-`pkg/clientadapter` composes ensure/reuse, state, Workspace discovery, SSH/TCP
-connect, revoke/delete and interaction events. Reuse requires exact Workspace
-identity and access mode; a matching name alone is insufficient. VS Code,
-code-server and future clients can reuse that boundary.
+The existing Include points to `.ssh/hacocoon/*.conf`; confined, locked, atomic
+writes preserve unrelated SSH configuration. Each managed fragment binds a human
+alias to an exact target. Conflicting user aliases, replacement targets and a
+different WSL installation are refused. `haco env disconnect`, Environment deletion
+and explicit `haco ssh cleanup` remove only identified owned fragments. Cleanup
+requires positive stale evidence; transport uncertainty leaves files intact.
+Shared private keys and host-key pins are retained.
 
-See [client adapter API](../reference/client-adapter.md),
-[controller transport](controller-client-transport.md) and
+Run explicit setup once to migrate an older installation. Removal-only provider
+migration revokes old managed keys and removes validated legacy SSH proxy devices;
+new setup generates ProxyCommand configuration. This migration never runs on cold
+reconnect. Generic forwarding and [preview](development-preview.md) remain separate.
+
+`pkg/clientadapter` retains reusable lifecycle/access contracts. The standalone
+VS Code adapter now shares product SSH setup through the controller instead of
+owning a second transport or configuration writer. See
+[adapter API](../reference/client-adapter.md) and
 [VS Code integration](client-adapters-and-vscode-integration.md).
-Legacy adapter CLI recipes remain on temporary `hacoq`; they do not expand product
-`haco` availability. Neither a successful repository test nor a loopback address
-alone proves real Windows/WSL or IDE acceptance.
 
 ## Incomplete lifecycle diagnostics
 
-Status, Environment doctor and client adapters share the same service observation.
-Normal running/stopped JSON is unchanged. Incomplete or cleanup-required leases,
-and retained metadata whose provider runtime is positively absent, report the
-existing recovery-required error. Unknown runtime state is not a recommendation
-to start; inspect ownership and provider diagnostics before mutation. Status
-never repairs the catalog or releases Workspace/OCI reservations.
+Status, Environment doctor and adapters share the service observation. Missing
+provider resources with retained ownership, incomplete leases and cleanup-required
+state report recovery-required. Unknown state never recommends automatic repair
+or releases Workspace/OCI reservations.

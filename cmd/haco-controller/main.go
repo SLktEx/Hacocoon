@@ -80,6 +80,9 @@ func main() {
 	if err := controlapi.RegisterSnapshots(server, app.Environments); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterEnvironmentStreams(server, app.Clients); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterStart(server, app.Environments); err != nil {
 		fail(err)
 	}

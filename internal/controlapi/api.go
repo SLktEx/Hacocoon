@@ -65,7 +65,6 @@ type EnvironmentConnectionRequest struct {
 type EnvironmentSSHRequest struct {
 	Environment string `json:"environment"`
 	PublicKey   string `json:"public_key"`
-	HostPort    int    `json:"host_port"`
 }
 
 // TerminalMetadata is the wire representation of the small, explicitly
@@ -214,7 +213,6 @@ func Register(server *control.Server, environments environmentService, clients c
 		}
 		connection, err := clients.SSH(ctx, request.Environment, core.SSHAccessRequest{
 			PublicKey: request.PublicKey,
-			HostPort:  request.HostPort,
 		})
 		if err != nil {
 			return nil, translateError(err)

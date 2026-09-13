@@ -266,7 +266,7 @@ for suffix in ("", ".ja"):
 require_text("docs/design/trusted-host.md", ["haco-host", "Physical Host", "haco setup"])
 require_text("docs/reference/client-adapter.md", [
     "pkg/clientadapter", "public-key", "private key", "loopback-only", "/workspace",
-    "hacoq ssh", "pkg/interaction", "VS Code", "JetBrains", "code-server",
+    "haco ssh setup", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/design/plugin-architecture.md", [
     "Core / Standard / Plugin classification", "HACO_PLUGIN_OCI=nerdctl",

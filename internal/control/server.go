@@ -141,6 +141,20 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
+	if request.Method == methodSessionCancel {
+		var cancelRequest sessionWaitRequest
+		if request.Stream || json.Unmarshal(request.Payload, &cancelRequest) != nil {
+			_ = writeJSONLine(conn, errorEnvelope(ErrInvalidArgument))
+			return
+		}
+		if err := s.cancelSession(ctx, cancelRequest.SessionID); err != nil {
+			_ = writeJSONLine(conn, errorEnvelope(err))
+		} else {
+			_ = writeJSONLine(conn, responseEnvelope{Version: ProtocolVersion})
+		}
+		return
+	}
+
 	if request.Method == methodSessionWait {
 		if request.Stream {
 			_ = writeJSONLine(conn, errorEnvelope(&StatusError{Code: "invalid_argument", Message: "session wait is not a stream"}))
@@ -191,7 +205,10 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		var sessionID string
 		var session *serverSession
 		if request.Session {
-			sessionID, session, err = s.createSession(terminal)
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithCancel(ctx)
+			defer cancel()
+			sessionID, session, err = s.createSession(terminal, cancel)
 			if err != nil {
 				_ = writeJSONLine(conn, errorEnvelope(err))
 				return

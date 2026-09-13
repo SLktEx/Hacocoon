@@ -9,16 +9,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"syscall"
 	"unicode/utf8"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshconfig"
 	"github.com/SLktEx/Hacocoon/internal/sshkey"
 )
 
@@ -34,6 +35,7 @@ type Desktop struct {
 	Windows          bool
 }
 type saved struct {
+	Distro     string
 	Runtime    string
 	PublicKey  string
 	Connection core.ClientConnection
@@ -113,6 +115,16 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 		return "", fmt.Errorf("SSH config must use UTF-8 text")
 	}
 	config = []byte(strings.TrimPrefix(string(config), "\ufeff"))
+	for _, line := range strings.Split(string(config), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 1 && strings.EqualFold(fields[0], "Host") {
+			for _, host := range fields[1:] {
+				if strings.Trim(host, "\"") == "haco-"+name {
+					return "", fmt.Errorf("SSH alias already belongs to user configuration: %w", core.ErrAlreadyExists)
+				}
+			}
+		}
+	}
 	if !strings.HasPrefix(string(config), include) {
 		if err = f.replace("config", append([]byte(include), config...)); err != nil {
 			return "", err
@@ -130,24 +142,17 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 			return "", fmt.Errorf("existing SSH entry is not managed by this client")
 		}
 	}
+	if previous.Distro != "" && previous.Distro != os.Getenv("WSL_DISTRO_NAME") {
+		return "", core.ErrIncompatibleState
+	}
 	status, err := c.EnvironmentStatus(ctx, name)
 	if err != nil {
 		return "", err
 	}
-	if status.State == core.EnvironmentStopped {
-		if err = c.StartEnvironment(ctx, name); err != nil {
-			return "", err
-		}
-		next, err := c.EnvironmentStatus(ctx, name)
-		if err != nil {
-			return "", err
-		}
-		if next.Environment.RuntimeRef != status.Environment.RuntimeRef {
-			return "", core.ErrIncompatibleState
-		}
-		status = next
+	if previous.Runtime != "" && previous.Runtime != status.Environment.RuntimeRef {
+		return "", fmt.Errorf("SSH alias is bound to another Environment; disconnect its owned entry first: %w", core.ErrIncompatibleState)
 	}
-	if status.State != core.EnvironmentRunning || status.Environment.RuntimeRef == "" {
+	if (status.State != core.EnvironmentRunning && status.State != core.EnvironmentStopped) || status.Environment.RuntimeRef == "" {
 		return "", core.ErrIncompatibleState
 	}
 	if previous.Runtime == status.Environment.RuntimeRef && previous.PublicKey == key {
@@ -156,7 +161,7 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 			return "", err
 		}
 		for _, actual := range connections {
-			if sameConnection(actual, previous.Connection) {
+			if actual.Port == 0 && sameConnection(actual, previous.Connection) {
 				text, known, err := render(name, previous)
 				if err != nil {
 					return "", err
@@ -189,6 +194,15 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 		return "", core.ErrRecoveryRequired
 	}
 	next := saved{Runtime: status.Environment.RuntimeRef, PublicKey: key, Connection: conn}
+	if d.Windows {
+		next.Distro = os.Getenv("WSL_DISTRO_NAME")
+		if next.Distro == "" {
+			return "", core.ErrIncompatibleState
+		}
+	}
+	if previous.Connection.Target != nil && conn.Target != nil && previous.Connection.Target.Instance != conn.Target.Instance {
+		return "", core.ErrIncompatibleState
+	}
 	text, known, err := render(name, next)
 	if err != nil {
 		return "", err
@@ -207,7 +221,7 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 	return "haco-" + name, nil
 }
 func sameConnection(a, b core.ClientConnection) bool {
-	return a.ID == b.ID && a.Kind == b.Kind && a.Host == b.Host && a.Port == b.Port && a.TargetPort == b.TargetPort && a.User == b.User
+	return a.ID == b.ID && a.Kind == b.Kind && a.Host == b.Host && a.Port == b.Port && a.TargetPort == b.TargetPort && a.User == b.User && reflect.DeepEqual(a.Target, b.Target)
 }
 func knownPath(s saved) string {
 	hash := sha256.Sum256([]byte(s.Runtime + "\n" + s.Connection.HostPublicKey))
@@ -215,9 +229,9 @@ func knownPath(s saved) string {
 }
 func render(name string, s saved) (string, string, error) {
 	c := s.Connection
-	ip := net.ParseIP(c.Host)
+	command, commandErr := sshconfig.StreamCommand(c.Target, s.Distro)
 	key, err := sshkey.NormalizePublicKey(c.HostPublicKey)
-	if err != nil || ip == nil || !ip.IsLoopback() || c.Kind != "ssh" || c.User != "root" || c.TargetPort != 22 || c.Port < 1 || c.Port > 65535 || !namePattern.MatchString(name) || s.Runtime == "" {
+	if err != nil || commandErr != nil || c.Target.Environment != name || c.Target.Grant != c.ID || c.Host != "" || c.Kind != "ssh" || c.User != "root" || c.TargetPort != 22 || c.Port != 0 || !namePattern.MatchString(name) || s.Runtime == "" {
 		return "", "", core.ErrIncompatibleState
 	}
 	meta, err := json.Marshal(s)
@@ -225,7 +239,7 @@ func render(name string, s saved) (string, string, error) {
 		return "", "", err
 	}
 	alias := "haco-" + name
-	content := fmt.Sprintf("%s%s\nHost %s\n  HostName %s\n  Port %d\n  User root\n  IdentityFile ~/.ssh/hacocoon/identity\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  HostKeyAlias %s\n  UserKnownHostsFile ~/.ssh/%s\n  GlobalKnownHostsFile none\n  CheckHostIP no\n  ProxyCommand none\n  ProxyJump none\n  ForwardAgent no\n  ClearAllForwardings no\n  GatewayPorts no\n  PermitLocalCommand no\n", prefix, meta, alias, ip.String(), c.Port, alias, knownPath(s))
+	content := fmt.Sprintf("%s%s\nHost %s\n  HostName %s\n  User root\n  IdentityFile ~/.ssh/hacocoon/identity\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  HostKeyAlias %s\n  UserKnownHostsFile ~/.ssh/%s\n  GlobalKnownHostsFile none\n  CheckHostIP no\n  ProxyCommand %s\n  ProxyJump none\n  ForwardAgent no\n  ClearAllForwardings no\n  GatewayPorts no\n  PermitLocalCommand no\n", prefix, meta, alias, alias, alias, knownPath(s), command)
 	return content, alias + " " + key + "\n", nil
 }
 func identity(ctx context.Context, f *files, d Desktop) (string, error) {

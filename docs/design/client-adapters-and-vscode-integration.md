@@ -9,28 +9,25 @@ IDE UX and orchestration remain outside Core.
 
 `haco-vscode open <workspace>` and `haco-vscode delete <workspace>` are separate
 adapter commands for an external-path Workspace in the execution host.
-They create/reuse an exact Workspace/access-mode match, reserve loopback SSH,
-write an owned client config fragment and launch standard Remote-SSH.
-This is not the managed repo/Workspace product tutorial.
-
-Options include `--name`, `--identity`, `--host-port`, `--read-only`,
-`--no-launch` and `--code`. The matching public key is supplied to Hacocoon;
-the private key remains client-side. The adapter adds an Include for
-`~/.ssh/hacocoon/*.conf`, preserves unrelated SSH entries and removes only its
-own fragment on deletion. WSL execution targets the Windows client SSH home.
+They create/reuse an exact Workspace/access-mode match through the controller,
+then share ordinary product SSH setup, managed files and editor discovery.
+No adapter-local provider composition, SSH port allocation or second config writer
+remains. Options are `--name`, `--read-only` and `--no-launch`; former `--identity`,
+`--host-port` and `--code` switches are removed in this pre-1.0 migration.
+The shared desktop identity remains client-owned. Deletion removes only its
+identified Hacocoon fragment after successful Environment deletion.
 
 Per-session routing uses the separate
 [Agent Host adapter](vscode-remote-agent-host-adapter.md).
 Future JetBrains/code-server/other clients may reuse the generic contract;
 their names are not implemented product commands.
 
-## Runtime-selected ports
+## Portless transport
 
-Product `haco env ssh --key <public-key-file> <name>` passes default port zero to
-the runtime; `--port` is optional. The Incus adapter probes on the Physical Host,
-then reserves the proxy before installing a key. A competing bind fails without
-granting a key; arbitrary provisioning failure is not retried. The trusted Host's
-different network namespace must not choose the Physical Host listener.
+OpenSSH ProxyCommand connects stdio through `wsl.exe` (Windows), the controller
+UDS and a generic byte session to Environment sshd. The target records an exact
+creation ID, Workspace/access binding and persistent SSH grant. No Host SSH port
+or SSH Incus proxy is created. See [connection authority](client-and-interactive-access.md).
 
 ## Desktop SSH setup and VS Code opening
 
@@ -78,8 +75,8 @@ for the same runtime fail closed. Writes use a confined filesystem root, a setup
 lock and atomic replacement. Windows uses the client's inherited filesystem ACLs
 and native key-generation permissions; no client directory is exposed to workloads.
 
-A stopped Environment is resumed through the canonical start operation. Setup
-reuses a matching live connection and restores its managed files from the pinned
+ProxyCommand resumes a stopped Environment under the canonical lifecycle lock. Setup
+reuses a matching persistent grant and restores its managed files from the pinned
 metadata. New host-key files are keyed by runtime identity and public key.
 If connection preparation succeeds but local installation fails, its ID is reported
 as recovery-required and retained for inspection rather than silently discarded.

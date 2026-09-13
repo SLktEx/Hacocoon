@@ -65,7 +65,7 @@ func connectionsCommand(ctx context.Context, app *composition.App, args []string
 
 func forwardCommand(ctx context.Context, app *composition.App, args []string) error {
 	if len(args) != 5 || args[1] != "--host-port" || args[3] != "--target-port" {
-		return fmt.Errorf("usage: haco forward <environment> --host-port <port> --target-port <port>: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco forward <environment> --target-port <port>: %w", core.ErrInvalidArgument)
 	}
 	hostPort, err := parsePort(args[2])
 	if err != nil {
@@ -91,23 +91,18 @@ func unforwardCommand(ctx context.Context, app *composition.App, args []string) 
 }
 
 func sshCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) != 5 || args[1] != "--public-key" || args[3] != "--host-port" {
-		return fmt.Errorf("usage: haco ssh <environment> --public-key <path> --host-port <port>: %w", core.ErrInvalidArgument)
+	if len(args) != 3 || args[1] != "--public-key" {
+		return fmt.Errorf("usage: haco ssh <environment> --public-key <path>: %w", core.ErrInvalidArgument)
 	}
 	key, err := os.ReadFile(args[2])
 	if err != nil {
 		return fmt.Errorf("read SSH public key: %w", err)
 	}
-	hostPort, err := parsePort(args[4])
+	connection, err := app.Clients.SSH(ctx, args[0], core.SSHAccessRequest{PublicKey: string(key)})
 	if err != nil {
 		return err
 	}
-	connection, err := app.Clients.SSH(ctx, args[0], core.SSHAccessRequest{PublicKey: string(key), HostPort: hostPort})
-	if err != nil {
-		return err
-	}
-	fmt.Println(connection.Command)
-	return nil
+	return json.NewEncoder(os.Stdout).Encode(connection)
 }
 
 func parsePort(raw string) (int, error) {
