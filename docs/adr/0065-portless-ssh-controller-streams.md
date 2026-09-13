@@ -8,7 +8,8 @@ recorded in [acceptance evidence](../status/acceptance-evidence.md).
 Ordinary SSH uses OpenSSH ProxyCommand stdio through the existing local controller
 UDS and generic byte-session transport. The Incus adapter opens a socket in the
 verified Environment network namespace using its existing generation-pinned
-network dialer. Environment sshd continues to listen on port 22.
+network dialer. A provider PID resolving to the controller's Host network
+namespace is rejected before dialing. Environment sshd continues to listen on port 22.
 
 The desktop stores a stable human-readable `haco-<name>` alias. Its encoded target
 binds the Environment creation ID, Workspace ID, access mode, named service and

@@ -6,6 +6,43 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="portless-ssh"></a>
+
+## ポート不要 SSH とエディターの cold reconnect
+
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631) の
+`e35a152e3d58fc917192d56e442517bd7805b8ff` で、
+[Windows 実機試験](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)は、
+実 Windows OpenSSH のコマンド実行、管理 alias/config、厳密な host key 確認、
+4 本同時の cold reconnect、削除済み接続先の拒否に成功しました。
+Environment と controller の停止、WSL 終了後の最初の接点は、ProxyCommand 経由の
+`ssh.exe` でした。同じ provider generation と Workspace marker を保持し、
+`ss -H -ltn` の Host TCP listener は増加せず、SSH 用 Incus proxy device も存在しません。
+SSH metadata の Host は空、port は 0 でした。
+
+別の cold cycle では、VS Code 標準の保存済み remote folder URI を最初に開きました。
+VS Code 1.136.1 と Microsoft Remote-SSH 0.128.0 で、実 editor のファイル読み書き、
+remote terminal の実行、ローカル承認経路の stale 拒否、probe cleanup に成功しました。
+接続確立に Hacocoon 拡張は使わず、専用 UI observer は結果の検査だけを行います。
+新しい host key を固定した Windows export/import SSH、保持データの再接続、preview、
+public reclamation も成功しました。同候補の[通常 CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527)、
+[Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)、
+[実 Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)も成功しています。
+
+ただし Windows ジョブ全体は、意図的な WSL 終了で破棄された古い Host terminal に
+driver が `exit` を書こうとして失敗しました。driver は cold 試験前に terminal を閉じ、
+試験後に新しい terminal から通常入口を確認するよう修正します。元の失敗をジョブ全体の
+成功として扱いません。初期 fixture の `/tmp` Workspace 消失は `/var/tmp` への変更で
+解消しました。`d6059131` は cold SSH に成功しましたが、標準 Remote-SSH 拡張の導入漏れと
+転送 fixture の旧 Host port 契約で失敗しています。
+[run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769)に記録を保持します。
+
+リポジトリの回帰試験は、raw binary stdio/UDS、EOF/half-close、キャンセル、controller の
+起動遅延・切断、古い identity/lease/grant の拒否、並行 resume、所有 entry の cleanup を
+確認します。実 PC の電源再投入、Remote Explorer の手動クリック、VPN/NRPT、広範な IDE は
+未検証です。private-registry ジョブは手動実行専用のため PR 実行では SKIP です。
+公式 Base の初回 SSH setup の通信不要化は[Issue #603](https://github.com/SLktEx/Hacocoon/issues/603)の責務です。
+
 <a id="incus-lts"></a>
 
 ## Incus 7.0 LTS対応基準

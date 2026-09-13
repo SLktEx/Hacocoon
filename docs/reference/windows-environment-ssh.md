@@ -115,9 +115,10 @@ VS Code Remote-SSH. Local manual runs preserve the operator's SSH configuration.
 
 After a fresh candidate ZIP passes the ordinary Windows installer gate, run
 `python tools/windows-native-access-e2e.py --require-non-c` on a machine with
-a writable additional drive. The maintained ConPTY driver keeps an ordinary
-trusted Host shell open, checks native interop before and after the complete
-SSH lifecycle, and leaves the user's SSH configuration untouched.
+a writable additional drive. The maintained ConPTY driver checks native interop
+in ordinary trusted Host terminals before and after the complete SSH lifecycle.
+It closes the first terminal before intentional WSL shutdown and opens a new one
+after cold reconnect. Local manual runs leave the user's SSH configuration untouched.
 
 ## Package access from SSH sessions
 
