@@ -72,7 +72,7 @@ jobs:
       - name: Test native Windows client boundaries
         shell: pwsh
         run: |
-          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl ./cmd/haco-review ./internal/desktopreview
+          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl ./cmd/haco-review ./internal/desktopreview ./cmd/haco-tunnel ./internal/clientforward ./internal/wsllaunch ./internal/streamio
           if ($LASTEXITCODE -ne 0) { throw "Native Windows client tests failed." }
 
       - name: Install pinned GoReleaser

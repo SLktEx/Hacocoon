@@ -545,3 +545,30 @@ main反映・配布済みではありません。
 最新の到達対象はM0〜M5全体です。Windows公開統合・DNS mode・通常のネットワーク
 以外の環境はM3残件です。M1/M2の実機残件とM4/M5をcomponent成功で完了扱いに
 しません。
+
+## Windows公開転送クライアント候補
+
+実装`700372233a9b470e06daa97433ce7c9948751497`、#632を親にした
+`codex/windows-tunnel-client`で、Windowsの明示的な転送入口と配布・配置を実装しています。component確認をmain反映・配布済み・Linux入口の
+自動委譲・導入済みWindows/WSL/Incus経路の受入とは扱いません。
+
+- Windows amd64の実client/controller/TCPで、8並行×1 MiB binary、半切断、
+  不正宛先の拒否、終了後の待受回収がPASSしました。
+- PowerShell 7.6.6実機で両componentの新規導入・再導入、所有権不一致／欠落、
+  checksum不一致、使用中worker、junction拒否がPASS。一時データのみ使用しました。
+  PowerShell 5.1の`-File`は実行前にローカルのscript policyで拒否され、試験は
+  **未実施**です。設定を緩和していません。
+- 新規nativeヘルプ試験は、共通ヘルプへ切り替える際に古いmessage keyが残って
+  FAILしました。修正後は日英ともnative再実行がPASSし、明示ヘルプがstdoutへ出て
+  診断出力が空であることも確認しました。
+- Go 1.26.8集中試験と最終標準ローカルCIはヘルプ修正・v0.66更新後にPASS。client転送のraceは
+  10回PASSしました。広いcontrolapi全体のrace10回バッチは120秒の全体上限でFAILし、
+  その時点の未変更import subtestは実行開始から1秒でした。ログを保持し、バッチを
+  成功扱いにしません。分離した転送race10回と当該import race1回はPASSしました。
+- Windows amd64/arm64ビルド、architecture別bundle・内部checksum・改変archive拒否、
+  workflow policyがPASS。arm64での実行は未確認です。
+- 親#632 `e7ca6735`はtest 34763683967・Incus 34763683968・Ubuntu 34763684021が
+  PASS。Ubuntu job 103740815424で導入済みcontrollerの8並行×2 MiB転送・半切断・
+  中断と待受回収のPASSを明示確認しました。#626の案内表示失敗後の修正を実経路でも
+  確認したものです。前の失敗は保持します。Windows 34763683983は確認時点で実行中で、
+  過去の起動・通知経路の失敗を解消扱いにしません。

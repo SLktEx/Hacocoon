@@ -148,3 +148,20 @@ preserved. This setting changes only the final wait, not installation checks.
 $env:HACO_INSTALL_NO_PAUSE = '1'
 cmd /c .\install-windows.bat
 ```
+
+## Windows TCP client
+
+Normal managed installation also places `haco-tunnel.exe` in the Windows user's
+application area. Use the absolute help command printed on completion; no PATH
+change is required. From the extracted matching Windows bundle directory, an
+explicit PowerShell invocation is:
+
+```powershell
+.\haco-tunnel.exe --distribution Hacocoon --target-port 8080 demo
+```
+
+Replace `Hacocoon` with the installed WSL name and `demo` with the running Env
+name. Open the printed Windows loopback address in your application. Ctrl+C
+closes the listener and active connections. The same candidate product must be
+installed in WSL. Linux `haco env tunnel` does not automatically delegate yet.
+See [acceptance scope](../status/acceptance-evidence.md#windows-tunnel-client-candidate).

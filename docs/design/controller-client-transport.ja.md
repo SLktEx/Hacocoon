@@ -358,8 +358,8 @@ controller側の1時間の絶対期限が上限です。EOFを無視する接続
 キャンセル後には残りません。
 
 永続Incus転送deviceは作りません。既存の`env forward`とSSH／previewは利用できます。
-通常Windows／WSL経由の実機利用は未確認、Windows側待受から`wsl.exe`を通す経路は
-未実装です。trusted Host内で実行したclientはHost内で待ち受けます。
+Windows側待受から`wsl.exe`を通す公開companionは以下の実装候補です。導入済み
+Windows／WSL経由の受入は未確認です。Linuxのtrusted Host clientはHost内で待ち受けます。
 汎用process callerの統合もpartialです。[ADR 0072](../adr/0072-client-stream-forwarding.ja.md)を参照してください。
 
 ## Windowsのプロセス転送
@@ -379,5 +379,21 @@ EOFはkind `0x11`・長さ0です。不明kind・過大・途中切断・EOF後�
 子の終了時にも受信済み応答を欠落させません。接続は最大10秒、橋渡しは最大1時間です。
 
 Windows→WSLの実fixtureによるbyte配送と導入済み製品の受入は別です。Windows側で
-待ち受ける公開companion、その導入と通常の入口への統合は**planned**です。内部入口を
+待ち受ける公開companionと配置は**実装候補**です。Linuxの通常入口からの自動委譲は
+**planned**です。内部stdio入口を
 利用者向けCLIとは扱いません。[ADR 0073](../adr/0073-wsl-process-transport.ja.md)を参照してください。
+
+## Windowsの公開転送クライアント
+
+`haco-tunnel.exe --distribution <WSL名> --target-port <ポート> [options] <Env名>`は
+Windows上で待ち受け、固定のWSL controller接続を使います。distribution指定は転送
+optionより先に置きます。Linux/Windowsで引数・対象準備・同時16接続・半切断・
+最大1時間・中断回収を共有します。Incus操作、管理待受、rootへのfallback、認証情報の
+取り込みは追加しません。日英の共通縦ヘルプはcontrollerなしで表示でき、失敗時は
+対象WSLの`haco doctor`と接続先アプリの確認を案内します。
+
+インストーラがamd64/arm64に対応したclientを恒久配置し、絶対path付きヘルプコマンドを
+表示します。利用者のPATH変更は不要です。`haco-wsl.exe`は導入・容量回収の責務を
+維持します。[配置と所有権](installer.md#windows-client-placement)を参照してください。
+この公開入口は明示的な操作です。Linuxの`haco env tunnel`はその実行場所で待ち受けます。
+そこからのWindows自動選択と、導入済みWindows/WSL/Incusの受入は残件です。

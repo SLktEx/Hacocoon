@@ -115,3 +115,20 @@ Native Windows component tests cover exits 0, 1, 37 and 3010 plus missing
 PowerShell/adjacent script. The final wait uses ConPTY because redirected pipes
 do not establish console key handling. Explorer double-click acceptance remains
 separate from the automated native process and ConPTY checks.
+
+## Windows client placement
+
+Windows bundles include matching review, reclamation and tunnel executables. A
+shared bounded archive reader verifies each GoReleaser checksum, requires exactly
+one named executable, and adds its digest to the installer's inner manifest.
+
+The installer shares ordinary-file creation, durable exact registration ownership,
+checksum recheck and atomic replacement between `haco-wsl.exe` and
+`haco-tunnel.exe`. Only these literal component names are accepted. Reclamation
+retains its existing per-registration directory; the client uses
+`LocalApplicationData/Hacocoon/client/<registration-guid>/haco-tunnel.exe`.
+Unknown ownership, redirected ancestors/files, checksum mismatch and a pinned
+running executable fail closed. The helper is not elevated and user PATH is not
+changed. A failed installation keeps ownership for an explicit retry. Managed
+installation prints the installed client's absolute help command. Review COM
+registration keeps its existing separate responsibilities.

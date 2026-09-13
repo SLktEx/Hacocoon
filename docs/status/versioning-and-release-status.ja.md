@@ -86,8 +86,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.63 | Durable Git Push Reconciliation | 実装済み |
 | v0.64 | Notification-contained Approval | 実装済み |
 | v0.65 | Client TCP Stream Forwarding | 実装済み |
+| v0.66 | Native Windows TCP Client | 実装候補 — 導入済み経路の受入とLinux入口の自動委譲は残件 |
 
-現在のmilestone位置は **v0.65**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.66**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 

@@ -26,6 +26,7 @@ command strings, PATH-selected WSL executables and root fallback widen the
 launch boundary. The installer helper and notification helper keep their existing
 responsibilities; a public Windows listener needs its own client integration.
 
-Public companion packaging and installed Windows entry remain planned. Native
+Public companion packaging is now an implementation candidate. Automatic Linux
+entry delegation and installed Windows acceptance remain planned. Native
 fixture transport success is not proof of installed controller or Incus access.
 See the [owning contract](../design/controller-client-transport.md#windows-process-transport).
