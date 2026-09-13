@@ -31,7 +31,6 @@ func TestWriteAgentSessionDescriptorJSON(t *testing.T) {
 		WorkspacePath:   "/home/user/worktrees/task-a",
 		RemoteWorkspace: "/workspace",
 		SSHAlias:        "haco-agent-0123456789abcdef",
-		HostPort:        2222,
 		FolderURI:       "vscode-remote://ssh-remote+haco-agent-0123456789abcdef/workspace",
 	}
 	var output bytes.Buffer

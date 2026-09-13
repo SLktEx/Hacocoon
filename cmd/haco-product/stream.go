@@ -47,11 +47,17 @@ func runStream(args []string) int {
 	defer conn.Close()
 	// Closing owned process stdin interrupts its copier when the target exits;
 	// neither os/exec nor a goroutine retains the ProxyCommand's pipe afterward.
+	input, err := streamInput()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "haco: stream input unavailable")
+		return 1
+	}
+	defer input.Close()
 	inputDone := make(chan error, 1)
-	stopIO := context.AfterFunc(ctx, func() { _ = conn.Close(); _ = os.Stdin.Close() })
+	stopIO := context.AfterFunc(ctx, func() { _ = conn.Close(); _ = input.Close() })
 	defer stopIO()
 	go func() {
-		_, e := io.Copy(conn, os.Stdin)
+		_, e := io.Copy(conn, input)
 		if e == nil {
 			e = conn.(interface{ CloseWrite() error }).CloseWrite()
 		}
@@ -61,9 +67,9 @@ func runStream(args []string) int {
 		inputDone <- e
 	}()
 	_, err = io.Copy(os.Stdout, conn)
-	_ = os.Stdin.Close()
-	<-inputDone
+	_ = input.Close()
 	_ = conn.(interface{ CloseWrite() error }).CloseWrite()
+	<-inputDone
 	if err != nil || ctx.Err() != nil {
 		fmt.Fprintln(os.Stderr, "haco: stream disconnected")
 		return 1
