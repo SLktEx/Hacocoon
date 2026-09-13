@@ -91,8 +91,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.68 | Guest Packer Provisioning | 部分実装 — Env内構築を実装、導入済みPacker受入は未完了 |
 | v0.69 | Atomic Cache Generation Foundation | partial — 世代採用と基盤コピーを実装。通常Envのキャッシュ利用全体は未完了 |
 | v0.70 | Environment-owned Disposable Data | partial — 使い捨て領域の共通所有管理。実機への配置・収集は未完了 |
+| v0.71 | Incus Cache Placement | partial — Env本体への配置と所有照合付き再開。レポ相対パス・Host設定・収集は残件 |
 
-現在のmilestone位置は **v0.70**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.71**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 

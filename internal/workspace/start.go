@@ -47,6 +47,25 @@ func (s *Service) start(ctx context.Context, name string, expected core.Workspac
 	if lease.EnvironmentID != name || !lease.MatchesEnvironment(environment) {
 		return fmt.Errorf("resume ownership does not match: %w", core.ErrRecoveryRequired)
 	}
+	return s.startRuntimeWithLease(ctx, environment, lease)
+}
+
+// All ordinary and client-triggered resumes use the same complete lease binding.
+// Callers hold the canonical Env lock and have checked the current aggregate.
+func (s *Service) startRuntimeWithLease(ctx context.Context, environment core.Environment, lease core.WorkspaceLease) error {
+	if len(lease.Attachments) != 0 {
+		starter, ok := s.runtime.(interface {
+			StartEnvironmentWithResources(context.Context, string, string, []core.EnvironmentRuntimeAttachment) error
+		})
+		if !ok {
+			return core.ErrUnsupported
+		}
+		areas, err := s.resolveEnvironmentRuntimeResources(ctx, lease)
+		if err != nil {
+			return err
+		}
+		return starter.StartEnvironmentWithResources(ctx, environment.RuntimeRef, lease.InstanceID, areas)
+	}
 	runtime, ok := s.runtime.(interface {
 		StartEnvironment(context.Context, string) error
 	})

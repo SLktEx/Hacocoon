@@ -13,6 +13,19 @@ import (
 // StartEnvironment is only exposed by the sandbox provider: resuming a saved
 // instance must enforce the same network boundary as creating it.
 func (p *SandboxProvider) StartEnvironment(ctx context.Context, ref string) error {
+	return p.startEnvironment(ctx, ref, "", nil)
+}
+
+// The caller supplies the complete aggregate under its canonical lifecycle lock.
+// Reference-only resume cannot bypass a native data-binding receipt.
+func (p *SandboxProvider) StartEnvironmentWithResources(ctx context.Context, ref, instance string, areas []core.EnvironmentRuntimeAttachment) error {
+	if !core.ValidEnvironmentInstanceID(instance) || len(areas) == 0 {
+		return core.ErrInvalidArgument
+	}
+	return p.startEnvironment(ctx, ref, instance, areas)
+}
+
+func (p *SandboxProvider) startEnvironment(ctx context.Context, ref, instance string, areas []core.EnvironmentRuntimeAttachment) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
 	}
@@ -29,6 +42,9 @@ func (p *SandboxProvider) StartEnvironment(ctx context.Context, ref string) erro
 	}
 	if status.State != core.EnvironmentRunning && status.State != core.EnvironmentStopped {
 		return core.ErrIncompatibleState
+	}
+	if err := p.verifyEnvironmentResources(ctx, ref, instance, areas, status.State); err != nil {
+		return err
 	}
 	owner, err := p.runner.Run(ctx, "incus", "network", "get", environmentBridgeName(ref), environmentNetworkOwnerKey, "--project", sandboxBridgeResourceProject)
 	if err != nil {

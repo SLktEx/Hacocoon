@@ -21,6 +21,27 @@ type environmentResourceCatalog interface {
 	PrepareEnvironmentResourceDeletion(context.Context, core.WorkspaceLease) (core.WorkspaceLease, error)
 }
 
+func (s *Service) resolveEnvironmentRuntimeResources(ctx context.Context, lease core.WorkspaceLease) ([]core.EnvironmentRuntimeAttachment, error) {
+	catalog, ok := s.store.(interface {
+		GetPersistentResource(context.Context, string) (core.PersistentResource, error)
+	})
+	if !ok {
+		return nil, core.ErrUnsupported
+	}
+	areas := make([]core.EnvironmentRuntimeAttachment, 0, len(lease.Attachments))
+	for _, a := range lease.Attachments {
+		r, err := catalog.GetPersistentResource(ctx, a.Resource.ID)
+		if err != nil {
+			return nil, errors.Join(core.ErrRecoveryRequired, err)
+		}
+		if r.Ref() != a.Resource || r.EnvironmentInstance != lease.InstanceID || r.Kind != a.Origin.Kind || r.State != "ready" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted {
+			return nil, core.ErrRecoveryRequired
+		}
+		areas = append(areas, core.EnvironmentRuntimeAttachment{Attachment: a, Resource: r})
+	}
+	return areas, nil
+}
+
 // Configure once before requests. Selection is trusted Host policy, never guest
 // or client-supplied provider identities or arbitrary mount instructions.
 func (s *Service) ConfigureEnvironmentResources(manager EnvironmentResources, selectAreas func(context.Context, core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error)) {

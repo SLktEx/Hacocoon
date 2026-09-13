@@ -5,8 +5,8 @@
 Status: **partial**. Atomic selection of complete managed sources and detached
 Incus cache-volume copying are implemented on this development candidate.
 Env-owned disposable resource reservation, materialization and cleanup now share
-canonical lifecycle transitions. Incus attachment delivery and Host configuration
-are not enabled. Selected-path collection, enrollment/placement, history, clearing and real
+canonical lifecycle transitions. Linux Incus rootfs placement and bound resume
+are implemented candidates. Host configuration is not enabled. Selected-path collection, enrollment/placement, history, clearing and real
 cache-workflow acceptance remain planned. There is no public cache command yet.
 See [remaining work](../status/architecture-and-roadmap.md).
 
@@ -55,7 +55,7 @@ OCI data or snapshot references, and is not proof of physical space reclamation.
 
 ## Env-owned disposable data
 
-Status: **implemented lifecycle slice; native placement is planned**. A trusted
+Status: **implemented lifecycle and Linux rootfs-placement slices**. A trusted
 Host selector supplies named areas and exact origin generations. The common Env
 transaction reserves the Workspace, retained OCI reference, all fresh child
 identities and any source-copy reservations before a provider request. Ordinary
@@ -83,13 +83,40 @@ sibling fails. Retained Workspace and OCI data are never included in child clean
 A retry after the durable runtime-absence receipt does not delete that runtime name
 again. A missing runtime reference alone is not evidence of absence.
 
-Incus create/restore/archive and snapshot planning currently refuse these added
-attachments. Existing ordinary Envs without them keep their snapshot/copy/transfer
-paths. The Standard selector is not registered in production; this slice exposes
-no new public cache operation and has no normal-Env/native cache acceptance.
-Normalized Core paths are not permission to mount arbitrary guest system paths:
-Incus placement must still validate ownership, mount/link boundaries, protected
-paths and resume state before support is enabled. See [ADR 0077](../adr/0077-environment-owned-disposable-data.md).
+Incus creation with a durable receipt can place these areas in the rootfs.
+Restore/archive and snapshot planning still refuse them; snapshot refusal precedes
+quiescing so an unsupported capture does not stop the producer. Existing Envs
+without added areas keep their snapshot/copy/transfer paths. The Standard selector
+is not registered in production and there is no public cache operation.
+
+## Rootfs placement and resume
+
+Linux Incus validates an exact binding of the creation identity, every area,
+origin and native resource. Each disposable custom volume also carries its parent
+creation identity. The initial instance records the binding before any device is
+added. All volumes and paths are verified before the first attachment, and every
+device and exclusive native user is checked before starting the guest.
+
+Supported destinations are explicit descendants of `/root`, individual `/home`
+directories and `/var/cache`. Home directories themselves, system/control paths
+and credential/configuration directories such as `.ssh`, `.aws`, `.config` and
+`.git` are refused. These provider limits do not determine which caches are
+reproducible or compatible; that remains trusted Host/Standard selection.
+
+Stopped-instance Incus file metadata checks every ancestor without following
+links. A destination must be absent or an empty directory. Existing content is
+neither hidden nor adopted. Metadata reads are bounded and cancellable; no guest
+program attests to safety and no guessed daemon storage path is opened. Another
+disk overlapping the destination is refused, because the stopped file API sees
+the rootfs rather than the custom disk. Repository-relative placement and external
+Workspace enrollment therefore remain required work, not accepted paths.
+
+Manual and client-triggered resume share the canonical lease-based dispatch.
+The current catalog supplies the complete resources under the Env lifecycle lock.
+Incus verifies creation identity, binding, exact devices and exclusive native use;
+stopped resume repeats the path checks. Reference-only resume refuses a data-bound
+Env. Added/missing devices, owner drift or path drift never trigger automatic
+repair, deletion or a fallback start. See [ADR 0077](../adr/0077-environment-owned-disposable-data.md).
 
 ## Provider and persistence boundaries
 
@@ -112,7 +139,7 @@ controller merely to run these tests.
 ## Completion still required
 
 The foundation does not yet define the public Host configuration format, securely
-resolve configured paths, enroll pre-existing Envs, attach multiple cache areas,
+resolve repository-relative paths, enroll pre-existing Envs,
 collect stopped writers, expose origin/history or clear selected/all Env copies.
 Those changes must extend canonical lifecycle ownership rather than assemble
 independent resource/lease operations in orchestration code. Env-local cache copies
