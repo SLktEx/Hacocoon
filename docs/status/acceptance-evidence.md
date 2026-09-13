@@ -869,6 +869,8 @@ The exact `44a30b1a` Git archive also passes a fresh complete maintained local C
 <a id="windows-tunnel-delegation"></a>
 ## Automatic Windows tunnel candidate
 
+Implementation commit: `bc8b915b93331eeb6a746e9826cf4b3c2c5b7d8b`.
+
 `codex/windows-tunnel-entry` implements ordinary WSL/trusted Host delegation,
 registration/installation/Env identity checks, and the original deadline with
 parent-pipe lifetime ownership. It is development implementation, not main or

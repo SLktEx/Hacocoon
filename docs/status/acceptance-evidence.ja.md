@@ -738,6 +738,8 @@ fixtureのprivate login profileで実際のBash入力待ち表示を観測して
 <a id="windows-tunnel-delegation"></a>
 ## Windows転送の自動起動候補
 
+実装commit: `bc8b915b93331eeb6a746e9826cf4b3c2c5b7d8b`。
+
 `codex/windows-tunnel-entry`は通常WSL／trusted Hostからの自動委譲、登録先・導入世代・Env世代の照合、
 元の期限と親pipeによる寿命管理を実装しています。開発ブランチの候補でありmain反映・配布ではありません。
 最初の集中試験は補助関数の引数削除後に一つの呼び出しが残ってbuild失敗しました。修正後に再検証し、初回失敗を保持しています。
