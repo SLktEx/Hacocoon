@@ -46,9 +46,12 @@ To deliberately discard packages/rootfs changes:
 haco env stop dev
 haco env delete dev
 haco env create --workspace managed:work --base haco/ubuntu-26.04 dev
-haco git connect dev
 haco open dev
 ```
+
+Managed Git broker wiring is restored automatically during Environment creation.
+If that local wiring later needs recovery, inspect it with `haco doctor dev` and
+repair it with `haco doctor --fix dev`; repair does not contact the upstream remote.
 
 Use the original Workspace ID. Its associated default Store is reused; if you
 previously selected an independent Store explicitly, pass the same

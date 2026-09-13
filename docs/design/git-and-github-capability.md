@@ -82,8 +82,9 @@ data and Env permission generations are unchanged.
 
 Schema 13 and existing repository records are preserved. No data migration is
 required. Current snapshot Git provenance remains independent of a source checkout;
-a restored Workspace may require explicit Git reconnection under current policy.
-See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
+a restored Workspace may require local broker recovery through `haco doctor --fix`
+after its saved route is registered. See
+[ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
 
 ## Offline Workspace routing
 
@@ -108,16 +109,17 @@ This fixture is not installed-product/import approval acceptance. See
 
 An imported Workspace with a saved GitHub route can use the existing commands.
 On a new installation, authenticate GitHub in trusted Host as usual and explicitly
-register the saved repository ID, URL and branch before connecting:
+register the saved repository ID, URL and branch before repairing the local broker:
 
 ```bash
 haco repo clone --branch main sample https://github.com/OWNER/REPO.git
-haco git connect dev-imported
+haco doctor --fix dev-imported
 ```
 
 Here `sample`, the URL and `main` must match the saved Workspace route. If that
-matching source is already registered, only `haco git connect` is needed. This
-does not replace the imported checkout or its uncommitted/untracked/unpushed work.
+matching source is already registered, only `haco doctor --fix dev-imported` is
+needed. The repair changes only local broker wiring and does not contact the upstream
+remote or replace the imported checkout or its uncommitted/untracked/unpushed work.
 Current Policy and approval still apply; imported data grants no credentials.
 A missing source, mismatched URL/branch, or replaced Env/source identity cannot
 reuse a connection. An offline import stays offline even if a same-name source

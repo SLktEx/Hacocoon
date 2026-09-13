@@ -66,12 +66,13 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 			result, err := repositories.CopyWorkspace(ctx, req.ID, req.Repository)
 			return result, translateError(err)
 		}},
+		{MethodGitStatus, gitStatusHandler(broker)},
 		{MethodGitConnect, func(ctx context.Context, payload json.RawMessage) (any, error) {
 			req, err := decodeEnvironmentName(payload)
 			if err != nil {
 				return nil, err
 			}
-			return nil, translateError(broker.Connect(ctx, req.Environment))
+			return nil, translateError(broker.Repair(ctx, req.Environment))
 		}},
 		{MethodGitPending, func(context.Context, json.RawMessage) (any, error) { return broker.Pending(), nil }},
 		{MethodGitDecide, func(ctx context.Context, payload json.RawMessage) (any, error) {

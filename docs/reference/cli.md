@@ -15,7 +15,7 @@ help and version require no controller.
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [Exact options, guest listeners and management authority](../design/network-connections.md) |
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
 | Host/project setup | `haco setup [--script <path> \| --clear-script] [environment]` | [Host](../design/trusted-host.md), [project](../design/project-setup.md); omitted target means trusted Host; Host-only `haco setup --reapply-script` and `haco setup --script-result` reapply or inspect user customization |
-| Diagnostics | `haco doctor [--json] [environment]` | Host by default; failed/skipped checks return nonzero |
+| Diagnostics | `haco doctor [--json] [environment]`; `haco doctor --fix [--json] <environment>` | Plain diagnostics are read-only. `--fix` repairs only a failed managed Git broker route; skipped/not-applicable Environment checks do not fail by themselves |
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
 | Source | `haco repo clone --branch <branch> <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); existing branch required |
@@ -28,7 +28,7 @@ help and version require no controller.
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; no TTY |
 | Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
-| Git broker | `haco git connect <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
+| Git approvals | `haco git pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | Managed broker wiring is automatic; diagnose or locally repair it with `haco doctor <env>` / `haco doctor --fix <env>`. [Git approvals](../guides/git-workflow.md) |
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
 | Image removal | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused` replaces image selector; reviewed candidates may include tagged images |

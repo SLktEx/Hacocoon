@@ -5,8 +5,9 @@
 Start with [your first Environment](getting-started.md). This page covers Git Policy,
 multiple repositories and saved approvals. Authentication stays in trusted
 `haco-host`; the Environment gets only the Git-specific broker endpoint.
-Creating an Environment from a managed Git Workspace wires that broker automatically;
-`haco git connect <env>` remains available for explicit reconnection and recovery.
+Creating an Environment from a managed Git Workspace wires that broker automatically.
+Use `haco doctor <env>` to diagnose the local broker wiring and
+`haco doctor --fix <env>` to repair that wiring without contacting the upstream remote.
 
 <a id="configure-git-policy"></a>
 ## Configure Git Policy

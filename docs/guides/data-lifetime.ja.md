@@ -47,9 +47,12 @@ OCI Storeにはイメージ、ビルドキャッシュ、永続的な管理情�
 haco env stop dev
 haco env delete dev
 haco env create --workspace managed:work --base haco/ubuntu-26.04 dev
-haco git connect dev
 haco open dev
 ```
+
+managed Git brokerはEnvironment作成時に自動で配線されます。
+後からローカル配線の復旧が必要になった場合は `haco doctor dev` で確認し、
+`haco doctor --fix dev` で修復します。この修復だけでは上流remoteへ通信しません。
 
 元のWorkspace IDを指定します。関連付けられた既定のStoreは再利用されます。
 以前に独立したStoreを指定した場合は、同じ `--resource oci:<store>` を指定します。
