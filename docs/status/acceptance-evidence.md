@@ -610,3 +610,39 @@ candidate, not main integration or distribution.
 Windows-native listener transport through `wsl.exe`, generic process caller
 consolidation, and DNS modes/VPN in environments beyond the usual network remain
 M3 work. Existing native failures and skips above are not superseded.
+
+## WSL process transport candidate
+
+Development branch `codex/windows-stream-forwarding`, based on #626. This is
+partial implementation, not main integration or distribution.
+
+- Focused Go 1.26.8 tests and the maintained local CI passed. Related stream,
+  WSL launch and notification launch race tests passed ten repetitions.
+- Real OS-child tests cover 2 MiB binary output, response drainage after child
+  exit, blocked-write cancellation, concurrent close/reap and crash versus
+  application EOF. Separate frame tests cover both half-close orders, malformed
+  frames and deadline interruption.
+- Native Windows amd64 tests passed, including actual Windows→wsl.exe→isolated
+  Linux test process→loopback TCP, with a 2 MiB binary half-close round trip.
+  No installed binary, distro setting, existing Env or network policy changed.
+  This is not acceptance of the installed product/controller/Incus route. The
+  Windows public listener companion and packaged entry remain unimplemented.
+- Ubuntu #626 run 34744901263 failed at new tunnel readiness parsing, before
+  binary forwarding. A CLI/controller regression reproduces malformed English
+  and Japanese addresses from double message expansion, then passes after
+  formatting once. Native rerun remains pending; the prior failure is retained.
+- An intermediate full local run failed because the implementation-status links
+  preceded their new evidence sections. The complete final snapshot passes the
+  maintained local CI and documentation checker; the failed log is retained.
+- #623 test 34743500916, Ubuntu 34743500914 and Incus 34743500907 passed.
+  #626 test 34744901265 and Incus 34744901270 passed. #619's earlier Incus
+  34743064668 failed at the same Base-build JSON fixture fixed by #623; its
+  later storage skips remain historical skips, not retroactive passes.
+- Windows #623 run 34743500887 and #626 run 34744901283 both failed in
+  install/restart/reinstall step 15: exact user terminal session timeout, after
+  a WSL systemd user-session warning. Subsequent native steps were skipped.
+  Cause remains unconfirmed; this does not resolve #611's separate review failure.
+
+The full active user target is M0–M5. Public Windows integration, DNS modes and
+ordinary-network alternatives remain M3 work; M1/M2 native gaps and M4/M5 are
+not excused by component success.

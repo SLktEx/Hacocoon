@@ -388,3 +388,28 @@ and SSH/preview lifecycle remain available. Ordinary Windows/WSL routing and
 a Windows-native listener through `wsl.exe` remain unverified/unimplemented,
 respectively. A trusted-Host client listens inside that Host. Generic process
 caller consolidation remains partial. See [ADR 0072](../adr/0072-client-stream-forwarding.md).
+
+## Windows process transport
+
+Status: **partial development candidate**. `internal/wsllaunch` constructs the
+fixed hidden `System32\wsl.exe` invocation for the selected local distribution.
+Notification review and controller transport share its validation and minimal
+environment. `haco _control-stdio` connects only to the fixed Physical Host UDS,
+ignoring inherited endpoint overrides. Ordinary WSL identity and socket access
+checks remain required; no root switch, guest management projection or TCP
+management listener is added. Typed clients accept this dialer for both operation
+and separate session-control connections.
+
+Process pipes use bounded data and explicit half-close frames; raw pipe EOF is
+abrupt transport loss. Each frame has a one-byte kind and four-byte big-endian
+length: data kind `0x10`, length 1–32768; EOF kind `0x11`, length zero. Unknown,
+oversized, truncated or post-EOF frames abort. Deadlines abort the connection;
+resetting a deadline does not race a stale timer into closing a later operation.
+Cancellation closes owned pipes and reaps the exact child, while explicit pipe
+ownership prevents process exit from truncating buffered response data. The
+bridge's dial is bounded to ten seconds and its lifetime to one hour.
+
+Native Windows-to-WSL fixture byte delivery is verified separately from installed
+product acceptance. The public Windows listener companion, its installation and
+ordinary entry integration remain **planned**. This internal entry is not an
+additional user CLI. See [ADR 0073](../adr/0073-wsl-process-transport.md).

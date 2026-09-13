@@ -28,6 +28,9 @@ const loginAlias = "hacocoon-login"
 const controllerStartupTimeout = 2 * time.Minute
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "_control-stdio" {
+		os.Exit(runControlStdio())
+	}
 	if len(os.Args) == 2 && os.Args[1] == "_desktop-review" {
 		os.Exit(runDesktopReview())
 	}

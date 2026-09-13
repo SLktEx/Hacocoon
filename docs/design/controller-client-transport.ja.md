@@ -361,3 +361,23 @@ controller側の1時間の絶対期限が上限です。EOFを無視する接続
 通常Windows／WSL経由の実機利用は未確認、Windows側待受から`wsl.exe`を通す経路は
 未実装です。trusted Host内で実行したclientはHost内で待ち受けます。
 汎用process callerの統合もpartialです。[ADR 0072](../adr/0072-client-stream-forwarding.ja.md)を参照してください。
+
+## Windowsのプロセス転送
+
+状態: **開発候補としてpartial**。`internal/wsllaunch`が選択した同一PCのWSLに対する
+固定の非表示`System32\wsl.exe`起動を組み立てます。通知回答とcontroller転送で
+入力検証・最小限の環境変数を共有します。`haco _control-stdio`は継承した接続先設定を
+使わず、Physical Hostの固定UDSだけへ接続します。通常のWSL利用者とsocketの
+アクセス制御を維持し、rootへの変更・通常Envへの管理接続投影・TCP管理待受は
+追加しません。型付きclientは操作と別接続のsession制御の双方で同じdialerを使います。
+
+pipeでは上限付きデータと明示的な半切断frameを使い、pipe自体のEOFは異常切断です。
+headerはkind 1 byteとbig-endian長4 byteです。データはkind `0x10`・長さ1〜32768、
+EOFはkind `0x11`・長さ0です。不明kind・過大・途中切断・EOF後のframeは拒否します。
+期限切れは接続全体を終了し、期限更新後に古いtimerが接続を閉じる競合を防ぎます。
+キャンセルで所有pipeと起動した子だけを回収します。pipeの明示的な所有により、
+子の終了時にも受信済み応答を欠落させません。接続は最大10秒、橋渡しは最大1時間です。
+
+Windows→WSLの実fixtureによるbyte配送と導入済み製品の受入は別です。Windows側で
+待ち受ける公開companion、その導入と通常の入口への統合は**planned**です。内部入口を
+利用者向けCLIとは扱いません。[ADR 0073](../adr/0073-wsl-process-transport.ja.md)を参照してください。

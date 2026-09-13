@@ -55,7 +55,7 @@ func forwardClientCommand(ctx context.Context, args []string, out, diagnostic io
 		return 1
 	}
 	defer listener.Close()
-	if _, err = fmt.Fprintf(out, cliMessage("forward.ready"), listener.Addr().String(), target.Environment, target.Address, target.Port, *duration); err != nil {
+	if _, err = fmt.Fprint(out, cliMessage("forward.ready", listener.Addr().String(), target.Environment, target.Address, target.Port, *duration)); err != nil {
 		return 1
 	}
 	var messages sync.Mutex

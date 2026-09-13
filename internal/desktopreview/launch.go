@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/wsllaunch"
 )
 
 var ErrInvalid = errors.New("invalid local approval launch")
 var distroPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
 var requestPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
-var windowsRootPattern = regexp.MustCompile(`^[A-Za-z]:\\[^\r\n"<>|?*]+$`)
 
 func Scheme(distribution string) (string, error) {
 	if !distroPattern.MatchString(distribution) {
@@ -54,18 +55,14 @@ func RequestFromURI(distribution, uri string) (string, error) {
 }
 
 func SessionPlan(distribution, systemRoot string) (Invocation, error) {
-	if _, err := Scheme(distribution); err != nil || !windowsRootPattern.MatchString(systemRoot) {
+	plan, err := wsllaunch.Plan(distribution, systemRoot, wsllaunch.Review)
+	if err != nil {
 		return Invocation{}, ErrInvalid
 	}
-	root := strings.TrimRight(systemRoot, "\\")
-	return Invocation{File: root + "\\System32\\wsl.exe", Args: []string{"--distribution", distribution, "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", "_desktop-review"}, Env: []string{"SystemRoot=" + root, "WINDIR=" + root}}, nil
+	return plan, nil
 }
 
-type Invocation struct {
-	File string
-	Args []string
-	Env  []string
-}
+type Invocation = wsllaunch.Invocation
 
 func Plan(distribution, uri, systemRoot string) (Invocation, error) {
 	if _, err := RequestFromURI(distribution, uri); err != nil {
