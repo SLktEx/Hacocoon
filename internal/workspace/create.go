@@ -141,7 +141,16 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		State:              core.WorkspaceLeaseAcquiring,
 		AcquiredAt:         s.now().UTC(),
 	}
-	if saved != nil {
+	plans, planErr := s.planEnvironmentResources(ctx, spec, workspace, lease, saved != nil || creator != nil)
+	if planErr != nil {
+		return core.Environment{}, planErr
+	}
+	for _, plan := range plans {
+		lease.Attachments = append(lease.Attachments, plan.Attachment)
+	}
+	if len(plans) != 0 {
+		err = s.store.(environmentResourceCatalog).BeginEnvironmentCreateWithResources(ctx, lease, plans)
+	} else if saved != nil {
 		lease.SnapshotSource = saved.ID
 		err = s.store.(snapshotCreationCatalog).BeginEnvironmentCreateFromSnapshot(ctx, lease, *saved)
 	} else {
@@ -151,7 +160,15 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		return core.Environment{}, fmt.Errorf("begin environment create: %w", err)
 	}
 
+	var attachments []core.EnvironmentRuntimeAttachment
+	if len(plans) != 0 {
+		attachments, err = s.environmentResources.MaterializeEnvironmentResources(ctx, lease)
+		if err != nil {
+			return core.Environment{}, errors.Join(err, s.finalizeEnvironmentForCleanup(ctx, name))
+		}
+	}
 	runtimeSpec := core.EnvironmentRuntimeSpec{
+		Attachments:         attachments,
 		InstanceID:          instanceID,
 		TemporaryWorkspace:  spec.TemporaryWorkspace != nil,
 		ResourceMaintenance: spec.TemporaryWorkspace != nil && spec.PersistentResource != "",
@@ -233,6 +250,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 
 	environment = core.Environment{
+		Attachments:        lease.Attachments,
 		PersistentResource: persistent.Ref(),
 		Name:               name,
 		Workspace:          workspace,

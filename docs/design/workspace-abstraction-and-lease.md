@@ -83,6 +83,15 @@ and absence before removing its catalog entry. The initial optional plugin is
 [ADR 0014](../adr/0014-persistent-managed-resources.md). This does not change the
 independent Git metadata or Incus-owned COW contract of managed Workspaces.
 
+## Disposable Environment children
+
+The optional retained Store remains separate from Env-owned disposable data.
+The canonical lease now reserves bounded child identities and copy sources in the
+same transaction as creation, records runtime absence before child cleanup and
+retains the parent until every child is positively absent. See the detailed
+[cache lifecycle contract](cache-generations.md#env-owned-disposable-data).
+Native placement and the public selector remain planned.
+
 ## Resume retained work
 
 Status: implemented. `haco env start <name>` retains the Environment runtime,

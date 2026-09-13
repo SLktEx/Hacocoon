@@ -92,8 +92,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.67 | Automatic Windows Tunnel Entry | ✅ implemented |
 | v0.68 | Guest Packer Provisioning | partial — guest provisioning implemented; installed Packer acceptance incomplete |
 | v0.69 | Atomic Cache Generation Foundation | partial — atomic selection/provider foundation; ordinary-Env cache workflow remains incomplete |
+| v0.70 | Environment-owned Disposable Data | partial — canonical disposable-data ownership; native placement/collection remain incomplete |
 
-The current milestone position is **v0.69**. This declaration and the table mirror YAML.
+The current milestone position is **v0.70**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 

@@ -143,7 +143,7 @@ func TestSchema13RunMigrationNeverInventsOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := s.GetWorkspaceLease(ctx, lease.EnvironmentID)
-	if err != nil || got != lease {
+	if err != nil || !got.Equal(lease) {
 		t.Fatal("legacy lease changed", got, err)
 	}
 	raw, err = os.ReadFile(s.path)

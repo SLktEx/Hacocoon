@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -41,7 +42,7 @@ func TestDefaultResourceFailureNeverStartsAnEmptyEnvironment(t *testing.T) {
 		return core.PersistentResource{}, core.ErrRecoveryRequired
 	})
 	_, err := svc.Create(context.Background(), core.EnvironmentSpec{Name: "default", WorkspacePath: t.TempDir()})
-	if !errors.Is(err, core.ErrRecoveryRequired) || runtime.createSpec != (core.EnvironmentRuntimeSpec{}) {
+	if !errors.Is(err, core.ErrRecoveryRequired) || !reflect.DeepEqual(runtime.createSpec, core.EnvironmentRuntimeSpec{}) {
 		t.Fatalf("%v %+v", err, runtime.createSpec)
 	}
 }

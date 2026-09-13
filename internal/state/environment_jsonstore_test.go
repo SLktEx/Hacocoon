@@ -29,7 +29,7 @@ func TestEnvironmentJSONStoreRoundTripAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != environment {
+	if !got.Equal(environment) {
 		t.Fatalf("got %#v want %#v", got, environment)
 	}
 	info, err := os.Stat(path)

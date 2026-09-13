@@ -117,7 +117,7 @@ func TestResourceGenerationConcurrentAdoptionAndReset(t *testing.T) {
 }
 
 func TestResourceGenerationCatalogVersionsPreserveOldData(t *testing.T) {
-	for _, version := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, -1} {
+	for _, version := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, -1} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.json")
 			before := []byte(fmt.Sprintf(`{"version":%d,"environments":{}}`, version))
@@ -126,7 +126,7 @@ func TestResourceGenerationCatalogVersionsPreserveOldData(t *testing.T) {
 			}
 			s := NewEnvironmentJSONStore(path)
 			_, err := s.ListResourceGenerations(context.Background())
-			supported := version == 0 || (version >= 2 && version <= 8) || (version >= 10 && version <= 15)
+			supported := version == 0 || (version >= 2 && version <= 8) || (version >= 10 && version <= environmentStateVersion)
 			if supported && err != nil || !supported && !errors.Is(err, core.ErrIncompatibleState) {
 				t.Fatal(err)
 			}
@@ -169,7 +169,7 @@ func writeGenerationFixture(t *testing.T, path string, data environmentFileState
 func TestResourceGenerationCorruptionFailsClosed(t *testing.T) {
 	cases := map[string]func(*environmentFileState){
 		"old-version":    func(d *environmentFileState) { d.Version = 14 },
-		"future-version": func(d *environmentFileState) { d.Version = 16 },
+		"future-version": func(d *environmentFileState) { d.Version = environmentStateVersion + 1 },
 		"wrong-key": func(d *environmentFileState) {
 			d.ResourceGenerations["other"] = d.ResourceGenerations["cache"]
 			delete(d.ResourceGenerations, "cache")

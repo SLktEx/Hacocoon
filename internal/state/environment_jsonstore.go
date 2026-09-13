@@ -11,7 +11,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 15 // 9 was an unpublished replacement prototype; reject it.
+const environmentStateVersion = 16 // 9 was an unpublished replacement prototype; reject it.
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
@@ -98,6 +98,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func (s *EnvironmentJSONStore) writeEnvironments(data environmentFileState) error {
+	if err := validateEnvironmentResources(data); err != nil {
+		return err
+	}
 	if err := validateResourceGenerations(data); err != nil {
 		return err
 	}

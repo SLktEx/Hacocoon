@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"reflect"
+	"slices"
+	"time"
+)
 
 type WorkspaceID string
 
@@ -43,7 +47,9 @@ type BaseInfo struct {
 }
 
 type WorkspaceLease struct {
-	Ephemeral bool `json:"ephemeral,omitempty"`
+	Attachments   []EnvironmentAttachment `json:"attachments,omitempty"`
+	RuntimeAbsent bool                    `json:"runtime_absent,omitempty"`
+	Ephemeral     bool                    `json:"ephemeral,omitempty"`
 	// SnapshotSource reserves immutable saved data only while this creation is pending.
 	SnapshotSource     string                `json:"snapshot_source,omitempty"`
 	InstanceID         string                `json:"instance_id,omitempty"`
@@ -70,14 +76,15 @@ type EphemeralRun struct {
 }
 
 type Environment struct {
-	PersistentResource PersistentResourceRef `json:"persistent_resource,omitempty"`
-	Name               string                `json:"name"`
-	Workspace          Workspace             `json:"workspace"`
-	AccessMode         WorkspaceAccessMode   `json:"access_mode"`
-	Base               *BaseRef              `json:"base,omitempty"`
-	Resources          ResourceBudget        `json:"resources"`
-	RuntimeRef         string                `json:"runtime_ref"`
-	CreatedAt          time.Time             `json:"created_at"`
+	Attachments        []EnvironmentAttachment `json:"attachments,omitempty"`
+	PersistentResource PersistentResourceRef   `json:"persistent_resource,omitempty"`
+	Name               string                  `json:"name"`
+	Workspace          Workspace               `json:"workspace"`
+	AccessMode         WorkspaceAccessMode     `json:"access_mode"`
+	Base               *BaseRef                `json:"base,omitempty"`
+	Resources          ResourceBudget          `json:"resources"`
+	RuntimeRef         string                  `json:"runtime_ref"`
+	CreatedAt          time.Time               `json:"created_at"`
 }
 
 type EnvironmentSpec struct {
@@ -99,6 +106,7 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
+	Attachments []EnvironmentRuntimeAttachment
 	// InstanceID binds the provider resource to the durable creation reservation.
 	InstanceID         string
 	TemporaryWorkspace bool
@@ -140,11 +148,25 @@ type ExecutionResult struct {
 // MatchesEnvironment checks the common active-lease binding. Generation,
 // snapshot and authority-specific checks remain with their operation owners.
 func (lease WorkspaceLease) MatchesEnvironment(environment Environment) bool {
-	return lease.State == WorkspaceLeaseActive && environment.Name != "" &&
+	return lease.State == WorkspaceLeaseActive && !lease.RuntimeAbsent && environment.Name != "" &&
+		slices.Equal(lease.Attachments, environment.Attachments) &&
 		lease.EnvironmentID == environment.Name && lease.RuntimeRef != "" &&
 		lease.RuntimeRef == environment.RuntimeRef &&
 		lease.WorkspaceID == environment.Workspace.ID &&
 		lease.SourcePath == environment.Workspace.Path &&
 		lease.AccessMode == environment.AccessMode &&
 		lease.PersistentResource == environment.PersistentResource
+}
+
+// Equal includes every aggregate field, including independently decoded Base and attachment values.
+func (e Environment) Equal(other Environment) bool {
+	same := slices.Equal(e.Attachments, other.Attachments)
+	e.Attachments, other.Attachments = nil, nil
+	return same && reflect.DeepEqual(e, other)
+}
+
+func (lease WorkspaceLease) Equal(other WorkspaceLease) bool {
+	same := slices.Equal(lease.Attachments, other.Attachments)
+	lease.Attachments, other.Attachments = nil, nil
+	return same && reflect.DeepEqual(lease, other)
 }

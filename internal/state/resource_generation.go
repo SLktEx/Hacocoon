@@ -159,5 +159,5 @@ func (s *EnvironmentJSONStore) BeginGenerationResourceDelete(ctx context.Context
 	if !core.ValidGenerationResource(ref) {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, ref.ID, "", ref.Owner, false)
+	return s.beginPersistentResourceDelete(ctx, ref.ID, persistentResourceDeletion{Identity: ref})
 }

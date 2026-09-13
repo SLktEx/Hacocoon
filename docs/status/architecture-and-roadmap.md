@@ -400,3 +400,9 @@ Remaining delivery work:
 Keep Workspace/OCI retention and fail-closed ownership through every step. Existing
 installation replacement or user-data deletion needs a concrete reviewed target;
 main merge, tags and releases remain outside this candidate's authorization.
+
+The next cache step is safe Incus placement/resume and trusted Host path selection,
+then stopped-Env collection, generation history/clearing and real large-repository
+measurements. Canonical disposable-data lifecycle is now available on the candidate;
+the production selector remains disabled. Snapshot/copy/transfer of extra areas
+must gain an explicit complete contract before those areas are enabled.
