@@ -62,5 +62,69 @@ esac
         self.check_case("absent", True, True)
 
 
+class StorageCleanupTests(unittest.TestCase):
+    def test_uncertainty_stops_before_storage_or_project_deletion(self):
+        source = LIBRARY.with_name("ci-incus-storage-cli.sh").read_text()
+        functions = source[source.index("delete_owned_instances() {"):source.index('case "${1:-}" in')]
+        for mode in ("projects-failed", "pools-failed", "instances-failed", "unexpected", "malformed", "delete-failed", "remains", "images-failed", "images-malformed", "absent"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                script = root / "test.sh"
+                script.write_text('''#!/bin/bash
+set -euo pipefail
+PROJECT=hacocoon INSTANCE=haco-test POOL=haco-local-default
+INCUS_BACKING=/not-a-real-backing CLI_ROOT=unused WORKSPACE=unused RUN_WORKSPACE=unused
+HACO_BIN=unused CONTROLLER_BIN=unused
+require_github_hosted_runner() { :; }
+haco_stop_test_controller() { :; }
+fail() { echo "$*" >&2; exit 1; }
+sudo() { return 0; }
+rm() { :; }
+incus() {
+  case "$1 $2" in
+    'project list')
+      [[ "$MODE" != projects-failed ]] || return 1
+      echo default
+      [[ -f "$STATE/project" ]] || echo hacocoon ;;
+    'storage list')
+      [[ "$MODE" != pools-failed ]] || return 1
+      [[ -f "$STATE/pool" ]] || echo haco-local-default ;;
+    'list --project')
+      [[ "$MODE" != instances-failed ]] || return 1
+      if [[ ! -f "$STATE/instance" || "$MODE" == remains ]]; then echo haco-test; fi
+      case "$MODE" in
+        unexpected) echo haco-aggregate-failure ;;
+        malformed) echo 'haco-run-remote:other' ;;
+      esac ;;
+    'delete haco-test')
+      echo instance >> "$STATE/deleted"
+      [[ "$MODE" != delete-failed ]] || return 1
+      touch "$STATE/instance" ;;
+    'image list')
+      [[ "$MODE" != images-failed ]] || return 1
+      if [[ "$MODE" == images-malformed ]]; then echo 'remote:other'; return 0; fi
+      if [[ ! -f "$STATE/image" ]]; then
+        if [[ "${!#}" == F ]]; then printf '%064d\n' 1; else printf '%012d\n' 1; fi
+      fi ;;
+    'image delete') echo image >> "$STATE/deleted"; touch "$STATE/image" ;;
+    'storage delete') echo pool >> "$STATE/deleted"; touch "$STATE/pool" ;;
+    'project delete') echo project >> "$STATE/deleted"; touch "$STATE/project" ;;
+    *) echo "unexpected command: $*" >&2; return 2 ;;
+  esac
+  return 0
+}
+''' + functions + "\ncleanup\n")
+                result = subprocess.run(["bash", str(script)], env=dict(os.environ, MODE=mode, STATE=str(root)), capture_output=True, timeout=10)
+                deleted = (root / "deleted").read_text().splitlines() if (root / "deleted").exists() else []
+                self.assertEqual(result.returncode == 0, mode == "absent", result.stderr)
+                if mode == "absent":
+                    self.assertEqual(deleted, ["instance", "image", "pool", "project"])
+                else:
+                    self.assertNotIn("pool", deleted)
+                    self.assertNotIn("project", deleted)
+                    if mode in ("unexpected", "malformed"):
+                        self.assertEqual(deleted, [])
+
+
 if __name__ == "__main__":
     unittest.main()

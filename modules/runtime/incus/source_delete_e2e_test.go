@@ -39,8 +39,7 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	command := func(args ...string) string {
 		t.Helper()
 		out, err := runner.Run(ctx, "incus", args...)
-		must(err)
-		if out.ExitCode != 0 || out.StdoutTruncated {
+		if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 			t.Fatal("native command failed", args)
 		}
 		return out.Stdout
@@ -118,7 +117,7 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	if mounted, err := backend.sourceDevice(ctx, o); err != nil || !mounted {
 		t.Fatal("refusal detached Host", err)
 	}
-	command("storage", "volume", "snapshot", "show", pool, "haco-repo-source/keep", "--project", project)
+	command("storage", "volume", "snapshot", "show", pool, "haco-repo-source", "keep", "--project", project)
 	command("storage", "volume", "snapshot", "delete", pool, "haco-repo-source", "keep", "--project", project)
 	if err := service.DeleteSource(ctx, o.ID, strings.Repeat("f", 32)); !errors.Is(err, core.ErrCapabilityStale) {
 		t.Fatal("stale owner accepted", err)

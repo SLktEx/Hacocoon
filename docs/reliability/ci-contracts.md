@@ -119,7 +119,7 @@ layers without removing a directly changed PR contract.
 
 The credentialed GitHub push path still has no equivalent credential-free shipped
 PR success path. Hosted image builds, apt packages and product image aliases are
-not immutable. Existing Windows restart and maintenance acceptance failures must
-be investigated, not relabelled as passes or moved out of PR. Consequently static
+not immutable. Native failures require cause-specific fixes and new execution
+evidence, not relabelling as passes or moving out of PR. Consequently static
 policy and repository tests alone cannot establish Issue #615's full native
 repeatability criteria. Track exact candidate/run results in acceptance evidence.

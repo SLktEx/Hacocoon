@@ -59,12 +59,12 @@ def command(*args, input_text=None, timeout=90):
 
 
 def configuration_update(directory, mutate):
-    snapshot = json.loads(command("config"))
+    snapshot = json.loads(command("config", "--json"))
     mutate(snapshot["policy"])
     file = directory / "configuration.json"
     file.write_text(json.dumps(snapshot), encoding="utf-8")
     file.chmod(0o600)
-    receipt = json.loads(command("config", "--file", str(file)))
+    receipt = json.loads(command("config", "--json", "--file", str(file)))
     if receipt.get("policy") != snapshot["policy"] or not re.fullmatch(
         r"sha256:[a-f0-9]{64}", receipt.get("revision", "")
     ):
@@ -73,6 +73,10 @@ def configuration_update(directory, mutate):
 
 def valid_network_output(output):
     return output.splitlines() == ["PENDING_NETWORK_RESULT_OK", "Project setup completed."]
+
+
+def pending_requests():
+    return json.loads(command("approve", "--list", "--json"))
 
 
 def main(environment):
@@ -149,7 +153,7 @@ PY
                 deadline = time.monotonic() + 60
                 prompt = None
                 while time.monotonic() < deadline:
-                    requests = json.loads(command("approve", "--list"))
+                    requests = pending_requests()
                     matches = [p for p in requests if p.get("request", {}).get("environment") == environment
                                and p.get("request", {}).get("capability") == "network.egress"
                                and p.get("request", {}).get("resource") == "example.com"]

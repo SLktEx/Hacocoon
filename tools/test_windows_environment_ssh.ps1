@@ -270,8 +270,8 @@ umask 077
 before=$(mktemp /tmp/haco-config-before-XXXXXX)
 after=$(mktemp /tmp/haco-config-after-XXXXXX)
 trap 'rm -f "$before" "$after"' EXIT
-haco config > "$before"
-haco config --file "$before" > "$after"
+haco config --json > "$before"
+haco config --json --file "$before" > "$after"
 python3 - "$before" "$after" <<'PY'
 import json, re, sys
 with open(sys.argv[1]) as f: before = json.load(f)

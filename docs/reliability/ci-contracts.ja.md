@@ -102,7 +102,7 @@ main の repository/native 検証、manual `real-git-push-e2e` と private-regis
 互換性・stress の追加層を、直接変更した契約の PR 検証の代わりにしてはならない。
 
 認証 GitHub push に相当する credential 不要の出荷 PR 成功経路はまだない。hosted image、
-apt、製品 image alias も完全には固定されていない。Windows restart と maintenance の
-既存失敗は調査が必要であり、成功と読み替えたり PR から外したりしない。静的検査と
+apt、製品 image alias も完全には固定されていない。native 失敗には原因に対応した修正と
+新しい実行証拠が必要であり、成功と読み替えたり PR から外したりしない。静的検査と
 repository test だけで Issue #615 の native 再現性条件を満たしたとは判断できない。
 candidate/run に結び付いた結果を受入証拠に記録する。

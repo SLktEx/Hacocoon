@@ -9,7 +9,8 @@ haco config
 haco config --edit
 ```
 
-最初のコマンドは現在の revision と Policy を JSON で表示します。
+最初のコマンドは現在の revision と Policy を人向けの表示で示します。
+機械処理用の snapshot は `haco config --json` で取得します。
 `--edit` は同じ文書を `VISUAL`、`EDITOR`、未設定なら `vi` で開きます。
 `policy` を編集し、`revision` は変えません。通常の承認や Git 操作に
 新しい必須引数はありません。
@@ -17,10 +18,12 @@ haco config --edit
 ファイルで編集する場合:
 
 ```bash
-haco config > configuration.json
+haco config --json > configuration.json
 # configuration.json の policy を編集し、revision は保持する。
 haco config --file configuration.json
 ```
+
+保存結果もスクリプトで解析する場合は、適用コマンドにも `--json` を付けます。
 
 `policy.rules` は管理者ルール、`policy.saved_decisions` は通常の承認から保存した
 方針です。同じ照合に参加し、deny、require-approval、allow の順に優先します。
