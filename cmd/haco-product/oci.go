@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -21,9 +20,15 @@ func runPlugin(args []string) int {
 		return runOCIStoreManage(args[2:])
 	}
 	usage := func() int {
-		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create <store> [--from <store>] | haco plugin oci store inspect <store> | haco plugin oci store delete [--yes] <store> | haco plugin oci store list [--json]")
+		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create [--json] <store> [--from <store>] | haco plugin oci store inspect [--json] <store> | haco plugin oci store delete [--yes] <store> | haco plugin oci store list [--json]")
 		return 2
 	}
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(os.Stderr, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	if len(args) < 3 || args[0] != "oci" || args[1] != "store" {
 		return usage()
 	}
@@ -45,7 +50,7 @@ func runPlugin(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
-	if json.NewEncoder(os.Stdout).Encode(result) != nil {
+	if err := writeCLIResult(os.Stdout, result, jsonOutput); err != nil {
 		return 1
 	}
 	return 0
