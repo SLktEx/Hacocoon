@@ -23,11 +23,10 @@ func diagnoseEnvironmentWithGit(ctx context.Context, c environmentDoctorClient, 
 	if err != nil {
 		return report, err
 	}
-	check := environmentDoctorCheck{Name: "git_broker", Status: "skipped"}
 	if !strings.HasPrefix(report.Workspace.Path, "managed:") {
-		report.Checks = append(report.Checks, check)
 		return report, nil
 	}
+	check := environmentDoctorCheck{Name: "git_broker", Status: "skipped"}
 	statusClient, ok := c.(environmentGitStatusClient)
 	if !ok {
 		return report, core.ErrUnsupported
