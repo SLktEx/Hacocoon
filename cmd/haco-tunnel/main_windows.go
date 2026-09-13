@@ -12,6 +12,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/clientforward"
 	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/wsllaunch"
 )
 
@@ -23,6 +24,15 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) int {
+	if len(args) == 1 && args[0] == "_delegate" {
+		return clientforward.RunDelegated(ctx, os.Stdin, os.Stdout, os.Stderr, func(target reclamation.WSLTarget) (*controlapi.Client, error) {
+			dial, err := wsllaunch.RegisteredControlDialer(target)
+			if err != nil {
+				return nil, err
+			}
+			return controlapi.NewClientWithDialer(dial)
+		})
+	}
 	language := cliui.Resolve(os.Getenv)
 	usage := func() { writeHelp(os.Stderr, language) }
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/streamio"
 )
 
@@ -15,6 +16,15 @@ import (
 // The caller's ordinary Windows/WSL identity is retained, without -u root.
 func ControlDialer(distribution string) (func(context.Context) (net.Conn, error), error) {
 	plan, err := Plan(distribution, os.Getenv("SystemRoot"), ControlStdio)
+	return controlDialer(plan, err)
+}
+
+func RegisteredControlDialer(target reclamation.WSLTarget) (func(context.Context) (net.Conn, error), error) {
+	plan, err := RegisteredPlan(target, os.Getenv("SystemRoot"))
+	return controlDialer(plan, err)
+}
+
+func controlDialer(plan Invocation, err error) (func(context.Context) (net.Conn, error), error) {
 	if err != nil {
 		return nil, err
 	}

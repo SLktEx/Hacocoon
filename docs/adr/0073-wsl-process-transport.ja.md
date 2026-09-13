@@ -23,7 +23,7 @@ frameでbyteとEOFを子の異常終了から区別し、pipeの切断をtranspo
 起動境界を広げます。インストーラhelperと通知helperの責務は維持し、公開Windows
 待受はclient側の統合で提供します。
 
-公開companionの配布は実装候補になりました。Linux入口からの自動委譲と導入済み
-Windows経路の受入は残件です。実fixtureの転送成功を
+公開companionの配布と通常WSL入口からの自動委譲は実装候補です。後者は[ADR 0074](0074-windows-tunnel-delegation.ja.md)を参照してください。
+導入済みWindows経路の受入は残件です。実fixtureの転送成功を
 導入済みcontroller・Incusへのアクセス確認とは扱いません。
 [契約](../design/controller-client-transport.ja.md#windowsのプロセス転送)を参照してください。

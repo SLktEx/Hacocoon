@@ -19,6 +19,26 @@ import (
 )
 
 func Command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, connect func() (*controlapi.Client, error), usage func()) int {
+	return command(ctx, args, out, diagnostic, language, connect, usage, runPrepared)
+}
+
+type prepared struct {
+	Target   core.EnvironmentTCPForward `json:"target"`
+	Listen   string                     `json:"listen"`
+	Duration time.Duration              `json:"duration"`
+	Language cliui.Language             `json:"language"`
+}
+
+type preparedRunner func(context.Context, *controlapi.Client, prepared, io.Writer, io.Writer) int
+
+func validListener(address string) bool {
+	host, portText, err := net.SplitHostPort(address)
+	port, portErr := strconv.Atoi(portText)
+	ip := net.ParseIP(host)
+	return err == nil && portErr == nil && ip != nil && ip.IsLoopback() && port >= 0 && port <= 65535
+}
+
+func command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, connect func() (*controlapi.Client, error), usage func(), run preparedRunner) int {
 	message := language.Format
 	f := flag.NewFlagSet("env tunnel", flag.ContinueOnError)
 	f.SetOutput(diagnostic)
@@ -35,10 +55,7 @@ func Command(ctx context.Context, args []string, out, diagnostic io.Writer, lang
 		}
 		return 2
 	}
-	host, portText, err := net.SplitHostPort(*listen)
-	localPort, portErr := strconv.Atoi(portText)
-	ip := net.ParseIP(host)
-	if err != nil || portErr != nil || ip == nil || !ip.IsLoopback() || localPort < 0 || localPort > 65535 || len(f.Args()) != 1 || !core.ValidForwardAddress(*address, *port) || *duration < time.Second || *duration > time.Hour {
+	if !validListener(*listen) || len(f.Args()) != 1 || !core.ValidForwardAddress(*address, *port) || *duration < time.Second || *duration > time.Hour {
 		f.Usage()
 		return 2
 	}
@@ -54,13 +71,22 @@ func Command(ctx context.Context, args []string, out, diagnostic io.Writer, lang
 		fmt.Fprintln(diagnostic, message("operation.failed"), err)
 		return 1
 	}
-	listener, err := net.Listen("tcp", *listen)
+	return run(ctx, client, prepared{Target: target, Listen: *listen, Duration: *duration, Language: language}, out, diagnostic)
+}
+
+func runPrepared(ctx context.Context, client *controlapi.Client, request prepared, out, diagnostic io.Writer) int {
+	message := request.Language.Format
+	target := request.Target
+	if ctx.Err() != nil {
+		return 0
+	}
+	listener, err := net.Listen("tcp", request.Listen)
 	if err != nil {
 		fmt.Fprintln(diagnostic, message("operation.failed"), err)
 		return 1
 	}
 	defer listener.Close()
-	if _, err = fmt.Fprint(out, message("forward.ready", listener.Addr().String(), target.Environment, target.Address, target.Port, *duration)); err != nil {
+	if _, err = fmt.Fprint(out, message("forward.ready", listener.Addr().String(), target.Environment, target.Address, target.Port, request.Duration)); err != nil {
 		return 1
 	}
 	var messages sync.Mutex

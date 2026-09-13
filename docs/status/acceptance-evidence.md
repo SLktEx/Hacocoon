@@ -865,3 +865,50 @@ not root-cause proof or native acceptance for the older Windows startup failures
 Real PTY resize/SIGWINCH/disconnect tests pass ten race repetitions. Integrated Windows amd64 builds pass actual Windows client/controller/TCP eight-concurrent 1 MiB round trips, half-close, cancellation/listener cleanup, bilingual help and invalid-argument refusal. New WSL/Incus installation, automatic delegation from ordinary entry, arm64 execution and fresh GUI decisions remain unverified.
 
 The exact `44a30b1a` Git archive also passes a fresh complete maintained local CI run with its recorded executable modes preserved.
+
+<a id="windows-tunnel-delegation"></a>
+## Automatic Windows tunnel candidate
+
+`codex/windows-tunnel-entry` implements ordinary WSL/trusted Host delegation,
+registration/installation/Env identity checks, and the original deadline with
+parent-pipe lifetime ownership. It is development implementation, not main or
+release delivery. The first focused run failed to compile a new fixture after a
+helper argument was removed; the remaining caller was corrected. That failure
+is retained separately from subsequent successful runs.
+
+Go 1.26.8 focused tests pass. Actual Windows amd64 component tests pass invalid
+request refusal, changed installation/Env refusal before listening, parent EOF
+and extra-byte cleanup, and real-child 1 MiB binary traffic with cancellation,
+upstream/listener cleanup and reaping. Existing eight-concurrent 1 MiB and
+half-close coverage passes too. These are controlled controller fixtures.
+
+Installed acceptance is **not run** locally: the current `hacocoon-second`
+WSLInterop registration is absent (read-only existence check exits 1), and the
+Windows per-user `Hacocoon/client` directory is absent. Neither is repaired or
+installed solely to make a test pass. The maintained native SSH journey now
+reuses its owned Env for `windows-tunnel-entry-e2e.py`: ordinary terminal command,
+Windows process-owned listener, eight 1 MiB half-closed exchanges and Ctrl+C
+cleanup. That new installed journey still needs execution. Arm64 runtime and
+fresh human GUI answers remain unverified.
+
+Parent #635 `bc28c32b` has successful test 34768317313, Ubuntu 34768317315 and
+Incus 34768317317 runs. Windows 34768317303 was observed in progress; this is not
+a success claim and does not resolve earlier recorded Windows failures.
+
+The final candidate snapshot preserves Git executable modes and passes complete
+focused client/product tests (Go 1.26.8), ten related race repetitions, maintained
+`tools/ci-local.sh test` (Go 1.27.1), docs/checker regressions and workflow policy.
+Windows amd64 native tests and bilingual companion help pass again; amd64 and
+arm64 companion builds pass. Linux ownership regressions refuse missing/foreign
+records, symlinks and a FIFO without blocking. The new installed driver has syntax
+validation only locally, not an installed-route pass.
+
+Parent Windows run 34768317303 has now **failed** at job 103753188863 step 21
+(native notification review). Steps 13–20 pass: PowerShell 5.1 installer components,
+normal install/restart/reinstall, egress, native SSH/VS Code, temporary TTY, Linux
+reclamation and public reclaim/retained-data restoration. VHDX allocation changes
+from 7,931,428,864 to 5,040,504,832 bytes. The failed stale-request probe returns
+exit 1 as expected but lacks the expected refusal text: `stage=clear`,
+`reason=unavailable`, `native=unrecorded`. Its root cause and fresh notification
+answers remain unresolved. These later successful startup results do not erase
+older failed runs or prove this new tunnel's installed route.

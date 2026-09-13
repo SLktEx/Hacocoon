@@ -168,6 +168,8 @@ cmd /c .\install-windows.bat
 ```
 
 表示されたWindowsのloopback接続先をアプリで開き、Ctrl+Cで待受と転送を終了します。
-WSLには同じ候補の製品を導入しておく必要があります。Linux側の`haco env tunnel`は
-まだ自動でこのclientへ委譲しません。導入済み経路の受入状態は
+WSLには同じ候補の製品を導入しておく必要があります。通常のHost端末からは
+`haco env tunnel --target-port 8080 demo`でWindowsクライアントを自動選択します。
+補助プログラムの場所やWSL名の指定は不要です。通常のLinuxはローカルで待ち受けます。
+Windows連携が不足する場合は次の確認を案内し、別の場所で代わりに待ち受けません。導入済み経路の受入状態は
 [受入記録](../status/acceptance-evidence.ja.md#windows公開転送クライアント候補)を参照してください。

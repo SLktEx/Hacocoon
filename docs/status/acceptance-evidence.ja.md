@@ -734,3 +734,35 @@ fixtureのprivate login profileで実際のBash入力待ち表示を観測して
 実PTYのresize・SIGWINCH・切断はraceで10回PASS。統合候補をWindows amd64へbuildし、実Windowsでclient/controller/TCPの8並行1MiB往復・半切断・cancel・待受回収、日英help・不正引数拒否がPASSです。新規WSL/Incusへの導入、通常入口からWindows待受への自動委譲、arm64実行、fresh GUI回答は未確認です。
 
 `44a30b1a`のGit archiveを新しい一時領域へそのまま展開し、記録された実行属性のまま標準ローカルCI全体を再実行してPASSしました。
+
+<a id="windows-tunnel-delegation"></a>
+## Windows転送の自動起動候補
+
+`codex/windows-tunnel-entry`は通常WSL／trusted Hostからの自動委譲、登録先・導入世代・Env世代の照合、
+元の期限と親pipeによる寿命管理を実装しています。開発ブランチの候補でありmain反映・配布ではありません。
+最初の集中試験は補助関数の引数削除後に一つの呼び出しが残ってbuild失敗しました。修正後に再検証し、初回失敗を保持しています。
+
+Go 1.26.8の集中回帰がPASSです。実Windows amd64の構成要素試験で不正要求、導入先／Env置き換わりの待受前拒否、
+親EOFと余分なbyteによる回収、実子プロセスの1 MiB通信中キャンセルと転送先・待受・子の終了がPASSです。
+既存の8並行1 MiB／半切断回帰もPASSです。制御されたcontroller fixtureによる確認です。
+
+導入済み経路はローカルで**未実施**です。現在の`hacocoon-second`はWSLInterop登録がなく、読み取り専用の存在確認は終了1でした。
+Windows利用者領域の`Hacocoon/client`もありません。試験を通すための導入・修復はしていません。
+保守対象のnative SSH試験には、同じ試験所有Envで`windows-tunnel-entry-e2e.py`を実行する経路を追加しました。
+通常端末のコマンド、Windowsプロセスが所有する待受、8並行1 MiBの半切断往復、Ctrl+C後の回収を確認する設計ですが、
+新しい導入済み試験の実行は残件です。arm64実行と人の新規GUI回答も未確認です。
+
+親 #635 `bc28c32b`はtest34768317313、Ubuntu34768317315、Incus34768317317がPASSです。
+Windows34768317303は実行中であることを確認した段階で、成功とは扱いません。過去のWindows失敗も未解決として保持します。
+
+最終候補のコピーはGitの実行属性を保持し、Go 1.26.8のclient／製品集中試験、関連race10回、
+標準`tools/ci-local.sh test`（Go 1.27.1）、文書とchecker回帰、workflow policyがPASSです。
+実Windows amd64の回帰と日英companionヘルプも再度PASSし、amd64／arm64のbuildがPASSです。
+Linuxの所有記録回帰は欠落・不一致・symlink・FIFOを停止せず拒否します。
+新しい導入済みdriverはローカルでは構文確認までで、実経路のPASSではありません。
+
+親Windows34768317303はjob103753188863のstep21（native通知回答）で**FAIL**しました。
+step13〜20のPowerShell 5.1導入部品、通常install／restart／reinstall、egress、native SSH／VS Code、
+一時TTY、Linux回収と公開reclaim／保持データ復元はPASSです。VHDX割当は7,931,428,864から5,040,504,832 bytesへ減少しました。
+失効要求の試験は期待どおり終了1でしたが、期待した拒否文がなく、`stage=clear`、`reason=unavailable`、`native=unrecorded`でした。
+原因と新規通知回答は未解決です。後続の起動成功で過去のFAILを消さず、今回の新転送経路の受入へも読み替えません。

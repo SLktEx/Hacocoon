@@ -1,6 +1,7 @@
 package wsllaunch
 
 import (
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
 	"reflect"
 	"testing"
 )
@@ -13,6 +14,25 @@ func TestFixedControlInvocation(t *testing.T) {
 	expected := Invocation{File: `C:\Windows\System32\wsl.exe`, Args: []string{"--distribution", "hacocoon-second", "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", "_control-stdio"}, Env: []string{`SystemRoot=C:\Windows`, `WINDIR=C:\Windows`}}
 	if !reflect.DeepEqual(got, expected) {
 		t.Fatalf("unexpected plan: %#v", got)
+	}
+}
+
+func TestRegisteredControlInvocation(t *testing.T) {
+	target := reclamation.WSLTarget{RegistrationID: "{11111111-1111-1111-1111-111111111111}", InstallationID: "22222222-2222-2222-2222-222222222222"}
+	got, err := RegisteredPlan(target, `C:\Windows`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, _ := Plan("display-name", `C:\Windows`, ControlStdio)
+	expected.Args[0], expected.Args[1] = "--distribution-id", target.RegistrationID
+	if !reflect.DeepEqual(got, expected) {
+		t.Fatalf("%#v", got)
+	}
+	for _, id := range []string{"", "--user root", "{00000000-0000-0000-0000-000000000000}", "{11111111-1111-1111-1111-111111111111};exit"} {
+		target.RegistrationID = id
+		if _, err := RegisteredPlan(target, `C:\Windows`); err == nil {
+			t.Fatal(id)
+		}
 	}
 }
 

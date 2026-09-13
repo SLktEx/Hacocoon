@@ -89,8 +89,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.64 | Notification-contained Approval | ✅ implemented |
 | v0.65 | Client TCP Stream Forwarding | ✅ implemented |
 | v0.66 | Native Windows TCP Client | implemented candidate — installed acceptance and automatic Linux entry remain pending |
+| v0.67 | Automatic Windows Tunnel Entry | ✅ implemented |
 
-The current milestone position is **v0.66**. This declaration and the table mirror YAML.
+The current milestone position is **v0.67**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -138,3 +139,9 @@ evidence; installed Incus acceptance and the Windows-native `wsl.exe` listener
 path remain separate. This is not M3 completion or a distributed release.
 
 The v0.66 candidate incorporates existing SSH/WSL/CI work from main `f47a9a41`. Integration and deduplication do not consume another checkpoint or establish distribution or completion of roadmap M0–M5.
+
+v0.67 records automatic Windows tunnel entry from an ordinary WSL/trusted Host
+command, with exact installation/Env selection and parent-owned lifetime. Local
+and actual Windows component verification are recorded in [acceptance evidence](acceptance-evidence.md#windows-tunnel-delegation).
+Installed Windows/WSL/Incus acceptance remains pending; this checkpoint is not
+M3 completion, main integration or a release.

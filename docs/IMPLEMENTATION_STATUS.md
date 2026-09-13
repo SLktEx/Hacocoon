@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.66**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.67**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on this development candidate. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -116,8 +116,8 @@ Windows process transport is **partial**: fixed shared WSL invocation, framed
 byte/half-close pipes, controller UDS bridge and typed-client dialer injection are
 implemented candidates. Real child cancellation/output drainage and native
 Windows→WSL binary delivery passed component acceptance. The public Windows listener and permanent
-installer placement are implemented candidates. Automatic Linux-entry delegation
-and installed Windows/WSL/Incus acceptance remain pending. Tunnel readiness output now formats
+installer placement are implemented candidates. Automatic WSL-entry delegation is implemented in the candidate;
+installed Windows/WSL/Incus acceptance remains pending. Tunnel readiness output now formats
 the selected English/Japanese message once; the previous double expansion was
 reproduced by the real CLI/controller component regression. See
 [transport](design/controller-client-transport.md#windows-process-transport) and
