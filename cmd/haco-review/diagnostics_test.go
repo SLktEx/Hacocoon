@@ -63,3 +63,22 @@ func TestNativeStatusFieldsAreTypedAndBounded(t *testing.T) {
 		t.Fatal("arbitrary native stage logged")
 	}
 }
+
+func TestNativeProcessDiagnosticsPreserveReasonAndRedactCause(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, reason := range []error{context.Canceled, context.DeadlineExceeded} {
+		var output bytes.Buffer
+		reportReviewFailure(&output, &nativeReviewFailure{stage: "clear", cause: &nativeToastProcessFailure{cause: errors.Join(reason, errors.New("private-page-token")), exitCode: -1, durationMS: 8123}})
+		var entry map[string]any
+		if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+			t.Fatal(err)
+		}
+		want := "canceled"
+		if reason == context.DeadlineExceeded {
+			want = "timeout"
+		}
+		if entry["reason"] != want || entry["exit_code"] != float64(-1) || entry["duration_ms"] != float64(8123) || strings.Contains(output.String(), "private") {
+			t.Fatal(entry)
+		}
+	}
+}

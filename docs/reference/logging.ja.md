@@ -130,3 +130,7 @@ review／events／unknown、`reason`はunavailable／timeout／canceledに限定
 `native_error`（HRESULT）も記録できます。生エラー、controller応答、XML、page token、path、
 子プロセス出力は含めません。導入済みprobeの失敗時も、これらの固定分類と終了値・期待文一致の
 真偽値だけを表示します。
+
+native通知描画の失敗は数値`exit_code`と`duration_ms`も記録します。終了値-1は、子の起動前失敗など、
+移植可能な終了コードが得られない場合です。contextのキャンセル／期限切れを子出力より優先します。
+単一ERRORの所有者は同じreview境界のままで、生のprocessエラー・stdout・stderrはlogへ出しません。

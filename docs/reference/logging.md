@@ -195,3 +195,9 @@ report `native_stage` (runtime/xml/create/identity/show/history) and numeric
 `native_error` (HRESULT). Raw errors, controller replies, XML, page tokens, paths
 and subprocess output are excluded. The installed probe reports only these fixed
 classifications and exit/expected-text booleans when an assertion fails.
+
+Native notification renderer failures also record numeric `exit_code` and
+`duration_ms`. Exit -1 means that no portable exit code is available, including
+failure before child startup. Context cancellation/deadline classification takes
+precedence over child output. The same review boundary owns the single ERROR;
+raw process errors, stdout and stderr are not logged.

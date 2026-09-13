@@ -93,13 +93,38 @@ func (s *nativeToastSurface) invoke(ctx context.Context, operation, id, xml stri
 	cmd.Stderr = io.Discard
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 	cmd.WaitDelay = time.Second
+	return runNativeToastCommand(ctx, cmd)
+}
+
+// Context cancellation owns the outcome even if the child wrote a success
+// marker before being killed. Only fixed result classes and numeric process
+// observations reach the reporting boundary; raw exec errors/output do not.
+func runNativeToastCommand(ctx context.Context, cmd *exec.Cmd) error {
+	started := time.Now()
 	var response limitedNativeReply
-	cmd.Stdout = &response
-	err = cmd.Run()
-	return nativeToastResult(response.data, err)
+	cmd.Stdout, cmd.Stderr = &response, io.Discard
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	result := nativeToastResult(response.data, err)
+	if result == nil {
+		return nil
+	}
+	exitCode := -1
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
+	return &nativeToastProcessFailure{cause: result, exitCode: exitCode, durationMS: time.Since(started).Milliseconds()}
 }
 
 func nativeToastResult(output []byte, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	if errors.Is(err, context.Canceled) {
+		return context.Canceled
+	}
 	if err != nil || string(output) != "HACO_TOAST_OK" {
 		if value := string(output); value == "HACO_TOAST_DISABLED:1" || value == "HACO_TOAST_DISABLED:2" || value == "HACO_TOAST_DISABLED:3" || value == "HACO_TOAST_DISABLED:4" {
 			return fmt.Errorf("native notifications are disabled (setting %c)", value[len(value)-1])
