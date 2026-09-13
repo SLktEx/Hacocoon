@@ -40,6 +40,19 @@ Prefer repository structure that makes an unsafe state unrepresentable over revi
 
 For Environment lifecycle ownership rationale and rejected alternatives, see `docs/adr/0002-environment-lifecycle-ownership.md`.
 
+## CI and E2E simplicity
+
+Prefer testing the ordinary product path over creating CI/E2E-specific behavior.
+
+- Keep GitHub Actions primarily as an environment for running the same tests and commands that can be run locally.
+- Avoid adding `HACO_E2E_*`, `GITHUB_ACTIONS` branches, CI-only helpers, or test-only provisioning unless there is a clear need.
+- Do not make an E2E test succeed by repairing or supplementing something that the normal product path is expected to provide. Prefer fixing the normal product path instead.
+- In particular, standard Bases and normal setup flows should contain the capabilities they are expected to provide; tests should not normally inject packages, Policy rules, configuration, or other missing product setup.
+- Environment-dependent fixtures, caches, credentials, destructive-test safeguards, and genuinely external infrastructure are reasonable exceptions.
+- When adding CI/E2E-specific machinery, first consider whether the same result can be achieved more simply through an existing product command or normal user workflow.
+
+This is a design preference, not a hard prohibition. Keep special CI/E2E machinery when it meaningfully improves safety, portability, or test fidelity.
+
 ## Logging
 
 Follow `docs/reference/logging.md` for every logging change.
