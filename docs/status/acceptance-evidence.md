@@ -538,3 +538,22 @@ Parent passes and the imported main evidence do not substitute for that gate.
 The original dirty main checkout and all existing local provider resources remain
 untouched. M1 native language/SSH gaps, fresh GUI/authenticated Git acceptance and
 M3 DNS modes/VPN/client forwarding remain open.
+
+## Native duplicate-review refusal follow-up
+
+On `codex/native-review-refusal`, real Windows COM round trips reproduce the loss
+of an existing helper's no-longer-pending result. The new stale/wrapped-stale cases
+fail against #616's prior callback and pass with the dedicated read-only HRESULT.
+Ordinary controller failures remain unavailable, with no ready acknowledgement
+or answer. Native callback validation, private child cancellation/reaping, strict
+configuration and diagnostic redaction tests pass. Native notification display
+history is explicitly skipped in this run; fresh human answers are not exercised.
+
+Fixed shared-logger fields distinguish registration, ownership, activation,
+notification clearing, peer startup, request review and event-loop failures.
+Validated display failures retain typed HRESULT evidence without raw output.
+The installed Windows probe now prints only fixed classifications, numeric exit
+codes and expected-text booleans on mismatch. The #611 failure remains unresolved:
+its old log cannot establish whether duplicate COM refusal caused that failure.
+No Windows settings, existing registration or provider data were changed by the
+native COM component tests.

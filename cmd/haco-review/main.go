@@ -68,6 +68,7 @@ func run(args []string) int {
 		if errors.Is(err, desktopreview.ErrNoLongerPending) {
 			fmt.Fprintln(os.Stderr, "Hacocoon request is no longer pending.")
 		} else {
+			reportReviewFailure(os.Stderr, err)
 			fmt.Fprintln(os.Stderr, "Windows notification review is unavailable. No answer was automatically retried.")
 		}
 		return 1

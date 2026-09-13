@@ -12,6 +12,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"syscall"
 	"time"
 	"unicode/utf16"
@@ -104,7 +105,9 @@ func nativeToastResult(output []byte, err error) error {
 			return fmt.Errorf("native notifications are disabled (setting %c)", value[len(value)-1])
 		}
 		if match := nativeToastFailure.FindSubmatch(output); match != nil {
-			return fmt.Errorf("native notification %s failed (HRESULT %s)", match[1], match[2])
+			if status, parseErr := strconv.ParseInt(string(match[2]), 10, 64); parseErr == nil {
+				return &nativeDisplayFailure{stage: string(match[1]), status: status}
+			}
 		}
 		return errors.New("native notification display unavailable")
 	}
