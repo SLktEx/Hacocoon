@@ -186,3 +186,12 @@ binfmt incompatibility code, not parsed stderr. See
 Host customization keeps bounded stdout/stderr in a private result, displayed only
 by explicit `haco setup --script-result`. Raw output and the result object never
 enter structured logs, progress-stage fields or audit data.
+
+The Windows review executable owns the single `notification_review` ERROR for
+unavailable native review. `stage` is limited to registration, session_plan,
+ownership, activation, clear, peer_start, review, events or unknown; `reason` is
+unavailable, timeout or canceled. A validated native display result can additionally
+report `native_stage` (runtime/xml/create/identity/show/history) and numeric
+`native_error` (HRESULT). Raw errors, controller replies, XML, page tokens, paths
+and subprocess output are excluded. The installed probe reports only these fixed
+classifications and exit/expected-text booleans when an assertion fails.

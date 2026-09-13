@@ -455,3 +455,17 @@ COM登録・所有状態からの再開は成功しましたが、最初の導�
 統合候補での新しい実Incus／Windows／WSL受入は未実施です。親の成功や取り込んだmainの
 証拠では代替しません。元のdirtyなmain作業ツリーと既存の基盤resourceは変更していません。
 M1の実機言語・SSH不足、新規GUI／外部認証Git受入、M3のDNS mode／VPN／client転送は残件です。
+
+## native二重review拒否の後続修正
+
+`codex/native-review-refusal`で、既存helperの「要求は終了済み」が失われることを
+実Windows COM往復で再現しました。古い要求／wrapされた古い要求の新回帰は#616の旧callbackで
+FAIL、専用の読み取り応答HRESULTでPASSです。controller障害は利用不能のままで、表示成功応答や
+回答にはしません。native入力検証、非公開子プロセス停止・回収、厳密な設定、診断の秘密情報保護も
+PASSです。この実行では通知表示・履歴は明示SKIPで、人による新規回答は検証していません。
+
+共通loggerの固定項目で登録・所有権・COM受信・通知削除・peer起動・要求確認・event処理の失敗を
+区別します。検証済み表示失敗は生出力を出さず型付きHRESULTを保持します。導入済みWindows probeの
+不一致時も固定分類・終了値・期待文一致の真偽値だけを出します。#611の旧logではこのCOM分類が
+失敗原因か判断できないため、導入済みの失敗は未解決です。native COM構成要素試験でWindows設定、
+既存登録、基盤データを変更していません。

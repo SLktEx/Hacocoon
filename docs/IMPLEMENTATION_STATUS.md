@@ -84,3 +84,9 @@ Incus pipe/PTY acceptance passed at `b3169814`; Windows input initially failed, 
 Human-facing retained-data reviews, deletion consequences/confirmation/results and snapshot result headings now share the English/Japanese catalog. The five reviewed deletion paths use one confirmation function and refuse failed warning/prompt display. Original errors, JSON, ownership checks and default refusal are preserved; full result translation and Japanese Windows remain partial.
 
 Windows review now uses native notification pages and selection controls with a hidden COM helper, fixed distribution routing and the common private approval session. Component coverage includes native COM and English/Japanese ToastGeneric history; human clicks, visible layout and fresh installed answers remain unverified. See [approval semantics](design/pending-approval-review.md) and [acceptance evidence](status/acceptance-evidence.md).
+
+The development follow-up preserves stale-request refusal across duplicate native
+COM launches and adds fixed failure diagnostics. Native Windows COM regressions
+fail against the prior implementation and pass after correction. The installed
+Windows failure at #611 remains unresolved until its route reruns; component
+classification coverage is not proof of that failure's cause.

@@ -186,3 +186,8 @@ English/Japanese selection XML in native history have component coverage. This d
 prove visible layout, human clicks or fresh installed decisions. Previous console/URI
 acceptance, the historical checksum failure and remaining native gaps stay in
 [acceptance evidence](../status/acceptance-evidence.md). Linux native activation remains planned.
+
+A read-only duplicate launch preserves the existing helper's no-longer-pending
+refusal as a distinct result. Controller/display failures remain unavailable;
+neither result produces a ready acknowledgement or submits an answer. Native
+failure diagnosis uses fixed local stages and typed native status numbers only.

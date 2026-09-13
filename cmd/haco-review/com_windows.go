@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"golang.org/x/sys/windows"
 )
 
@@ -21,6 +22,11 @@ type nativeActivation struct {
 	inputs   map[string]string
 	done     chan error
 }
+
+// Private read-only acknowledgement: an absent request is different from a
+// failed display or unavailable controller. Neither status authorizes an answer.
+const eNoLongerPending uintptr = 0x80040201
+
 type notificationInput struct{ key, value *uint16 }
 type comFactory struct {
 	table  *[5]uintptr
@@ -218,6 +224,9 @@ func activatorActivate(this *comActivator, appID, args *uint16, data *notificati
 			if err == nil {
 				return sOK
 			}
+			if errors.Is(err, desktopreview.ErrNoLongerPending) {
+				return eNoLongerPending
+			}
 			return eFail
 		case <-time.After(10 * time.Second):
 			return eFail
@@ -289,6 +298,9 @@ func wakeToastCOM(class windows.GUID, appID string, request ...string) error {
 	hr, _, _ = syscall.SyscallN(table[3], uintptr(object), uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(args)), 0, 0)
 	runtime.KeepAlive(name)
 	runtime.KeepAlive(args)
+	if uint32(hr) == uint32(eNoLongerPending) {
+		return desktopreview.ErrNoLongerPending
+	}
 	if int32(hr) < 0 {
 		return errors.New("notification refresh was refused")
 	}

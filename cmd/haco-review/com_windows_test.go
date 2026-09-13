@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"runtime"
 	"strings"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"golang.org/x/sys/windows"
 )
 
@@ -67,6 +69,36 @@ func TestNativeCOMActivationRoundTripWithoutRegistrationWrites(t *testing.T) {
 	}
 	if err := <-opened; err != nil {
 		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name   string
+		result error
+		stale  bool
+	}{
+		{"no longer pending", desktopreview.ErrNoLongerPending, true},
+		{"wrapped no longer pending", errors.Join(desktopreview.ErrNoLongerPending), true},
+		{"controller failure", errors.New("private controller failure"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			go func() {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				opened <- wakeToastCOM(class, "Hacocoon.NativeTest", strings.Repeat("b", 32))
+			}()
+			select {
+			case event := <-events:
+				if event.done == nil || len(event.inputs) != 0 {
+					t.Fatal("not a read-only launch")
+				}
+				event.done <- tc.result
+			case <-time.After(5 * time.Second):
+				t.Fatal("no activation")
+			}
+			err := <-opened
+			if err == nil || errors.Is(err, desktopreview.ErrNoLongerPending) != tc.stale {
+				t.Fatalf("read-only refusal classification: %v", err)
+			}
+		})
 	}
 }
 

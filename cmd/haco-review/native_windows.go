@@ -35,6 +35,12 @@ func registeredToastServer(c configuration, own, appID, class string) error {
 	return nil
 }
 func nativeReview(c configuration, own, id string) (resultErr error) {
+	stage := "registration"
+	defer func() {
+		if resultErr != nil {
+			resultErr = &nativeReviewFailure{stage: stage, cause: resultErr}
+		}
+	}()
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	appID, err := desktopreview.Scheme(c.Distribution)
@@ -52,10 +58,12 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	if err = registeredToastServer(c, own, appID, classText); err != nil {
 		return err
 	}
+	stage = "session_plan"
 	plan, err := desktopreview.SessionPlan(c.Distribution, os.Getenv("SystemRoot"))
 	if err != nil {
 		return err
 	}
+	stage = "ownership"
 	tokenUser, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
 		return err
@@ -74,6 +82,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		return err
 	}
 	if state == uint32(windows.WAIT_TIMEOUT) {
+		stage = "activation"
 		if id == "" {
 			return errors.New("native review is already running")
 		}
@@ -87,6 +96,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		return errors.New("cannot own native review session")
 	}
 	defer windows.ReleaseMutex(mutex)
+	stage = "activation"
 	events := make(chan nativeActivation, 32)
 	stop, err := startToastCOM(class, appID, events)
 	if err != nil {
@@ -97,6 +107,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	defer cancel()
 	surface := &nativeToastSurface{plan: plan, appID: appID}
 	// Expired in-memory nonces are never recovered after a crash or restart.
+	stage = "clear"
 	if err := surface.Clear(ctx); err != nil {
 		return err
 	}
@@ -105,6 +116,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		defer done()
 		resultErr = errors.Join(resultErr, surface.Clear(cleanup))
 	}()
+	stage = "peer_start"
 	peer, err := startReviewPeer(ctx, plan, own)
 	if err != nil {
 		return err
@@ -113,6 +125,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	language, _, _ := windows.NewLazySystemDLL("kernel32.dll").NewProc("GetUserDefaultUILanguage").Call()
 	manager := &desktopreview.ToastManager{Exchange: peer, Surface: surface, Japanese: language&0x3ff == 0x11}
 	if id != "" {
+		stage = "review"
 		opening, done := context.WithTimeout(ctx, 10*time.Second)
 		err := manager.Review(opening, id)
 		done()
@@ -123,6 +136,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 			return err
 		}
 	}
+	stage = "events"
 	type completion struct {
 		job   *desktopreview.ToastSubmission
 		reply desktopreview.Reply
