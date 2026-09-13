@@ -78,16 +78,17 @@ func check(name string) (result error) {
 	}()
 
 	// The first two commands exercise only the fixed Ubuntu package endpoints.
-	// The temporary third-party source must not expand egress authority; the
-	// explicit HTTP probe then proves the same hostname is still refused by the
-	// Standard proxy even after guest-controlled APT configuration referenced it.
+	// The temporary third-party source must not expand egress authority; force
+	// APT to report any repository acquisition failure as a non-zero result, then
+	// independently prove the same hostname is still refused by the Standard
+	// proxy after guest-controlled APT configuration referenced it.
 	script := `set -eu
 export DEBIAN_FRONTEND=noninteractive
 apt-get -qq update
 apt-get -qq install -y --reinstall --no-install-recommends ca-certificates curl
 third_party=/tmp/haco-third-party.list
 printf 'deb [trusted=yes] http://example.com/ubuntu stable main\n' > "$third_party"
-if apt-get -qq -o Dir::Etc::sourcelist="$third_party" -o Dir::Etc::sourceparts='-' -o APT::Get::List-Cleanup=0 update >/tmp/haco-third-party.out 2>&1; then
+if apt-get -qq -o APT::Update::Error-Mode=any -o Dir::Etc::sourcelist="$third_party" -o Dir::Etc::sourceparts='-' -o APT::Get::List-Cleanup=0 update >/tmp/haco-third-party.out 2>&1; then
   rm -f "$third_party" /tmp/haco-third-party.out
   exit 91
 fi
