@@ -58,3 +58,5 @@ or Incus access. Invalid arguments retain stderr and nonzero exits. Explanations
 wrap with aligned indentation at 60 columns. Wrapping long command syntax and
 copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
+
+`haco env tunnel --target-port <port> [--address <loopback-ip>] [--listen <loopback-ip:port>] [--duration <duration>] <env>`: client TCP listener; defaults are Env-local `127.0.0.1`, client `127.0.0.1:0`, `1h`. Ctrl+C closes it. See [authority, placement and Windows limits](../design/controller-client-transport.md#client-tcp-listeners).

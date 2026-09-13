@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.64**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.65**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -86,3 +86,8 @@ Windowsの確認は非表示COM helperから通知内のページ・選択欄で
 統合#616の実機確認はpartialです。配布物Ubuntu、Incus Core／standaloneと先行Btrfs経路は
 成功しました。Base buildの旧fixtureがJSONを明示せず失敗し、`codex/base-build-json-fixture`で
 修正しています。実機再実行と後続でSKIPされたstorage確認は残件です。受入証拠を参照してください。
+
+M3のclient転送は**開発ブランチの実装候補**です。`env tunnel`がclient側TCP待受を
+所有し、作成世代を固定したcontroller byte sessionを使用します。半切断と最終完了を
+分離し、private UDSの権限とprovider namespace照合を維持します。Windows native待受、
+汎用process統合、DNS modeはpartialです。[client transport](design/controller-client-transport.ja.md#client側tcp待受)を参照してください。

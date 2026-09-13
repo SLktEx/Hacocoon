@@ -87,8 +87,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.62 | Temporary Process Streams | implemented on development candidate; native pipe/TTY acceptance pending |
 | v0.63 | Durable Git Push Reconciliation | ✅ implemented |
 | v0.64 | Notification-contained Approval | ✅ implemented |
+| v0.65 | Client TCP Stream Forwarding | ✅ implemented |
 
-The current milestone position is **v0.64**. This declaration and the table mirror YAML.
+The current milestone position is **v0.65**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -125,5 +126,12 @@ generation-bound temporary cleanup and bilingual client behavior.
 
 Main independently assigned v0.59 to “Host customization lifecycle and results”
 in #604. That main-branch checkpoint remains historical evidence; this candidate
-keeps its existing YAML sequence and v0.64 position. This integration does not
+kept its existing YAML sequence and v0.64 position at that integration. This integration does not
 publish a release, change a tag, or imply the candidate is merged into main.
+
+The v0.65 development slice adds client-owned TCP listeners through the private
+controller byte session. Generation binding, upstream readiness, half-close and
+completion/cleanup share the existing controller and provider boundaries.
+Linux component tests and native Windows transport primitives are scoped
+evidence; installed Incus acceptance and the Windows-native `wsl.exe` listener
+path remain separate. This is not M3 completion or a distributed release.

@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.64**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.65**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on this development candidate. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -95,3 +95,10 @@ Combined #616 native acceptance is now partial: packaged Ubuntu and Incus
 Core/standalone plus earlier Btrfs journeys passed. Base-build's stale implicit-JSON
 fixture failed and is corrected in `codex/base-build-json-fixture`; its native
 rerun and later skipped storage checks remain pending. See acceptance evidence.
+
+M3 client forwarding is an **implemented development candidate**: `env tunnel`
+owns a bounded client-loopback TCP listener and uses creation-bound controller
+byte sessions, with immediate half-close and separate completion. Private UDS
+authority and existing provider namespace verification remain. Windows-native
+listener transport, generic process consolidation and DNS modes remain partial;
+see [client transport](design/controller-client-transport.md#client-tcp-listeners).

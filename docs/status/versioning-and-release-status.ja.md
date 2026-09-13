@@ -85,8 +85,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.62 | Temporary Process Streams | 開発候補に実装済み、実機pipe／TTY受入は未確認 |
 | v0.63 | Durable Git Push Reconciliation | 実装済み |
 | v0.64 | Notification-contained Approval | 実装済み |
+| v0.65 | Client TCP Stream Forwarding | 実装済み |
 
-現在のmilestone位置は **v0.64**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.65**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -118,5 +119,11 @@ script適用と結果保持（#604）が含まれます。この候補は上記v
 
 mainは#604で「Host customization lifecycle and results」に独立してv0.59を
 割り当てています。そのmain側checkpointは履歴として残し、この候補は既存YAMLの
-番号列とv0.64を維持します。この統合はrelease配布、tag変更、候補のmain反映を
+番号列と統合時点のv0.64を維持しました。この統合はrelease配布、tag変更、候補のmain反映を
 意味しません。
+
+v0.65はprivate controller byte sessionによるclient側TCP待受を追加する
+開発checkpointです。作成世代の固定、接続結果、半切断、完了・回収は既存の
+controller／provider境界を共有します。Linux componentとWindows nativeの
+transport基本処理は限定した検証範囲です。導入済みIncus受入とWindows側待受から
+`wsl.exe`を通す経路は別残件であり、M3完了や配布済みreleaseではありません。

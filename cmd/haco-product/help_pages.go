@@ -28,6 +28,7 @@ var helpPages = []helpPage{
 	{Path: "env ssh-config", Syntax: "<name>", Message: "command.env.ssh-config", Example: "haco env ssh-config dev"},
 	{Path: "env disconnect", Syntax: "<name> <connection-id>", Message: "command.env.disconnect", Example: "haco env disconnect dev <connection-id>"},
 	{Path: "env forward", Syntax: "--target-port <port> [--protocol tcp|udp] [--port <local-port>] <name>", Message: "command.env.forward", Example: "haco env forward --target-port 8080 dev"},
+	{Path: "env tunnel", Syntax: "--target-port <port> [--address <loopback-ip>] [--listen <loopback-ip:port>] [--duration <duration>] <name>", Message: "forward.command", Example: "haco env tunnel --target-port 8080 dev"},
 	{Path: "env copy", Syntax: "[--json] <stopped-env> [new-env]", Message: "command.env.copy", Example: "haco env copy dev dev-copy"},
 	{Path: "env export", Syntax: "[--json] <stopped-env> [file.haco]", Message: "command.env.export", Example: "haco env export dev dev.haco"},
 	{Path: "env import", Syntax: "[--json] <file.haco> [new-env]", Message: "command.env.import", Example: "haco env import dev.haco restored"},
