@@ -23,7 +23,7 @@ private registry、VPN/NRPT、人間の通知内回答は未確認です。
 
 main向け#479では共通導入、doctorと必要なvendor daemon/export/fixture修正を切り出します。
 上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
-切り出し自体のパッケージ・実機CI結果は独立PRで確認してください。
+切り出し自体のパッケージ・実機CI結果は以下に記録します。
 
 切り出し`9a4dc42`で[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129)、
 [Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125)、
@@ -33,7 +33,16 @@ egress、transfer、reclaimと保持データ復元は成功しましたが、de
 後続preview setupで失敗しました。承認fixtureが端末必須のCLIへパイプで回答していたため、
 専用PTYへ修正し、JSONの応答と時間制限付きの子プロセスcleanupを維持します。
 mainの出力変更に合わせ、受入試験でJSONを読む呼び出しには`--json`を明示します。
-修正後の統合候補は別途実機結果が必要で、元のWindows全体の失敗は保持します。
+修正後の切り出し`34ff371cedb7558959201b316a2aebe7f3542eee`
+（[PR #600](https://github.com/SLktEx/Hacocoon/pull/600)）で、
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335)、
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)が成功し、
+Windowsのdesktop全体も成功しました。元の全体失敗は失敗として保持します。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)はGo 1.27ジョブだけの
+再実行後に成功しました。初回は既存の対話PTYサイズ変更試験が時間切れになりましたが、
+同じshuffle seedでのローカル30回はコード変更なしで成功し、間欠的な時間切れの原因は未確定です。
+この結果は当該切り出しの試験範囲の証拠であり、リリース配布や後続main統合の合格を示しません。
 
 <a id="installation"></a>
 

@@ -23,8 +23,8 @@ Private registry, VPN/NRPT and human notification decisions remain unverified.
 
 The main-targeted #479 change extracts the shared installer, doctor and required
 vendor-daemon/export/fixture fixes. The preceding integrated-candidate passes
-are not a native rerun of that extraction or evidence of publication. Its own
-packaged/native CI results must be checked on the independent PR.
+are not a native rerun of that extraction or evidence of publication. The
+independent extraction's acceptance is recorded below.
 
 At extraction `9a4dc42`, [repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129),
 [Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125) and
@@ -34,8 +34,20 @@ installation/restart/reinstall, egress, transfer, reclaim and retained-data rest
 but the desktop aggregate failed approval review and subsequent preview setup.
 The approval fixture piped answers into a terminal-only command. It now uses a
 private PTY, preserving JSON receipts and bounded child cleanup; acceptance readers
-also request `--json` explicitly after main's output change. The corrected combined
-candidate requires its own native result; the failed Windows aggregate remains a failure.
+also request `--json` explicitly after main's output change.
+
+At corrected extraction `34ff371cedb7558959201b316a2aebe7f3542eee` in
+[PR #600](https://github.com/SLktEx/Hacocoon/pull/600),
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335) and
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)
+passed, including the Windows desktop aggregate. The earlier failed aggregate
+remains a failure. [Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)
+passed after retrying only the Go 1.27 job: the first attempt timed out in the
+existing interactive PTY resize test; 30 local repetitions with the same shuffle
+seed passed without a code change. The intermittent timeout's cause is unconfirmed.
+These results establish the extraction's tested scope, not release publication
+or acceptance of later main integrations.
 
 <a id="installation"></a>
 
