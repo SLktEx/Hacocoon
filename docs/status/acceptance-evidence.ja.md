@@ -510,3 +510,38 @@ sessionによるclient側TCP待受です。開発候補でありmain反映・配
 
 Windows側待受から`wsl.exe`を通す経路、汎用process caller統合、通常のネットワーク
 以外の環境でのDNS mode／VPNはM3の残件。過去の実機FAIL／SKIPは維持する。
+
+## WSLプロセス転送候補
+
+実装`4b0b5baaf5a7acfdfabd94cea3c22f26745293c2`、
+[PR #632](https://github.com/SLktEx/Hacocoon/pull/632)（親#626）の部分実装です。
+main反映・配布済みではありません。
+
+- Go 1.26.8集中試験と標準ローカルCIがPASS。stream・WSL起動・通知起動の
+  関連race試験は10回PASSしました。
+- 実子プロセスで2 MiB binary、子の終了後の応答保持、書込中断、並行closeと
+  回収、異常終了とEOFの区別を確認しました。別のframe試験で両半切断順序、
+  不正frame、期限切れを確認しました。
+- Windows amd64実機試験がPASS。Windows→wsl.exe→隔離Linux試験プロセス→
+  loopback TCPで2 MiB binary往復と半切断を確認しました。導入済みbinary、
+  distribution設定、既存Env、ネットワーク設定は変更していません。製品の
+  導入済みcontroller/Incus経路の受入ではなく、公開Windows待受と導入は未実装です。
+- #626 Ubuntu 34744901263は新しい転送開始案内の照合でFAILし、binary往復前に
+  停止しました。日英文の二重書式展開による接続先破損をCLI/controller回帰で
+  再現し、一度だけ展開する修正後にPASSしました。実Incus再実行は確認待ちで、
+  先行失敗を消しません。
+- 途中の標準ローカルCIは、進捗ページから追記前の受入節へのリンクでFAILしました。
+  全文書を揃えた最終コピーでは標準ローカルCIと文書検査がPASSし、失敗ログも
+  保持しています。
+- #623はtest 34743500916・Ubuntu 34743500914・Incus 34743500907がPASS。
+  #626はtest 34744901265・Incus 34744901270がPASS。#619の先行Incus
+  34743064668は#623で修正したBase build JSON fixtureと同じ理由のFAILでした。
+  その時点の後続storage SKIPは過去のSKIPとして保持します。
+- #623 Windows 34743500887と#626 Windows 34744901283はともにstep15の
+  install/restart/reinstallでFAIL。WSLのsystemd user-session警告後に、正確な
+  通常端末sessionの待機がtimeoutしました。後続native確認はSKIPで、原因は
+  未確定です。#611の別の通知回答経路の失敗も未解決のままです。
+
+最新の到達対象はM0〜M5全体です。Windows公開統合・DNS mode・通常のネットワーク
+以外の環境はM3残件です。M1/M2の実機残件とM4/M5をcomponent成功で完了扱いに
+しません。

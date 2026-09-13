@@ -102,3 +102,13 @@ byte sessions, with immediate half-close and separate completion. Private UDS
 authority and existing provider namespace verification remain. Windows-native
 listener transport, generic process consolidation and DNS modes remain partial;
 see [client transport](design/controller-client-transport.md#client-tcp-listeners).
+
+Windows process transport is **partial**: fixed shared WSL invocation, framed
+byte/half-close pipes, controller UDS bridge and typed-client dialer injection are
+implemented candidates. Real child cancellation/output drainage and native
+Windows→WSL binary delivery passed component acceptance. Public Windows listener
+packaging and installed entry remain planned. Tunnel readiness output now formats
+the selected English/Japanese message once; the previous double expansion was
+reproduced by the real CLI/controller component regression. See
+[transport](design/controller-client-transport.md#windows-process-transport) and
+[acceptance evidence](status/acceptance-evidence.md#wsl-process-transport-candidate).
