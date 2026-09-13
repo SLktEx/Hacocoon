@@ -224,7 +224,23 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
-	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, source, command)
+	var verifyRuntimeCopy func(core.PersistentResource)
+	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
+		// Use normal Host networking, including scoped Docker FORWARD rules.
+		// Its verified persistent bridge remains managed infrastructure after
+		// the fixture is removed; never delete it as disposable test storage.
+		if err := runtime.ensureTrustedHostNetwork(ctx); err != nil {
+			t.Fatal("standard Host network", err)
+		}
+		command("config", "device", "add", trustedHostName, "eth0", "nic", "name=eth0", "network="+trustedHostNetwork, "--project", project)
+		// Match normal Host setup: its NIC is present when the guest boots.
+		// Minimal images need not configure a NIC hot-plugged after boot.
+		command("stop", trustedHostName, "--project", project, "--timeout", "60")
+		command("start", trustedHostName, "--project", project)
+		verifyRuntimeCopy = prepareStandardHostToolingCopy(t, ctx, runtime, source, command)
+	} else {
+		verifyRuntimeCopy = prepareHostRuntimeCopy(t, ctx, runtime, source, command)
+	}
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	var interrupted *hostCopyResumeFailureRunner
 	if interruptResume {
@@ -327,7 +343,12 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		t.Fatal(err)
 	}
 	// Recreate only the same disposable fixture name from its exact Base.
-	command("launch", imageFingerprint, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue)
+	// All recipe recreation checks need normal Host boot preparation. The
+	// preceding receiver/runtime checks retain their independent offline setup.
+	if err := runtime.ensureTrustedHostNetwork(ctx); err != nil {
+		t.Fatal("recreated Host network", err)
+	}
+	command("launch", imageFingerprint, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue, "--network", trustedHostNetwork, "--config", "security.nesting=true")
 	verifyRecipeRecreation()
 	if err := runtime.verifyTrustedHostOwnership(ctx); err != nil {
 		t.Fatal(err)
