@@ -192,7 +192,8 @@ jobs:
   coverage:
     runs-on: ubuntu-26.04
     steps:
-      - uses: SonarSource/sonarqube-scan-action@{SHA}
+      - name: SonarQube Cloud scan
+        uses: SonarSource/sonarqube-scan-action@{SHA}
         env:
           SONAR_TOKEN: ${{{{ secrets.SONAR_TOKEN }}}}
 """
