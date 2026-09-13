@@ -6,6 +6,40 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+## 一時実行の所有権とストリーム
+
+`9f4cf5105f01c5da7dfe40e080651979789c799b`（PR #590）はtest
+[34729490922](https://github.com/SLktEx/Hacocoon/actions/runs/34729490922)、Ubuntu
+[34729490923](https://github.com/SLktEx/Hacocoon/actions/runs/34729490923)、Incus
+[34729490810](https://github.com/SLktEx/Hacocoon/actions/runs/34729490810)、Windows
+[34729490822](https://github.com/SLktEx/Hacocoon/actions/runs/34729490822)がPASSです。
+Incus Btrfs job 103649531126は7.0.1で、出力捕捉型の一時実行・exit 17・保持Workspace・
+キャンセルcleanup・切り離したStoreのcleanupに成功しました。private registryはSKIPです。
+後続stdin／TTY実装前の、使い捨て実機構成における所有権修正の証拠です。
+
+後続ストリーム候補では、早期終了のintegration raceが一度FAILしました。未読入力が残る
+Unix socketを閉じるとresetで最終receiptを失う問題です。入力停止通知とEOF排出の確認を
+追加後、control／control API／CLIのrace回帰を3回実行してPASSし、未読入力を残す早期終了も
+計30回成功しました。バイナリpipe・Linux PTYと通常Windows ConPTYの編集／resize／終了／
+復元を既存CIへ追加しています。実機結果は **未確認** であり、component成功から推定しません。
+
+全体local test CIの初回は既存`TestUDPIdleCountsBothDirections`（idle期限200ms）がFAILでした。
+単独20回と、その後の`ci-local.sh test`全体再実行はPASSです。初回失敗の原因は未確定で、
+relayの動作や期限は緩和していません。最終候補の6packageのprocess／temporary race、
+文書検査、workflow-policy、実機fixture構文検査も別途PASSです。
+
+`b31698148db03915504c476e52e617fe70ecb527`（PR #591）のtest 34732860619、
+Ubuntu 34732860608、Incus 34732860628はPASSです。Btrfs job 103658786664は
+Incus **7.0.1** で、2MiB binary pipe・実PTYの編集／resize・exit 17・端末復元・cleanupを
+**PASS** と記録しています。既存の出力捕捉型キャンセルと保持WorkspaceもPASSです。
+private registryはSKIPです。
+
+Windows run 34732860626は新TTYの入力確認がFAILでした。意図した入力より先に空行を読み、
+resize・exit 17・端末／catalog復元は観測されています。ドライバーが起動行にCRLFを送り、
+二つ目の改行がguestに残っていました。Enterに対応するCR一つへ変更し、空入力やnative所有権
+変化を成功としないdriver回帰を追加しました。Windows実入力の成功には再実行が必要で、
+Linux成功だけではこの失敗を解消扱いにしません。
+
 ## ローカルGUI候補
 
 `e7ba798728dcbe48a5179845673a333f8ff8968f`（PR #588）はtest 34727370959、

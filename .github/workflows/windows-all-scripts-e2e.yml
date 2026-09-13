@@ -251,6 +251,13 @@ jobs:
         shell: pwsh
         run: python ./tools/windows-native-access-e2e.py --reclamation-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
+      - name: Verify temporary TTY through ordinary Windows Host entry
+        shell: pwsh
+        run: |
+          python ./tools/test_windows_run_stream.py
+          if ($LASTEXITCODE -ne 0) { throw "Temporary terminal driver regression failed." }
+          python ./tools/windows-run-stream-e2e.py
+
       - name: Verify installed Linux reclamation stages
         id: reclamation_linux
         if: ${{ !cancelled() && steps.installed.outcome == 'success' }}

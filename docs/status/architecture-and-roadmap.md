@@ -37,7 +37,7 @@ is never proof of implementation or acceptance.
 | A — one managed repository development cycle | Preserve clone → independent Workspace → Env → SSH/Git → stop/reuse. Broader hosts and repositories need their own acceptance. |
 | B — multiple repositories, native Windows access and retained OCI | Preserve collection isolation and approved push. Complete broader trusted Host image preparation → independent Store copy → actual image use acceptance. Windows drive/executable breadth and interrupted-installation cases remain. |
 | C — convenient daily development | SSH setup/selection, Host recipes, DNS, project setup, restricted preview and scoped doctor now exist. Remaining acceptance includes recipe recreation/cancellation, default browser, VPN/NRPT/restart combinations and broader client workflows. |
-| Temporary execution — after basic editor development | Product noninteractive run and cleanup exist. Interactive stdin/TTY and populated OCI execution acceptance are separate work; explicit persistent Workspaces must survive. |
+| Temporary execution — after basic editor development | Product captured run and cleanup exist. Streamed stdin/TTY is implemented on the development candidate, with native acceptance pending. Populated OCI acceptance remains separate; explicit persistent Workspaces survive. |
 | D — understandable permissions and optional AWS | Configuration editing, saved choices and review exist. Complete fresh OS notification decisions, Linux activation, broader saved-choice/provider acceptance and authenticated real AWS listing/download. Resolve ambiguous external outcomes without blind replay. |
 | E — retained data, snapshots, copy, Base and explicit cleanup | Keep new-Env restore/copy and reviewed deletion. Broader application consistency, build concurrency/history/import, partial collection/import recovery and full installed image-cleanup acceptance remain. |
 | F — allocation recovery and operability | Public Windows/WSL reclaim has measured CI acceptance. Existing-installation, actual interrupted-worker review, power-loss/session/Job breadth remain. Diagnostics, reinstall/upgrade and an optional management UI are separate scope. |
@@ -134,7 +134,7 @@ rerun all old tests. Main, dev/v2 and dev/2.x are distinct publication states.
 | M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined Incus 7.0.1, Ubuntu and Windows acceptance at `0c79f820` passed; see exact evidence. |
 | M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Windows UI-to-Host language transport and verified Incus 7.0.1 packaged/native gates pass at `0c79f820` (English Windows). Remaining: full help/options coverage, Japanese Windows flow, original repeated-SSH-failure route and installed long-input/resize verification. |
 | M2: multi-repo Git and GUI decisions | **partial**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch (#584) and separately approved new-branch/fast-forward push (#586) are implemented on development branches. VS Code GUI responses (#568) are implemented on `codex/gui-approval`, using common saved scopes and private selection sessions. Native Git/GUI acceptance, Windows notification-contained answers and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
-| M3: corporate network | **partial existing foundation**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. The dedicated Windows-service timeout remains unresolved; VPN/DNS modes, client stream forwarding and temporary-run TTY remain. No firewall exception is introduced to obtain a pass. |
+| M3: corporate network | **partial**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. Temporary-run stdin/TTY is implemented on the development candidate, with native gates pending. The dedicated Windows-service timeout, VPN/DNS modes and client stream forwarding remain. No firewall exception is introduced to obtain a pass. |
 | M4: large repositories | **planned remaining work**. Preserve existing Base builder/CoW/OCI results. Real Packer HCL2 plus external shell (#566), Host-selected normal-Env cache generation/COW reuse (#570), cleanup and actual large-repo measurement (#241) remain. Small #579 fixtures are not giant-repository acceptance. |
 | M5: cleanup and migration | **partial existing foundation**. Preserve snapshot/copy/export/import/reclaim and stopped-containerd evidence. Deletion diagnosis (#523), required whole-installation inventory/restore/comparison and authenticated restored Git remain. Final old-WSL replacement requires identified verified data and explicit authority for deletion. |
 
@@ -321,6 +321,12 @@ cleanup selected only an Environment name. The development fix binds creation
 and cleanup to one durable identity through the canonical lifecycle, blocks
 unfinished-run name reuse, and preserves ambiguous legacy records for recovery.
 [ADR 0068](../adr/0068-ephemeral-run-creation-ownership.md) owns the decision.
-Focused run/state/workspace tests pass; native acceptance of this change remains
-pending. Next implement streaming input/TTY using this same run lifecycle; do not
-duplicate create/delete in transport. M3 remains partial.
+PR #590 (`9f4cf510`) passed focused/race tests and all four maintained native
+workflows, including captured-run exit, retained data and cancellation cleanup.
+The next development candidate implements stdin/TTY through that same lifecycle,
+with bounded input credit, separate outputs and confirmed early-exit drainage.
+The early-exit Unix reset regression now passes repeated race checks. Real streamed
+Incus/Windows acceptance remains pending; M3 remains partial. Next validate the
+maintained native pipe/PTY fixture, then continue client forwarding and corporate
+VPN/DNS gaps independently. [ADR 0069](../adr/0069-bounded-process-streams.md) owns
+the transport decision; M4/M5 remain in scope.

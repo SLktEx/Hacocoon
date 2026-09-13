@@ -147,7 +147,7 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	if len(spec.Argv) == 0 {
 		return Result{}, core.ErrInvalidArgument
 	}
-	return s.run(ctx, spec, core.PersistentResourceRef{}, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+	return s.run(ctx, spec, core.PersistentResourceRef{}, func(ctx context.Context, environment core.Environment, _ string) (core.ExecutionResult, error) {
 		return s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{WorkingDirectory: "/workspace", Argv: append([]string(nil), spec.Argv...)})
 	})
 }
@@ -165,7 +165,7 @@ func (s *Service) MaintainResource(ctx context.Context, resource core.Persistent
 	}
 	// An explicit Store already bypasses default provisioning. Combining it with
 	// SkipDefaultResource would contradict the canonical create contract.
-	return s.run(ctx, Spec{}, resource, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+	return s.run(ctx, Spec{}, resource, func(ctx context.Context, environment core.Environment, _ string) (core.ExecutionResult, error) {
 		if environment.PersistentResource != resource {
 			return core.ExecutionResult{}, core.ErrCapabilityStale
 		}
@@ -173,7 +173,7 @@ func (s *Service) MaintainResource(ctx context.Context, resource core.Persistent
 	})
 }
 
-func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) (core.ExecutionResult, error)) (Result, error) {
+func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentResourceRef, operation func(context.Context, core.Environment, string) (core.ExecutionResult, error)) (Result, error) {
 	if s == nil || s.environments == nil || operation == nil {
 		return Result{}, core.ErrInvalidArgument
 	}
@@ -276,7 +276,7 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 	}
 
 	result := Result{Environment: environment.Name}
-	execution, execErr := operation(ctx, environment)
+	execution, execErr := operation(ctx, environment, instance)
 	_, stdoutMarker, stdoutMarkerBytes := host.DecodeCapturedOutput(execution.Stdout)
 	_, stderrMarker, stderrMarkerBytes := host.DecodeCapturedOutput(execution.Stderr)
 	result.Execution = ExecutionResult{

@@ -2,7 +2,7 @@
 
 [日本語](temporary-execution.ja.md) | English
 
-Status: **implemented product CLI; real-Incus acceptance passed at 4adfe19**.
+Status: **implemented captured and streamed CLI on the development candidate; native stdin/TTY acceptance pending**. Captured-run ownership and cleanup passed at `9f4cf510`.
 
 Run one command without first naming or creating an Environment:
 
@@ -33,13 +33,31 @@ Only the default copy bound to a temporary Workspace is removed after runtime
 deletion. Host Docker/nerdctl publication and real image-use acceptance retain their
 separate implementation limits in [status](../IMPLEMENTATION_STATUS.md).
 
-Command stdout/stderr and exit status are preserved. Output is captured with the
-existing size limits, not streamed interactively; truncation is reported.
---json returns execution metadata and cleaned_up. A nonzero command exit remains
-a failure even when cleanup succeeds. Cleanup failure is reported separately and
-is never converted into success. --rm=false and interactive stdin/TTY are unsupported.
+Command stdout/stderr and exit status are preserved. By default output is captured
+with the existing size limits and truncation is reported. `--json` returns execution
+metadata and `cleaned_up`. A nonzero command exit remains a failure even when
+cleanup succeeds. Cleanup failure is separate and never converted into success.
+`--rm=false` remains unsupported.
 
-Ctrl+C requests controller cancellation and returns 130. Because the client has
+For pipes use `-i` (`--interactive`); for a terminal use `-it` or `-t` (`--tty`):
+
+```sh
+printf 'input\n' | haco run -i -- cat
+haco run -it -- bash
+haco run -it --workspace managed:dev -- bash
+```
+
+TTY requires actual terminal input and includes input forwarding, editing and
+resize. Pipe EOF finishes stdin without canceling the command. Typed Ctrl+C/Ctrl+D
+in a raw terminal are guest control bytes; physical terminal EOF ends the PTY.
+Pipe mode keeps stdout/stderr separate; a guest PTY combines its output channels.
+Streaming output is not captured or truncated. It cannot combine with `--json`.
+Input uses a bounded credit window; a process that ignores input cannot hide
+client disconnection. On early exit, input-stop/EOF drainage preserves the actual
+exit result. Requests allow 256 arguments and 32 KiB of argument bytes. See
+[ADR 0069](../adr/0069-bounded-process-streams.md) for bounds and completion proof.
+
+Outside a raw guest TTY, Ctrl+C requests controller cancellation and returns 130. Because the client has
 disconnected, it does not claim deletion was confirmed. Use haco env list and
 haco env status <name> to inspect remaining work. The controller retains recovery
 markers on incomplete cleanup and retries them on startup or the next run.
@@ -91,4 +109,5 @@ Schema 14 retains older records without inventing ownership. A legacy run with
 no creation identity and a retained Workspace remains recovery-required; retries
 cannot safely choose an Env by name. Legacy temporary runs retain their exact
 Workspace ownership check. This development change has repository regression
-coverage; its native acceptance and stdin/TTY implementation remain pending.
+coverage and captured-run native acceptance at `9f4cf510`; native acceptance of
+the later stdin/TTY implementation remains pending.

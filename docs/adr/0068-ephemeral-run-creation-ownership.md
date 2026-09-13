@@ -1,6 +1,6 @@
 # ADR 0068: Bind ephemeral cleanup to its creation
 
-Status: accepted for the development candidate; native acceptance pending.
+Status: accepted; captured-run native ownership and cleanup passed at `9f4cf510`.
 
 Date: 2026-09-13
 
@@ -52,4 +52,6 @@ Regressions cover durable reservation before provider creation, wrong-generation
 deletion, name reuse before/after marker removal, immutable ownership, malformed
 catalogs, migration without adoption, retained data and bounded cancellation.
 Repository checks and existing captured-run Incus acceptance are separate from
-native acceptance of this change. Interactive stdin/TTY is still unimplemented.
+later streamed execution acceptance. [ADR 0069](0069-bounded-process-streams.md)
+adds stdin/TTY using this ownership contract. Exact native receipts are in
+[acceptance evidence](../status/acceptance-evidence.md).

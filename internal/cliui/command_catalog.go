@@ -1,6 +1,20 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"run.help":                         {"Run one command and remove its temporary Environment. Use -i for pipes or -it for a terminal. --workspace retains project files and OCI data; --json is available for captured output only.", "コマンドを実行し、一時Envを終了後に削除します。パイプは-i、端末は-itを使います。--workspaceで作業ファイルとOCIデータを保持できます。--jsonは出力をまとめて取得する場合に使います。"},
+	"run.flag_workspace":               {"existing Workspace to retain (default: temporary)", "保持する既存Workspace（省略時は一時領域）"},
+	"run.flag_readonly":                {"mount the selected Workspace read-only", "指定したWorkspaceを読み取り専用にする"},
+	"run.flag_rm":                      {"remove the Environment after execution (always enabled)", "実行後にEnvを削除する（常に有効）"},
+	"run.canceled":                     {"haco: execution canceled; controller cleanup was requested but is not confirmed here. Inspect haco env list.", "haco: 実行を中断しました。controllerへ片付けを要求しましたが、完了は未確認です。haco env listで確認してください。"},
+	"run.truncated":                    {"haco: command output was truncated", "haco: 出力が長いため一部を省略しました。"},
+	"run.cleanup_unknown":              {"haco: execution or cleanup failed; inspect Environment %s. Cleanup is not confirmed.", "haco: 実行または片付けに失敗し、片付け完了は未確認です。haco env status %sで確認してください。"},
+	"run.no_result":                    {"haco: temporary execution failed before a result was received; inspect haco env list", "haco: 一時実行の結果を受け取れませんでした。haco env listで確認してください。"},
+	"run.invalid_exit":                 {"haco: invalid command exit status", "haco: コマンドの終了値が不正です。"},
+	"run.execution_failed":             {"haco: execution failed; Environment cleanup completed", "haco: 実行に失敗しました。Envの片付けは完了しています。"},
+	"run.flag_input":                   {"stream standard input and output", "標準入力と出力を逐次転送する"},
+	"run.flag_tty":                     {"open a terminal with input, editing and resize", "入力・編集・サイズ変更ができる端末を開く"},
+	"run.stream_json":                  {"haco: interactive output cannot use --json; omit --json to stream, or omit -i/-t for a captured result", "haco: 対話出力と--jsonは併用できません。逐次出力なら--jsonを、結果をまとめて取得するなら-i/-tを外してください。"},
+	"run.tty_required":                 {"haco: -t requires a terminal; use -i for piped input", "haco: -tには端末が必要です。パイプから入力する場合は-iを使ってください。"},
 	"command.host":                     {"Use the trusted Host controller client", "信頼済みHostの操作窓口を使う"},
 	"command.host.doctor":              {"Check the connection to the Host controller", "Hostの操作窓口との接続を確認する"},
 	"command.env.exec":                 {"Run a command in an Environment", "環境の中でコマンドを実行する"},

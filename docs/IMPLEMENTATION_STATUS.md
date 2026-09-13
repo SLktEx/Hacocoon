@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.61**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.62**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on this development candidate. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -19,7 +19,7 @@ This page describes current code reality on this development candidate. Start wi
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
 | [Network / DNS](design/egress-authorization.md) | implemented | Controller-owned Standard proxy, Incus lower-layer direct-egress guard and trusted source-bound DNS. Resolve and connect permissions are separate. A read-only kernel source-guard observer exists; full packaged Windows and spoofed-packet acceptance remain separate. VPN/NRPT, restart combinations and broad supported-Incus acceptance remain incomplete. |
 | [Setup recipes / preview](design/project-setup.md) | partial | Host recipe and Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
-| [Temporary execution](design/temporary-execution.md) | implemented | `haco run` creates an ephemeral Env and always requests cleanup, retaining explicit Workspaces. Captured output only; no interactive stdin/TTY. Failed cleanup retains ownership. |
+| [Temporary execution](design/temporary-execution.md) | implemented | `haco run` uses generation-bound cleanup and retains selected Workspace/OCI data. Captured output is default; `-i` streams pipes and `-it` uses a real terminal. Streamed native acceptance is pending. Failed cleanup retains ownership. |
 | [Persistent OCI](design/persistent-oci-store.md) | partial | Automatic per-Workspace Store initialization/reuse, exclusive attach and independent stopped copies; optional `--no-oci`. Host area copy boundary and bounded completed-copy recovery exist. Broader installed runtime/version acceptance and Docker Store compatibility remain. |
 | [Base build](design/base-images-and-custom-environments.md) | implemented | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |
 | [Snapshots / restore / copy](design/environment-snapshots.md) | implemented | Stopped managed Workspace/OCI and independently saved rootfs; restore/copy creates a new Env and fresh authority. External Workspace capture, in-place replacement and arbitrary live application consistency are unsupported. |
@@ -61,5 +61,6 @@ VS Code review now completes inside a local GUI using exact common saved scopes 
 
 Temporary-run cleanup now requires the exact creation identity through the common
 lifecycle API, fences name reuse while a run remains unfinished, and preserves
-legacy missing-identity records as recovery work. Native acceptance of this fix
-and stdin/TTY support remain pending; see [temporary execution](design/temporary-execution.md).
+legacy missing-identity records as recovery work. All maintained native workflows
+passed at `9f4cf510`. The later stdin/TTY implementation uses that same lifecycle;
+its native acceptance remains pending. See [temporary execution](design/temporary-execution.md).
