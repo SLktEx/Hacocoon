@@ -25,7 +25,7 @@ The standard Tooling Base does not preinstall Docker Engine. By default, `docker
 
 The standard Tooling Base retains `hacocoon-docker.socket` / `.service` while masking vendor `docker.service` / `docker.socket` to avoid competing for `/run/docker.sock`. An enabled `hacocoon-docker-autostart.path` watches for `/usr/bin/dockerd`; when Docker Engine is installed later it automatically enables and starts `hacocoon-docker.socket`. `dockerd` itself remains on-demand and starts only when an Environment-local client opens `/run/docker.sock`.
 
-The goal is to support tools that insist on Docker CLI/Engine APIs without forcing every Hacocoon installation to run a permanent Docker daemon or install Docker Engine.
+The goal is to support tools that insist on Docker CLI/Engine APIs without forcing every Hacocoon installation to run a permanent Docker daemon or preinstall Docker Engine.
 
 ## Commands
 
