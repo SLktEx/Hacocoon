@@ -196,6 +196,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 			if im.Fingerprint == fingerprint {
 				t.Fatal("owned image remains")
 			}
+		}
 	}
 	must(os.RemoveAll(dir))
 	t.Log("PASS public Base cleanup: in-use refusal, all retained revisions visible after Env deletion, reviewed revision deletion and exact native absence")
