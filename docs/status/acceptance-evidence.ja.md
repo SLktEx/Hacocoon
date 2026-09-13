@@ -357,3 +357,41 @@ controllerの経路と日英表示・JSONも回帰対象です。
 製品の権限・エラー契約を緩和して解決していません。
 外部認証Git、新しい導入済みHost agent操作、通常Windows/WSLからの新コマンド利用は
 **未実施**であり、成功ではありません。過去のGit受入や先行native CIで代替しません。
+
+## Windows通知内承認の開発候補
+
+実装 `667ae5bf236aeff91a4bb711e07258652e3030bb`、ブランチ`codex/windows-toast-approval`は、
+コンソール表示を通知内ページ・選択欄・非表示COM helperへ置き換えます。共通の非公開確認・
+Policy・監査を再利用します。開発実装であり、main反映・配布済み・Issue #568受入完了ではありません。
+
+この実装commitの正確なarchiveを独立したLinuxコピーへ展開し、標準の
+`bash tools/ci-local.sh test`がPASSです。最終文書検査もPASSです。以下の実機残件とは分けて扱います。
+
+Go 1.26.8/1.27.1の集中回帰と関連raceで、保存範囲の全ページ確認、要求ごとの独立した選択、
+古い・変更済み・期限切れ要求の拒否、Show失敗、上限付き不正出力の拒否、一度だけの回答、
+不明結果の再送禁止がPASSです。Windows Go 1.26.8実行試験では、実COMの所属先照合、
+読み取り専用表示の応答、入力検証、子プロセス停止・回収、native診断の秘密情報保護がPASSです。
+Windows通知APIでも、英日ToastGeneric選択XMLの履歴と所有通知の削除がPASSです。
+providerを実行しないfixtureであり、人の承認を模擬して導入済み受け入れとは扱いません。
+
+Windows amd64/arm64ビルドはGUI subsystem 2です。arm64の実行は未実施です。
+PowerShell 7の登録試験は、固定COM識別子・起動先、正確な所有状態からの再開、再実行、
+別所有者と異なるactivatorの拒否、テスト資源の回収がPASSです。追加のPowerShell 5.1
+`-File`登録試験は、このPCのscript policyで実行前に拒否され、試験自体は**未実施**です。
+実行ポリシーは緩和していません。native描画自体は製品と同じWindows PowerShell 5.1の
+固定encoded commandとstdin上のJSONで実際に実行しました。
+
+最初の通知表示は、Show段階の通知設定比較で**FAIL**となりました（HRESULT `-2146233087`）。
+WinRTの設定値を数値で比較するよう修正し、通知設定を変更せず最終の英日履歴・削除がPASSです。
+初回Windowsビルドの待機状態型不一致と、Windows vetの整数からのポインタ変換指摘も修正し、
+型付きCOM引数による実ABI試験・静的検査がPASSです。
+
+computer-useはkernel assetsのパス不在で2回初期化に失敗しました。**見切れ、導入済み新規要求への
+通知内回答、複数クライアントでの同時回答、新規要求への人のVS Code回答は未確認**です。
+履歴・COMコールバック・古い要求拒否では、これらの残件を完了扱いにしません。
+
+過去の`4bb8dad`／Windows run `34176272125`は、使用できない`Get-FileHash`への依存で
+デスクトップ受け入れ前にFAILでした。後続の.NET hash実装と構成要素回帰で依存を解消しましたが、
+失敗runの後続SKIPを成功へ変えません。親`ac2b81dec811bf956d309b32a40d7dd1efe308e3`（PR #598）は
+test `34738580505`、Ubuntu `34738580518`、Incus `34738580490`、Windows `34738580548`がPASSです。
+親の証拠であり、今回の新しい通知UIの受け入れとは区別します。

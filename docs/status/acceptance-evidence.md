@@ -419,3 +419,51 @@ Neither failure was hidden by changing production permissions or error semantics
 Authenticated external Git, the new installed Host agent operation, and ordinary
 Windows/WSL use of these commands are **not run**, not passed. Historical Git
 acceptance and earlier native workflow passes do not substitute for this slice.
+
+## Windows notification-contained review candidate
+
+Implementation `667ae5bf236aeff91a4bb711e07258652e3030bb` on
+`codex/windows-toast-approval` replaces the console presentation with native
+notification pages, selection controls and a hidden COM helper. It reuses the
+common private review/Policy/audit service. This is development implementation,
+not main integration, distribution or completed Issue #568 acceptance.
+
+An archive of that exact implementation passed the maintained
+`bash tools/ci-local.sh test` in an independent Linux copy. The final docs checker
+also passed; native acceptance limits below remain separate from repository CI.
+
+Focused Go 1.26.8/1.27.1 tests and related race tests passed complete scope review,
+separate request selections, stale/changed/expired refusal, failed Show, bounded
+malformed private output, one-shot submission and uncertain outcome without replay.
+Windows Go 1.26.8 runtime tests passed real COM activation with application binding,
+read-only display acknowledgement, input validation, child cancellation/reaping and
+sanitized native diagnostics. Windows notification API tests passed English/Japanese
+ToastGeneric selection XML in native history and owned removal. These fixtures have
+no provider execution and do not simulate a human's approval as installed acceptance.
+
+Windows amd64/arm64 builds use GUI subsystem 2. Arm64 execution was not run.
+PowerShell 7 registration tests passed fixed COM identity/command, exact owned resume,
+idempotence, foreign-owner refusal and mismatched-activator refusal, with exact fixture
+cleanup. The additional PowerShell 5.1 `-File` registration attempt was refused before
+execution by this PC's script policy; that test was **not run**. No execution policy
+was weakened. Native rendering itself did run through Windows PowerShell 5.1's fixed
+encoded command, as the product does, with JSON over stdin.
+
+Initial native display attempts **failed** at the Show-stage notification-setting
+comparison (HRESULT `-2146233087`). Comparing the projected setting numerically
+corrected that refusal; final English/Japanese native history/removal passed without
+changing Windows notification settings. The first Windows build also exposed a
+typed wait-status mismatch; Windows vet rejected integer-to-pointer callback casts.
+Both were corrected, with typed COM parameters and passing native ABI/vet checks.
+
+The computer-use runtime failed to initialize twice with a missing kernel-assets
+path. **Visible layout, fresh installed notification answers, cross-client simultaneous
+decisions and fresh human VS Code answers remain unverified.** History, COM callback
+and old-request refusal evidence do not satisfy those remaining requirements.
+
+Historical Windows run `34176272125` at `4bb8dad` failed before desktop acceptance
+because checksum verification required unavailable `Get-FileHash`; later .NET hashing
+and its component regression fixed that dependency. Downstream skipped checks in that
+failed run remain skipped. Parent `ac2b81dec811bf956d309b32a40d7dd1efe308e3` (PR #598)
+passed test `34738580505`, Ubuntu `34738580518`, Incus `34738580490` and Windows
+`34738580548`; those are parent evidence, not acceptance of this new notification UI.
