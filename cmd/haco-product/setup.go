@@ -31,9 +31,12 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	scriptPath := flags.String("script", "", cliMessage("detail.setup_script"))
 	clear := flags.Bool("clear-script", false, cliMessage("detail.setup_clear"))
+	reapply := flags.Bool("reapply-script", false, cliMessage("detail.setup_reapply"))
+	resultOnly := flags.Bool("script-result", false, cliMessage("detail.setup_result"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			fmt.Fprintln(stdout, "Usage: haco setup [--script <path> | --clear-script] [environment]")
+			fmt.Fprintln(stdout, "       haco setup --reapply-script | --script-result  (Host only)")
 			return 0
 		}
 		return 2
@@ -48,7 +51,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "haco: usage: haco setup [--script <path> | --clear-script] [environment]")
 		return 2
 	}
-	update := recipes.Update{Clear: *clear}
+	update := recipes.Update{Clear: *clear, Reapply: *reapply, ResultOnly: *resultOnly}
 	if *scriptPath != "" {
 		data, err := recipes.ReadScript(*scriptPath)
 		if err != nil {
@@ -62,6 +65,10 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "haco:", err)
 			return 2
 		}
+	}
+	if err := update.Validate(); err != nil || (flags.NArg() == 1 && (*reapply || *resultOnly)) {
+		fmt.Fprintln(stderr, "haco: select one script option; --reapply-script and --script-result are Host-only")
+		return 2
 	}
 
 	logger, err := logging.NewFromEnv(stderr)
@@ -118,7 +125,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintln(stderr, "[succeeded] controller_readiness")
 	requestID := ""
-	if err := client.SetupHostProgress(ctx, update, func(id string, e hostsetup.Event) {
+	setupErr := client.SetupHostProgress(ctx, update, func(id string, e hostsetup.Event) {
 		if requestID == "" {
 			requestID = id
 			fmt.Fprintln(stderr, "Setup request:", id)
@@ -128,7 +135,19 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprint(stderr, " reason=", e.Reason)
 		}
 		fmt.Fprintln(stderr)
-	}); err != nil {
+	}, func(result recipes.HostResult) {
+		fmt.Fprintf(stderr, "Host script: state=%s sha256=%s exit_code=%d\n", result.State, result.Digest, result.Execution.ExitCode)
+		if *resultOnly {
+			fmt.Fprint(stdout, result.Execution.Stdout)
+			fmt.Fprint(stderr, result.Execution.Stderr)
+			if result.Execution.StdoutTruncated || result.Execution.StderrTruncated {
+				fmt.Fprintln(stderr, "haco: saved script output was truncated")
+			}
+		} else if result.State == "failed" || result.State == "running" {
+			fmt.Fprintln(stderr, "Inspect output: haco setup --script-result. Reapply deliberately: haco setup --reapply-script.")
+		}
+	})
+	if err := setupErr; err != nil {
 		fmt.Fprintln(stderr, "Setup completion is not confirmed. Completed stages are shown above; resources may remain. Current resource state is unknown until inspected.")
 		fmt.Fprintln(stderr, "Next: haco doctor. Do not delete resources or blindly replay a saved customization script.")
 		fmt.Fprintln(stderr, "Diagnostics (WSL/Linux Physical Host, administrator): journalctl -u haco-controller.service --since '30 minutes ago' --no-pager")
@@ -158,6 +177,17 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		default:
 			return fail("Host setup failed; inspect haco doctor and the setup request in the journal")
 		}
+	}
+	if *resultOnly {
+		return 0
+	}
+	if *clear {
+		fmt.Fprintln(stdout, "Saved Host script removed; previous effects and last result retained.")
+		return 0
+	}
+	if *reapply {
+		fmt.Fprintln(stdout, "Host script completed.")
+		return 0
 	}
 	if _, err := fmt.Fprintln(stdout, "Host resources prepared. Run haco doctor to verify readiness."); err != nil {
 		return fail("Could not write setup result")

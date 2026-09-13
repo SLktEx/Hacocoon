@@ -174,3 +174,15 @@ Native component tests, complete public flows and cross-WSL fixtures prove diffe
 scopes; [acceptance evidence](../status/acceptance-evidence.md#transfer) retains their
 failures and skips. A stopped containerd fixture is not arbitrary live-application
 consistency, and a managed bundle is not a complete installation backup.
+
+## Incus architecture names in rootfs archives
+
+Implemented: rootfs import resolves architecture names through the pinned Incus
+SDK, then retains the existing x86_64/aarch64 CPU restriction and writes the
+canonical name to its private transport image. Incus aliases such as amd64 and
+arm64 describe those same CPUs; unknown and other architectures still fail
+closed. The source archive, ownership checks, template removal and resource
+lifetime are unchanged.
+
+
+See [native validation](../status/acceptance-evidence.md#development-branch-integration) for the scoped acceptance and remaining gaps.

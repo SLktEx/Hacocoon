@@ -11,8 +11,11 @@ help・versionにコントローラーは不要です。
 
 | 目的 | 構文・既定値 | 詳細 |
 |---|---|---|
+| Workspaceパス | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [所有者を固定した再開と独立データfork](../design/workspace-workflow.md) |
+| TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [詳細オプション・ゲスト待受・管理権限](../design/network-connections.md) |
 | ビルド情報 | `haco version [--json]`, `haco --version` | [ビルド情報](build-release-identity.ja.md) |
 | Host・プロジェクト設定 | `haco setup [--script <path> \| --clear-script] [environment]` | [Host](../design/trusted-host.ja.md)・[プロジェクト](../design/project-setup.ja.md)。対象省略時は信頼済みHost |
+| Host設定の再適用・結果 | `haco setup --reapply-script`、`haco setup --script-result` | [Host設定](../design/trusted-host.ja.md); Host専用 |
 | 診断 | `haco doctor [--json] [environment]` | 既定はHost。失敗・スキップは非ゼロで終了 |
 | ポリシー | `haco config`, `--edit` or `--file <json>` | [設定](configuration.ja.md) |
 | 承認 | `haco approve [--json] [request-id]`; `haco approve --list` | [承認確認](../design/pending-approval-review.ja.md)。対話選択・範囲保存 |

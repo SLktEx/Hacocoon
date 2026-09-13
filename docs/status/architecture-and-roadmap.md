@@ -93,6 +93,12 @@ firewall/network changes need actual supported-host evidence.
 [Incus support/version policy](https://github.com/SLktEx/Hacocoon/issues/479)
 remains a separate decision; do not infer it from a single installed version.
 
+Explicit [TCP/UDP relays](../design/network-connections.md) now preserve those
+boundaries with generation-bound authorization, expiry and revocation. Broader
+Windows outbound-service access and VPN remain unverified. [Workspace path entry
+and stopped data forks](../design/workspace-workflow.md) reuse canonical ownership;
+large-repository performance and automatic Windows/editor entry need separate acceptance.
+
 ## Client and Git follow-ups
 
 Clients remain replaceable consumers of [client APIs](../reference/client-adapter.md)
@@ -372,3 +378,20 @@ layout and fresh installed Windows/VS Code decisions, including simultaneous rev
 and saved Policy effects, before closing #568. Native history/COM tests do not replace
 those checks. Continue independent M3 DNS modes, VPN/NRPT and client forwarding while
 retaining M1 Japanese Windows/original SSH gaps and authenticated Git acceptance.
+
+### Main synchronization before remaining M3 work
+
+`codex/roadmap-main-sync` integrates main `74bc2205` (#581/#597/#602/#604) into
+#611's `f31ce3f7`. Preserve main's split lifecycle/observation owners and complete
+cleanup proof alongside schema 14, ephemeral generation fencing and bilingual CLI.
+Local maintained test, Go 1.26.8, related race and docs checks passed; combined
+installed acceptance is pending. Existing Incus LTS (#600), Host OCI tools (#605),
+CI parallelization (#609) and automatic Git connect (#610) are separate candidates
+to reuse after checking their current state, not features to reimplement.
+
+#611's Windows run `34741502440` failed its final native stale-review probe after
+ordinary installation/SSH/TTY/reclaim passed. Keep that failure distinct from its
+successful test/Ubuntu/Incus runs. Next, obtain bounded classified native diagnostics
+and correct the observed route, then continue independent DNS modes and client
+forwarding under M3. This does not authorize main merge, releases or deletion of
+existing user resources. The external roadmap retains the same continuation state.

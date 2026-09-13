@@ -54,3 +54,8 @@ Policy の詳細は通知内容 に載せません。[ADR 0027](../adr/0027-revi
 ## 検証範囲
 
 導入済み環境の設定往復は `2584ec6` と `71dbb4f` で成功しました。空配列の表示が一致しなかった失敗と、後の成功だけでは原因が分からないプレビュー・診断の失敗は[検証証拠](../status/acceptance-evidence.ja.md#development)に残します。リポジトリ内の検証と実機結果は区別します。
+
+規則には任意のRFC 3339形式の`expires_at`を指定できます。期限以降はその規則を
+適用せず、残る規則と既定ポリシーで判定します。不正な値は読込みを拒否します。
+[規則の期限](../design/policy-and-capability-foundation.md#rule-lifetime)と
+[接続中の失効](../design/network-connections.md)を参照してください。

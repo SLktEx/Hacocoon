@@ -147,46 +147,4 @@ Capability sessions.
 
 ## Development acceptance
 
-On 2026-09-12, dedicated WSL `hacocoon-second` with its own network namespace,
-Incus project and Btrfs pool passed installed-product-CLI paths for external
-IPv4/IPv6 TCP/UDP, selected Physical Host TCP/UDP, Env-to-Env TCP/UDP and Incus
-Host-to-Env TCP/UDP forwarding. Eight fixture connection journeys took
-0.099–0.169 seconds each; these are local fixture timings, not WAN throughput
-or database/SSH application acceptance.
-
-Real native guarded-transport checks also passed TCP/UDP absolute expiry
-(approximately 2.11 seconds for a two-second grant), explicit live revocation,
-longer TCP connection closure at Policy expiry, old destination grants refused
-after same-name Env recreation, old source grants refused after recreation,
-existing TCP retained across DNS answer change, changed-answer new connection
-denied, and separately reported DNS failure.
-
-The DNS fixture first ran before the restarted controller was ready. A bounded
-read-only readiness check corrected that fixture ordering; resolver restoration
-and doctor were separately verified. This does not weaken a network assertion.
-Component race tests cover additional malformed requests/framing, denial before
-dial, incomplete audit, saved approval, pending revocation, half-close responses,
-UDP response-source filtering and one-way activity keeping an association alive.
-
-The LAN and DNS services are synthetic fixtures, not a corporate VPN. Windows UI,
-VPN/NRPT, public-service credentials, packet loss/MTU behavior, throughput and
-large-scale concurrent workloads remain unverified here.
-
-
-## Dedicated Windows observation
-
-Windows OpenSSH reached the recreated Env through an explicit distribution-bound
-ProxyCommand and dedicated host-key/identity files. A Windows SSH local forward
-also delivered an Env loopback HTTP fixture to the Windows-hosted browser, where
-the content was rendered. This is scoped SSH/browser acceptance, not automatic
-IDE setup or direct Windows-to-Env UDP acceptance.
-
-The separately registered Windows TCP/UDP echo services responded to a Windows
-local probe, but both the controller namespace and a direct WSL probe timed out.
-The guest CLI's approved TCP request recorded phase `connect`, state `failed`,
-reason `timeout` after approximately ten seconds. The UDP caller observed no
-reply; a connected UDP socket is not proof that a service is reachable. No shared
-firewall, Hyper-V or WSL networking settings were changed. Successful outbound
-Windows-service access remains unverified on this host, and the precise filtering
-or routing cause is not established. Linux Physical Host and peer Env TCP/UDP
-paths have separate successful native acceptance above.
+See [commit-bound acceptance and unresolved Windows-service failures](../status/acceptance-evidence.md#development-branch-integration).

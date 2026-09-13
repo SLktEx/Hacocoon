@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -64,21 +63,25 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var jsonOutput, noOCI bool
 	switch args[0] {
 	case "forward":
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 		flags.StringVar(&protocol, "protocol", "tcp", cliMessage("detail.protocol"))
 		flags.IntVar(&port, "port", 0, cliMessage("flag.ssh_port"))
 		flags.IntVar(&targetPort, "target-port", 0, cliMessage("detail.target_port"))
 	case "create":
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 		flags.BoolVar(&noOCI, "no-oci", false, cliMessage("flag.no_oci"))
 		flags.StringVar(&workspace, "workspace", "", cliMessage("flag.workspace"))
 		flags.StringVar(&base, "base", "", cliMessage("flag.base"))
 		flags.StringVar(&resource, "resource", "", cliMessage("flag.resource"))
 	case "ssh":
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 		flags.StringVar(&keyPath, "key", "", cliMessage("flag.ssh_key"))
 		flags.IntVar(&port, "port", 0, cliMessage("flag.ssh_port"))
 	case "ssh-config":
 	case "status", "list":
 		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 	case "disconnect", "start", "stop", "delete":
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 	default:
 		return usage()
 	}
@@ -186,7 +189,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 			}
 		}
 	}
-	if err := json.NewEncoder(out).Encode(result); err != nil {
+	if err := writeCLIResult(out, result, jsonOutput); err != nil {
 		fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}

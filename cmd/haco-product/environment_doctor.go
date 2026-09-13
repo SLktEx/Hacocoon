@@ -52,8 +52,12 @@ func diagnoseEnvironment(ctx context.Context, c environmentDoctorClient, name st
 	check := environmentDoctorCheck{Name: "runtime", Status: "ok"}
 	if status.State != core.EnvironmentRunning {
 		check.Status = "failed"
-		check.Action = "Start the Environment with haco env start " + name
-		check.actionMessage = "env.doctor.start"
+		check.Action = "Cannot verify the runtime state; inspect the owned Environment before changing it"
+		check.actionMessage = "env.doctor.inspect_runtime"
+		if status.State == core.EnvironmentStopped {
+			check.Action = "Start the Environment with haco env start " + name
+			check.actionMessage = "env.doctor.start"
+		}
 	}
 	report.Checks = append(report.Checks, check)
 	connections, err := c.EnvironmentConnections(ctx, name)

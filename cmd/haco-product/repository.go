@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -48,6 +47,12 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if namespace == "workspace" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
 		return managedWorkspaceCommand(ctx, args, os.Stdin, out, diagnostic)
 	}
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	if len(args) == 0 {
 		return usage()
 	}
@@ -136,9 +141,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)
 		return 1
 	}
-	encoder := json.NewEncoder(out)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(result); err != nil {
+	if err := writeCLIResult(out, result, jsonOutput); err != nil {
 		fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}

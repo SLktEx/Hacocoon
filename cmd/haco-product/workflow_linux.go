@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -124,6 +123,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	repos := flags.String("repo", "", cliMessage("detail.repos"))
 	base := flags.String("base", "", cliMessage("detail.base"))
 	oci := flags.String("oci", "", cliMessage("detail.oci"))
+	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -147,7 +147,9 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		}
 		defer h.Close()
 		ref, e := preparePath(ctx, c, h, pathOpenOptions{Path: *path, Name: *name, Repositories: *repos, Base: *base, OCI: *oci})
-		_ = json.NewEncoder(out).Encode(ref)
+		if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
+			return 1
+		}
 		if e != nil {
 			fmt.Fprintln(diagnostic, cliMessage("operation.failed"), e)
 			return 1
@@ -215,7 +217,9 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		ref.State = "recovery-required"
 	}
 	err = errors.Join(err, h.Save(ref))
-	_ = json.NewEncoder(out).Encode(ref)
+	if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
+		return 1
+	}
 	if err != nil {
 		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1

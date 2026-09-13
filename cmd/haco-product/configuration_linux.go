@@ -44,6 +44,7 @@ func configurationCommand(ctx context.Context, client configurationClient, args 
 	flags.SetOutput(diagnostic)
 	interactive := flags.Bool("edit", false, cliMessage("detail.config_edit"))
 	file := flags.String("file", "", cliMessage("detail.config_file"))
+	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -51,7 +52,7 @@ func configurationCommand(ctx context.Context, client configurationClient, args 
 		return 2
 	}
 	if flags.NArg() != 0 || (*interactive && *file != "") {
-		fmt.Fprintln(diagnostic, "Usage: haco config [--edit | --file <snapshot.json>]")
+		fmt.Fprintln(diagnostic, "Usage: haco config [--json] [--edit | --file <snapshot.json>]")
 		return 2
 	}
 	var snapshot capability.PolicySnapshot
@@ -95,9 +96,7 @@ func configurationCommand(ctx context.Context, client configurationClient, args 
 			fmt.Fprintln(diagnostic, "haco: saved; editor files retained:", filepath.Dir(retained))
 		}
 	}
-	encoder := json.NewEncoder(out)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(snapshot); err != nil {
+	if err := writeCLIResult(out, snapshot, *jsonOutput); err != nil {
 		return 1
 	}
 	return 0

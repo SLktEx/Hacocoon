@@ -2,7 +2,7 @@
 
 日本語 | [English](daily-workflow.md)
 
-状態: **implemented CLI workflow**。provider・desktopの実機確認は[実装状況](../IMPLEMENTATION_STATUS.ja.md)に別途記録します。
+状態: **implemented CLI workflow**。provider・desktopの実機確認は[検証証拠](../status/acceptance-evidence.ja.md#development-branch-integration)に別途記録します。
 
 ## 最初に準備する
 
@@ -18,9 +18,9 @@ haco env create --workspace managed:sample-work sample-dev
 haco open sample-dev
 ```
 
-OWNER/REPOと既存branchを置き換えてください。private Gitの認証はtrusted haco-hostに保持します。[管理repository手順](../guides/git-workflow.md)を参照してください。Baseは設定済み既定値を使います。任意OCI Storeのコピーは自動で、`--no-oci`で省略できます。CoreにOCI runtimeは必須ではありません。
+OWNER/REPOと既存branchを置き換えてください。private Gitの認証はtrusted haco-hostに保持します。[管理repository手順](../guides/git-workflow.ja.md)を参照してください。Baseは設定済み既定値を使います。任意OCI Storeのコピーは自動で、`--no-oci`で省略できます。CoreにOCI runtimeは必須ではありません。
 
-**WSL/Linux Physical Host内**の既存ファイルなら`haco env create --workspace /absolute/path/to/work sample-dev`も使えます。pathはWindowsやhaco-hostコンテナではなく、そのPhysical Host上のものです。書込み可能なWorkspaceはEnv内の処理からも変更できます。`haco open .`のpath発見は**deferred**で、現在のopenには既存Env名を指定します。
+**WSL/Linux Physical Host内**の既存ファイルなら`haco env create --workspace /absolute/path/to/work sample-dev`も使えます。pathはWindowsやhaco-hostコンテナではなく、そのPhysical Host上のものです。書込み可能なWorkspaceはEnv内の処理からも変更できます。`haco open .`は準備済みの所有者を固定したWorkspace参照を再開します。ディレクトリ内容を暗黙にコピー・マウントしません。[準備とfork](../design/workspace-workflow.md)を参照してください。
 
 `haco open`はdesktop所有のSSH鍵・設定を準備しeditorを起動します。`haco open --client ssh sample-dev`は標準SSH shellを開きます。接続準備だけなら`haco ssh setup sample-dev`です。秘密鍵はdesktopに保持します。editorプロセスの起動だけで接続・build/testが正常とは判定しません。[Windows SSH](windows-environment-ssh.md)も参照してください。
 

@@ -45,8 +45,14 @@ func readBaseDefinition(path string) (basebuild.Definition, error) {
 	return d, d.Validate()
 }
 func runBaseBuild(args []string) int {
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(os.Stderr, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	if len(args) != 1 || args[0] == "--help" {
-		fmt.Fprintln(os.Stderr, "Usage: haco base build <definition.json>")
+		fmt.Fprintln(os.Stderr, "Usage: haco base build <definition.json> [--json]")
 		if len(args) == 1 && args[0] == "--help" {
 			return 0
 		}
@@ -65,7 +71,7 @@ func runBaseBuild(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	result, err := client.BuildBase(ctx, d)
-	if e := json.NewEncoder(os.Stdout).Encode(result.Result); e != nil {
+	if e := writeCLIResult(os.Stdout, result.Result, jsonOutput); e != nil {
 		return 1
 	}
 	if err != nil {

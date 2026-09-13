@@ -69,11 +69,11 @@ func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string,
 	// has its static routed address in runtime state, so zero matches fall back
 	// to the authoritative JSON state below. Ambiguous results always fail
 	// closed.
-	result, err := r.runner.Run(ctx, "incus", "list", "ipv4="+ip, "--project", r.project, "--format", "csv", "-c", "n")
+	output, err := r.readIncusOutput(ctx, "list", "ipv4="+ip, "--project", r.project, "--format", "csv", "-c", "n")
 	if err != nil {
 		return "", fmt.Errorf("resolve egress source %s: %w", ip, err)
 	}
-	refs := parseRuntimeRefs(result.Stdout)
+	refs := parseRuntimeRefs(output)
 	if len(refs) == 1 {
 		if validateManagedInstanceRef(refs[0]) != nil {
 			return "", core.ErrPolicyDenied
@@ -84,11 +84,11 @@ func (r *Runtime) ResolveRuntimeRef(ctx context.Context, source net.IP) (string,
 		return "", core.ErrPolicyDenied
 	}
 
-	full, err := r.runner.Run(ctx, "incus", "list", "--project", r.project, "--format", "json")
+	full, err := r.readIncusOutput(ctx, "list", "--project", r.project, "--format", "json")
 	if err != nil {
 		return "", fmt.Errorf("resolve egress source %s from Incus runtime state: %w", ip, err)
 	}
-	refs, err = runtimeRefsForIPv4(full.Stdout, ip)
+	refs, err = runtimeRefsForIPv4(full, ip)
 	if err != nil {
 		return "", fmt.Errorf("decode Incus runtime state for egress source %s: %w", ip, err)
 	}
@@ -144,15 +144,4 @@ func runtimeRefsForIPv4(raw, ip string) ([]string, error) {
 		}
 	}
 	return refs, nil
-}
-
-// ResolveEnvironment is kept for compatibility with existing direct provider
-// tests/callers. New egress authorization wiring should bind ResolveRuntimeRef
-// to persisted Hacocoon Environment state before returning an identity.
-func (r *Runtime) ResolveEnvironment(ctx context.Context, source net.IP) (string, error) {
-	ref, err := r.ResolveRuntimeRef(ctx, source)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimPrefix(ref, "haco-"), nil
 }

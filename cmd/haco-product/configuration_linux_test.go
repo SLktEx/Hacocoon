@@ -41,11 +41,20 @@ func TestConfigurationCLIInspectAndFileApply(t *testing.T) {
 	if code := configurationCommand(context.Background(), client, nil, &out, &diagnostic, nil); code != 0 || client.replaces != 0 {
 		t.Fatal("inspect changed configuration")
 	}
+	if json.Valid(out.Bytes()) || !strings.Contains(out.String(), "revision: sha256:") {
+		t.Fatal("default configuration output should be human-readable", out.String())
+	}
+
+	out.Reset()
+	if code := configurationCommand(context.Background(), client, []string{"--json"}, &out, &diagnostic, nil); code != 0 || client.replaces != 0 || !json.Valid(out.Bytes()) {
+		t.Fatal("explicit JSON configuration inspect failed", out.String())
+	}
 	path := filepath.Join(t.TempDir(), "configuration.json")
 	if err := os.WriteFile(path, out.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if code := configurationCommand(context.Background(), client, []string{"--file", path}, &out, &diagnostic, nil); code != 0 || client.replaces != 1 || client.edit.Revision != "sha256:"+strings.Repeat("a", 64) {
+	out.Reset()
+	if code := configurationCommand(context.Background(), client, []string{"--file", path, "--json"}, &out, &diagnostic, nil); code != 0 || client.replaces != 1 || client.edit.Revision != "sha256:"+strings.Repeat("a", 64) {
 		t.Fatal("file revision not preserved")
 	}
 	client.replaces = 0

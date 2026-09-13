@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -44,6 +43,7 @@ func runOpen(args []string) int {
 	workName := flags.String("name", "", cliMessage("detail.work_name"))
 	base := flags.String("base", "", cliMessage("detail.base"))
 	oci := flags.String("oci", "", cliMessage("detail.oci"))
+	jsonOutput := flags.Bool("json", false, cliMessage("detail.open_json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -62,6 +62,10 @@ func runOpen(args []string) int {
 	})
 	selectedArgs := flags.Args()
 	pathMode := len(selectedArgs) == 1 && workspacePath(selectedArgs[0])
+	if *jsonOutput && (!pathMode || *selected != "none") {
+		fmt.Fprintln(os.Stderr, "haco: --json requires a directory and --client none")
+		return 2
+	}
 	if !pathMode && (*repos != "" || *workName != "" || *base != "" || *oci != "" || *selected == "none") {
 		fmt.Fprintln(os.Stderr, "haco: --repo, --name, --base, --oci and --client none require a directory")
 		return 2
@@ -87,7 +91,7 @@ func runOpen(args []string) int {
 		}
 		selectedArgs = []string{result.Environment.Name}
 		if *selected == "none" {
-			if json.NewEncoder(os.Stdout).Encode(result) != nil {
+			if writeCLIResult(os.Stdout, result, *jsonOutput) != nil {
 				return 1
 			}
 			return 0

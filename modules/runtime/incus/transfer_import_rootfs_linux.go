@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/lxc/incus/v6/shared/osarch"
 	"gopkg.in/yaml.v2"
 )
 
@@ -61,10 +62,17 @@ func prepareRootfsImport(ctx context.Context, source io.ReadSeeker, root string,
 		if yaml.UnmarshalStrict(raw, &old) != nil {
 			return core.ErrIncompatibleState
 		}
-		if old.Architecture != "x86_64" && old.Architecture != "aarch64" {
+		// Incus exports architecture aliases (for example amd64). Resolve them
+		// with its own vocabulary, while retaining the two supported CPUs.
+		architectureID, err := osarch.ArchitectureID(old.Architecture)
+		if err != nil || (architectureID != osarch.ARCH_64BIT_INTEL_X86 && architectureID != osarch.ARCH_64BIT_ARMV8_LITTLE_ENDIAN) {
 			return core.ErrUnsupported
 		}
-		fresh := rootfsImportMetadata{Architecture: old.Architecture, CreationDate: old.CreationDate,
+		architecture, err := osarch.ArchitectureName(architectureID)
+		if err != nil {
+			return core.ErrUnsupported
+		}
+		fresh := rootfsImportMetadata{Architecture: architecture, CreationDate: old.CreationDate,
 			Properties: map[string]string{importImageOwnerKey: owner}, Templates: map[string]any{}}
 		raw, err = yaml.Marshal(fresh)
 		if err != nil {

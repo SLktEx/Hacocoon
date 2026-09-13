@@ -3,7 +3,7 @@
 [日本語](daily-workflow.ja.md) | English
 
 Status: **implemented CLI workflow**. Provider/desktop acceptance is recorded
-separately in [implementation status](../IMPLEMENTATION_STATUS.md).
+separately in [acceptance evidence](../status/acceptance-evidence.md#development-branch-integration).
 
 ## Prepare once
 
@@ -31,8 +31,9 @@ automatic; `--no-oci` skips it. There is no required OCI runtime for Core.
 For existing files on the **WSL/Linux Physical Host**, an alternative is
 `haco env create --workspace /absolute/path/to/work sample-dev`. The path belongs
 to that Physical Host, not Windows or the haco-host container. Writable files
-are writable by Env workloads. `haco open .` path discovery is **deferred**;
-`open` currently takes an existing Env name.
+are writable by Env workloads. `haco open .` can instead reopen an explicitly prepared, owner-pinned managed
+Workspace reference; it does not copy or mount the directory contents. See
+[Workspace preparation and forks](../design/workspace-workflow.md).
 
 `haco open` prepares desktop-owned SSH keys/settings and launches the configured
 editor. `haco open --client ssh sample-dev` opens a standard SSH shell instead.

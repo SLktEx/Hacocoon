@@ -117,7 +117,7 @@ func (client *localeApprovalClient) DecideApproval(_ context.Context, id string,
 
 func TestLocaleApprovalJSONAndDecisionAreIdentical(t *testing.T) {
 	request := core.ApprovalRequest{RequestID: "locale-request", CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target-日本語", Environment: "dev", EnvironmentInstance: "env-11111111111111111111111111111111"}}
-	for _, args := range [][]string{{"--json"}, {"--list"}} {
+	for _, args := range [][]string{{"--json"}, {"--list", "--json"}} {
 		var baseline string
 		for _, locale := range []string{"en_US.UTF-8", "ja_JP.UTF-8"} {
 			t.Run(strings.Join(args, "")+locale, func(t *testing.T) {

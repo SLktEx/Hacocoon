@@ -160,3 +160,13 @@ OCIの後始末が不明ならWorkspaceも保持し、起動失敗ならEnvと�
 確認範囲が異なり、[検証証拠](../status/acceptance-evidence.ja.md#transfer)に失敗・スキップも残します。
 停止したcontainerdの試験は任意の稼働アプリの整合性を保証せず、
 管理bundleは環境全体のbackupではありません。
+
+## rootfs archive の Incus CPU 表記
+
+実装済み: rootfs import は固定済み Incus SDK で CPU 名を解決し、既存の x86_64／aarch64
+という対応 CPU の制限を保って、一時 transport image に正規名を書きます。amd64／arm64
+など Incus の別名は同じ CPU を表し、不明または他の CPU は引き続き fail-closed で拒否します。
+元 archive、所有確認、template 除去、資源の寿命は変えません。
+
+
+[限定された実機検証](../status/acceptance-evidence.ja.md#development-branch-integration)を参照してください。
