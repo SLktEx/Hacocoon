@@ -33,7 +33,6 @@ func (s *Service) WithClientAccess(ctx context.Context, name string, expected *c
 	runtime, ok := s.runtime.(interface {
 		VerifyEnvironmentIdentity(context.Context, string, string) error
 		InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
-		StartEnvironment(context.Context, string) error
 	})
 	if !ok {
 		return core.ErrUnsupported
@@ -54,7 +53,7 @@ func (s *Service) WithClientAccess(ctx context.Context, name string, expected *c
 		return core.ErrRecoveryRequired
 	}
 	if state.State == core.EnvironmentStopped && resume {
-		if err := runtime.StartEnvironment(ctx, env.RuntimeRef); err != nil {
+		if err := s.startRuntimeWithLease(ctx, env, lease); err != nil {
 			return err
 		}
 		state, err = runtime.InspectEnvironment(ctx, env.RuntimeRef)
