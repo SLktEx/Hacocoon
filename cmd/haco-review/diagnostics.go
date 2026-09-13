@@ -17,6 +17,15 @@ type nativeReviewFailure struct {
 func (e *nativeReviewFailure) Error() string { return "native notification review failed" }
 func (e *nativeReviewFailure) Unwrap() error { return e.cause }
 
+type nativeToastProcessFailure struct {
+	cause      error
+	exitCode   int
+	durationMS int64
+}
+
+func (e *nativeToastProcessFailure) Error() string { return "native notification process failed" }
+func (e *nativeToastProcessFailure) Unwrap() error { return e.cause }
+
 type nativeDisplayFailure struct {
 	stage  string
 	status int64
@@ -54,6 +63,10 @@ func reportReviewFailure(out io.Writer, err error) {
 	}
 	stage, reason := reviewFailureFields(err)
 	fields := []any{"component", "client", "operation", "notification_review", "stage", stage, "reason", reason}
+	var process *nativeToastProcessFailure
+	if errors.As(err, &process) {
+		fields = append(fields, "exit_code", process.exitCode, "duration_ms", process.durationMS)
+	}
 	var native *nativeDisplayFailure
 	if errors.As(err, &native) {
 		switch native.stage {

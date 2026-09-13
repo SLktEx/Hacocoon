@@ -775,3 +775,32 @@ step13〜20のPowerShell 5.1導入部品、通常install／restart／reinstall�
 先の組み合わせ実行のFAILを消さず、修正済みとも扱いません。先に成功した標準ローカルCIとも分けて記録します。
 commit済み文書、既存native-access driverの5回帰、新driverのPython構文確認は独立してPASSしました。
 製品／試験の期限やplatform設定を緩めていません。
+
+<a id="native-toast-process-diagnostics"></a>
+## native通知プロセスの診断
+
+`codex/native-toast-clear`は#635のWindows34768317303、job103753188863のstep21
+（`stage=clear`、`reason=unavailable`、native番号なし）を調査しています。
+ローカルの隔離probeでは定数を返すだけのPowerShell methodも`MethodInvocationNotSupportedInConstrainedLanguage`で失敗しました。
+隔離の外で同じ固定probeを実行すると、定数応答2329 ms、最初の空履歴clear4281 ms、再clear3469 msで全て終了0でした。
+言語モード・実行policy・通知設定・期限は変更していません。今回はローカルの隔離制限を区別できましたが、
+CI失敗の原因証明ではなく、過去のローカルPowerShell policy拒否と同じ原因とも断定しません。
+
+別の決定的な不具合として、旧結果分類が`context.Canceled`／`DeadlineExceeded`を一般的な利用不能へ失うことを再現しました。
+追加回帰は修正前FAIL、修正後PASSです。描画処理はこれらの理由と安全な数値の子終了値・経過時間を保持し、
+起動した子の終了を待ちます。停止前の成功markerでキャンセルを成功へ変えません。
+導入済み失敗観測も数値を表示しますが、子の生出力は出しません。8秒の描画上限・回収・認可は変更していません。
+Windows amd64の回帰は実子の停止、native失敗番号、非公開出力を表示しないことを含めPASSです。
+実表示履歴、導入済み失効要求／新規回答はそれぞれ別の受入であり、この回帰で代替しません。v0.67を維持します。
+
+明示実行した実Windows履歴確認はtoolの隔離外で29.41秒でPASSしました。
+最初の所有する空履歴clear、日英の選択XML、履歴取得と削除を確認しました。人によるクリックと見た目は未確認です。
+Go 1.26.8の対象テストとrace 10回、Windows amd64テスト、Windows arm64ビルドはPASSです（arm64実行は未確認）。
+標準ローカル全体テストでは既存のlogin-bootstrap PTY入力待ち期限が再度FAILしました（試験全体6.73秒）。
+全体PASSとは扱わず、以前の失敗も未解決です。期限やplatform設定は緩めていません。
+
+親#638の`3ed748bf44e11839f6c6c0e07fb6de29746154d4`はtest34770808202、Ubuntu34770808200、
+Incus34770808191がPASSです。Windows34770808189、job103759936727はstep17の新しい通常入口tunnel driverでFAILしました。
+待受アドレス表示の後、driverが端末sessionの一致を待つ間に時間切れになりました。
+先行するnative SSH、VS Code、転送確認は成功を記録していますが、tunnelの所有確認・転送・中断の受入は未完了です。
+通知回答を含むstep18〜21はSKIPでした。このrunで以前の#635通知clear失敗を解決済みにしません。

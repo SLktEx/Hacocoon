@@ -107,3 +107,7 @@ controller UDSへの橋渡し、型付きclientの接続差し替えを開発候
 書式展開するよう修正し、旧実装の二重展開をCLI/controller回帰で再現しました。
 [転送契約](design/controller-client-transport.ja.md#windowsのプロセス転送)と
 [受入記録](status/acceptance-evidence.ja.md#wslプロセス転送候補)を参照してください。
+
+native通知の診断は子のキャンセル／期限切れと数値の終了値・所要時間を保持します。
+既存の上限・回収・承認拒否は維持し、過去の導入済みclear失敗と新規GUI回答は未解決です。
+[受入記録](status/acceptance-evidence.ja.md#native-toast-process-diagnostics)を参照してください。

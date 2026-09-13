@@ -925,3 +925,46 @@ a fix. The earlier full maintained local CI pass remains separate evidence.
 Committed docs, the five existing native-access driver regressions and the new
 driver's Python syntax check pass independently. No product/test timeout or
 platform setting was relaxed.
+
+<a id="native-toast-process-diagnostics"></a>
+## Native notification process diagnostics
+
+`codex/native-toast-clear` investigates #635 Windows run 34768317303,
+job 103753188863 step 21 (`stage=clear`, `reason=unavailable`, no native code).
+A controlled local sandbox probe fails even a constant PowerShell method call
+with `MethodInvocationNotSupportedInConstrainedLanguage`. The exact same fixed
+probe outside that sandbox succeeds: constant response 2329 ms, initial empty
+history clear 4281 ms, repeated clear 3469 ms, all exit 0. No language mode,
+execution policy, notification setting or timeout was changed. This isolates a
+local sandbox restriction; it does not identify the CI failure's cause or prove
+that older local PowerShell policy refusals had the same cause.
+
+A separate deterministic defect was reproduced: the prior result classifier
+turns `context.Canceled`/`DeadlineExceeded` into generic unavailable errors.
+The new regression fails before correction. The renderer now retains those
+reasons, records safe numeric child exit/duration and reaps the exact child;
+late success markers do not turn cancellation into success. Installed failure
+observation includes those numeric fields without raw process output. The
+eight-second renderer bound and cleanup/authorization behavior are unchanged.
+Windows amd64 regression tests pass after correction, including real child
+termination, native failure status and private-output refusal. Native display
+history and the full installed stale-request/fresh-answer route are separate
+acceptance checks, not implied by these regressions. v0.67 remains unchanged.
+
+The opt-in actual Windows history check passes in 29.41 seconds outside the
+tool sandbox: initial owned empty-history clear, English/Japanese selection XML,
+history lookup and removal. Human clicks and visible layout remain untested.
+Go 1.26.8 focused tests and ten race repetitions pass; Windows amd64 tests and
+Windows arm64 cross-build pass (arm64 execution untested). The maintained full
+local test command fails the existing login-bootstrap PTY prompt deadline again
+(6.73 seconds for that test); it is not a full-suite pass and the earlier failure
+remains unresolved. No timeout or platform setting was relaxed.
+
+Parent #638 at `3ed748bf44e11839f6c6c0e07fb6de29746154d4` passes test
+34770808202, Ubuntu 34770808200 and Incus 34770808191. Windows run
+34770808189, job 103759936727 fails step 17 in the new ordinary-entry tunnel
+driver after printing a listener address; the driver times out waiting for its
+terminal-session match. Native SSH, VS Code and the preceding transfer checks
+report success, but this does not establish tunnel ownership/traffic/cancellation
+acceptance. Steps 18–21, including notification review, are skipped. This run
+cannot resolve the older #635 notification clear failure.

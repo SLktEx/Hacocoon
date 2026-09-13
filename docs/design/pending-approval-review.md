@@ -192,3 +192,11 @@ A read-only duplicate launch preserves the existing helper's no-longer-pending
 refusal as a distinct result. Controller/display failures remain unavailable;
 neither result produces a ready acknowledgement or submits an answer. Native
 failure diagnosis uses fixed local stages and typed native status numbers only.
+
+The native renderer retains context cancellation and deadline expiry as distinct
+failures, even if the child emitted a success marker before it was stopped. The
+existing eight-second operation bound and owned-child reaping remain unchanged.
+Failure logs add numeric child exit code and elapsed milliseconds to the fixed
+reason/native-status fields. Unknown child output remains private and never
+becomes an authorization result. These diagnostics do not establish the cause
+of earlier installed `stage=clear` failures or fresh-answer acceptance.

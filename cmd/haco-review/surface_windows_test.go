@@ -103,6 +103,11 @@ func TestNativeToastShowHistoryAndRemoval(t *testing.T) {
 			t.Error(err)
 		}
 	}()
+	// Match ordinary nativeReview startup, including an empty history before
+	// the first display. No warm-up or changed Windows settings are supplied.
+	if err := surface.Clear(ctx); err != nil {
+		t.Fatal("initial owned-history clear", err)
+	}
 	id := strings.Repeat("a", 32)
 	fixture := nativeDisplayFixture{request: core.ApprovalRequest{RequestID: id, CapabilityRequest: core.CapabilityRequest{Environment: "表示確認用Env", EnvironmentInstance: "env-" + strings.Repeat("b", 32), Capability: "network.egress", Action: "connect", Resource: "example.invalid:443", Attributes: map[string]string{"hostname": "example.invalid", "protocol": "tcp", "port": "443"}}}}
 	session := desktopreview.Session{Client: fixture}
@@ -155,4 +160,80 @@ func TestNativeToastShowHistoryAndRemoval(t *testing.T) {
 		}
 	}
 	t.Log("Windows ToastGeneric English/Japanese selection XML accepted in native history; human activation/visual layout not tested")
+}
+
+func TestNativeToastResultPreservesCancellation(t *testing.T) {
+	for _, reason := range []error{context.Canceled, context.DeadlineExceeded} {
+		for _, output := range []string{"", "HACO_TOAST_OK", "HACO_TOAST_FAILURE:history:-2146233087"} {
+			err := nativeToastResult([]byte(output), errors.Join(errors.New("private process SECRET"), reason))
+			if !errors.Is(err, reason) || strings.Contains(err.Error(), "SECRET") {
+				t.Fatalf("reason lost or private error exposed: %v", err)
+			}
+		}
+	}
+}
+
+func TestNativeToastProcessFixture(t *testing.T) {
+	switch os.Getenv("HACO_TEST_TOAST_PROCESS") {
+	case "deadline":
+		os.Stdout.WriteString("HACO_TOAST_OK")
+		time.Sleep(30 * time.Second)
+		os.Exit(0)
+	case "failure":
+		os.Stdout.WriteString("HACO_TOAST_FAILURE:history:-2146233087")
+		os.Exit(7)
+	case "private":
+		os.Stdout.WriteString("private-page-token")
+		os.Stderr.WriteString("private-controller-output")
+		os.Exit(9)
+	}
+}
+
+func TestNativeToastProcessFailureAndReaping(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "text")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"deadline", "failure", "private"} {
+		t.Run(kind, func(t *testing.T) {
+			timeout := 5 * time.Second
+			if kind == "deadline" {
+				timeout = 300 * time.Millisecond
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, exe, "-test.run=^TestNativeToastProcessFixture$")
+			cmd.Env = append(os.Environ(), "HACO_TEST_TOAST_PROCESS="+kind)
+			cmd.WaitDelay = time.Second
+			err := runNativeToastCommand(ctx, cmd)
+			if err == nil {
+				t.Fatal("failed child accepted")
+			}
+			var process *nativeToastProcessFailure
+			if !errors.As(err, &process) || process.durationMS < 0 {
+				t.Fatal("numeric process observations missing", err)
+			}
+			if cmd.ProcessState == nil {
+				t.Fatal("child was not reaped")
+			}
+			if kind == "deadline" && !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatal("deadline lost", err)
+			}
+			if kind == "failure" {
+				var native *nativeDisplayFailure
+				if process.exitCode != 7 || !errors.As(err, &native) || native.stage != "history" {
+					t.Fatal("native failure lost", err)
+				}
+			}
+			if kind == "private" && process.exitCode != 9 {
+				t.Fatal("exit lost", process.exitCode)
+			}
+			var output bytes.Buffer
+			reportReviewFailure(&output, &nativeReviewFailure{stage: "clear", cause: err})
+			if strings.Contains(output.String(), "private") || !strings.Contains(output.String(), "duration_ms=") || !strings.Contains(output.String(), "exit_code=") {
+				t.Fatal("unsafe or missing process observations", output.String())
+			}
+		})
+	}
 }

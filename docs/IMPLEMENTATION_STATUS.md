@@ -122,3 +122,8 @@ the selected English/Japanese message once; the previous double expansion was
 reproduced by the real CLI/controller component regression. See
 [transport](design/controller-client-transport.md#windows-process-transport) and
 [acceptance evidence](status/acceptance-evidence.md#wsl-process-transport-candidate).
+
+Native notification diagnostics preserve child cancellation/deadline expiry and
+numeric exit/duration observations. The existing bounds, cleanup and approval
+refusal remain; earlier installed clear failures and fresh GUI answers are still
+unresolved. See [acceptance evidence](status/acceptance-evidence.md#native-toast-process-diagnostics).
