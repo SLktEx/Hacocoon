@@ -8,13 +8,7 @@ import shlex
 import sys
 
 
-def main():
-    if os.name != 'nt' or os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted':
-        raise RuntimeError('temporary terminal acceptance requires the disposable Windows GHA host')
-    spec = importlib.util.spec_from_file_location('run_stream_driver', Path(__file__).with_name('windows-installer-user-path-e2e.py'))
-    driver = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = driver
-    spec.loader.exec_module(driver)
+def run_sequence(driver):
     terminal = driver.TerminalProcess()
     stage, sent_at, native = 0, 0, None
     guest = (
@@ -42,7 +36,9 @@ def main():
             stage, sent_at = 1, len(output)
         elif stage == 1 and re.search(r'(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$', fresh):
             native = provider_names()
-            process.write(command + '\r\n')
+            # A real Enter is CR. CRLF can leave a second newline queued after
+            # the shell starts haco, causing the guest's first read to be empty.
+            process.write(command + '\r')
             stage, sent_at = 2, len(output)
         elif stage == 2 and re.search(r'(?m)^RUN-TTY-READY\s*$', fresh) and re.search(r'(?m)^48 160\s*$', fresh):
             # pywinpty's public API takes (rows, columns); resize the actual
@@ -69,6 +65,16 @@ def main():
         if terminal.proc.isalive():
             terminal.proc.terminate(force=True)
     print('WINDOWS TEMPORARY TTY / ORDINARY HOST ENTRY / EDIT-RESIZE / EXIT 17 / RESTORE / CLEANUP: PASS')
+
+
+def main():
+    if os.name != 'nt' or os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('RUNNER_ENVIRONMENT') != 'github-hosted':
+        raise RuntimeError('temporary terminal acceptance requires the disposable Windows GHA host')
+    spec = importlib.util.spec_from_file_location('run_stream_driver', Path(__file__).with_name('windows-installer-user-path-e2e.py'))
+    driver = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = driver
+    spec.loader.exec_module(driver)
+    run_sequence(driver)
 
 
 if __name__ == '__main__':

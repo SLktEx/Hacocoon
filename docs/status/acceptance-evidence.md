@@ -33,6 +33,19 @@ failure's cause remains unconfirmed; no relay behavior or timeout was relaxed.
 The final six-package process/temporary race check, documentation check,
 workflow-policy suite and native fixture syntax checks passed separately.
 
+At `b31698148db03915504c476e52e617fe70ecb527` (PR #591), test 34732860619,
+Ubuntu 34732860608 and Incus 34732860628 passed. Btrfs job 103658786664 records
+Incus **7.0.1**, the 2 MiB binary pipe, real PTY edit/resize, exit 17, terminal
+restoration and cleanup **PASS**. Existing captured cancellation and retained
+Workspace checks also passed. Private registry was skipped.
+
+Windows run 34732860626 failed its new TTY input assertion. The guest read an
+empty line before the driver's intended text; resize, exit 17 and terminal/catalog
+restoration were observed. The driver sent CRLF to start the command, leaving a
+second newline for the guest. It now sends one CR, matching Enter. Driver protocol
+regressions reject empty input and changed native ownership. Native Windows input
+acceptance requires another run; Linux success does not resolve that failure.
+
 ## Local GUI candidate
 
 `e7ba798728dcbe48a5179845673a333f8ff8968f` (PR #588) passed test

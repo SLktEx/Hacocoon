@@ -28,6 +28,18 @@ Unix socketを閉じるとresetで最終receiptを失う問題です。入力停
 relayの動作や期限は緩和していません。最終候補の6packageのprocess／temporary race、
 文書検査、workflow-policy、実機fixture構文検査も別途PASSです。
 
+`b31698148db03915504c476e52e617fe70ecb527`（PR #591）のtest 34732860619、
+Ubuntu 34732860608、Incus 34732860628はPASSです。Btrfs job 103658786664は
+Incus **7.0.1** で、2MiB binary pipe・実PTYの編集／resize・exit 17・端末復元・cleanupを
+**PASS** と記録しています。既存の出力捕捉型キャンセルと保持WorkspaceもPASSです。
+private registryはSKIPです。
+
+Windows run 34732860626は新TTYの入力確認がFAILでした。意図した入力より先に空行を読み、
+resize・exit 17・端末／catalog復元は観測されています。ドライバーが起動行にCRLFを送り、
+二つ目の改行がguestに残っていました。Enterに対応するCR一つへ変更し、空入力やnative所有権
+変化を成功としないdriver回帰を追加しました。Windows実入力の成功には再実行が必要で、
+Linux成功だけではこの失敗を解消扱いにしません。
+
 ## ローカルGUI候補
 
 `e7ba798728dcbe48a5179845673a333f8ff8968f`（PR #588）はtest 34727370959、

@@ -183,6 +183,7 @@ run_test() {
   python3 tools/test_wsl_host_interop.py
   python3 tools/test_pending_approvals_test.py
   python3 tools/test_windows_transfer_bundle_copy.py
+  python3 tools/test_windows_run_stream.py
   python3 tools/test_evacuation_inventory.py
   python3 tools/test_evacuation_associations.py
   python3 tools/test_evacuation_capture.py

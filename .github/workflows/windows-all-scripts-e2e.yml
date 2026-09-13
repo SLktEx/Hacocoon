@@ -253,7 +253,10 @@ jobs:
 
       - name: Verify temporary TTY through ordinary Windows Host entry
         shell: pwsh
-        run: python ./tools/windows-run-stream-e2e.py
+        run: |
+          python ./tools/test_windows_run_stream.py
+          if ($LASTEXITCODE -ne 0) { throw "Temporary terminal driver regression failed." }
+          python ./tools/windows-run-stream-e2e.py
 
       - name: Verify installed Linux reclamation stages
         id: reclamation_linux
