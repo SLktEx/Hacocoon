@@ -4,7 +4,7 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing, general forwarding CLI and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and client TCP forwarding are implemented candidates; native Windows forwarding and remote transport remain planned.
 
 ## Summary
 
@@ -355,3 +355,36 @@ EOF is not success. The CLI does not fall back to another mutation. Disconnect
 retains server-side lifecycle ownership until the bounded operation returns.
 There is no guest endpoint registration or new management authority. See
 [setup diagnostics](trusted-host.md#setup-progress-and-failure-diagnostics).
+
+## Client TCP listeners
+
+Status: **implemented candidate** for Linux clients using the private UDS.
+`haco env tunnel --target-port 8080 demo` listens in the running client's network
+namespace and carries each TCP connection through a controller byte session.
+The output gives the local address and next action. `--listen` defaults to
+`127.0.0.1:0` (automatic port), `--address` to Env-local `127.0.0.1`, and
+`--duration` to `1h` (range `1s`–`1h`). Explicit numeric loopback IPv4/IPv6 is
+supported; hostnames, zones, mapped IPv6 and non-loopback destinations are refused.
+Ctrl+C or expiry closes the listener and active connections. Sixteen concurrent
+connections are supported; excess connections close without opening an upstream.
+
+`environment.forward.prepare` returns a creation-bound selection, and
+`environment.forward.stream` opens it after checking ready metadata, the active
+lease, runtime state and exact provider identity. Neither method is registered
+on a guest endpoint. This management operation uses existing private-socket
+authority, independently of guest-originated network Capability permissions.
+The adapter pins the target namespace instead of reusing an Env address.
+The controller opens sockets inside the owned stream callback, reports readiness
+before application bytes, and provides an independent final session result.
+Half-close propagates immediately; completion is waited after both directions
+finish. Closing early sends `_control.session.cancel` on the private management
+endpoint and waits up to six seconds for acknowledgement after stream cleanup.
+Failure and cancellation close sockets and join copy workers. If the controller
+is unreachable, cleanup cannot be confirmed; its one-hour deadline bounds the
+remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
+
+No persistent Incus forwarding device is created; the existing `env forward`
+and SSH/preview lifecycle remain available. Ordinary Windows/WSL routing and
+a Windows-native listener through `wsl.exe` remain unverified/unimplemented,
+respectively. A trusted-Host client listens inside that Host. Generic process
+caller consolidation remains partial. See [ADR 0072](../adr/0072-client-stream-forwarding.md).

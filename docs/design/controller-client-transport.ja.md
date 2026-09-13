@@ -4,7 +4,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY 制御、汎用ポート転送 CLI、遠隔通信は未実装です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御とclient TCP転送は実装候補です。Windows native転送と遠隔通信は未実装です。
 
 ## 概要
 
@@ -332,3 +332,32 @@ Windows 操作権限も与えません。[対象識別の取得](storage-reclama
 ## Host setupの観測
 
 `system.setup.progress`は既存の特権管理socketだけで利用する、上限付きJSONイベントstreamです。`system.setup`と一つの排他を共有し、同じserviceを呼びます。固定stage/state/reason、所要時間、controller生成の相関IDを返します。完了には最終frameを要求し、EOFを成功とみなしません。CLIは別の変更要求へfallbackしません。接続断でも時間制限付き処理が戻るまでserver側のlifecycle所有権を維持します。guest endpointや新たな管理権限は追加しません。[setup診断](trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。
+
+## client側TCP待受
+
+状態: private UDSを使うLinux clientの**実装候補**。
+`haco env tunnel --target-port 8080 demo`は、実行中clientのネットワーク名前空間で
+待ち受け、接続ごとにcontroller byte sessionへ流します。出力は接続先と次の操作を
+案内します。`--listen`の既定は`127.0.0.1:0`（自動port）、`--address`はEnv内の
+`127.0.0.1`、`--duration`は`1h`（`1s`〜`1h`）です。数値ループバックIPv4/IPv6を
+指定でき、hostname・zone・mapped IPv6・非ループバック宛先は拒否します。
+Ctrl+Cと期限切れで待受と転送中の接続を終了します。同時16接続を超える接続は
+upstreamを開かずに閉じます。
+
+`environment.forward.prepare`が作成世代付きの選択を返し、
+`environment.forward.stream`がready metadata・active lease・実行状態・正確な
+provider世代を検証して接続します。guest endpointには登録しません。管理socketの
+既存アクセス制御を使用し、guest発のnetwork Capability権限とは独立しています。
+adapterはEnvのIPを使い回さず対象namespaceを固定します。controllerは所有された
+stream callback内でsocketを開き、アプリbyteより先に接続結果を返し、最終session
+結果も区別します。半切断は直ちに伝え、両方向終了後に完了を待ちます。
+途中のcloseはprivate管理endpointの`_control.session.cancel`で終了を求め、
+stream回収後の応答を最大6秒待ちます。失敗・キャンセル時はsocketを閉じてcopy
+workerの終了を待ちます。controllerへ到達できなければ遠隔の回収は未確認であり、
+controller側の1時間の絶対期限が上限です。EOFを無視する接続先も、応答済みの
+キャンセル後には残りません。
+
+永続Incus転送deviceは作りません。既存の`env forward`とSSH／previewは利用できます。
+通常Windows／WSL経由の実機利用は未確認、Windows側待受から`wsl.exe`を通す経路は
+未実装です。trusted Host内で実行したclientはHost内で待ち受けます。
+汎用process callerの統合もpartialです。[ADR 0072](../adr/0072-client-stream-forwarding.ja.md)を参照してください。

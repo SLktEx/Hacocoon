@@ -18,6 +18,9 @@ import (
 func runEnvironment(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if len(args) > 0 && args[0] == "tunnel" {
+		return environmentCommand(ctx, args, os.Stdout, os.Stderr)
+	}
 	timeout := 15 * time.Minute
 	if len(args) > 0 && args[0] == "import" {
 		timeout = 30 * time.Minute
@@ -37,6 +40,9 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	if len(args) == 0 {
 		return usage()
+	}
+	if args[0] == "tunnel" {
+		return forwardClientCommand(ctx, args[1:], out, diagnostic)
 	}
 	if args[0] == "import" {
 		return importEnvironment(ctx, args[1:], out, diagnostic)

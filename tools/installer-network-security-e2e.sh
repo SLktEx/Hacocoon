@@ -192,6 +192,8 @@ ping -4 -n -c 1 -W 3 "$ip_a" >/dev/null || die "Physical Host cannot reach $env_
 ping -4 -n -c 1 -W 3 "$ip_b" >/dev/null || die "Physical Host cannot reach $env_b at $ip_b"
 
 printf '==> Network security: deletion removes only that Environment network authority\n'
+python3 "$(dirname "${BASH_SOURCE[0]}")/test_client_forward_native.py" --haco "${HACO_PRODUCT_BIN:-haco}" --env "$env_b" --ref "$ref_b" --project "$project"
+
 "$haco_bin" env delete "$env_a"
 created_a=0
 if incus network show "$bridge_a" --project "$network_project" >/dev/null 2>&1; then

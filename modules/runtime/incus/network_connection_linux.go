@@ -56,6 +56,17 @@ func (r *Runtime) ExternalNetworkAddress(ctx context.Context, address netip.Addr
 // target IP. A socket remains in that namespace even if the instance is deleted
 // and Incus assigns its name/IP to a different generation.
 func (r *Runtime) DialEnvironmentNetwork(ctx context.Context, ref, instance, protocol string, port int) (net.Conn, error) {
+	return r.dialEnvironmentAddress(ctx, ref, instance, protocol, "127.0.0.1", port)
+}
+
+func (r *Runtime) DialEnvironmentTCP(ctx context.Context, ref, instance, address string, port int) (net.Conn, error) {
+	if !core.ValidForwardAddress(address, port) {
+		return nil, core.ErrInvalidArgument
+	}
+	return r.dialEnvironmentAddress(ctx, ref, instance, "tcp", address, port)
+}
+
+func (r *Runtime) dialEnvironmentAddress(ctx context.Context, ref, instance, protocol, address string, port int) (net.Conn, error) {
 	if protocol != "tcp" && protocol != "udp" || port < 1 || port > 65535 {
 		return nil, core.ErrInvalidArgument
 	}
@@ -91,7 +102,7 @@ func (r *Runtime) DialEnvironmentNetwork(ctx context.Context, ref, instance, pro
 		return nil, core.ErrCapabilityStale
 	}
 	unix.Close(check)
-	return dialNetworkNamespace(ctx, ns, protocol, port)
+	return dialNetworkNamespaceAddress(ctx, ns, protocol, address, port)
 }
 func (r *Runtime) networkInstancePID(ctx context.Context, ref string) (int, error) {
 	if err := validateManagedInstanceRef(ref); err != nil || ref == trustedHostName {
@@ -111,6 +122,14 @@ func (r *Runtime) networkInstancePID(ctx context.Context, ref string) (int, erro
 	return state.PID, nil
 }
 func dialNetworkNamespace(ctx context.Context, namespace int, protocol string, port int) (net.Conn, error) {
+	return dialNetworkNamespaceAddress(ctx, namespace, protocol, "127.0.0.1", port)
+}
+
+func dialNetworkNamespaceAddress(ctx context.Context, namespace int, protocol, address string, port int) (net.Conn, error) {
+	if !core.ValidForwardAddress(address, port) {
+		return nil, core.ErrInvalidArgument
+	}
+	ip := netip.MustParseAddr(address)
 	type result struct {
 		conn net.Conn
 		err  error
@@ -128,14 +147,22 @@ func dialNetworkNamespace(ctx context.Context, namespace int, protocol string, p
 		if protocol == "udp" {
 			kind = unix.SOCK_DGRAM
 		}
-		fd, err := unix.Socket(unix.AF_INET, kind|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC, 0)
+		family := unix.AF_INET
+		if ip.Is6() {
+			family = unix.AF_INET6
+		}
+		fd, err := unix.Socket(family, kind|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC, 0)
 		if err != nil {
 			done <- result{err: err}
 			return
 		}
 		file := os.NewFile(uintptr(fd), "network-connection")
 		defer file.Close()
-		err = unix.Connect(fd, &unix.SockaddrInet4{Port: port, Addr: [4]byte{127, 0, 0, 1}})
+		var destination unix.Sockaddr = &unix.SockaddrInet6{Port: port, Addr: ip.As16()}
+		if ip.Is4() {
+			destination = &unix.SockaddrInet4{Port: port, Addr: ip.As4()}
+		}
+		err = unix.Connect(fd, destination)
 		if errors.Is(err, unix.EINPROGRESS) {
 			deadline := time.Now().Add(10 * time.Second)
 			for {

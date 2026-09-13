@@ -3,6 +3,12 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"forward.command":                {"Forward a local TCP listener through the controller to an Environment", "手元のTCP接続をcontroller経由で開発環境へ転送する"},
+	"forward.address":                {"Numeric loopback destination inside the Environment (default: 127.0.0.1)", "開発環境内のループバック宛先（既定: 127.0.0.1）"},
+	"forward.listen":                 {"Local numeric loopback address and port (default: 127.0.0.1:0; automatic port)", "手元のループバックアドレスとポート（既定: 127.0.0.1:0、自動選択）"},
+	"forward.duration":               {"Listener lifetime, 1s–1h (default: 1h)", "転送を続ける時間、1秒〜1時間（既定: 1時間）"},
+	"forward.ready":                  {"Listening at %s → %s %s:%d for %s. Connect your application here; Ctrl+C closes the listener and active connections.\n", "%s → 開発環境 %s の %s:%d へ %s 転送します。この接続先をアプリで開いてください。Ctrl+Cで待受と転送中の接続を終了します。\n"},
+	"forward.failed":                 {"Connection failed; check the Environment and target service:", "接続に失敗しました。開発環境と接続先サービスを確認してください:"},
 	"env.doctor.inspect_runtime":     {"Cannot verify the runtime state; inspect the owned Environment before changing it", "実行状態を確認できません。変更する前に、管理対象の開発環境を確認してください。"},
 	"env.status.header":              {"Environment: %s\nState:       %s\nWorkspace:   %s\nAccess:      %s\n", "開発環境: %s\n状態:     %s\n作業場所: %s\nアクセス: %s\n"},
 	"env.status.base":                {"Base:        %s\nRevision:    %s\n", "ひな形（Base）: %s\nリビジョン:     %s\n"},

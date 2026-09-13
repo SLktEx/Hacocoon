@@ -166,7 +166,7 @@ Ubuntu installer 34727370966、Incus 7 34727370817、Windows installer
 | `58c4a56` / `dev/1.x` | test/vet・race・模擬E2E・systemd・隔離した転送試験・固定AWS SDKの15試験は成功。全工程CIはUbuntu 24.04上でinstallerの26.04以降という条件により停止し、条件は緩和していない。Incus 6.0.0の観測・削除と正確な後始末を確認。rootfs importはamd64メタデータで一度失敗し、回帰試験で再現後、修正したBtrfs集約試験が64.20秒で成功。公開export/import、snapshot/copy、新規生成ID、Git/Workspace/OCIのデータ保持を確認し、失敗・成功fixtureを正確な所有記録で削除。導入済みcontroller import、SSH接続、稼働OCI、Windows導入はこの試験では未確認。 |
 | `6cf9295` / `dev/v2` | 専用Ubuntu 26.04/Incus 6.0.5へのローカルビルド導入でsetup・Host doctor全6項目、外部Workspace作成・Linux SSH編集/build・停止再開・重複拒否・空選択キャンセル・ファイルを残すEnv削除が成功。模擬customizationのexit 29は秘密出力を漏らさず工程・理由・request IDを表示。観測中断後も処理完了まで排他を保持。初回SSHはdefault denyとsshd不足で失敗し、限定した4つのパッケージ規則で準備後、その規則を削除。専用network namespaceとAppArmor無効のkernelでの確認であり、既定ネットワークやAppArmor隔離の検証ではない。Windows IDE/既定接続、非公開Git/registry、OCI保持、cold restartは未確認。 |
 | `ae19db6` / `dev/v2` | test/vet/JS、race、模擬E2E、interop 22試験とWindows installer構成要素試験が成功。installer変更処理は模擬化し、読取りtransportだけ対象WSLに固定。Linux PowerShellはSystemDirectoryが空でWindows専用fixtureを実行できなかった。実際の導入を証明する結果ではない。 |
-| `72058fc` / `dev/2.x` | 専用Incus/Btrfsで合成外部IPv4/IPv6・Physical Host・Env間のTCP/UDP、Hostからの転送が成功（各経路0.099〜0.169秒）。期限、失効、ポリシー期限、生成ID置換の拒否、DNS固定を確認。初回DNS fixtureはcontroller準備前に失敗し、読取りの準備待ちで順序を修正。公開Internet・企業VPN・本番サービスの確認ではない。 |
+| `72058fc` / `dev/2.x` | 専用Incus/Btrfsで合成外部IPv4/IPv6・Physical Host・Env間のTCP/UDP、Hostからの転送が成功（各経路0.099〜0.169秒）。期限、失効、ポリシー期限、生成ID置換の拒否、DNS固定を確認。初回DNS fixtureはcontroller準備前に失敗し、読取りの準備待ちで順序を修正。公開Internet・VPN・本番サービスの確認ではない。 |
 | `ac67fad` / `dev/2.x` | 導入済みCLI/Incusで2リポジトリの準備・再開、SSH編集、再作成後のファイル/Store保持、独立fork、OCIなし、Store明示再利用、Base交換が成功。宛先OCI衝突は不完全な所有記録と元snapshot予約を保持して再開を拒否し、既存Storeは不変。専用ファイル・明示したWSL/namespace経路でWindows SSHと転送したブラウザー表示は成功。自動open、VS Code UI、既定installerネットワークは未確認。Windows TCP/UDPサービスはWindows内から成功したがWSL/controllerからはtimeout。ゲストTCPはconnect/failed/timeoutを記録し、UDP応答なし。Windowsサービスへの外向き通信と失敗原因は未確認。 |
 
 小さいWorkspace fixtureの時間/Btrfsプール増分は、準備0.556秒/126,976バイト、
@@ -484,3 +484,29 @@ private registryはSKIPです。Base buildの受入完了とは扱いません�
 人向け／JSON出力のcontroller往復回帰を追加します。製品の出力・lifecycle権限は変えません。
 Go 1.26.8の関連回帰と標準ローカルtestはPASS。実Incus Base buildと後続SKIPは再実行待ちです。
 観測時の#616 testはqueued、Windowsは実行中で、#619の新runも未完了でした。
+
+## client TCP転送候補
+
+実装 `640c66ff4ce98d50946a31c6b5c284c59a1c0890` はprivate controller byte
+sessionによるclient側TCP待受です。開発候補でありmain反映・配布済みではありません。
+
+- Go 1.26.8のclient/control/API/provider/product集中試験と、独立Linuxコピーの
+  標準`bash tools/ci-local.sh test`がPASS。明示的sessionキャンセル追加後も、関連
+  client/control/controlapi/streamioのrace 5回反復がPASS。文書検査もPASS。
+- 実TCP/UDS componentで8本同時のbinary往復、request EOF後のresponse排出、相手の
+  EOF後も送信、接続拒否、世代交代、停止中／復旧待ちEnvの拒否、接続待ちの中断、
+  EOFを無視するアプリでもキャンセル応答前にprovider socketを閉じることを確認。
+- 独立試験コピーでbyte sessionを既存process用の暗黙EOF待ちへ戻すと、相手からの
+  半切断回帰がFAIL。明示的byte sessionではPASSし、キャンセル追加前の関連race
+  10回反復もPASS。意図した失敗はprotocolを分ける根拠であり、未解決の製品失敗ではない。
+- Windows amd64実機の`internal/streamio`試験でTCP binary往復・半切断、接続待ち中の
+  キャンセル、非loopback拒否がPASS。transport基本処理の受入であり、導入済みの
+  Windows→WSL転送の受入ではない。
+- 導入済みnetwork-security journeyへ、`haco env tunnel`で8本同時・各2MiBの往復と
+  待受回収を追加。親試験が所有する使い捨てEnvと通常のアプリprocessを使う。
+  この新しい実Incus経路は今回**未実施**。network例外やguest権限の抜け道は追加していない。
+- checkpointツールは最初にWSLからWindows worktreeのGit管理pathを解決できず、変更前に
+  FAIL。Windows側の公式lock helper内で同じ更新ツールを実行して成功。lockを迂回していない。
+
+Windows側待受から`wsl.exe`を通す経路、汎用process caller統合、通常のネットワーク
+以外の環境でのDNS mode／VPNはM3の残件。過去の実機FAIL／SKIPは維持する。

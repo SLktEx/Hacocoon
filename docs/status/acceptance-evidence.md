@@ -178,7 +178,7 @@ of the merged main candidate. Integration does not expand their acceptance scope
 | `58c4a56` / `dev/1.x` | Maintained test/vet, race, fixture E2E, systemd, isolated forwarding and 15 pinned AWS SDK contract tests passed. All-stage CI stopped at the Ubuntu >=26.04 installer requirement on Ubuntu 24.04; that guard was preserved. Native Incus 6.0.0 observation/deletion passed with exact cleanup. Rootfs import first failed on native `amd64` metadata; archive regressions reproduced it, then the corrected Btrfs aggregate passed in 64.20s with public export/import, snapshots/copy, fresh generations and retained Git/Workspace/OCI bytes. Both failed and successful fixtures were cleaned by exact ownership. Shipped-controller import, actual SSH, live OCI and installed Windows were not tested in this run. |
 | `6cf9295` / `dev/v2` | A locally built installation in dedicated Ubuntu 26.04/Incus 6.0.5 passed setup, all six Host doctor checks, external Workspace create/open, Linux SSH edit/build, stop/start, duplicate refusal, blank-selection cancellation and Env deletion retaining files. Synthetic customization exit 29 reported its fixed stage/reason/request ID without leaking private output. Setup interruption retained exclusion until actual completion. Initial SSH failed with default deny/absent sshd; four scoped package rules enabled setup and were removed afterwards. The dedicated network namespace and disabled kernel AppArmor do not establish default installation networking or AppArmor confinement. Windows IDE/default-entry, private Git/registry, OCI retention and cold restart were not exercised. |
 | `ae19db6` / `dev/v2` | Maintained test/vet/JS, race, fixture E2E and 22 interop tests passed. Windows installer component fixtures passed with mutation paths mocked and read-only transport pinned to a selected WSL. Linux PowerShell could not run that Windows-only fixture because SystemDirectory was empty; component results do not establish native installation. |
-| `72058fc` / `dev/2.x` | Dedicated Incus/Btrfs installed CLI passed synthetic external IPv4/IPv6, Physical Host and peer Env TCP/UDP and Host-to-Env forwarding (0.099–0.169s per fixture journey), expiry, revocation, Policy expiry, replaced generation refusal and DNS pinning. An initial DNS fixture ran before controller readiness; bounded observation corrected its order. These are synthetic local fixtures, not public Internet, corporate VPN or production-service acceptance. |
+| `72058fc` / `dev/2.x` | Dedicated Incus/Btrfs installed CLI passed synthetic external IPv4/IPv6, Physical Host and peer Env TCP/UDP and Host-to-Env forwarding (0.099–0.169s per fixture journey), expiry, revocation, Policy expiry, replaced generation refusal and DNS pinning. An initial DNS fixture ran before controller readiness; bounded observation corrected its order. These are synthetic local fixtures, not public Internet, VPN or production-service acceptance. |
 | `ac67fad` / `dev/2.x` | Installed CLI/Incus passed two-repository preparation/reopen, SSH edits, retained files/Store data after recreation, independent stopped forks, no-OCI operation, explicit Store reuse and Base replacement. A destination OCI collision retained incomplete ownership/source reservations and refused reopen without changing the pre-existing Store. Windows SSH and an SSH-forwarded browser fixture passed with dedicated files and an explicit distribution/namespace route; automatic Windows open, VS Code UI and default installer networking were not established. Registered Windows TCP/UDP services answered local Windows probes but WSL/controller probes timed out; approved guest TCP recorded connect/failed/timeout, and UDP had no response. Outbound Windows-service access and its failure cause remain unverified. |
 
 For the Workspace fixture, preparation took 0.556s / 126,976 Btrfs pool bytes;
@@ -575,3 +575,38 @@ build definitions. Product output and lifecycle permissions remain unchanged.
 Focused Go 1.26.8 and the maintained local test entry pass. Real Incus Base-build
 and the skipped later steps still need a fresh run. At this observation, #616's
 test job was queued and Windows was running; #619's new runs were not complete.
+
+## Client TCP forwarding candidate
+
+Implementation `640c66ff4ce98d50946a31c6b5c284c59a1c0890` adds client-loopback
+TCP forwarding over private controller byte sessions. It is a development
+candidate, not main integration or distribution.
+
+- Go 1.26.8 focused client/control/API/provider/product tests and the maintained
+  `bash tools/ci-local.sh test` passed on an independent Linux snapshot. Related
+  client/control/controlapi/streamio race tests passed five repetitions, including
+  after explicit session cancellation was added. Documentation checks passed.
+- Real TCP/UDS component tests cover eight concurrent binary request/response
+  streams, request EOF with response drain, peer EOF before client EOF, target
+  rejection, creation replacement, stopped/recovery-required Env refusal,
+  pending-dial cancellation, and provider socket closure before cancellation
+  acknowledgement even when the application ignores EOF.
+- Replacing byte-session reads with the existing process-session implicit EOF
+  wait in an isolated test copy made the peer-half-close regression fail. The
+  explicit byte-session implementation passes, including ten race repetitions
+  before the final cancellation addition. The deliberate failure remains evidence
+  for the protocol distinction; it is not an unresolved product test failure.
+- Native Windows amd64 `internal/streamio` tests passed real TCP binary
+  round-trip/half-close, pending-dial cancellation and non-loopback refusal.
+  This is transport primitive acceptance, not installed Windows-to-WSL forwarding.
+- The installed network-security journey now includes eight concurrent 2 MiB
+  round trips through `haco env tunnel`, with listener cleanup. It reuses the
+  parent's test-owned Env and regular application process. This new Incus journey
+  has **not run** here; no network exception or privileged guest shortcut was used.
+- The first checkpoint-tool invocation failed before changes because WSL could
+  not resolve the Windows worktree's Git administration path. Running the official
+  Windows lock helper around the same updater succeeded; no lock was bypassed.
+
+Windows-native listener transport through `wsl.exe`, generic process caller
+consolidation, and DNS modes/VPN in environments beyond the usual network remain
+M3 work. Existing native failures and skips above are not superseded.

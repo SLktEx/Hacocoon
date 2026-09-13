@@ -148,3 +148,11 @@ Capability sessions.
 ## Development acceptance
 
 See [commit-bound acceptance and unresolved Windows-service failures](../status/acceptance-evidence.md#development-branch-integration).
+
+## Client-side application access
+
+`haco env tunnel --target-port 8080 demo` creates a client-owned loopback TCP
+listener through the private controller stream, without a persistent Incus proxy.
+Its location, defaults, creation binding, authority and Windows limits are owned
+by [client TCP listeners](controller-client-transport.md#client-tcp-listeners).
+Guest-originated network permissions remain the separate contract above.
