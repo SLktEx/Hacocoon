@@ -21,7 +21,7 @@ try {
         $env:GOOS='linux'; $env:GOARCH='amd64'; $env:CGO_ENABLED='0'
         go build -trimpath -o $binary ./tools/installed-egress-check
         if ($LASTEXITCODE -ne 0) { throw 'Cannot build installed-controller acceptance client' }
-        go build -trimpath -o $packageBinary ./tools/installed-package-egress-check
+        go build -trimpath -o $packageBinary ./tools/installed-egress-check/package-baseline
         if ($LASTEXITCODE -ne 0) { throw 'Cannot build installed package-egress acceptance client' }
     } finally { $env:GOOS=$oldGoos; $env:GOARCH=$oldGoarch; $env:CGO_ENABLED=$oldCgo }
     $linuxBinary = (& wsl.exe -d Hacocoon --exec wslpath -a -u $binary).Trim()
