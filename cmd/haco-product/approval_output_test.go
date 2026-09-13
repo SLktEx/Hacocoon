@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func TestApprovalListDefaultsToHumanReadableOutput(t *testing.T) {
