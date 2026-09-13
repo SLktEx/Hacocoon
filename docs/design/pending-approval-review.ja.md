@@ -89,30 +89,43 @@ native Windows 通知の起動導線は実装済み、D2 受け入れは部分�
 信頼しない remote terminal で管理コマンドを動かしたりしません。
 [ADR 0028](../adr/0028-pending-approval-sessions.ja.md) を参照してください。
 
-## VS Code からのローカル承認
+## VS Code GUIでの承認
 
-状態: **リポジトリ実装済み、導入済み受け入れは未確認**。
-任意のデスクトップ VS Code 拡張で通知の Review、または Hacocoon: Review Pending Approvals を選ぶと、
-ローカル UI extension Host が通常の `haco approve` を専用 terminal で開きます。
-クリック自体では回答しません。信頼された現在の要求と再利用範囲を確認し、単発回答または保存を選び、
-ask には別途今回の yes/no を入力します。
+状態: **開発候補で実装済み。導入済みGUIの受け入れは確認待ち**。
+任意のローカルUI拡張で通知のReview、または **Hacocoon: Review Pending Approvals** を選ぶと、
+Webviewが開きます。今回の操作全体と保存範囲を確認し、**今回は許可する** または **今回は拒否する**
+を選びます。terminal入力は不要です。表示はVS Codeの日英設定に従い、command paletteは通知bridgeなしでも使えます。
 
-Windows はローカルの導入済み Hacocoon WSL distribution と既定の利用者を使用し、
-Linux はローカル Physical Host の導入済み CLI を使用します。実行ファイルは絶対パス固定、
-引数は分離し、環境変数は許可リストに限定します。workspace の実行設定やコントローラー override、
-remote シェルは使いません。別の WSL distribution はローカル利用者設定だけで指定できます。
-Web、remote extension Host、信頼されていない window、非対応 platform は承認を開けません。
+初期値は設定を保存しない「今回のみ」です。選択肢は共通Policy builderが返した範囲だけです。
+Gitのref／更新種別、networkのhostname／protocol／portなど、保存するruleを省略せず表示します。
+Env単位は今回の作成identityに限定し、全Env共通は今後作成するEnvも含みます。毎回確認を保存する場合も、
+今回の許可・拒否は明示的に回答します。通知を開く、選ぶ、更新するだけでは回答しません。
 
-同じ要求の画面は再利用し、入力と出力を制限します。子プロセスの制御文字は terminal を操作できません。
-閉じる操作・Ctrl-C/D・15 分の期限はローカルの子プロセスを終了させますが、送信済み回答の取消しや
-再実行はしません。失敗・不明な結果は未確認として示します。Windows の起動導線は後述し、Linux デスクトップの起動は未実装の計画です。
-[ADR 0029](../adr/0029-local-desktop-approval-review.ja.md) を参照してください。
+固定した導入済みローカルCLIのprivate子プロセスpipeから既存management APIを使用します。
+WindowsのWSL distributionはローカル利用者設定だけで選び、LinuxはPhysical Hostを使います。
+Web／remote extension Host、非信頼window、非対応platformは拒否します。workspace設定・provider出力・
+公開eventは実行ファイル・認証・管理socketを指定できません。通常Envへ管理権限を投影しません。
 
-JavaScript テストは実行先、入力、終了処理、失敗、通知クリックを確認します。
-実 VS Code GHA には予測不能な古い要求 ID で local terminal から導入済みコントローラーの拒否を確認する
-検査を追加しましたが、結果は未確認です。新しい要求への人間の実回答や OS 通知クリックを証明するものではありません。
+privateな選択tokenを表示内容全体に束縛します。回答直前にEnv作成identityと保存範囲を含めて再取得・比較し、
+共通decision serviceを呼びます。単一回答の取得、Policy検証・保存・監査・実行は既存serviceが担当します。
+tokenはargv・log・URL・読み取り専用event bridgeへ出しません。既存management endpointの認可も必要です。
 
-実機検証では VS Code API 全体の列挙が確認起動前に失敗したため、observer は必要な安定 API だけを明示的に渡します。失敗時も作成確認済みの editor/terminal 検証ファイルを削除し、生の subprocess 出力を含まない固定段階と真偽値だけを記録します。実機で通常 CLI の HTTPS 承認は別途成功し、修正 observer は実機 VS Code 1.136.1 で編集・terminal・古い要求拒否を確認し、検証用構成後始末も成功しました（導入済み 6771f2f、observer 05c8206）。
+ローカル画面は一つを再利用し、待機中は5秒ごとに承認待ちを更新します。回答の選択は失敗し得る呼出し前に
+消費します。閉じる操作と15分の表示期限はローカル子プロセスを終了させ、自動再送や取消しはしません。
+queueのより短い要求期限は維持します。取得・protocol・通信失敗では選択を無効にし、送信後の不明な結果は
+未確認と表示します。拒否、実行成功、保存設定、監査未完了をreceiptで区別し、不確かな結果の再試行前には
+設定と監査を確認します。
+
+Webviewはnetwork／command URI／local file resourceを許可せず、nonce CSPとtextContentを使います。
+権限に関する値は省略せず文字列として表示します。snapshot、待機数、入出力、stderrには上限を設けます。
+private protocolは表示用内部interfaceで、公開plugin APIではありません。
+[ADR 0067](../adr/0067-local-gui-approval-session.md)を参照してください。
+
+実rendererのclick、保存範囲、古い／変更された要求、trust取消し、重複回答、不正出力、取消しを回帰試験します。
+導入済み検証は実Webviewの起動通知と実コントローラーの古い要求拒否を観測し、回答を注入しません。
+新しい実機結果は確認待ちです。旧custom terminalの成功はhistoricalであり、GUIの成功へ読み替えません。
+[検証証拠](../status/acceptance-evidence.ja.md)を参照してください。Windows通知内だけでの新規回答は
+Issue #568の別の残件です。
 
 ## Windows 通知から開く
 

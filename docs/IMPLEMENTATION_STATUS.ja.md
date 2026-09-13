@@ -2,15 +2,15 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.60**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.61**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
-このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
+このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
-| [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。現行P/PF修正と日本語Windows新規導入のパッケージ確認は残る。 |
+| [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。英語Windows配布物の入場／interopは確認済み。日本語Windows新規導入は未確認。 |
 | [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。構成メンバーの編集と準備中断からの一般的な復旧は未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
 | [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したループバック SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
@@ -56,3 +56,11 @@ Ubuntu配布物と範囲を限定したWindows受入が成功しました。別�
 成功しました。`3cac2e95`でWindows転送・公開reclaim・native通知経路も成功しましたが、
 人によるトースト操作／GUI回答はSKIPです。
 [commitごとの証拠](status/acceptance-evidence.ja.md)を参照してください。配布済み・実機での言語転送完了ではありません。
+
+VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表示snapshotに束縛したprivate sessionを使用します。導入済みGUI確認とWindows通知内回答は残件です。[承認の契約](design/pending-approval-review.ja.md)を参照してください。
+
+最新M1候補`0c79f820`では、有効なIncus 7.0.1 Core／BtrfsとUbuntu／Windows配布物のworkflowがすべてPASSです。
+英語WindowsからHostへの表示言語一致、通常SSH／VS Code、移送、public reclaim、通知起動を確認しました。
+M1は部分完了で、help／optionsの翻訳全体、日本語Windows経路、元のSSH失敗再現、導入済み長文入力／resizeが残ります。
+人間のtoast／新GUI回答は未確認です。[検証証拠](status/acceptance-evidence.ja.md)を参照してください。
+開発ブランチ上の実装と確認であり、main反映済み・配布済みを意味しません。

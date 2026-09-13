@@ -238,3 +238,22 @@ Windows上の直接PowerShell照会は`en`でした。一方、既存`hacocoon-s
 既存環境の修復・設定変更は行わず、fallback回帰の成功とは分けて失敗を保持します。新規配布物の
 Windows CIではHacocoonのoverrideを注入せず、通常入場・再起動・再導入後の実Host sessionの値を
 WindowsユーザーのUI設定と照合する項目を追加しました。その実行結果は確認待ちです。
+
+### Incus 7とWindows配布物の統合候補確認
+
+`0c79f8209eec42b597cc811a9114e0351d8226d7`（PR #583）は、test
+[34724986411](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411)、Ubuntu
+[34724986358](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358)、Incus
+[34724986357](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)、Windows
+[34724986361](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)が成功しました。
+Incusは**7.0.1**を確認し、有効なstandalone／Core／Btrfs jobがすべてPASSです。Base build、native import、
+取得元削除、snapshot／copy、persistent CoW、Store maintenance／cleanupを含みます。private registryはSKIPです。
+先行するsnapshot fixture 2件の失敗はこの候補で解消しましたが、保持した過去の失敗履歴は消しません。
+
+Windows導入・再起動・再導入ではoverrideなしでWindows UI設定とHostの`HACO_UI_LANGUAGE=en`が一致しました。
+native interop、通常の鍵固定SSH・接続再利用・再開、実VS Codeの編集／terminal、CLI承認、preview、
+export／delete／importと保持データからの再作成がPASSです。public reclaimのVHDX割当量は
+**7,864,320,000 → 3,974,103,040 bytes**で、再開後のHost sentinel・Workspace／OCI保持・snapshot復元も成功しました。
+通知の所有権・古い／不正要求拒否・listener cleanupもPASSです。人間のtoast click／新GUI回答とVPN／NRPTは明示SKIPです。
+日本語Windows実機確認と既存ローカルWSLInteropの失敗は未解決です。この結果は新GUI session実装前であり、
+その受け入れや配布済みを意味しません。

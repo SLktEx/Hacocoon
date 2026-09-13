@@ -10,6 +10,7 @@ on:
       - main
       - dev/2.x
       - dev/v2
+      - 'codex/**'
 
 permissions:
   contents: read
@@ -243,7 +244,8 @@ jobs:
           node --check pkg/interactionhttp/web/app.js
           node --check clients/vscode-notify/extension.js
           node --check clients/vscode-notify/review.js
-          node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js
+          node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js test/js/approval_panel.test.js
+          python3 tools/test_vscode_packaging.py
           python3 tools/test_pending_approvals_test.py
           python3 tools/test_windows_transfer_bundle_copy.py
           python3 tools/test_evacuation_inventory.py

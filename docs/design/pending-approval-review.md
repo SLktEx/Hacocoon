@@ -90,39 +90,55 @@ contain only request ID, an explicit boolean and an optional saved-choice enum;
 clients cannot replace targets, attributes or saved scope. Responses preserve the
 actual result on failure but omit provider output and use fixed error categories.
 
-## Notifications
+## VS Code GUI review
 
-The [interaction stream](../reference/interaction-events.md) remains read-only and minimized.
-Its request ID is correlation data, never an approval token. The optional desktop
-VS Code extension offers Review and a Hacocoon: Review Pending Approvals command.
-Both open the ordinary CLI in a custom terminal owned by the local UI extension
-host. Clicking supplies no answer. The operator sees the exact trusted prompt
-and types the existing one-shot or saved choice, including a separate answer for ask.
+Status: **implemented development candidate; installed GUI acceptance pending**.
+The optional local UI extension opens a Webview from Review or **Hacocoon: Review
+Pending Approvals**. Inspect the complete current operation, choose whether to save
+Policy, then click **Allow this operation** or **Deny this operation**. No terminal
+input is required. Labels follow the VS Code English/Japanese display language.
+The command palette works without the notification bridge.
 
-Windows uses the installed local Hacocoon WSL distribution and its default operator
-account. Linux uses the installed local Physical Host CLI. Executables are fixed
-absolute paths, arguments are separate, and a small environment allowlist excludes
-workspace/controller overrides. No remote shell or workspace task runs the command.
-Only an explicit local user setting can select another installed WSL distribution.
-Web, remote extension hosts, untrusted windows and unsupported platforms refuse review.
+No saved Policy is the default. The dropdown offers only scopes returned by the
+common Policy builders. The full rule is displayed, including exact Git ref/update
+kind or network hostname/protocol/port. Environment scope binds this creation;
+global scope includes future Environments. Saving ask still requires an explicit
+current answer. Selecting, refreshing and opening a notification do not answer.
 
-Duplicate panes for the same request are reused. Input and output are bounded;
-subprocess control characters cannot alter terminal display. Closing, Ctrl-C/D or
-fifteen-minute expiry terminates the local child and never retries or rolls back
-an already submitted decision. Failed/unknown outcomes remain visibly unconfirmed.
-Windows native entry is described below; Linux desktop activation remains planned. See [ADR 0029](../adr/0029-local-desktop-approval-review.md).
+A fixed local installed CLI uses private child-process pipes to the existing
+management API. Windows selects its installed Hacocoon WSL distribution using only
+the local user setting; Linux uses the local Physical Host. Web/remote extension
+hosts, untrusted windows and unsupported platforms refuse review. Workspace values,
+provider output and public events cannot choose executable paths, credentials or
+controller sockets. No management authority is projected into an Environment.
 
-Repository JS tests cover routing, input, disposal, failures and notification clicks.
-Installed GHA now probes the real custom terminal from a Remote-SSH editor with an
-unpredictable stale ID, requiring the installed controller's refusal. This probe passed in actual local VS Code 1.136.1 with installed 6771f2f and observer 05c8206; it does not prove an actual human's fresh approval or OS notification click.
+A private selection token binds the complete displayed request. Immediately before
+submission, the adapter compares a fresh snapshot including Environment creation
+and saved scope, then calls the common decision service. That service retains its
+single-consumer claim, Policy validation/persistence, audit and execution. Tokens
+never enter argv, logs, URLs or the read-only event bridge. They are not a replacement
+for the management endpoint's existing authorization.
 
-See [ADR 0028](../adr/0028-pending-approval-sessions.md).
+One local panel is reused. Pending requests refresh every five seconds when idle;
+submission consumes its selection before a fallible call. Closing or the fifteen-minute
+presentation deadline stops the local child without retry or rollback. The queue's
+shorter request deadlines remain unchanged. Read/protocol/transport failures disable
+or invalidate the selection; an unknown submitted outcome remains unconfirmed.
+The receipt distinguishes denial, actual successful execution, saved Policy and
+incomplete audit. Inspect Policy and audit before retrying an uncertain result.
 
-The installed observer uses only explicitly selected stable VS Code APIs: enumerating
-the full API object failed before review in real desktop acceptance. It removes
-proven owned editor/terminal probes on failure, and reports only fixed diagnostic
-steps and booleans without subprocess output. A real local test passed ordinary
-HTTPS approval decisions separately; the corrected desktop observer passed the actual local editor, terminal and stale-request refusal checks, followed by successful fixture cleanup.
+The Webview denies network/command/local-file resources, uses a nonce CSP and renders
+untrusted values as literal text without truncating authority fields. Display snapshots,
+pending counts, input/output and stderr are bounded. The private protocol is an internal
+presentation interface, not a public plugin API. See [ADR 0067](../adr/0067-local-gui-approval-session.md).
+
+Repository tests exercise actual renderer clicks, saved scopes, stale/changed requests,
+trust revocation, duplicate answers, malformed output and cancellation. Installed
+acceptance observes the real Webview handshake and the installed controller's stale
+request refusal without injecting decisions. Its new result is pending. Earlier custom
+terminal successes are historical evidence, not GUI acceptance; see
+[acceptance evidence](../status/acceptance-evidence.md). Windows notification-contained
+fresh answers remain a separate open part of Issue #568.
 
 ## Windows notification entry
 

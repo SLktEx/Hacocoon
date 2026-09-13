@@ -131,9 +131,9 @@ rerun all old tests. Main, dev/v2 and dev/2.x are distinct publication states.
 
 | Stage | Current candidate and next gate |
 |---|---|
-| M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined installed acceptance remains pending. |
-| M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Remaining: full help/options coverage, language transport, Windows/VS Code/real terminal acceptance and Incus 7.0 LTS (#479). |
-| M2: multi-repo Git and GUI decisions | **partial**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch (#584) and separately approved new-branch/fast-forward push (#586) are implemented on development branches. Native Git acceptance, direct GUI responses (#568) and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
+| M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined Incus 7.0.1, Ubuntu and Windows acceptance at `0c79f820` passed; see exact evidence. |
+| M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Windows UI-to-Host language transport and verified Incus 7.0.1 packaged/native gates pass at `0c79f820` (English Windows). Remaining: full help/options coverage, Japanese Windows flow, original repeated-SSH-failure route and installed long-input/resize verification. |
+| M2: multi-repo Git and GUI decisions | **partial**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch (#584) and separately approved new-branch/fast-forward push (#586) are implemented on development branches. VS Code GUI responses (#568) are implemented on `codex/gui-approval`, using common saved scopes and private selection sessions. Native Git/GUI acceptance, Windows notification-contained answers and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
 | M3: corporate network | **partial existing foundation**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. The dedicated Windows-service timeout remains unresolved; VPN/DNS modes, client stream forwarding and temporary-run TTY remain. No firewall exception is introduced to obtain a pass. |
 | M4: large repositories | **planned remaining work**. Preserve existing Base builder/CoW/OCI results. Real Packer HCL2 plus external shell (#566), Host-selected normal-Env cache generation/COW reuse (#570), cleanup and actual large-repo measurement (#241) remain. Small #579 fixtures are not giant-repository acceptance. |
 | M5: cleanup and migration | **partial existing foundation**. Preserve snapshot/copy/export/import/reclaim and stopped-containerd evidence. Deletion diagnosis (#523), required whole-installation inventory/restore/comparison and authenticated restored Git remain. Final old-WSL replacement requires identified verified data and explicit authority for deletion. |
@@ -303,3 +303,10 @@ probe failed with `exec format error` and its WSLInterop registration was absent
 That existing installation was left unchanged. Component selection/fallback and
 the packaged user-path assertion are separate from native acceptance. The next
 packaged Windows run must compare the Host value with the Windows setting.
+
+Current next step: review the GUI slice on top of PR #587 (new-branch push,
+implementation `7bdd3db6`, merged parent `9d9e67ec`) and PR #585 (all-branch fetch,
+merged parent `bc78d535`). Keep native GUI results distinct from the completed
+`0c79f820` M1 acceptance. Existing read-only Git fetch and separately scoped main
+push authority remain unchanged. Stacked work-branch PRs now use the same maintained
+CI, so their changed packages receive native checks without merging to main.

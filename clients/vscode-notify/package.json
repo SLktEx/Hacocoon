@@ -2,7 +2,7 @@
   "name": "hacocoon-notifications",
   "displayName": "Hacocoon Notifications",
   "description": "Optional Hacocoon notifications and trusted local approval review.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "icon": "media/icon.png",
   "engines": {
