@@ -8,6 +8,13 @@ Supported local baseline: Ubuntu 26.04+ with systemd; Windows uses a dedicated
 Ubuntu 26.04 WSL 2 distribution. [Acceptance limits](../status/acceptance-evidence.md#installation)
 are separate from repository implementation.
 
+Incus must be on the **7.0 LTS** series (`>= 7.0.1`, `< 7.1`). The complete
+installer selects the latest 7.0.x package from the verified Zabbly LTS source;
+normal APT updates can advance patches while excluding 7.1+ feature releases.
+`haco doctor` reports unsupported versions. Historical 6.0.5 installations are
+outside this baseline; preserve existing data before upgrading, and never
+downgrade a newer series in place. See the [package contract](../design/installer.md#incus-package-baseline).
+
 ## Choose the complete package
 
 Download the matching `hacocoon-windows-amd64.zip` / `hacocoon-windows-arm64.zip`

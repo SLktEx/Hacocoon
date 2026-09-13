@@ -5,8 +5,7 @@ readonly CI_REMOTE="haco-ci"
 readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
-readonly ZABBLY_SIGNING_FPR="4EFC590696CB15B87C73A3AD""82CC8797C838DCFD"
-readonly INCUS_LTS_SERIES="7.0"
+readonly INCUS_LTS_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/incus-lts.sh"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -46,50 +45,9 @@ ensure_repo_tools() {
   fi
 }
 
-install_zabbly_incus_lts() {
-  local codename="$1"
-  local key_file source_file fingerprint architecture
-
-  ensure_repo_tools
-
-  key_file="$(mktemp)"
-  curl -fsSL https://pkgs.zabbly.com/key.asc -o "$key_file"
-  fingerprint="$(gpg --batch --show-keys --with-colons --fingerprint "$key_file" | awk -F: '$1 == "fpr" {print $10; exit}')"
-  [[ "$fingerprint" == "$ZABBLY_SIGNING_FPR" ]] || fail "unexpected Zabbly signing fingerprint: $fingerprint"
-
-  sudo install -d -m 0755 /etc/apt/keyrings
-  sudo install -m 0644 "$key_file" /etc/apt/keyrings/zabbly.asc
-  rm -f "$key_file"
-
-  architecture="$(dpkg --print-architecture)"
-  source_file="$(mktemp)"
-  cat >"$source_file" <<EOF_ZABBLY
-Enabled: yes
-Types: deb
-URIs: https://pkgs.zabbly.com/incus/lts-${INCUS_LTS_SERIES}
-Suites: $codename
-Components: main
-Architectures: $architecture
-Signed-By: /etc/apt/keyrings/zabbly.asc
-EOF_ZABBLY
-  sudo install -m 0644 "$source_file" "/etc/apt/sources.list.d/zabbly-incus-lts-${INCUS_LTS_SERIES}.sources"
-  rm -f "$source_file"
-
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
-  # Hacocoon's Incus substrate is system-container-only. The Zabbly
-  # container-only package includes the client, dnsmasq, AppArmor policy and
-  # host compatibility sysctls without pulling the QEMU/VM dependency stack.
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends incus-base
-}
-
 install_incus() {
-  local codename version_id
-
-  codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
-  version_id="$(. /etc/os-release && printf '%s' "$VERSION_ID")"
-  [[ "$version_id" == "26.04" ]] || fail "real Incus CI requires the supported Ubuntu 26.04 host, got $version_id"
-
-  install_zabbly_incus_lts "$codename"
+  ensure_repo_tools
+  sudo env DEBIAN_FRONTEND=noninteractive sh "$INCUS_LTS_HELPER" install
 }
 
 record_environment() {
@@ -152,9 +110,7 @@ setup_incus() {
   incus remote switch "$CI_REMOTE"
 
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
-  [[ -n "$server_version" ]] || fail "could not determine Incus server version"
-  dpkg --compare-versions "$server_version" ge 7.0.1 || fail "Incus $server_version is too old; 7.0.1+ LTS is required on Ubuntu 26.04"
-  dpkg --compare-versions "$server_version" lt 7.1 || fail "expected Incus 7.0 LTS, got $server_version"
+  sh "$INCUS_LTS_HELPER" verify-version "$server_version"
   incus profile show default --project default >/dev/null
   record_environment
 }

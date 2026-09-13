@@ -47,6 +47,13 @@ and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs
 
 ## Verification boundary
 
+Implemented: [Incus 7.0 LTS installation](design/installer.md#incus-package-baseline)
+is shared by Ubuntu, Windows/WSL and both native CI setup paths, with patch updates
+and actual-server version validation. Doctor reports unsupported servers; 6.0
+fallbacks remain best effort. Vendor daemon recognition and anonymous volume
+export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
+separates the successful integrated candidate from this main-targeted extraction.
+
 Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
 
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.

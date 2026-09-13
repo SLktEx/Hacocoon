@@ -34,6 +34,15 @@ listener before and after Incus starts. The guard checks actual executable and
 namespace identity through procfs, including replaced executables. Incus
 processes without a matching managed daemon refuse retirement and adoption.
 
+The exact daemon allowlist covers Ubuntu's `/usr/libexec/incus/incusd` and the
+Zabbly LTS package's `/opt/incus/bin/incusd`. The latter is launched through the
+vendor systemd wrapper, whose pathname is not accepted as the daemon itself.
+Both paths require root ownership of the process, the current PID namespace and
+the matching systemd MainPID. A nonzero MainPID with an unrecognized executable
+or namespace is an ambiguous running service and refuses retirement; it must
+never be treated as proof that Incus is absent. The shared 7.0 installer exposed
+the missing vendor pathname during fresh Ubuntu acceptance (PR #583).
+
 The helper opens all path components without symlink traversal. Metadata must
 be root-owned and not group/other-writable; files must be single-link regular
 files. FIFO opens are nonblocking. A root-owned flock serializes executions.

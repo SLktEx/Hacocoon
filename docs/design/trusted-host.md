@@ -1,5 +1,11 @@
 # Trusted `haco-host`
 
+The supported Incus baseline is 7.0 LTS (`>= 7.0.1`, `< 7.1`). Ubuntu/WSL
+installation uses the shared signed LTS source and follows 7.0.x patches;
+`haco doctor` refuses unsupported or unverifiable server versions before
+dependent probes. Existing 6.0 fallbacks remain best effort. See the
+[installer contract](installer.md#incus-package-baseline).
+
 Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
 
 
@@ -283,6 +289,11 @@ the saved snapshot again. Only `--script` replaces it; editing the original file
 does not silently change the saved recipe. `--reapply-script` skips mandatory
 provisioning and requires an already owned, running Host. These two additional
 flags are Host-only; explicit Environment setup retains its Workspace recipe rules.
+
+Ordinary shell entry waits for an active controller setup to finish within the
+shared 15-minute preparation deadline, then performs its own canonical preparation.
+Explicit setup still rejects overlap. Cancelling a waiting entry cannot release
+the active operation's exclusion or authorize replay of a failed/unknown recipe.
 
 The client reads a regular UTF-8 file of at most 1 MiB; an executable bit is not
 needed. UTF-8 BOM and CRLF are normalized. `~/` resolves in the client account.
