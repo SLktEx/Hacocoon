@@ -149,6 +149,7 @@ func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
 				found = true
 				break
 			}
+		}
 		if !found {
 			t.Fatalf("missing docker alias command %q: %#v", want, runner.calls)
 		}
