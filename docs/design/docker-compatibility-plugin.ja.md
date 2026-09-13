@@ -19,6 +19,10 @@ maintained profile -> nerdctl -> containerd
 compatibility      -> genuine Docker CLI -> optional/on-demand dockerd -> existing containerd where supported
 ```
 
+標準Tooling BaseはDocker Engine自体をプリインストールしません。通常の `docker` コマンドは `/usr/bin/docker -> /usr/local/bin/nerdctl` の互換リンクです。Dockerパッケージを後から導入すると、そのパッケージが `/usr/bin/docker` を本物のCLIへ置き換えられます。
+
+標準Tooling Baseには `hacocoon-docker.socket` / `.service` を保持し、vendorの `docker.service` / `docker.socket` は競合防止のためmaskします。`hacocoon-docker-autostart.path` は `/usr/bin/dockerd` の出現を監視し、Docker Engineが後から導入されたら `hacocoon-docker.socket` を自動でenable/startします。`dockerd` 自体はクライアントが `/run/docker.sock` を開くまで起動しません。
+
 ## Commands
 
 `HACO_PLUGIN_OCI=docker` を選んだ場合だけDocker ライフサイクルコマンドを公開します。
@@ -30,14 +34,14 @@ hacoq plugin oci docker prepare <environment> [--json]
 
 `status` は観測だけを行い、`dockerd` を起動しません。
 
-`prepare` は意図的に狭く、繰り返しても同じ結果になるです。
+`prepare` は意図的に狭く、繰り返しても同じ結果になります。標準Tooling BaseでDocker後入れ時の自動activationが既に完了していれば、検証後その状態をそのまま受け入れます。
 
 1. 信頼された Hacocoon 状態から管理対象の Environmentを解決する
 2. genuine `docker` CLI、`dockerd`、`containerd`、systemd、`docker` groupを確認する
 3. 導入済み `hacocoon-docker.socket` / `.service` がプラグインに固定されたunitと完全一致することを確認する
 4. vendor Docker daemon/socketが既に稼働中なら勝手に停止せず安全側で拒否する
 5. 停止中なvendor Docker autostartだけ無効化する
-6. `hacocoon-docker.socket` だけをenable/startする
+6. 必要なら `hacocoon-docker.socket` をenable/startする
 7. 再検査して期待したsocket-activated 状態でなければ安全側で拒否する
 
 `prepare` はパッケージ install、イメージ pull、Host ソケットマウント、既存guest Docker daemonの暗黙の停止を行いません。必要なDocker compatibility プロファイルと固定済み unitはBase/Seed側で提供します。
@@ -47,7 +51,7 @@ hacoq plugin oci docker prepare <environment> [--json]
 ## Plugin boundary
 
 - Docker/nerdctl固有処理は `modules/plugin/oci` / `hacoq plugin oci` に置く
-- `HACO_PLUGIN_OCI=nerdctl|docker` で明示明示的な有効化。未設定ならOCI プラグインなし
+- `HACO_PLUGIN_OCI=nerdctl|docker` でプラグインCLIを明示的に有効化する。Docker Engineパッケージを標準Tooling Baseへ後入れする行為自体はcompatibility socketの自動activationへの明示的な利用意思として扱う
 - dockerdをalways-on要件にしない
 - EngineはEnvironment 内かつソケット activationで必要時起動する
 - Host Docker/containerd/Incus/Hacocoon control ソケットをマウントしない

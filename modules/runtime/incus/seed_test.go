@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -98,6 +99,145 @@ func TestConfigureNestedOCIBuilderUsesOnlyManagedUnprivilegedSettings(t *testing
 	for _, call := range runner.calls {
 		if strings.Contains(strings.Join(call.args, " "), "security.privileged=true") {
 			t.Fatalf("builder unexpectedly privileged: %#v", call)
+		}
+	}
+}
+
+func TestToolingBasePackagesExcludeDockerEngine(t *testing.T) {
+	for _, packageName := range toolingBasePackages {
+		if packageName == "docker.io" {
+			t.Fatalf("tooling Base must not install Docker Engine: %#v", toolingBasePackages)
+		}
+	}
+	for _, want := range []string{"containerd", "containernetworking-plugins"} {
+		found := false
+		for _, packageName := range toolingBasePackages {
+			if packageName == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("tooling Base packages missing %q: %#v", want, toolingBasePackages)
+		}
+	}
+}
+
+func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
+	if toolingDockerAliasPath != "/usr/bin/docker" {
+		t.Fatalf("docker alias path=%q; package installs must be able to replace it", toolingDockerAliasPath)
+	}
+
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.installToolingDockerAlias(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+
+	wantFragments := []string{
+		"-- ln -sfn " + toolingNerdctlPath + " " + toolingDockerAliasPath,
+		"-- test -L " + toolingDockerAliasPath,
+		"-- test " + toolingNerdctlPath + " -ef " + toolingDockerAliasPath,
+	}
+	for _, want := range wantFragments {
+		found := false
+		for _, call := range runner.calls {
+			if strings.Contains(strings.Join(call.args, " "), want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing docker alias command %q: %#v", want, runner.calls)
+		}
+	}
+}
+
+func TestEnsureToolingDockerGroupPreparesSocketOwnership(t *testing.T) {
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.ensureToolingDockerGroup(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls=%d want=1: %#v", len(runner.calls), runner.calls)
+	}
+	joined := strings.Join(runner.calls[0].args, " ")
+	if !strings.Contains(joined, "-- groupadd --system --force docker") {
+		t.Fatalf("docker group command missing from %q", joined)
+	}
+}
+
+func TestWriteToolingProvisionFilesRetainsDockerCompatibilityUnits(t *testing.T) {
+	files, err := writeToolingProvisionFiles(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		files.socketUnit:           hacocoonDockerSocketUnit,
+		files.serviceUnit:          hacocoonDockerServiceUnit,
+		files.autostartPathUnit:    hacocoonDockerAutostartPathUnit,
+		files.autostartServiceUnit: hacocoonDockerAutostartServiceUnit,
+	} {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want {
+			t.Fatalf("provisioned unit %s differs from pinned content", path)
+		}
+	}
+}
+
+func TestDockerCompatibilityAutostartWatchesForDockerd(t *testing.T) {
+	for _, want := range []string{
+		"PathExists=/usr/bin/dockerd",
+		"Unit=hacocoon-docker-autostart.service",
+	} {
+		if !strings.Contains(hacocoonDockerAutostartPathUnit, want) {
+			t.Fatalf("autostart path unit missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		"ConditionPathIsExecutable=/usr/bin/dockerd",
+		"ExecStart=/usr/bin/systemctl enable --now hacocoon-docker.socket",
+		"RemainAfterExit=yes",
+	} {
+		if !strings.Contains(hacocoonDockerAutostartServiceUnit, want) {
+			t.Fatalf("autostart service unit missing %q", want)
+		}
+	}
+}
+
+func TestMaskVendorDockerUnitsReservesDockerSocketForHacocoon(t *testing.T) {
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.maskVendorDockerUnits(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls=%d want=1: %#v", len(runner.calls), runner.calls)
+	}
+	joined := strings.Join(runner.calls[0].args, " ")
+	for _, fragment := range []string{
+		"-- /bin/sh -c",
+		"systemctl disable --now",
+		"docker.service",
+		"docker.socket",
+		"ln -sfn /dev/null",
+		"systemctl daemon-reload",
+	} {
+		if !strings.Contains(joined, fragment) {
+			t.Fatalf("vendor Docker mask command missing %q: %q", fragment, joined)
 		}
 	}
 }
