@@ -6,7 +6,8 @@
 複数リポジトリ、承認の保存を説明します。認証は信頼された `haco-host` に残し、
 EnvironmentにはGit専用の仲介接続だけを渡します。
 managed Git WorkspaceからEnvironmentを作成すると、この仲介接続は自動で配線されます。
-`haco git connect <env>` は明示的な再接続・復旧用として引き続き利用できます。
+ローカル配線の診断は `haco doctor <env>`、修復は `haco doctor --fix <env>` を使います。
+修復だけでは上流remoteへ通信しません。
 
 <a id="configure-git-policy"></a>
 ## Gitの権限設定
