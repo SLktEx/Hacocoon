@@ -155,3 +155,51 @@ lease. That reference blocks source deletion until publication or positively
 completed cleanup. It protects immutable saved data without promising runtime
 resumption after every crash. Do not split source reservation from the canonical
 creation transition, and do not bypass receipts for copied instances.
+
+## Complete deletion outcomes
+
+Provider deletion succeeds only after all provider-owned cleanup completes.
+A wrapped `ErrNotFound` alone can prove absence. A joined error containing
+`ErrNotFound` plus a network cleanup, cancellation, ownership or other failure
+cannot. Filesystem ENOENT is not evidence of provider absence.
+
+`core.EnvironmentDeletionComplete` owns this interpretation. Ready, incomplete,
+temporary and failed-create cleanup use it before the canonical finalization.
+Failed deletion retains the exact lease and marks `cleanup-required` when that
+lease can be read and persisted. A finalization failure retains recovery-required
+evidence for retry. Workspace, retained OCI and saved snapshots are never removed
+by Environment finalization.
+
+Treating any matching `ErrNotFound` in an error tree as complete cleanup is
+rejected: the SandboxProvider can report an absent instance together with failed
+source-guard removal. This decision adds no catalog version or recovery state.
+
+## Observation and error projection
+
+The catalog observes ready metadata and its lease together for client status,
+without writing migration or repair. Resume, snapshot capture and publication
+share the active binding predicate; generation, source reservation and provider
+ownership checks remain with the operation owner. An incomplete lease remains
+recovery-required even when ready metadata is absent.
+
+Incus observations reject failed, canceled, malformed or truncated inventories.
+A unique exact instance row establishes state; a complete empty match establishes
+absence. Unknown state is neither stopped nor absent. The internal absence bit
+does not change successful status JSON. A retained catalog entry with an absent
+runtime reports recovery-required through the existing client API. RPC projection
+preserves recovery-required ahead of other joined errors.
+
+Receipt-free direct Incus callers retain their bounded cleanup owner; ordinary
+production creation still delegates cleanup through its existing receipt to
+Workspace. Shared mechanics invoke each provider's own deletion method, so
+Sandbox source guards cannot disappear from that obligation.
+
+## Removal of independent catalog mutations
+
+Implemented: the production catalog no longer exports independent Environment
+metadata or Workspace-lease insert/update/delete methods. Their remaining callers
+were test fixtures; those fixtures now use begin/receipt/commit/finalize, including
+the independent-process lock test. An architecture regression prevents restoring
+the bypass APIs. Historical JSON normalization remains readable and is isolated
+from current lifecycle transitions. This removes a redundant write path without
+changing the on-disk schema, retained-data ownership or supported public commands.

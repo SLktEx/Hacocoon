@@ -1,12 +1,16 @@
 package cliui
 
 var detailCatalog = map[string]translation{
+	"detail.setup_reapply": {"Rerun only the saved Host script, explicitly; do not combine with another script option.", "保存したHostスクリプトだけを明示的に再実行します。他のスクリプト指定とは併用しません。"},
+	"detail.setup_result":  {"Show the saved Host script stdout, stderr and exit code; no script is executed.", "保存されたHostスクリプトの標準出力・標準エラー・終了コードを表示します。実行はしません。"},
+	"detail.open_json":     {"Machine-readable Workspace result; requires a directory and --client none.", "作業場所の結果をJSONで表示します。ディレクトリと--client noneが必要です。"},
+
 	"detail.doctor_env":         {"Optional Environment to diagnose; omission checks the Host. Diagnostics inspect and do not repair.", "調べる開発環境の名前。省略時はHostを確認します。診断では修復を実行しません。"},
 	"detail.setup_env":          {"Optional Environment to set up; omission prepares the trusted Host. Existing saved setup is replayed when no update option is supplied.", "セットアップする開発環境。省略時は信頼済みHostを準備します。更新指定がなければ保存済みの手順を再実行します。"},
 	"detail.setup_script":       {"Save and run a regular UTF-8 bash script (at most 1 MiB). Do not combine with --clear-script.", "通常のUTF-8 bashスクリプト（最大1MiB）を保存して実行します。--clear-scriptとは併用しません。"},
 	"detail.setup_clear":        {"Remove the selected saved script without running it.", "選択した保存済みスクリプトを、実行せずに解除します。"},
 	"detail.config_edit":        {"Edit a revision-bound configuration snapshot using VISUAL or EDITOR.", "VISUALまたはEDITORを使い、現在のrevisionに対応する設定を編集します。"},
-	"detail.config_file":        {"Apply an edited snapshot produced by haco config. Stale revisions are refused.", "haco configで取得して編集した設定を適用します。古いrevisionは拒否します。"},
+	"detail.config_file":        {"Apply an edited snapshot produced by haco config --json. Stale revisions are refused.", "haco config --jsonで取得して編集した設定を適用します。古いrevisionは拒否します。"},
 	"detail.approve_request":    {"Optional pending request identity. Omission opens the pending selection flow; reading the list does not approve anything.", "承認待ち要求の識別子。省略時は一覧から選択します。一覧の表示だけでは許可しません。"},
 	"detail.reclaim_yes":        {"Confirm the selected reclamation or review without another prompt.", "選択した容量回収または結果確認を、追加入力なしで確定します。"},
 	"detail.reclaim_status":     {"Inspect the saved result without starting another reclamation.", "新しい容量回収を開始せず、保存された結果を確認します。"},
@@ -51,7 +55,7 @@ var detailCatalog = map[string]translation{
 	"detail.request":            {"Required pending request identity from haco git pending. The decision remains bound to its exact ref and commits.", "必須。haco git pendingで確認した承認待ちの識別子。判断はそのrefとcommitにだけ対応します。"},
 	"detail.base_name":          {"Required Base name from haco base list.", "必須。haco base listで確認したひな形の名前。"},
 	"detail.base_delete":        {"Required built Base name or unambiguous retained fingerprint from haco base list --all.", "必須。haco base list --allで確認した作成済みひな形の名前、または一意に特定できるfingerprint。"},
-	"detail.base_all":           {"Show retained built-image revisions. --json is available with --all.", "保持している作成済みイメージの各revisionを表示します。--jsonは--allと併用します。"},
+	"detail.base_all":           {"Show retained built-image revisions, including old revisions.", "保持している作成済みイメージを、過去のrevisionも含めて表示します。"},
 	"detail.definition":         {"Required JSON Base definition file. Build steps run in an isolated Environment.", "必須。Base作成手順を記述したJSONファイル。手順は隔離した環境で実行します。"},
 	"detail.store":              {"Required OCI Store name from haco plugin oci store list; omit the oci: prefix here.", "必須。haco plugin oci store listで確認したOCI Store名。ここではoci:を付けません。"},
 	"detail.store_new":          {"Required name for the independent OCI Store; omit the oci: prefix.", "必須。独立したOCI Storeに付ける名前。oci:は付けません。"},

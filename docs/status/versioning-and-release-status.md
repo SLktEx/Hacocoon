@@ -114,3 +114,16 @@ exit codes, input bounds and confirmation of cleanup. Native pipe/terminal gates
 remain pending; this is neither M3 completion nor a distributed release.
 
 The v0.64 slice replaces Windows terminal answers with native notification pages, selection controls and COM activation over the existing private review session. It is a development checkpoint, not completion of M2/M3 or a distributed release. Fresh installed answers and visible layout remain pending.
+
+## Main integration in the roadmap candidate
+
+Main commit `74bc2205` includes the development branch integration (#581),
+default human CLI output with explicit `--json` (#602), trusted Host Git/gh
+tools (#597), and Host script incarnation/result handling (#604). This candidate
+combines those changes with the v0.59–v0.64 development slices above, retaining
+generation-bound temporary cleanup and bilingual client behavior.
+
+Main independently assigned v0.59 to “Host customization lifecycle and results”
+in #604. That main-branch checkpoint remains historical evidence; this candidate
+keeps its existing YAML sequence and v0.64 position. This integration does not
+publish a release, change a tag, or imply the candidate is merged into main.

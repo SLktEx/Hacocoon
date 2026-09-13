@@ -154,6 +154,36 @@ Ubuntu installer 34727370966、Incus 7 34727370817、Windows installer
 
 [1817e7cの追加検証記録](https://github.com/SLktEx/Hacocoon/blob/1817e7cf9e8910bf31ae23b714053e2580d03fa0/docs/IMPLEMENTATION_STATUS.md)。
 
+<a id="development-branch-integration"></a>
+
+## 統合した開発ブランチの検証証拠
+
+以下は各開発コミットで記録された結果であり、統合後のmainを検証した結果ではありません。
+統合によって確認範囲を広げません。
+
+| 対象 | 成功・失敗と残る制約 |
+|---|---|
+| `58c4a56` / `dev/1.x` | test/vet・race・模擬E2E・systemd・隔離した転送試験・固定AWS SDKの15試験は成功。全工程CIはUbuntu 24.04上でinstallerの26.04以降という条件により停止し、条件は緩和していない。Incus 6.0.0の観測・削除と正確な後始末を確認。rootfs importはamd64メタデータで一度失敗し、回帰試験で再現後、修正したBtrfs集約試験が64.20秒で成功。公開export/import、snapshot/copy、新規生成ID、Git/Workspace/OCIのデータ保持を確認し、失敗・成功fixtureを正確な所有記録で削除。導入済みcontroller import、SSH接続、稼働OCI、Windows導入はこの試験では未確認。 |
+| `6cf9295` / `dev/v2` | 専用Ubuntu 26.04/Incus 6.0.5へのローカルビルド導入でsetup・Host doctor全6項目、外部Workspace作成・Linux SSH編集/build・停止再開・重複拒否・空選択キャンセル・ファイルを残すEnv削除が成功。模擬customizationのexit 29は秘密出力を漏らさず工程・理由・request IDを表示。観測中断後も処理完了まで排他を保持。初回SSHはdefault denyとsshd不足で失敗し、限定した4つのパッケージ規則で準備後、その規則を削除。専用network namespaceとAppArmor無効のkernelでの確認であり、既定ネットワークやAppArmor隔離の検証ではない。Windows IDE/既定接続、非公開Git/registry、OCI保持、cold restartは未確認。 |
+| `ae19db6` / `dev/v2` | test/vet/JS、race、模擬E2E、interop 22試験とWindows installer構成要素試験が成功。installer変更処理は模擬化し、読取りtransportだけ対象WSLに固定。Linux PowerShellはSystemDirectoryが空でWindows専用fixtureを実行できなかった。実際の導入を証明する結果ではない。 |
+| `72058fc` / `dev/2.x` | 専用Incus/Btrfsで合成外部IPv4/IPv6・Physical Host・Env間のTCP/UDP、Hostからの転送が成功（各経路0.099〜0.169秒）。期限、失効、ポリシー期限、生成ID置換の拒否、DNS固定を確認。初回DNS fixtureはcontroller準備前に失敗し、読取りの準備待ちで順序を修正。公開Internet・企業VPN・本番サービスの確認ではない。 |
+| `ac67fad` / `dev/2.x` | 導入済みCLI/Incusで2リポジトリの準備・再開、SSH編集、再作成後のファイル/Store保持、独立fork、OCIなし、Store明示再利用、Base交換が成功。宛先OCI衝突は不完全な所有記録と元snapshot予約を保持して再開を拒否し、既存Storeは不変。専用ファイル・明示したWSL/namespace経路でWindows SSHと転送したブラウザー表示は成功。自動open、VS Code UI、既定installerネットワークは未確認。Windows TCP/UDPサービスはWindows内から成功したがWSL/controllerからはtimeout。ゲストTCPはconnect/failed/timeoutを記録し、UDP応答なし。Windowsサービスへの外向き通信と失敗原因は未確認。 |
+
+小さいWorkspace fixtureの時間/Btrfsプール増分は、準備0.556秒/126,976バイト、
+open 7.064秒/25,333,760バイト、再open 0.793秒/147,456バイト、fork 1.128秒/458,752バイト、
+fork open 6.384秒/23,162,880バイト、再作成3.396秒/23,650,304バイトでした。
+Base交換は17.986秒で容量未計測。各sourceのextentは12,075,008バイト、準備したコピーの
+exclusive extentは0バイトでした。プール増分はmetadata・runtimeの活動を含み、
+Linux kernel規模の性能や負荷を統制したbenchmarkを示しません。
+
+統合候補`215019a`ではdocs/workflow-policy、全Go test/vet、JavaScript 27試験、
+全race、模擬E2E、systemd検証が成功しました。変更操作を模擬化したWindows installer
+構成要素試験も成功。全工程のローカルCIは検証HostがUbuntu 24.04のためinstallerの
+26.04以降という条件で停止しました。転送試験は非対話sudoが利用できず一度停止し、
+同じkernel回帰試験をrootの専用network namespaceで実行して3.25秒で成功しました。
+これらは統合候補の導入済みIncus・Windows/WSL製品経路・非公開registry・稼働OCIの
+実機確認を意味しません。
+
 ## 日常の入口とsetup診断
 
 状態: **implemented、専用WSL/Linuxでの日常手順の実機確認は成功**。
@@ -395,3 +425,33 @@ computer-useはkernel assetsのパス不在で2回初期化に失敗しました
 失敗runの後続SKIPを成功へ変えません。親`ac2b81dec811bf956d309b32a40d7dd1efe308e3`（PR #598）は
 test `34738580505`、Ubuntu `34738580518`、Incus `34738580490`、Windows `34738580548`がPASSです。
 親の証拠であり、今回の新しい通知UIの受け入れとは区別します。
+
+PR #611のhead `f31ce3f7`ではtest `34741502449`、Ubuntu `34741502448`、
+Incus `34741502443`がPASSでした。Windows `34741502440`（job `103681856689`）は
+native client構成要素、配布物導入・再起動・再導入、HTTPS／直接egress拒否、通常Windows
+SSH／interop、一時TTY、Linux trim、公開reclaimと保持Workspace／OCI／snapshot復元がPASS。
+VHDX割当は7,897,874,432 → 3,969,908,736 bytesでした。最後の通知reviewは**FAIL**です。
+COM登録・所有状態からの再開は成功しましたが、最初の導入済み古い要求probeが期待した拒否と
+一致しませんでした。logには固定分類された実応答がなく、原因は未確定です。後続の不正入力・
+別所有者・購読の確認は完了していません。人による新規回答も未確認のままです。
+
+<a id="main-sync-candidate"></a>
+
+## ロードマップ候補へのmain統合
+
+`codex/roadmap-main-sync`は#611の`f31ce3f7`とmainの`74bc2205`を合わせ、
+#581／#597／#602／#604を含みます。mainの責務分割、制限付きIncus状態取得、削除全体の
+完了判定を維持しました。schema 14と一時実行の世代照合を分割先へ移し、共通cleanupの
+再試行でも同じidentityを使います。追加回帰は送信元保護の削除失敗で一時leaseとmarkerが
+残り、別世代の再試行を拒否し、全cleanup完了後のみ解放できることを確認します。
+
+独立Linuxコピーで主要package、標準`bash tools/ci-local.sh test`、Go 1.26.8の全Go試験、
+関連race、文書整合がPASSでした。CLIは日英helpと明示的なJSONを維持し、人向け表示だけ
+外部由来の制御文字をエスケープします。初回統合試験は重複したtest断片、identityを欠いた
+旧marker fixture、JSONを既定とする旧assertionで失敗し、製品の検査を緩めず修正しました。
+初回の全体ローカルCIは一時コピーがGitの実行bitを失ったためFAIL。記録された属性の復元後に
+同じCI入口がPASSしました。これらは統合／コピーの失敗で、上の導入済みWindows失敗とは別です。
+
+統合候補での新しい実Incus／Windows／WSL受入は未実施です。親の成功や取り込んだmainの
+証拠では代替しません。元のdirtyなmain作業ツリーと既存の基盤resourceは変更していません。
+M1の実機言語・SSH不足、新規GUI／外部認証Git受入、M3のDNS mode／VPN／client転送は残件です。

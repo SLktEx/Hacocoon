@@ -166,6 +166,38 @@ Full original receipts, fixture identities and log/artifact links remain in [the
 
 [Additional scoped receipts at 1817e7c](https://github.com/SLktEx/Hacocoon/blob/1817e7cf9e8910bf31ae23b714053e2580d03fa0/docs/IMPLEMENTATION_STATUS.md).
 
+<a id="development-branch-integration"></a>
+
+## Integrated development branch evidence
+
+These are imported, commit-bound results from the development branches, not tests
+of the merged main candidate. Integration does not expand their acceptance scope.
+
+| Candidate | Results, failures and remaining limits |
+|---|---|
+| `58c4a56` / `dev/1.x` | Maintained test/vet, race, fixture E2E, systemd, isolated forwarding and 15 pinned AWS SDK contract tests passed. All-stage CI stopped at the Ubuntu >=26.04 installer requirement on Ubuntu 24.04; that guard was preserved. Native Incus 6.0.0 observation/deletion passed with exact cleanup. Rootfs import first failed on native `amd64` metadata; archive regressions reproduced it, then the corrected Btrfs aggregate passed in 64.20s with public export/import, snapshots/copy, fresh generations and retained Git/Workspace/OCI bytes. Both failed and successful fixtures were cleaned by exact ownership. Shipped-controller import, actual SSH, live OCI and installed Windows were not tested in this run. |
+| `6cf9295` / `dev/v2` | A locally built installation in dedicated Ubuntu 26.04/Incus 6.0.5 passed setup, all six Host doctor checks, external Workspace create/open, Linux SSH edit/build, stop/start, duplicate refusal, blank-selection cancellation and Env deletion retaining files. Synthetic customization exit 29 reported its fixed stage/reason/request ID without leaking private output. Setup interruption retained exclusion until actual completion. Initial SSH failed with default deny/absent sshd; four scoped package rules enabled setup and were removed afterwards. The dedicated network namespace and disabled kernel AppArmor do not establish default installation networking or AppArmor confinement. Windows IDE/default-entry, private Git/registry, OCI retention and cold restart were not exercised. |
+| `ae19db6` / `dev/v2` | Maintained test/vet/JS, race, fixture E2E and 22 interop tests passed. Windows installer component fixtures passed with mutation paths mocked and read-only transport pinned to a selected WSL. Linux PowerShell could not run that Windows-only fixture because SystemDirectory was empty; component results do not establish native installation. |
+| `72058fc` / `dev/2.x` | Dedicated Incus/Btrfs installed CLI passed synthetic external IPv4/IPv6, Physical Host and peer Env TCP/UDP and Host-to-Env forwarding (0.099–0.169s per fixture journey), expiry, revocation, Policy expiry, replaced generation refusal and DNS pinning. An initial DNS fixture ran before controller readiness; bounded observation corrected its order. These are synthetic local fixtures, not public Internet, corporate VPN or production-service acceptance. |
+| `ac67fad` / `dev/2.x` | Installed CLI/Incus passed two-repository preparation/reopen, SSH edits, retained files/Store data after recreation, independent stopped forks, no-OCI operation, explicit Store reuse and Base replacement. A destination OCI collision retained incomplete ownership/source reservations and refused reopen without changing the pre-existing Store. Windows SSH and an SSH-forwarded browser fixture passed with dedicated files and an explicit distribution/namespace route; automatic Windows open, VS Code UI and default installer networking were not established. Registered Windows TCP/UDP services answered local Windows probes but WSL/controller probes timed out; approved guest TCP recorded connect/failed/timeout, and UDP had no response. Outbound Windows-service access and its failure cause remain unverified. |
+
+For the Workspace fixture, preparation took 0.556s / 126,976 Btrfs pool bytes;
+open 7.064s / 25,333,760 bytes; reopen 0.793s / 147,456 bytes; fork 1.128s /
+458,752 bytes; fork open 6.384s / 23,162,880 bytes; recreation 3.396s /
+23,650,304 bytes. Base replacement took 17.986s with allocation unmeasured.
+Each small source reported 12,075,008 extent bytes; prepared copies reported zero
+exclusive extents. Pool deltas include metadata/runtime activity and do not prove
+Linux-kernel-sized repository performance or controlled-load benchmarks.
+
+At integration candidate `215019a`, maintained docs/workflow-policy, full Go test/vet,
+27 JavaScript tests, full race, fixture E2E and systemd checks passed. Native Windows
+installer component fixtures passed with mutations mocked. All-stage local CI stopped
+at the Ubuntu 26.04 installer precondition on the Ubuntu 24.04 validation Host.
+The forwarding entry first stopped because noninteractive sudo was unavailable;
+the same kernel regression passed in a separate root-owned network namespace (3.25s).
+These integration checks do not establish installed Incus, Windows/WSL product journeys,
+private registry or live OCI acceptance of the merged candidate.
+
 ## Daily entry and setup diagnostics
 
 Status: **implemented; dedicated WSL/Linux daily acceptance passed**.
@@ -467,3 +499,42 @@ and its component regression fixed that dependency. Downstream skipped checks in
 failed run remain skipped. Parent `ac2b81dec811bf956d309b32a40d7dd1efe308e3` (PR #598)
 passed test `34738580505`, Ubuntu `34738580518`, Incus `34738580490` and Windows
 `34738580548`; those are parent evidence, not acceptance of this new notification UI.
+
+At PR #611 head `f31ce3f7`, test `34741502449`, Ubuntu `34741502448` and Incus
+`34741502443` passed. Windows `34741502440` (job `103681856689`) passed native
+client components, packaged install/restart/reinstall, HTTPS/direct-egress refusal,
+ordinary Windows SSH/interop, temporary TTY, Linux trim and public reclaim with
+retained Workspace/OCI/snapshot restoration. VHDX allocation was
+7,897,874,432 → 3,969,908,736 bytes. Its final native notification review **failed**:
+COM registration/owned-resume components passed, but the first installed stale-request
+probe did not match the required refusal. The log omits the fixed observed response,
+so no underlying cause is established. Later malformed/foreign and subscription
+checks in that script did not complete. Fresh human answers remain unverified.
+
+<a id="main-sync-candidate"></a>
+
+## Main integration into the roadmap candidate
+
+`codex/roadmap-main-sync` combines #611 head `f31ce3f7` with main `74bc2205`,
+including #581/#597/#602/#604. Main's responsibility splits, bounded Incus
+observation and complete-cleanup classification are preserved. Schema 14 and
+ephemeral generation checks move into those split owners; cleanup-outcome retries
+use the same identity. A combined regression proves partial source-guard cleanup
+retains both the ephemeral lease and marker, refuses another generation's retry,
+then releases only after complete cleanup.
+
+Focused packages, maintained `bash tools/ci-local.sh test`, all Go tests on 1.26.8,
+related race tests and the docs checker passed in an independent Linux copy.
+CLI regressions retain bilingual help and explicit JSON, and escape external control
+characters only in human display. Initial merge tests failed on duplicate test
+fragments, a historical marker fixture lacking identity and an old implicit-JSON
+assertion. These were corrected without weakening product checks. The first full
+local CI also failed because the temporary copy had lost Git executable bits;
+restoring the recorded file modes made the maintained entry pass. These are local
+integration/copy failures, separate from the installed Windows failure above.
+
+No new real Incus/Windows/WSL acceptance has run for this combined candidate.
+Parent passes and the imported main evidence do not substitute for that gate.
+The original dirty main checkout and all existing local provider resources remain
+untouched. M1 native language/SSH gaps, fresh GUI/authenticated Git acceptance and
+M3 DNS modes/VPN/client forwarding remain open.

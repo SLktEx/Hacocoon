@@ -2,13 +2,10 @@ package incus
 
 import (
 	"context"
-	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -61,32 +58,6 @@ func New(runner host.Runner) *Runtime {
 }
 
 func (*Runtime) ID() string { return "runtime.incus" }
-
-func (r *Runtime) Probe(ctx context.Context) (core.RuntimeCapabilities, error) {
-	result, err := r.runner.Run(ctx, "incus", "version")
-	if err != nil {
-		return core.RuntimeCapabilities{Available: false, Details: []string{"incus unavailable"}}, nil
-	}
-	return core.RuntimeCapabilities{Available: true, Details: []string{strings.TrimSpace(result.Stdout)}}, nil
-}
-
-// ConfigureStorageProvider installs a lazy Host-side source for the storage
-// attachment used by Hacocoon-owned Incus rootfs volumes. Configuration itself
-// performs no loop attach, mount, or Incus storage mutation; the first rootfs
-// operation resolves and ensures the selected pool.
-func (r *Runtime) ConfigureStorageProvider(provider func(context.Context) (map[string]string, error)) error {
-	if r == nil || provider == nil {
-		return core.ErrInvalidArgument
-	}
-	if r.storage == nil {
-		r.storage = &runtimeStorageState{}
-	}
-	r.storage.mu.Lock()
-	defer r.storage.mu.Unlock()
-	r.storage.provider = provider
-	r.storage.rootPool = ""
-	return nil
-}
 
 func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) error {
 	if err := r.ensureProject(ctx); err != nil {
@@ -163,36 +134,7 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 		return core.EnvironmentRuntime{}, fmt.Errorf("init isolated Incus environment %s: %w", ref, err)
 	}
 	cleanup := func(cause error) (core.EnvironmentRuntime, error) {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
-		defer cancel()
-		_, cleanupErr := r.runner.Run(cleanupCtx, "incus", "delete", ref, "--project", r.project, "--force")
-		if cleanupErr == nil {
-			return core.EnvironmentRuntime{}, cause
-		}
-		if cleanupCtx.Err() != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		exists, inspectErr := r.environmentExists(cleanupCtx, ref)
-		if inspectErr != nil {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				fmt.Errorf("confirm Incus cleanup state for %s: %w", ref, inspectErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		if exists {
-			return core.EnvironmentRuntime{}, errors.Join(
-				cause,
-				fmt.Errorf("cleanup Incus environment %s: %w", ref, cleanupErr),
-				core.ErrRecoveryRequired,
-			)
-		}
-		return core.EnvironmentRuntime{}, cause
+		return r.cleanupFailedEnvironment(ctx, ref, cause, r.DeleteEnvironment)
 	}
 
 	// Profiles are intentionally shared from the default project, but the
@@ -236,50 +178,19 @@ func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRu
 	return core.EnvironmentRuntime{Ref: ref}, nil
 }
 
-func (r *Runtime) SupportsWorkingDirectory() bool { return true }
-func (r *Runtime) SupportsStdin() bool            { _, ok := r.runner.(host.InputRunner); return ok }
-
-func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
-	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
-		return core.ExecutionResult{}, core.ErrInvalidArgument
-	}
-	args, err := r.executionArgs(ref, req.WorkingDirectory, req.Argv)
-	if err != nil {
-		return core.ExecutionResult{}, err
-	}
-	var result host.Result
-	if req.Stdin != nil {
-		runner, ok := r.runner.(host.InputRunner)
-		if !ok {
-			return core.ExecutionResult{}, core.ErrUnsupported
-		}
-		result, err = runner.RunWithInput(ctx, req.Stdin, "incus", args...)
-	} else {
-		result, err = r.runner.Run(ctx, "incus", args...)
-	}
-	return core.ExecutionResult{
-		ExitCode:        result.ExitCode,
-		StdoutTruncated: result.StdoutTruncated, StderrTruncated: result.StderrTruncated, StdoutBytes: result.StdoutBytes, StderrBytes: result.StderrBytes,
-		Stdout: result.Stdout,
-		Stderr: result.Stderr,
-	}, err
-}
-
-func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return err
-	}
-	_, err := r.execInteractive(ctx, ref, []string{"/bin/bash"})
-	return err
-}
-
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
 	}
-	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
-	if err == nil {
+	result, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
+	if ctx.Err() != nil {
+		return errors.Join(err, ctx.Err())
+	}
+	if err == nil && result.ExitCode == 0 {
 		return nil
+	}
+	if err == nil {
+		err = core.ErrRuntimeUnavailable
 	}
 	if ctx.Err() != nil {
 		return err
@@ -292,113 +203,6 @@ func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 		return fmt.Errorf("Incus environment %s: %w", ref, core.ErrNotFound)
 	}
 	return err
-}
-
-func (r *Runtime) environmentExists(ctx context.Context, ref string) (bool, error) {
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "n")
-	if err != nil {
-		return false, err
-	}
-	for _, line := range strings.Split(result.Stdout, "\n") {
-		if strings.TrimSpace(line) == ref {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.EnvironmentRuntimeStatus, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.EnvironmentRuntimeStatus{}, err
-	}
-	result, err := r.runner.Run(ctx, "incus", "list", ref, "--project", r.project, "--format", "csv", "-c", "ns")
-	if err != nil {
-		return core.EnvironmentRuntimeStatus{}, err
-	}
-	if result.ExitCode != 0 || result.StdoutTruncated {
-		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
-	}
-	states := map[string]core.EnvironmentState{
-		"RUNNING": core.EnvironmentRunning,
-		"STOPPED": core.EnvironmentStopped,
-	}
-	// Incus name filtering can also return prefixed names (dev and dev-copy).
-	// A state without the exact instance name cannot identify this Environment.
-	reader := csv.NewReader(strings.NewReader(result.Stdout))
-	reader.FieldsPerRecord = 2
-	rows, err := reader.ReadAll()
-	if err != nil {
-		return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
-	}
-	state := core.EnvironmentUnknown
-	found := false
-	for _, row := range rows {
-		if row[0] != ref {
-			continue
-		}
-		if found {
-			return core.EnvironmentRuntimeStatus{}, core.ErrRuntimeUnavailable
-		}
-		found = true
-		if mapped, ok := states[strings.ToUpper(strings.TrimSpace(row[1]))]; ok {
-			state = mapped
-		}
-	}
-	return core.EnvironmentRuntimeStatus{State: state}, nil
-}
-
-func (r *Runtime) ForwardLocalPort(ctx context.Context, ref string, req core.LocalPortRequest) (core.ClientConnection, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.ClientConnection{}, err
-	}
-	if req.Protocol == "" {
-		req.Protocol = "tcp"
-	}
-	if req.Protocol != "tcp" && req.Protocol != "udp" {
-		return core.ClientConnection{}, core.ErrUnsupported
-	}
-	if req.TargetPort < 1 || req.TargetPort > 65535 {
-		return core.ClientConnection{}, core.ErrInvalidArgument
-	}
-	port, err := chooseLoopbackProtocolPort(ctx, req.Protocol, req.HostPort)
-	if err != nil {
-		return core.ClientConnection{}, err
-	}
-	req.HostPort = port
-	id := fmt.Sprintf("%s-%d-%d", req.Protocol, req.HostPort, req.TargetPort)
-	if err := r.addLoopbackProtocolProxy(ctx, ref, id, req.Protocol, req.HostPort, req.TargetPort); err != nil {
-		return core.ClientConnection{}, err
-	}
-	return core.ClientConnection{ID: id, Kind: req.Protocol, Host: "127.0.0.1", Port: req.HostPort, TargetPort: req.TargetPort}, nil
-}
-
-func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID string) error {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return err
-	}
-	_, err := r.runner.Run(ctx, "incus", "config", "device", "remove", ref, "haco-"+connectionID, "--project", r.project)
-	return err
-}
-
-func (r *Runtime) PrepareSSH(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
-	return r.PrepareSSHAccess(ctx, ref, req)
-}
-
-func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort, targetPort int) error {
-	return r.addLoopbackProtocolProxy(ctx, ref, id, "tcp", hostPort, targetPort)
-}
-func (r *Runtime) addLoopbackProtocolProxy(ctx context.Context, ref, id, protocol string, hostPort, targetPort int) error {
-	if protocol != "tcp" && protocol != "udp" {
-		return core.ErrInvalidArgument
-	}
-	_, err := r.runner.Run(ctx, "incus", "config", "device", "add", ref, "haco-"+id, "proxy",
-		fmt.Sprintf("listen=%s:127.0.0.1:%d", protocol, hostPort),
-		fmt.Sprintf("connect=%s:127.0.0.1:%d", protocol, targetPort),
-		"--project", r.project)
-	if err != nil {
-		return fmt.Errorf("add local proxy %s: %w", id, err)
-	}
-	return nil
 }
 
 func (r *Runtime) Start(ctx context.Context, ref string) error {
@@ -423,36 +227,6 @@ func (r *Runtime) Delete(ctx context.Context, ref string) error {
 	}
 	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	return err
-}
-
-func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (core.ExecResult, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.ExecResult{}, err
-	}
-	if len(req.Argv) == 0 {
-		return core.ExecResult{}, core.ErrInvalidArgument
-	}
-	if req.Interactive {
-		return r.execInteractive(ctx, ref, req.Argv)
-	}
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
-	result, err := r.runner.Run(ctx, "incus", args...)
-	return core.ExecResult{ExitCode: result.ExitCode, Stdout: result.Stdout, Stderr: result.Stderr}, err
-}
-
-func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
-	status, err := r.InspectEnvironment(ctx, ref)
-	if err != nil {
-		return core.RuntimeState{}, err
-	}
-	observed := core.ObservedUnknown
-	switch status.State {
-	case core.EnvironmentRunning:
-		observed = core.ObservedRunning
-	case core.EnvironmentStopped:
-		observed = core.ObservedStopped
-	}
-	return core.RuntimeState{Observed: observed}, nil
 }
 
 func (r *Runtime) materializeSandboxNIC(ctx context.Context, ref string) error {
@@ -485,101 +259,4 @@ func (r *Runtime) ensureProject(ctx context.Context) error {
 	}
 	_, err := r.runner.Run(ctx, "incus", "project", "create", r.project, "--config", "features.profiles=false")
 	return err
-}
-
-func (r *Runtime) setRootPool(pool string) {
-	if r.storage == nil {
-		r.storage = &runtimeStorageState{}
-	}
-	r.storage.mu.Lock()
-	defer r.storage.mu.Unlock()
-	r.storage.rootPool = pool
-}
-
-// defaultRootPool prefers the Hacocoon-managed pool selected by Prepare or by
-// the lazy storage provider configured by the local composition. The Incus
-// default-profile lookup is retained only for low-level callers that bypass the
-// normal Hacocoon local composition.
-func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {
-	if r.storage != nil {
-		r.storage.mu.Lock()
-		if pool := strings.TrimSpace(r.storage.rootPool); pool != "" {
-			r.storage.mu.Unlock()
-			if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err != nil {
-				return "", fmt.Errorf("Hacocoon root storage pool %q is unavailable: %w", pool, err)
-			}
-			return pool, nil
-		}
-		provider := r.storage.provider
-		if provider != nil {
-			attachment, err := provider(ctx)
-			if err != nil {
-				r.storage.mu.Unlock()
-				return "", fmt.Errorf("ensure Hacocoon root storage: %w", err)
-			}
-			pool, err := r.ensureStoragePool(ctx, attachment)
-			if err != nil {
-				r.storage.mu.Unlock()
-				return "", fmt.Errorf("ensure Hacocoon Incus storage pool: %w", err)
-			}
-			if strings.TrimSpace(pool) == "" {
-				r.storage.mu.Unlock()
-				return "", fmt.Errorf("Hacocoon storage provider returned no incus_pool: %w", core.ErrIncompatibleState)
-			}
-			r.storage.rootPool = pool
-			r.storage.mu.Unlock()
-			return pool, nil
-		}
-		r.storage.mu.Unlock()
-	}
-
-	result, err := r.runner.Run(ctx, "incus", "profile", "show", "default", "--project", "default", "--format", "json")
-	if err != nil {
-		return "", err
-	}
-	var profile struct {
-		Devices map[string]map[string]string `json:"devices"`
-	}
-	if err := json.Unmarshal([]byte(result.Stdout), &profile); err != nil {
-		return "", fmt.Errorf("decode default profile: %w", err)
-	}
-	for _, device := range profile.Devices {
-		if device["type"] == "disk" && device["path"] == "/" && device["pool"] != "" {
-			return device["pool"], nil
-		}
-	}
-	return "", fmt.Errorf("default profile has no root disk pool: %w", core.ErrUnsupported)
-}
-
-func (r *Runtime) ensureStoragePool(ctx context.Context, attachment map[string]string) (string, error) {
-	if len(attachment) == 0 {
-		return "", nil
-	}
-	pool := attachment["incus_pool"]
-	// Creation belongs to the Incus-owned storage provider. Do not accept the
-	// removed external driver/source attachment, even when the pool exists.
-	if len(attachment) != 1 || pool == "" || strings.TrimSpace(pool) != pool || strings.HasPrefix(pool, "-") || strings.ContainsAny(pool, ":/\\\x00\r\n\t ") {
-		return "", fmt.Errorf("storage attachment requires only a local incus_pool identity: %w", core.ErrInvalidArgument)
-	}
-	if _, err := r.runner.Run(ctx, "incus", "storage", "show", pool, "--project", r.project); err != nil {
-		return "", fmt.Errorf("Incus-owned storage pool %q is unavailable: %w", pool, err)
-	}
-	return pool, nil
-}
-
-func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
-	cmd := exec.CommandContext(ctx, "incus", args...)
-	cmd.Stdin = r.stdin
-	cmd.Stdout = r.stdout
-	cmd.Stderr = r.stderr
-	err := cmd.Run()
-	if err == nil {
-		return core.ExecResult{ExitCode: 0}, nil
-	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return core.ExecResult{ExitCode: exit.ExitCode()}, err
-	}
-	return core.ExecResult{ExitCode: -1}, err
 }

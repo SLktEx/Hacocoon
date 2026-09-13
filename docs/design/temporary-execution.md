@@ -109,5 +109,20 @@ Schema 14 retains older records without inventing ownership. A legacy run with
 no creation identity and a retained Workspace remains recovery-required; retries
 cannot safely choose an Env by name. Legacy temporary runs retain their exact
 Workspace ownership check. This development change has repository regression
-coverage and captured-run native acceptance at `9f4cf510`; native acceptance of
-the later stdin/TTY implementation remains pending.
+coverage and captured-run native acceptance at `9f4cf510`. Later stdin/TTY
+acceptance passed at `9767fd93` on Incus 7.0.1 and ordinary Windows ConPTY;
+the earlier input/fixture failures remain in [acceptance evidence](../status/acceptance-evidence.md).
+Those passes precede the main cleanup integration and do not accept its combined code.
+
+## Cleanup outcome ownership
+
+Implemented: normal completion, activation failure and abandoned-run recovery
+share bounded canonical runtime/scratch cleanup and one marker-outcome handler.
+Create failure uses the same marker handler, but never removes scratch data while
+canonical creation reports uncertain runtime ownership. A cleanup or marker
+persistence failure consistently returns recovery-required and retains the
+original cause. Retrying uses the existing startup/next-run reconciliation.
+The JSON shape and guest exit status are unchanged: cleaned_up reports completed
+runtime/scratch cleanup, while a failed marker removal still returns an error.
+Repository regressions cover marker-removal retry, activation failure,
+cancellation, retained Workspace/Store boundaries and partial scratch cleanup.

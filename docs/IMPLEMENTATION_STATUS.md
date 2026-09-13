@@ -10,6 +10,9 @@ This page describes current code reality on this development candidate. Start wi
 
 | Feature | State | Available scope, limits and remaining work |
 |---|---|---|
+| [Daily entry / setup diagnostics](reference/daily-workflow.md) | implemented | Bounded setup stages and correlation IDs on stderr, final-frame validation and exclusion through disconnect; noninteractive confirmations do not wait. Dedicated Linux acceptance does not establish Windows default-entry/IDE acceptance. |
+| [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |
+| [TCP/UDP development connections](design/network-connections.md) | implemented | Explicit guest loopback listeners, source-generation-bound Policy/approval, optional rule expiry and active revocation. Existing HTTP/SNI and source guards remain. Dedicated provider acceptance is scoped; outbound Internet/VPN and full Windows UI remain incomplete. |
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Packaged English-Windows entry/interop passes; fresh Japanese-Windows entry remains unverified. |
 | [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled; select another Base through normal recreation. |
@@ -18,7 +21,7 @@ This page describes current code reality on this development candidate. Start wi
 | [Ordinary Git](guides/git-workflow.md) | partial | All-heads fetch/pull (1024 heads, 32 MiB pack) and fixed-content push through controller-owned credentials. Single-ref branch creation and fast-forward updates receive separate exact-ref approvals; competing creation fails closed. Durable push status and read-only exact-ref reconciliation preserve unknown results without replay; large packs, branch deletion, force/multi-ref push, LFS/submodules and general recovery remain unsupported. Native all-heads/new-branch acceptance is pending. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
 | [Network / DNS](design/egress-authorization.md) | implemented | Controller-owned Standard proxy, Incus lower-layer direct-egress guard and trusted source-bound DNS. Resolve and connect permissions are separate. A read-only kernel source-guard observer exists; full packaged Windows and spoofed-packet acceptance remain separate. VPN/NRPT, restart combinations and broad supported-Incus acceptance remain incomplete. |
-| [Setup recipes / preview](design/project-setup.md) | partial | Host recipe and Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
+| [Setup recipes / preview](design/project-setup.md) | partial | Host recipes apply once per incarnation with explicit script-only retry and private output/exit receipts; Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
 | [Temporary execution](design/temporary-execution.md) | implemented | `haco run` uses generation-bound cleanup and retains selected Workspace/OCI data. Captured output is default; `-i` streams pipes and `-it` uses a real terminal. Incus 7.0.1 pipe/PTY and ordinary Windows ConPTY acceptance passed; see scoped evidence. Failed cleanup retains ownership. |
 | [Persistent OCI](design/persistent-oci-store.md) | partial | Automatic per-Workspace Store initialization/reuse, exclusive attach and independent stopped copies; optional `--no-oci`. Host area copy boundary and bounded completed-copy recovery exist. Broader installed runtime/version acceptance and Docker Store compatibility remain. |
 | [Base build](design/base-images-and-custom-environments.md) | implemented | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |
@@ -33,6 +36,14 @@ This page describes current code reality on this development candidate. Start wi
 | [Legacy OCI Seed / Docker](reference/cli-migration.md) | partial | Optional `HACO_PLUGIN_OCI=nerdctl` or `docker` integration remains on temporary `hacoq`. Seed build/publish/hardening exists; private-registry/COW/failure breadth remains. It is not the current persistent Store workflow. |
 | [Cloud / registry / management UI](status/architecture-and-roadmap.md) | deferred | Concrete cloud Environment provider, mandatory local registry, management UI, simultaneous writable Store sharing and live migration are not current features. Provider seams and explicit future directions remain. |
 
+Canonical lifecycle finalization releases ownership only after complete provider
+deletion, including source-guard cleanup. Status reports retained-but-absent or
+incomplete runtimes as recovery-required. Independent catalog mutation APIs were
+removed; temporary runs share bounded cleanup and marker outcomes. Incus rootfs
+import accepts SDK architecture aliases while retaining the two supported CPU
+families. See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md)
+and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
+
 ## Verification boundary
 
 Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
@@ -43,7 +54,12 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Development candidate integration
 
-Implemented on this development candidate: [Workspace entry and independent forks](design/workspace-workflow.md), [TCP/UDP connections](design/network-connections.md), and [daily entry/setup diagnostics](reference/daily-workflow.md). Main integration, distribution and native acceptance of the combined candidate remain separate.
+Main already includes Workspace entry/forks, TCP/UDP connections and daily setup
+diagnostics through #581. This candidate integrates main `74bc2205` with the later
+roadmap slices: bilingual CLI, generation-bound interactive runs, Git improvements
+and GUI/notification review. Main's human output, Host Git/gh and incarnation-bound
+script handling are reused. Distribution and native acceptance of this combined
+candidate remain separate; see [integration evidence](status/acceptance-evidence.md#main-sync-candidate).
 
 
 M1 is **partial**: hierarchical bilingual help with arguments/options/defaults, localized daily guidance, shared

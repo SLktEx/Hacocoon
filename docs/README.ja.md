@@ -17,6 +17,10 @@ Hacocoonはpre-1.0です。[使える範囲と制約](IMPLEMENTATION_STATUS.ja.m
 - [容量回収と結果の確認](design/storage-reclamation.ja.md#起動と結果確認)
 - [Host の準備](design/trusted-host.ja.md)・[プロジェクトのセットアップ](design/project-setup.ja.md)、[Webプレビュー](design/development-preview.ja.md)、[一時実行](design/temporary-execution.ja.md)
 
+- [日常操作とsetup診断](reference/daily-workflow.ja.md)
+- [Workspaceの準備・再開・fork](design/workspace-workflow.md)
+- [明示的なTCP/UDP開発接続](design/network-connections.md)
+
 ## 用語・仕組み
 
 - [Host・Workspace・Environment・Base・OCI Storeと寿命](guides/data-lifetime.ja.md)

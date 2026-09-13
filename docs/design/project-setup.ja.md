@@ -16,7 +16,7 @@ haco setup --clear-script dev
 
 最初は手順の内容を保存して dev 内で実行、次は保存内容を再実行、最後は実行せず保存を解除します。手順は Workspace の正確な識別に結び付くため、同じ Workspace を使う新しい Environment からも再利用できます。元ファイルをリポジトリで管理していても、その編集を保存済みの内容へ自動反映しません。
 
-対象名を省略すると[信頼された Host の準備](trusted-host.ja.md)になります。Host の手順・認証情報・管理接続を Environment に継承しません。リポジトリのフックを自動探索・実行せず、Base のツール、任意の OCI データ、プロジェクトの依存導入を分けます。
+対象名を省略すると[信頼された Host の実体ごとの準備](trusted-host.ja.md)になります。Host専用の`--reapply-script`と`--script-result`はEnvironment指定時に拒否します。Host の手順・認証情報・管理接続を Environment に継承しません。リポジトリのフックを自動探索・実行せず、Base のツール、任意の OCI データ、プロジェクトの依存導入を分けます。
 
 ## 所有権と実行
 

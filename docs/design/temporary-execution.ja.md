@@ -99,4 +99,18 @@ schema 14は旧記録を保持し、所有権を推測して補いません。�
 保持Workspaceを使っていた場合は復旧待ちになります。名前だけでは削除対象を安全に
 選べないためです。旧一時Workspaceのrunは正確なWorkspace所有権の照合を維持します。
 この開発変更にはリポジトリ回帰試験があり、出力収集型runは`9f4cf510`で実機確認済みです。
-後続stdin／TTY実装の実機確認は残件です。
+後続stdin／TTYは`9767fd93`でIncus 7.0.1と通常Windows ConPTYの実機確認が成功しました。
+以前の入力／fixture失敗は[受入証拠](../status/acceptance-evidence.ja.md)に残します。
+この成功はmainのcleanup統合より前であり、統合後の実機確認を意味しません。
+
+## cleanup 結果の責任
+
+実装済み: 通常終了、activation 失敗、中断された一時実行の復旧は、時間制限付きの
+canonical runtime／scratch cleanup と、共通のマーカー更新処理を使います。
+作成失敗も同じマーカー更新を使いますが、canonical 作成が runtime 所有状態を確認不能と
+報告した間は scratch データを削除しません。cleanup またはマーカー永続化の失敗は元の原因を
+保持して一貫して recovery-required を返し、既存の起動時／次回実行時の復旧で再試行します。
+JSON 形式と guest 終了コードは変わりません。cleaned_up は runtime／scratch cleanup の
+完了を表し、マーカー削除の失敗は引き続きエラーです。リポジトリ回帰テストでマーカー削除の
+再試行、activation 失敗、キャンセル、保持 Workspace／Store の境界、scratch の途中失敗を
+検証します。

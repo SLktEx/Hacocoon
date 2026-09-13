@@ -39,7 +39,7 @@ func init() {
 	set([]string{"version"}, nil, []cliui.HelpField{json})
 	set([]string{"git status", "git reconcile"}, []cliui.HelpField{env}, []cliui.HelpField{json, field("--request <request-id>", "git.recovery.request")}, "git.recovery.next")
 	set([]string{"doctor"}, []cliui.HelpField{field("[environment]", "detail.doctor_env")}, []cliui.HelpField{json})
-	set([]string{"setup"}, []cliui.HelpField{field("[environment]", "detail.setup_env")}, []cliui.HelpField{field("--script <path>", "detail.setup_script"), field("--clear-script", "detail.setup_clear")})
+	set([]string{"setup"}, []cliui.HelpField{field("[environment]", "detail.setup_env")}, []cliui.HelpField{field("--script <path>", "detail.setup_script"), field("--clear-script", "detail.setup_clear"), field("--reapply-script", "detail.setup_reapply"), field("--script-result", "detail.setup_result")})
 	set([]string{"config"}, nil, []cliui.HelpField{field("--edit", "detail.config_edit"), field("--file <file>", "detail.config_file")})
 	set([]string{"approve"}, []cliui.HelpField{field("[request-id]", "detail.approve_request")}, []cliui.HelpField{field("--list", "approval.flag_list"), field("--json", "approval.flag_json")})
 	set([]string{"reclaim"}, nil, []cliui.HelpField{field("--yes", "detail.reclaim_yes"), field("--status", "detail.reclaim_status"), field("--review", "detail.reclaim_review")}, "detail.reclaim_before")
@@ -86,4 +86,13 @@ func init() {
 	set([]string{"ssh setup"}, []cliui.HelpField{field("[environment]", "detail.env_optional")}, nil)
 	set([]string{"open"}, []cliui.HelpField{field("[environment-or-directory]", "detail.open")}, []cliui.HelpField{field("--client vscode|ssh|none", "detail.client"), field("--repo <id[,id...]>", "detail.repos_optional"), name, base, oci, field("--port <port>", "detail.preview_port"), field("--close", "detail.close_preview"), field("--no-browser", "detail.no_browser")})
 	set([]string{"run"}, []cliui.HelpField{field("-- <command...>", "detail.command")}, []cliui.HelpField{field("-i, --interactive", "run.flag_input"), field("-t, --tty, -it", "run.flag_tty"), field("--workspace <workspace>", "run.flag_workspace"), base, noOCI, field("--read-only", "run.flag_readonly"), json, field("--rm", "run.flag_rm")}, "run.help")
+
+	for i := range helpPages {
+		switch helpPages[i].Path {
+		case "config", "env create", "env start", "env stop", "env delete", "env ssh", "env disconnect", "env forward", "repo clone", "workspace create", "workspace prepare", "workspace fork", "git connect", "git pending", "git approve", "git deny", "base inspect", "base build", "plugin oci store inspect", "plugin oci store create", "network tcp", "network udp", "network list", "network host list", "network host add", "network rule":
+			helpPages[i].Options = append(append([]cliui.HelpField(nil), helpPages[i].Options...), json)
+		case "open":
+			helpPages[i].Options = append(helpPages[i].Options, field("--json", "detail.open_json"))
+		}
+	}
 }

@@ -48,13 +48,19 @@ func networkUsage(out io.Writer) {
 }
 func networkCommand(ctx context.Context, client networkClient, args []string, out, diagnostic io.Writer) int {
 	usage := func() int { networkUsage(diagnostic); return 2 }
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), flagErr)
+		return 2
+	}
+	args = clean
 	result := func(value any, err error) int {
 		if err != nil {
 			fmt.Fprintln(diagnostic, "haco:", err)
 			return 1
 		}
 		if value != nil {
-			if json.NewEncoder(out).Encode(value) != nil {
+			if writeCLIResult(out, value, jsonOutput) != nil {
 				return 1
 			}
 		}
@@ -177,6 +183,12 @@ func networkSpecFlags(f *flag.FlagSet, spec *networkrelay.Spec, duration *time.D
 	f.DurationVar(duration, "duration", 5*time.Minute, cliMessage("detail.duration"))
 }
 func networkListenCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), flagErr)
+		return 2
+	}
+	args = clean
 	f := flag.NewFlagSet("network "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	spec := networkrelay.Spec{Protocol: args[0]}
@@ -215,7 +227,7 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 		}
 	}
 	emit := func(address string) error {
-		return json.NewEncoder(out).Encode(map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds})
+		return writeCLIResult(out, map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds}, jsonOutput)
 	}
 	if spec.Protocol == "udp" {
 		address, e := net.ResolveUDPAddr("udp", listen)

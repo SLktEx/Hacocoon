@@ -24,9 +24,7 @@ func TestEnvironmentJSONStoreRoundTripAndDelete(t *testing.T) {
 		CreatedAt:  time.Date(2026, 8, 29, 6, 30, 0, 0, time.UTC),
 	}
 
-	if err := store.PutEnvironment(ctx, environment); err != nil {
-		t.Fatal(err)
-	}
+	commitEnvironmentFixture(t, store, environment)
 	got, err := store.GetEnvironment(ctx, "demo")
 	if err != nil {
 		t.Fatal(err)
@@ -41,13 +39,13 @@ func TestEnvironmentJSONStoreRoundTripAndDelete(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode = %o", info.Mode().Perm())
 	}
-	if err := store.DeleteEnvironment(ctx, "demo"); err != nil {
+	if err := store.FinalizeEnvironmentDelete(ctx, "demo"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.GetEnvironment(ctx, "demo"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("get after delete = %v", err)
 	}
-	if err := store.DeleteEnvironment(ctx, "demo"); err != nil {
+	if err := store.FinalizeEnvironmentDelete(ctx, "demo"); err != nil {
 		t.Fatalf("repeated delete must be idempotent: %v", err)
 	}
 }
@@ -77,11 +75,7 @@ func TestEnvironmentJSONStoreReadsLegacyMetadataButRefusesToEnableLeases(t *test
 	if _, err := store.GetEnvironment(context.Background(), "old"); err != nil {
 		t.Fatalf("legacy metadata must remain readable for existing client operations: %v", err)
 	}
-	err := store.AcquireWorkspaceLease(context.Background(), core.WorkspaceLease{
-		WorkspaceID:   "workspace:new",
-		EnvironmentID: "new",
-		AccessMode:    core.WorkspaceReadWrite,
-	})
+	err := store.BeginEnvironmentCreate(context.Background(), environmentReservation("workspace:new", "new", core.WorkspaceReadWrite))
 	if !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("legacy state lease error = %v", err)
 	}

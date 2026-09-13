@@ -1,0 +1,61 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+	runapp "github.com/SLktEx/Hacocoon/internal/run"
+)
+
+type commandExitError struct {
+	code int
+}
+
+func executionResultError(result core.ExecutionResult, err error) error {
+	if err != nil {
+		return err
+	}
+	if result.ExitCode > 0 {
+		return commandExitError{code: result.ExitCode}
+	}
+	return nil
+}
+
+func fail(err error) {
+	code := 1
+	var exitCoder interface{ ExitCode() int }
+	if errors.As(err, &exitCoder) && exitCoder.ExitCode() > 0 {
+		code = exitCoder.ExitCode()
+	}
+	message := strings.TrimSpace(err.Error())
+	if message != "" {
+		fmt.Fprintln(os.Stderr, "haco:", message)
+	}
+	os.Exit(code)
+}
+
+func (e commandExitError) Error() string { return fmt.Sprintf("command exited %d", e.code) }
+func (e commandExitError) ExitCode() int { return e.code }
+
+// writeRunResult is shared by local and controller execution. Output errors and
+// lifecycle failures take priority over an otherwise ordinary guest exit code.
+func writeRunResult(stdout, stderr io.Writer, result runapp.Result, asJSON bool, runErr error) error {
+	if asJSON {
+		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			return err
+		}
+	} else {
+		if _, err := fmt.Fprint(stdout, result.Execution.Stdout); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprint(stderr, result.Execution.Stderr); err != nil {
+			return err
+		}
+	}
+	return executionResultError(core.ExecutionResult{ExitCode: result.Execution.ExitCode}, runErr)
+}

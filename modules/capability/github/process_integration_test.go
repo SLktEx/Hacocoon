@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -41,7 +42,16 @@ func TestBrokeredPushRejectsRepositoryURLRewriteWithRealGit(t *testing.T) {
 	runGit(t, "-C", workspace, "config", "url.file://"+bare+".insteadOf", "https://github.com/acme/demo.git")
 
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
-	if err := store.PutEnvironment(ctx, core.Environment{Name: "demo", Workspace: core.Workspace{ID: "path:test", Path: workspace}, AccessMode: core.WorkspaceReadWrite}); err != nil {
+	lease := core.WorkspaceLease{EnvironmentID: "demo", WorkspaceID: "path:test", SourcePath: workspace, AccessMode: core.WorkspaceReadWrite, Owner: "demo", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
+	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.RuntimeRef = "haco-demo"
+	if err := store.RecordEnvironmentRuntime(ctx, lease); err != nil {
+		t.Fatal(err)
+	}
+	lease.State = core.WorkspaceLeaseActive
+	if err := store.CommitEnvironmentCreate(ctx, core.Environment{Name: "demo", Workspace: core.Workspace{ID: lease.WorkspaceID, Path: workspace}, AccessMode: lease.AccessMode, RuntimeRef: lease.RuntimeRef, CreatedAt: lease.AcquiredAt}, lease); err != nil {
 		t.Fatal(err)
 	}
 	policyPath := filepath.Join(root, "policy.json")

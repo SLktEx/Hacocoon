@@ -3,6 +3,7 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"env.doctor.inspect_runtime":     {"Cannot verify the runtime state; inspect the owned Environment before changing it", "実行状態を確認できません。変更する前に、管理対象の開発環境を確認してください。"},
 	"env.status.header":              {"Environment: %s\nState:       %s\nWorkspace:   %s\nAccess:      %s\n", "開発環境: %s\n状態:     %s\n作業場所: %s\nアクセス: %s\n"},
 	"env.status.base":                {"Base:        %s\nRevision:    %s\n", "ひな形（Base）: %s\nリビジョン:     %s\n"},
 	"env.status.stopped":             {"Workspace retained; this Environment is stopped.", "この開発環境は停止しています。作業データは保持されています。"},

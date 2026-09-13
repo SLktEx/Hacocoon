@@ -115,3 +115,14 @@ Core defines stable product contracts and trust boundaries. Standard supplies
 maintained, replaceable defaults such as Incus and egress enforcement. Plugins add
 optional integrations; their absence must leave a useful Core. See
 [plugin architecture](../design/plugin-architecture.md).
+
+## Env, Base and OCI Store
+
+**Env** is the CLI shorthand for **Environment**, the isolated execution place.
+A **Base** is an Environment starting point, not the working files. A
+**Workspace** holds working files independently of the Env runtime. An
+**OCI Store** is optional retained container image/build/runtime data; its
+lifetime is separate from Workspace and Env. `haco env stop` retains the Env;
+`haco env delete` removes its runtime/rootfs while retaining Workspace, OCI
+Store and independent snapshots. Explicit retained-data deletion is separate.
+See [daily workflow](daily-workflow.md) for execution locations and commands.

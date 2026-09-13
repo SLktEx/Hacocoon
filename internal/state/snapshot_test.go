@@ -14,7 +14,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func snapshotCatalogFixture(t *testing.T) (*EnvironmentJSONStore, core.Snapshot) {
+func snapshotCatalogFixture(t *testing.T, configure ...func(*core.Environment)) (*EnvironmentJSONStore, core.Snapshot) {
 	t.Helper()
 	s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	ctx := context.Background()
@@ -32,6 +32,9 @@ func snapshotCatalogFixture(t *testing.T) (*EnvironmentJSONStore, core.Snapshot)
 	}
 	lease.State = core.WorkspaceLeaseActive
 	env := core.Environment{Name: "dev", Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, RuntimeRef: lease.RuntimeRef, CreatedAt: lease.AcquiredAt}
+	for _, configureEnvironment := range configure {
+		configureEnvironment(&env)
+	}
 	if err := s.CommitEnvironmentCreate(ctx, env, lease); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,10 @@ const (
 )
 
 type EnvironmentRuntimeStatus struct {
-	State EnvironmentState `json:"state"`
+	// Absent is a complete provider observation, distinct from an unknown
+	// runtime state or failed inspection. Keep the public state JSON unchanged.
+	Absent bool             `json:"-"`
+	State  EnvironmentState `json:"state"`
 }
 
 type EnvironmentStatus struct {

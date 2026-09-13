@@ -136,3 +136,15 @@ type ExecutionResult struct {
 	StdoutBytes     int64
 	StderrBytes     int64
 }
+
+// MatchesEnvironment checks the common active-lease binding. Generation,
+// snapshot and authority-specific checks remain with their operation owners.
+func (lease WorkspaceLease) MatchesEnvironment(environment Environment) bool {
+	return lease.State == WorkspaceLeaseActive && environment.Name != "" &&
+		lease.EnvironmentID == environment.Name && lease.RuntimeRef != "" &&
+		lease.RuntimeRef == environment.RuntimeRef &&
+		lease.WorkspaceID == environment.Workspace.ID &&
+		lease.SourcePath == environment.Workspace.Path &&
+		lease.AccessMode == environment.AccessMode &&
+		lease.PersistentResource == environment.PersistentResource
+}

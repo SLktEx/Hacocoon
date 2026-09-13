@@ -44,10 +44,7 @@ func (s *Service) start(ctx context.Context, name string, expected core.Workspac
 	if err != nil {
 		return fmt.Errorf("resume requires durable lease: %w", core.ErrRecoveryRequired)
 	}
-	if lease.State != core.WorkspaceLeaseActive || lease.EnvironmentID != name ||
-		lease.RuntimeRef == "" || lease.RuntimeRef != environment.RuntimeRef ||
-		lease.WorkspaceID != environment.Workspace.ID || lease.SourcePath != environment.Workspace.Path ||
-		lease.AccessMode != environment.AccessMode || lease.PersistentResource != environment.PersistentResource {
+	if lease.EnvironmentID != name || !lease.MatchesEnvironment(environment) {
 		return fmt.Errorf("resume ownership does not match: %w", core.ErrRecoveryRequired)
 	}
 	runtime, ok := s.runtime.(interface {
