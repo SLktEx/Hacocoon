@@ -52,6 +52,7 @@ const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
 	hostSetupActive     sync.Mutex
+	hostSetupDone       chan struct{}
 	Workflow            *workflow.Service
 	Networks            *networkrelay.Service
 	transferCatalog     *state.EnvironmentJSONStore

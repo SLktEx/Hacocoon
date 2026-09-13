@@ -44,6 +44,13 @@ Windowsのdesktop全体も成功しました。元の全体失敗は失敗とし
 同じshuffle seedでのローカル30回はコード変更なしで成功し、間欠的な時間切れの原因は未確定です。
 この結果は当該切り出しの試験範囲の証拠であり、リリース配布や後続main統合の合格を示しません。
 
+main統合後の`d6f078e`の[Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)は、
+Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了・再起動直後の通常入口で
+`Host setup is busy`と拒否されました。fixtureはその後時間切れとなり、後続のEnvironment・desktop試験は
+スキップされました。shell準備は既存の期限内でcontroller setupの排他解放を待つよう修正し、
+明示的setupの重複拒否と失敗recipeの復旧規則を維持します。構成要素・race試験で待機、キャンセル、
+排他解放を確認しましたが、修正後の統合候補のWindows受入は別途必要です。
+
 <a id="installation"></a>
 
 ## インストールとHost

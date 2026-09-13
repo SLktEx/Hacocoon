@@ -283,6 +283,11 @@ reprovisionで再実行しません。providerの`volatile.uuid`が変わると�
 `--reapply-script`は必須provisioningを省略し、既に所有・起動済みのHostだけで実行します。
 追加した2フラグはHost専用で、Environment指定のWorkspace recipe契約は維持します。
 
+通常のshell入口は実行中のcontroller setupが終わるまで、準備全体の15分の期限内で待ち、
+その後に自身の正規の準備を行います。明示的なsetupの重複は引き続き拒否します。
+待機中の入口をキャンセルしても、実行中の処理の排他は解放せず、失敗・完了不明のrecipeの
+再実行も許可しません。
+
 クライアントは最大1 MiBの通常UTF-8ファイルを読みます。実行bitは不要で、UTF-8 BOMと
 CRLFを正規化します。`~/`はクライアント側アカウントで解決します。PowerShellではWSLの
 Physical Hostに入っているLinuxクライアントを使います。

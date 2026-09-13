@@ -49,6 +49,15 @@ seed passed without a code change. The intermittent timeout's cause is unconfirm
 These results establish the extraction's tested scope, not release publication
 or acceptance of later main integrations.
 
+After main integration at `d6f078e`, [Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)
+passed installation and the first Host diagnostics on Incus 7.0.1, then failed
+ordinary entry immediately after WSL termination/restart with `Host setup is busy`.
+The fixture subsequently timed out; later Environment/desktop gates were skipped.
+Shell preparation now waits for controller setup exclusion within its existing
+deadline, retaining explicit-setup conflict refusal and failed-recipe recovery.
+Component/race coverage checks waiting, cancellation and exclusion release;
+the repaired integrated candidate still requires Windows acceptance.
+
 <a id="installation"></a>
 
 ## Installation and Host

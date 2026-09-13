@@ -290,6 +290,11 @@ does not silently change the saved recipe. `--reapply-script` skips mandatory
 provisioning and requires an already owned, running Host. These two additional
 flags are Host-only; explicit Environment setup retains its Workspace recipe rules.
 
+Ordinary shell entry waits for an active controller setup to finish within the
+shared 15-minute preparation deadline, then performs its own canonical preparation.
+Explicit setup still rejects overlap. Cancelling a waiting entry cannot release
+the active operation's exclusion or authorize replay of a failed/unknown recipe.
+
 The client reads a regular UTF-8 file of at most 1 MiB; an executable bit is not
 needed. UTF-8 BOM and CRLF are normalized. `~/` resolves in the client account.
 From PowerShell, use the installed Linux client on the WSL Physical Host:
