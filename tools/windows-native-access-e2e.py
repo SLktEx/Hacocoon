@@ -50,6 +50,7 @@ def verify_acceptance_result(name, result, require_vscode=False):
         raise RuntimeError(f'{name} failed with exit {result.returncode}')
     expected = {
         'test_windows_host_interop.ps1': 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS',
+        'test_windows_official_base_ssh.ps1': 'WINDOWS OFFICIAL BASE DEFAULT-DENY SSH: PASS',
         'test_windows_environment_ssh.ps1': 'WINDOWS DIRECT ENVIRONMENT SSH: PASS',
         'test_host_customization.ps1': 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS',
     }[name]
@@ -86,6 +87,10 @@ def main():
             scripts = [('test_windows_host_interop.ps1', ['-RequireNonC'] if args.require_non_c else [])]
             if args.persistence_manifest: scripts[0][1].extend(['-PersistenceManifest', str(Path(args.persistence_manifest).resolve())])
             if not args.interop_only:
+                # Run the fresh official-Base/default-deny path before the broader
+                # SSH fixture adds any Environment-specific test Policy.
+                if os.environ.get('GITHUB_ACTIONS') == 'true':
+                    scripts.append(('test_windows_official_base_ssh.ps1', []))
                 # Environment creation/deletion must not break interop in the
                 # already-open trusted Host session.
                 scripts.extend([('test_windows_environment_ssh.ps1', ['-ReclamationManifest', str(Path(args.reclamation_manifest).resolve())] if args.reclamation_manifest else [])])

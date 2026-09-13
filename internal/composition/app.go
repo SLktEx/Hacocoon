@@ -182,9 +182,10 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
+	officialBuildPolicy := capabilityapp.NewOfficialBuildPolicy(policy)
 	audit := capabilityapp.NewJSONLAudit(auditPath)
 	capabilities, err := capabilityapp.New(
-		policy,
+		officialBuildPolicy,
 		approval,
 		audit,
 		capabilityapp.LocalEcho{},
@@ -280,7 +281,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,
-		BaseBuild:           &basebuild.Service{Environments: environments},
+		BaseBuild:           &basebuild.Service{Environments: environments, OfficialNetwork: officialBuildPolicy},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,

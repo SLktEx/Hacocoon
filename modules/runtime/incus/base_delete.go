@@ -56,6 +56,9 @@ func (p *BaseProvider) listBaseImages(ctx context.Context) ([]basemanage.Image, 
 			return nil, core.ErrCapabilityStale
 		}
 		v := basemanage.Image{Identity: id, Aliases: []string{}, NativeUsers: []string{}, ProtectedAliases: []string{}}
+		if logical, ok := basebuild.OfficialBaseForBuildName(id.Name); ok {
+			v.ProtectedAliases = append(v.ProtectedAliases, "official:"+string(logical))
+		}
 		for _, a := range aliases {
 			if a.Target != id.Fingerprint {
 				continue

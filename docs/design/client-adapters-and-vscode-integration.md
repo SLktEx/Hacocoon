@@ -58,14 +58,19 @@ SSH setup itself remains editor-neutral. `haco open` defaults to VS Code, while
 Remote-SSH needs its requested dynamic forwarding: generated settings use
 `ClearAllForwardings no` and `GatewayPorts no`; agent forwarding remains disabled.
 
-On first access to a Base without `sshd`, the existing SSH preparation installs
-`openssh-server` through the Env's Policy-controlled package transport. Default deny
-can prevent that preparation; a generic connection failure does not prove either
-a package failure or pending approval. The CLI routes inspection to
-`haco env status`, `haco doctor`, read-only `haco approve --list` and `haco config`.
-Review the actual Base's package endpoints and current Env scope before changing
-Policy. After a failed attempt, inspect connections before disconnecting or
-trying again; preparation is not permission to grant network access automatically.
+Hacocoon official Bases are published through the canonical Base Builder with
+OpenSSH server already present. Runtime SSH preparation never invokes a distro
+package manager and therefore does not need package-mirror Policy merely to make
+an official-Base Environment reachable. It generates per-Environment host keys,
+starts a supported `ssh.service`/`sshd.service`, validates sshd, installs only the
+managed client public key, and creates the loopback-only proxy.
+
+A custom Base must provide a compatible `sshd` and systemd SSH unit itself. A
+missing server or unsupported service contract fails explicitly as an unsupported
+Base capability rather than attempting `apt-get`. Package/network authority stays
+a Base-construction concern. After any SSH failure, inspect Env state and managed
+connections before disconnecting or retrying; the failure alone is not permission
+to broaden Env network Policy.
 
 In WSL (including trusted haco-host), the client resolves the Windows profile and
 uses Windows ssh-keygen. On Linux it uses the local client home. The private key
@@ -88,9 +93,12 @@ Use the existing `haco env disconnect <name> <connection-id>` after inspection.
 Repository regressions cover real ssh-keygen, preservation, reuse/resume and hostile
 file/config/provider input. The maintained Windows acceptance additionally exercises
 the default client home on the disposable GHA user, native SSH, and stopped resume.
-Local manual runs of that fixture SKIP home modification; they continue the existing
-explicit-key SSH test. VS Code process launch alone is not proof of editor/server
-connection, terminal or debugger acceptance.
+A dedicated fresh-official-Base probe runs first under default-deny Policy, verifies
+`sshd` is already present before setup, then completes ordinary `haco ssh setup`
+and Windows native OpenSSH without package-mirror permission. Local manual runs of
+the broader fixture SKIP home modification; they continue the existing explicit-key
+SSH test. VS Code process launch alone is not proof of editor/server connection,
+terminal or debugger acceptance.
 
 ### Disposable Windows editor acceptance
 

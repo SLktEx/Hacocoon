@@ -3,24 +3,29 @@ package basebuild
 import (
 	"context"
 	"errors"
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 type fakeEnv struct {
-	t      *testing.T
-	calls  []string
-	work   core.Workspace
-	script string
-	fail   string
-	cancel context.CancelFunc
+	t          *testing.T
+	calls      []string
+	work       core.Workspace
+	script     string
+	fail       string
+	cancel     context.CancelFunc
+	parentOnly bool
+	spec       core.EnvironmentSpec
+	published  core.BaseName
 }
 
 func (f *fakeEnv) Create(_ context.Context, s core.EnvironmentSpec) (core.Environment, error) {
 	f.calls = append(f.calls, "create")
-	if s.TemporaryWorkspace == nil || !core.ValidTemporaryWorkspace(*s.TemporaryWorkspace) || !s.SkipDefaultResource || s.WorkspacePath != "" {
+	f.spec = s
+	if s.TemporaryWorkspace == nil || !core.ValidTemporaryWorkspace(*s.TemporaryWorkspace) || !s.SkipDefaultResource || s.WorkspacePath != "" || s.ParentBaseOnly != f.parentOnly {
 		f.t.Fatal("not isolated", s)
 	}
 	f.work = *s.TemporaryWorkspace
@@ -61,6 +66,7 @@ func (f *fakeEnv) StopForWorkspace(_ context.Context, _ string, id core.Workspac
 }
 func (f *fakeEnv) PublishTemporaryBase(_ context.Context, _ string, w core.Workspace, n core.BaseName) (core.BaseInfo, error) {
 	f.calls = append(f.calls, "publish")
+	f.published = n
 	if w != f.work {
 		f.t.Fatal("wrong publisher")
 	}
@@ -82,6 +88,19 @@ func (f *fakeEnv) DeleteTemporary(ctx context.Context, _ string, w core.Workspac
 	}
 	return nil
 }
+
+type fakeOfficialNetwork struct {
+	environment string
+	hosts       []string
+	released    bool
+}
+
+func (f *fakeOfficialNetwork) AcquireOfficialBuild(_ context.Context, environment string, hosts []string) (func(), error) {
+	f.environment = environment
+	f.hosts = append([]string(nil), hosts...)
+	return func() { f.released = true }, nil
+}
+
 func TestBuildPreservesBoundariesAndFailureEvidence(t *testing.T) {
 	for _, failure := range []string{"", "create", "script", "clean", "stop", "publish", "delete"} {
 		t.Run(failure, func(t *testing.T) {
@@ -107,8 +126,34 @@ func TestBuildPreservesBoundariesAndFailureEvidence(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildOfficialUsesCanonicalLifecycleAndScopedNetwork(t *testing.T) {
+	definition, hosts, ok := OfficialDefinition("haco/ubuntu-26.04")
+	if !ok {
+		t.Fatal("missing official definition")
+	}
+	f := &fakeEnv{t: t, script: definition.Run, parentOnly: true}
+	network := &fakeOfficialNetwork{}
+	got, err := (&Service{Environments: f, OfficialNetwork: network}).BuildOfficial(context.Background(), "haco/ubuntu-26.04")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(f.calls, []string{"create", "script", "clean", "stop", "publish", "delete"}) {
+		t.Fatalf("calls = %#v", f.calls)
+	}
+	if f.spec.Base != "haco/ubuntu-26.04" || !f.spec.ParentBaseOnly || f.published != definition.Name {
+		t.Fatalf("spec=%+v published=%q", f.spec, f.published)
+	}
+	if network.environment != f.spec.Name || !reflect.DeepEqual(network.hosts, hosts) || !network.released {
+		t.Fatalf("network=%+v hosts=%v", network, hosts)
+	}
+	if got.State != "ready" || got.Builder != "" || got.Base.Name != "haco/ubuntu-26.04" || got.Base.Revision == "" {
+		t.Fatalf("result=%+v", got)
+	}
+}
+
 func TestDefinitionRejectsAuthorityShapingInput(t *testing.T) {
-	for _, d := range []Definition{{Name: "../x", Run: "true"}, {Name: "--public", Run: "true"}, {Name: "haco/x", Run: "true"}, {Name: "x", Run: ""}, {Name: "x", From: "x", Run: "true"}, {Name: "x", Run: strings.Repeat("a", MaxScriptBytes+1)}} {
+	for _, d := range []Definition{{Name: "../x", Run: "true"}, {Name: "--public", Run: "true"}, {Name: "haco/x", Run: "true"}, {Name: "haco-official-ubuntu-26.04", Run: "true"}, {Name: "x", Run: ""}, {Name: "x", From: "x", Run: "true"}, {Name: "x", Run: strings.Repeat("a", MaxScriptBytes+1)}} {
 		if d.Validate() == nil {
 			t.Fatal(d)
 		}
