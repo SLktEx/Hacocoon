@@ -149,10 +149,27 @@ func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
 				found = true
 				break
 			}
-		}
 		if !found {
 			t.Fatalf("missing docker alias command %q: %#v", want, runner.calls)
 		}
+	}
+}
+
+func TestEnsureToolingDockerGroupPreparesSocketOwnership(t *testing.T) {
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.ensureToolingDockerGroup(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls=%d want=1: %#v", len(runner.calls), runner.calls)
+	}
+	joined := strings.Join(runner.calls[0].args, " ")
+	if !strings.Contains(joined, "-- groupadd --system --force docker") {
+		t.Fatalf("docker group command missing from %q", joined)
 	}
 }
 
@@ -162,8 +179,10 @@ func TestWriteToolingProvisionFilesRetainsDockerCompatibilityUnits(t *testing.T)
 		t.Fatal(err)
 	}
 	for path, want := range map[string]string{
-		files.socketUnit:  hacocoonDockerSocketUnit,
-		files.serviceUnit: hacocoonDockerServiceUnit,
+		files.socketUnit:           hacocoonDockerSocketUnit,
+		files.serviceUnit:          hacocoonDockerServiceUnit,
+		files.autostartPathUnit:    hacocoonDockerAutostartPathUnit,
+		files.autostartServiceUnit: hacocoonDockerAutostartServiceUnit,
 	} {
 		got, err := os.ReadFile(path)
 		if err != nil {
@@ -171,6 +190,26 @@ func TestWriteToolingProvisionFilesRetainsDockerCompatibilityUnits(t *testing.T)
 		}
 		if string(got) != want {
 			t.Fatalf("provisioned unit %s differs from pinned content", path)
+		}
+	}
+}
+
+func TestDockerCompatibilityAutostartWatchesForDockerd(t *testing.T) {
+	for _, want := range []string{
+		"PathExists=/usr/bin/dockerd",
+		"Unit=hacocoon-docker-autostart.service",
+	} {
+		if !strings.Contains(hacocoonDockerAutostartPathUnit, want) {
+			t.Fatalf("autostart path unit missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		"ConditionPathIsExecutable=/usr/bin/dockerd",
+		"ExecStart=/usr/bin/systemctl enable --now hacocoon-docker.socket",
+		"RemainAfterExit=yes",
+	} {
+		if !strings.Contains(hacocoonDockerAutostartServiceUnit, want) {
+			t.Fatalf("autostart service unit missing %q", want)
 		}
 	}
 }
