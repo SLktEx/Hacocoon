@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.68**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.69**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -30,6 +30,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
 | [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host実体ごとの自動設定、明示的なscriptのみの再適用と非公開出力・終了値の記録、EnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
 | [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は作成世代を照合して片付け、指定したWorkspace／OCIを保持。既定は出力収集、`-i`はパイプ、`-it`は実端末。逐次出力の実機確認は未完了。片付け失敗時は所有記録を保持。 |
+| [キャッシュ世代](design/cache-generations.ja.md) | partial | この候補で完成済み共通元の排他的採用と未接続Incusキャッシュ領域のコピーを実装。Host設定、通常Envの指定パス収集・配置、Envとともに削除する接続、履歴、一括クリア、実際のキャッシュ利用・巨大レポ受入は残件。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 部分実装 | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。[PackerのHCL2・外部shell構築](design/packer-base-builds.ja.md)はこの候補で部分実装。Env内実行・上限付きファイル転送を実装し、導入済み経路の受入は未完了。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCIと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |

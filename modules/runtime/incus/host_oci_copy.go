@@ -60,7 +60,7 @@ func (b *PersistentResourceBackend) hostCopyInstance(ctx context.Context, source
 }
 
 func (b *PersistentResourceBackend) hostCopyConsumer(source core.PersistentResource, observed *persistentVolumeObservation) bool {
-	if source.ID != "oci-source:host" || !source.SourceOnly || observed == nil || len(observed.UsedBy) != 1 {
+	if source.Kind != OCIStoreKind || source.ID != "oci-source:host" || !source.SourceOnly || observed == nil || len(observed.UsedBy) != 1 {
 		return false
 	}
 	u, err := url.Parse(observed.UsedBy[0])

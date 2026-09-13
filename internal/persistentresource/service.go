@@ -102,10 +102,7 @@ func (s *Service) DeleteForWorkspace(ctx context.Context, id string, workspace c
 	if err != nil {
 		return err
 	}
-	if err := s.Backend.Delete(ctx, resource); err != nil {
-		return fmt.Errorf("temporary resource cleanup incomplete: %w: %w", core.ErrRecoveryRequired, err)
-	}
-	return s.Store.FinalizePersistentResourceDelete(ctx, resource)
+	return s.finishDelete(ctx, resource)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
@@ -113,10 +110,19 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	return s.finishDelete(ctx, r)
+}
+
+// finishDelete is the common positive-absence boundary after a catalog has
+// excluded attachments, copies and source selection for this exact owner.
+func (s *Service) finishDelete(ctx context.Context, r core.PersistentResource) error {
 	if err := s.Backend.Delete(ctx, r); err != nil {
 		return fmt.Errorf("resource retained for recovery; retry explicit delete: %w: %w", core.ErrRecoveryRequired, err)
 	}
-	return s.Store.FinalizePersistentResourceDelete(ctx, r)
+	if err := s.Store.FinalizePersistentResourceDelete(ctx, r); err != nil {
+		return fmt.Errorf("resource cleanup not finalized; retry explicit delete: %w: %w", core.ErrRecoveryRequired, err)
+	}
+	return nil
 }
 
 // Copy creates an independent offline resource without exposing its contents to

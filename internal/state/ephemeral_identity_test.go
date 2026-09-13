@@ -153,7 +153,7 @@ func TestSchema13RunMigrationNeverInventsOwnership(t *testing.T) {
 	if err := json.Unmarshal(raw, &data); err != nil {
 		t.Fatal(err)
 	}
-	if data.Version != 14 || data.EphemeralRuns[run.EnvironmentID].InstanceID != "" {
+	if data.Version != environmentStateVersion || data.EphemeralRuns[run.EnvironmentID].InstanceID != "" {
 		t.Fatal("migration lost recovery evidence")
 	}
 }

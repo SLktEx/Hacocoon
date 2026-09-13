@@ -11,6 +11,7 @@ import (
 )
 
 const OCIStoreKind = "oci-containerd"
+const CacheResourceKind = "build-cache"
 const OCIStorePath = "/var/lib/hacocoon-oci"
 
 type PersistentResourceBackend struct {
@@ -21,7 +22,7 @@ type PersistentResourceBackend struct {
 }
 
 func (b *PersistentResourceBackend) Plan(ctx context.Context, kind, owner string) (string, error) {
-	if kind != OCIStoreKind || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: owner}) {
+	if !managedResourceKind(kind) || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: owner}) {
 		return "", core.ErrInvalidArgument
 	}
 	pool, err := b.Runtime.defaultRootPool(ctx)
@@ -34,16 +35,26 @@ func (b *PersistentResourceBackend) Plan(ctx context.Context, kind, owner string
 	return pool + "/haco-persistent-" + owner, nil
 }
 
+// OCI-specific attachment, maintenance and import callers retain this boundary.
 func persistentVolume(r core.PersistentResource) (string, string, error) {
+	if r.Kind != OCIStoreKind {
+		return "", "", core.ErrInvalidArgument
+	}
+	return managedResourceVolume(r)
+}
+
+func managedResourceKind(kind string) bool { return kind == OCIStoreKind || kind == CacheResourceKind }
+
+func managedResourceVolume(r core.PersistentResource) (string, string, error) {
 	parts := strings.Split(r.NativeRef, "/")
-	if r.Kind != OCIStoreKind || !core.ValidPersistentResourceRef(r.Ref()) || len(parts) != 2 || !safeIncusRef(parts[0]) || parts[1] != "haco-persistent-"+r.Owner {
+	if !managedResourceKind(r.Kind) || !core.ValidPersistentResourceRef(r.Ref()) || len(parts) != 2 || !safeIncusRef(parts[0]) || parts[1] != "haco-persistent-"+r.Owner {
 		return "", "", core.ErrInvalidArgument
 	}
 	return parts[0], parts[1], nil
 }
 
 func (b *PersistentResourceBackend) Create(ctx context.Context, r core.PersistentResource) error {
-	pool, name, err := persistentVolume(r)
+	pool, name, err := managedResourceVolume(r)
 	if err != nil {
 		return err
 	}
@@ -61,7 +72,7 @@ type persistentVolumeObservation struct {
 }
 
 func (b *PersistentResourceBackend) observe(ctx context.Context, r core.PersistentResource) (*persistentVolumeObservation, error) {
-	pool, name, err := persistentVolume(r)
+	pool, name, err := managedResourceVolume(r)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +106,7 @@ func (b *PersistentResourceBackend) Verify(ctx context.Context, r core.Persisten
 		return core.ErrNotFound
 	}
 	if len(v.UsedBy) != 0 {
-		if r.SourceOnly {
+		if r.SourceOnly && r.Kind == OCIStoreKind {
 			return b.VerifyHostSource(ctx, r)
 		}
 		return core.ErrStorageBusy
@@ -112,7 +123,7 @@ func (b *PersistentResourceBackend) CheckDeletion(ctx context.Context, r core.Pe
 	if len(v.UsedBy) > 0 {
 		return core.ErrStorageBusy
 	}
-	pool, name, err := persistentVolume(r)
+	pool, name, err := managedResourceVolume(r)
 	if err != nil {
 		return err
 	}
@@ -133,7 +144,7 @@ func (b *PersistentResourceBackend) Delete(ctx context.Context, r core.Persisten
 	if len(v.UsedBy) > 0 {
 		return core.ErrStorageBusy
 	}
-	pool, name, _ := persistentVolume(r)
+	pool, name, _ := managedResourceVolume(r)
 	_, deleteErr := b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "delete", pool, name, "--project", b.Runtime.project)
 	after, err := b.observe(ctx, r)
 	if err != nil {
@@ -152,10 +163,13 @@ func (p *SandboxProvider) attachPersistentResource(ctx context.Context, ref stri
 	if r == (core.PersistentResource{}) {
 		return nil
 	}
+	if r.Kind != OCIStoreKind {
+		return core.ErrInvalidArgument
+	}
 	if err := (&PersistentResourceBackend{Runtime: p.Runtime}).Verify(ctx, r); err != nil {
 		return err
 	}
-	pool, name, err := persistentVolume(r)
+	pool, name, err := managedResourceVolume(r)
 	if err != nil {
 		return err
 	}
@@ -212,15 +226,15 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 
 // Completion is durably recorded by the canonical lifecycle before Host resume.
 func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, source, target core.PersistentResource, completed func() error) error {
-	pool, name, err := persistentVolume(target)
+	pool, name, err := managedResourceVolume(target)
 	if err != nil {
 		return err
 	}
-	sourcePool, sourceName, err := persistentVolume(source)
+	sourcePool, sourceName, err := managedResourceVolume(source)
 	if err != nil {
 		return err
 	}
-	if pool != sourcePool || sourceName == name || source.ID == target.ID || target.CopySource != source.Ref() {
+	if source.Kind != target.Kind || pool != sourcePool || sourceName == name || source.ID == target.ID || target.CopySource != source.Ref() {
 		return core.ErrInvalidArgument
 	}
 	// Refuse storage drift rather than silently claiming a full copy is COW.
@@ -264,6 +278,9 @@ func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, sour
 	}
 	var resume func(context.Context) error
 	if len(observed.UsedBy) != 0 {
+		if source.Kind != OCIStoreKind {
+			return core.ErrStorageBusy
+		}
 		unlock, lockErr := lockHostOperation(ctx, b.Runtime.project)
 		if lockErr != nil {
 			return lockErr
