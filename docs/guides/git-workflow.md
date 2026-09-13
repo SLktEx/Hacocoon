@@ -5,6 +5,8 @@
 Start with [your first Environment](getting-started.md). This page covers Git Policy,
 multiple repositories and saved approvals. Authentication stays in trusted
 `haco-host`; the Environment gets only the Git-specific broker endpoint.
+Creating an Environment from a managed Git Workspace wires that broker automatically;
+`haco git connect <env>` remains available for explicit reconnection and recovery.
 
 <a id="configure-git-policy"></a>
 ## Configure Git Policy
@@ -104,12 +106,12 @@ haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
 haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
 haco workspace create --repo first,second both
 haco env create --workspace managed:both both-dev
-haco git connect both-dev
 ```
 
 Work in `/workspace/first` and `/workspace/second`; each has independent `.git`.
-Add Policy for each registered source. One lease owns the entire collection;
-members cannot be leased separately. Files outside the member mounts are
+The Environment creation wires the broker for every managed member without contacting
+the upstream remotes. Add Policy for each registered source. One lease owns the entire
+collection; members cannot be leased separately. Files outside the member mounts are
 Environment-only. Membership editing and interrupted collection recovery are deferred.
 
 ## Retention and imported data

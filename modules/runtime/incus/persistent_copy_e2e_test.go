@@ -328,6 +328,7 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		t.Fatal("Host changed copy")
 	}
 	// Only delete this freshly owned fixture Host, then the positively detached area.
+	verifyRecipeRecreation := prepareHostRecipeRecreation(t, ctx, runtime, command)
 	if _, err := backend.hostCopyInstance(ctx, source); err != nil {
 		t.Fatal(err)
 	}
@@ -341,6 +342,13 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	if err := service.Delete(ctx, target.ID); err != nil {
 		t.Fatal(err)
 	}
+	// Recreate only the same disposable fixture name from its exact Base.
+	command("launch", imageFingerprint, trustedHostName, "--project", project, "--storage", pool, "--no-profiles", "--config", trustedHostRoleKey+"="+trustedHostRoleValue)
+	verifyRecipeRecreation()
+	if err := runtime.verifyTrustedHostOwnership(ctx); err != nil {
+		t.Fatal(err)
+	}
+	command("delete", trustedHostName, "--project", project, "--force")
 	t.Log("PASS Host pause/COW/resume and bidirectional write/deletion independence; cleaning fixture Base")
 	// This exact image was introduced by launch into the freshly created project.
 	command("image", "delete", imageFingerprint, "--project", project)
