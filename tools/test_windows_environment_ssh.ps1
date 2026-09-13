@@ -510,7 +510,7 @@ fi
         }
         try {
             . (Join-Path $PSScriptRoot 'test_windows_environment_transfer.ps1')
-            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work -ReclamationManifest $ReclamationManifest
+            Invoke-InstalledEnvironmentTransfer -BaseName $BuiltBaseName -BaseRevision ('sha256:' + $BuiltBaseFingerprint) -PublicKeyWsl $PublicKeyWsl -PrivateKey $PrivateKey -NativeSSH $NativeSSH -Directory $Work -ReclamationManifest $ReclamationManifest
         } catch {
             $DesktopFailures.Add('environment-transfer')
             Write-Host 'INSTALLED ENV TRANSFER: FAIL; continuing independent probes'
@@ -589,7 +589,9 @@ fi
             $CleanupFailed = $true; Write-Warning $_
         }
     }
-    if ($BuiltBaseFingerprint -and $EnvironmentGone) {
+    # Retention acceptance later creates an ordinary Env from this exact Base.
+    # Keep it with the retained fixture, including when transfer failed.
+    if ($BuiltBaseFingerprint -and $EnvironmentGone -and [string]::IsNullOrEmpty($ReclamationManifest)) {
         try {
             $cleanupBase = @'
 import json, re, subprocess, sys

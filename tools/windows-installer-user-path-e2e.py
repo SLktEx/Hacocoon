@@ -74,6 +74,26 @@ def cmd_prompt_count(text: str) -> int:
     return len(CMD_PROMPT_RE.findall(text))
 
 
+def reject_failed_host_entry(text: str) -> None:
+    # A shipped CLI error is terminal, even if cmd.exe stays alive. Do not wait
+    # the session timeout or retry WSL entry and hide the original product error.
+    if re.search(r"(?m)^haco: enter trusted haco-host:", text):
+        raise RuntimeError("product: ordinary Host entry failed before its prompt")
+
+
+def run_phase(name: str, action, *args, **kwargs):
+    started = time.monotonic()
+    print(json.dumps({"component": "ci", "operation": name, "state": "started"}), flush=True)
+    state = "failed"
+    try:
+        result = action(*args, **kwargs)
+        state = "passed"
+        return result
+    finally:
+        print(json.dumps({"component": "ci", "operation": name, "state": state,
+                          "duration_ms": int((time.monotonic() - started) * 1000)}), flush=True)
+
+
 def decode_process_output(data: bytes) -> str:
     if not data:
         return ""
@@ -171,7 +191,11 @@ class TerminalProcess:
                 break
             if chunk:
                 dead_since = None
-                self._consume(chunk, responders, on_output)
+                try:
+                    self._consume(chunk, responders, on_output)
+                except Exception:
+                    self.proc.terminate(force=True)
+                    raise
                 continue
             if self.proc.isalive():
                 dead_since = None
@@ -262,6 +286,8 @@ def host_session(*, create: bool) -> None:
 
     def drive(output: str, process: TerminalProcess) -> None:
         nonlocal stage, sent_at
+        if stage == 1:
+            reject_failed_host_entry(output[sent_at:])
         if stage == 0 and cmd_prompt_count(output):
             process.write("wsl -d Hacocoon\r\n")
             stage, sent_at = 1, len(output)
@@ -384,23 +410,23 @@ def main() -> None:
     package_root = Path.cwd()
     if not (package_root / "install-windows.bat").is_file():
         raise RuntimeError("run from the extracted candidate ZIP")
-    run_bat(package_root)
-    assert_host()
-    host_session(create=True)
+    run_phase("initial-install", run_bat, package_root)
+    run_phase("installed-host-assertions", assert_host)
+    run_phase("initial-host-entry", host_session, create=True)
     previous_namespace = boot_guard_namespace()
     # A normal user stop, before any installer rerun that could repair startup.
-    subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
-    host_session(create=False)
-    assert_host()
+    run_phase("terminate", subprocess.run, ["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
+    run_phase("restart-host-entry", host_session, create=False)
+    run_phase("restarted-host-assertions", assert_host)
     if boot_guard_namespace() == previous_namespace:
         raise RuntimeError("WSL restart did not exercise a new PID namespace")
     if not inspect_root("find", "/var/lib/incus/.hacocoon-boot-guard", "-type", "f",
                         "-path", "*/networks/haco-host0/dnsmasq.pid"):
         raise RuntimeError("previous dnsmasq PID record was not retained in the boot archive")
     policy_before = sudo_policy_digest()
-    run_bat(package_root)
-    host_session(create=False)
-    assert_host()
+    run_phase("reinstall", run_bat, package_root)
+    run_phase("reinstalled-host-entry", host_session, create=False)
+    run_phase("reinstalled-host-assertions", assert_host)
     if sudo_policy_digest() != policy_before:
         raise RuntimeError("current-installer rerun changed existing sudo policy")
     # Exercise the documented direct diagnostic entry before any root/service

@@ -19,7 +19,8 @@ authority attributes and the separate reusable scope. Answer yes/no for this
 operation, or choose an Environment/global allow, deny or ask Policy. Saving ask
 still requires a separate yes/no answer for the current operation.
 
-`haco approve --list` prints the trusted pending details as JSON without deciding.
+`haco approve --list` prints readable trusted pending details without deciding.
+Add `--json` when a script parses the list.
 An optional request ID selects an exact request. No new arguments are required for
 ordinary Git or network operations. Existing Git approve/deny commands remain.
 Use [haco config](../reference/configuration.md) to inspect or edit saved Policy.

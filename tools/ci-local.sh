@@ -35,6 +35,12 @@ run_docs() {
 run_workflow_policy() {
   need python3
   section "workflow-policy"
+  python3 tools/check_ci_contracts.py
+  python3 tools/test_ci_diagnostics.py
+  python3 tools/test_ci_cleanup.py
+  python3 tools/test_ci_required_tests.py
+  python3 tools/test_ci_history.py
+  python3 tools/test_ci_contracts.py
   python3 tools/check_workflow_policy.py
   python3 tools/test_workflow_policy.py
   python3 tools/test_real_git_push_target.py
@@ -138,6 +144,9 @@ run_release_config() {
   need tar
   check_go
 
+  section "release-config: Actions syntax and expressions"
+  go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= -ignore '^label "ubuntu-26.04" is unknown'
+
   section "release-config: trust, provenance, and package contracts"
   bash tools/test_release_tag_trust.sh
   python3 tools/check_release_provenance.py
@@ -164,6 +173,7 @@ run_release_config() {
 
   section "release-config: pre/main/post boundary"
   pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_installer.ps1
+  pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_wsl_stop_readiness.ps1
   validate_install_boundary
   run_systemd
 
@@ -189,7 +199,7 @@ run_test() {
   python3 tools/test_evacuation_files.py
   python3 tools/test_cleanup_ci_base_asset.py
   section "test"
-  go test -count=1 -shuffle=on ./...
+  go test -count=1 -shuffle=615 ./...
   go vet ./...
   section "notification clients"
   node --check pkg/interactionhttp/web/app.js
