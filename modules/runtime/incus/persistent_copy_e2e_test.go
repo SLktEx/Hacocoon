@@ -224,7 +224,16 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
-	verifyRuntimeCopy := prepareHostRuntimeCopy(t, ctx, runtime, source, command)
+	var verifyRuntimeCopy func(core.PersistentResource)
+	toolingNetwork := ""
+	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
+		toolingNetwork = "h599-" + hex.EncodeToString(nonce[:4])
+		command("network", "create", toolingNetwork, "ipv4.address=auto", "ipv4.nat=true", "ipv6.address=none")
+		command("config", "device", "add", trustedHostName, "eth0", "nic", "network="+toolingNetwork, "--project", project)
+		verifyRuntimeCopy = prepareStandardHostToolingCopy(t, ctx, runtime, source, command)
+	} else {
+		verifyRuntimeCopy = prepareHostRuntimeCopy(t, ctx, runtime, source, command)
+	}
 	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	var interrupted *hostCopyResumeFailureRunner
 	if interruptResume {
@@ -316,6 +325,9 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 		t.Fatal(err)
 	}
 	command("delete", trustedHostName, "--project", project, "--force")
+	if toolingNetwork != "" {
+		command("network", "delete", toolingNetwork)
+	}
 	if err := service.Delete(ctx, source.ID); err != nil {
 		t.Fatal(err)
 	}
