@@ -353,6 +353,16 @@ OCI データの初期化、正常なサービスの再起動は行いません�
 リポジトリ試験と専用 Incus 試験は、公開済み Windows インストーラーや認証付きレジストリの
 受け入れ確認とは区別します。
 
+専用の Linux/WSL Incus/Btrfs 試験 Host で root として実行します。
+
+```bash
+HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
+  -v -timeout 18m ./modules/runtime/incus
+```
+
+試験は専用のプロジェクト、プール、ネットワークを作り、成功時に削除します。失敗時は
+表示した所有対象を調査用に保持します。結果は[検証証拠](../status/acceptance-evidence.ja.md#installation)を参照してください。
+
 
 ## Host 入口の言語
 

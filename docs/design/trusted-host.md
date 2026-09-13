@@ -365,6 +365,17 @@ See [ADR 0063](../adr/0063-standard-trusted-host-tooling.md). Repository tests a
 the dedicated real-Incus fixture are distinct from released Windows installer
 acceptance and private-registry credential acceptance.
 
+On a dedicated root Linux/WSL Incus/Btrfs test host, run the maintained fixture:
+
+```bash
+HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
+  -v -timeout 18m ./modules/runtime/incus
+```
+
+The fixture creates its own project, pool and network, and cleans them after a
+pass. Failure retains its printed ownership identities for inspection. See
+[acceptance evidence](../status/acceptance-evidence.md#installation) for results.
+
 
 ## Host entry language
 
