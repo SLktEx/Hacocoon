@@ -69,11 +69,27 @@ def failure_boundary(step):
     return match.group(1) if match else "unclassified"
 
 
-def summarize(runs, jobs_for_attempt, required_steps=None):
+def summarize(runs, jobs_for_attempt, required_steps=None, attempt_metadata=None):
     """Keep attempts distinct, including successful jobs from a partial rerun."""
     records = []
     for run in runs:
         for attempt in range(1, int(run["run_attempt"]) + 1):
+            # Startup failures can have no jobs at all. The latest run result
+            # is overwritten by reruns, so read each attempt's own conclusion.
+            if attempt_metadata is not None:
+                metadata = attempt_metadata(run["id"], attempt)
+                if (metadata["id"], metadata["run_attempt"], metadata["head_sha"]) != (run["id"], attempt, run["head_sha"]):
+                    raise ValueError("attempt identity differs from run history")
+                conclusion = metadata.get("conclusion")
+                records.append({
+                    "workflow": run["name"], "workflow_id": run["workflow_id"],
+                    "sha": run["head_sha"], "event": run["event"],
+                    "run_id": run["id"], "attempt": attempt,
+                    "job": "<workflow>", "job_id": None, "kind": "workflow",
+                    "conclusion": conclusion,
+                    "failed_steps": [{"step": "workflow startup", "boundary": "infrastructure"}] if conclusion == "startup_failure" else [],
+                    "runner_labels": [], "red_then_green": False, "unproven_steps": [],
+                })
             for job in jobs_for_attempt(run["id"], attempt):
                 if job["name"].endswith("-evidence"):
                     continue
@@ -144,7 +160,8 @@ def main(argv=None):
             raise ValueError("current run missing from Actions history")
     else:
         runs = api.get(f"runs?per_page={args.recent}")["workflow_runs"]
-    records = summarize(runs, lambda run, attempt: api.pages(f"runs/{run}/attempts/{attempt}/jobs", "jobs"), required_steps)
+    records = summarize(runs, lambda run, attempt: api.pages(f"runs/{run}/attempts/{attempt}/jobs", "jobs"),
+                        required_steps, lambda run, attempt: api.get(f"runs/{run}/attempts/{attempt}"))
     history_failed = any(r["conclusion"] in BAD for r in records)
     missing_variants = missing_job_variants(records, current["id"], contracts[current["name"]]["job_names"]) if args.gate else []
     # Inspect actual Actions step conclusions even when the job itself is green.

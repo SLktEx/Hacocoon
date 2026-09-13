@@ -5,6 +5,30 @@ from ci_history import Actions, check_needs, failure_boundary, summarize, missin
 
 
 class HistoryTests(unittest.TestCase):
+    def test_startup_failure_without_jobs_survives_successful_rerun(self):
+        run = {"id": 1, "name": "test", "workflow_id": 42, "head_sha": "a" * 40,
+               "event": "pull_request", "run_attempt": 2, "conclusion": "success"}
+        def metadata(run_id, attempt):
+            return dict(run, run_attempt=attempt, conclusion="startup_failure" if attempt == 1 else "success")
+        def jobs(run_id, attempt):
+            return [] if attempt == 1 else [{"id": 7, "name": "unit", "conclusion": "success"}]
+        rows = summarize([run], jobs, attempt_metadata=metadata)
+        self.assertEqual(rows[0]["conclusion"], "startup_failure")
+        self.assertTrue(rows[0]["red_then_green"])
+        self.assertEqual(rows[0]["failed_steps"], [{"step": "workflow startup", "boundary": "infrastructure"}])
+
+    def test_cancelled_startup_is_not_labelled_flake(self):
+        run = {"id": 1, "name": "test", "workflow_id": 42, "head_sha": "a" * 40,
+               "event": "pull_request", "run_attempt": 2}
+        rows = summarize([run], lambda r,a: [], attempt_metadata=lambda r,a: dict(run, run_attempt=a, conclusion="cancelled" if a == 1 else "success"))
+        self.assertFalse(rows[0]["red_then_green"])
+
+    def test_wrong_attempt_identity_fails_closed(self):
+        run = {"id": 1, "name": "test", "workflow_id": 42, "head_sha": "a" * 40,
+               "event": "pull_request", "run_attempt": 2}
+        with self.assertRaises(ValueError):
+            summarize([run], lambda r,a: [], attempt_metadata=lambda r,a: run)
+
     def test_matrix_variant_cannot_disappear_behind_successful_needs(self):
         rows = [{"run_id": 2, "job": "test (1.27.x)", "conclusion": "success"},
                 {"run_id": 1, "job": "test (1.26.x)", "conclusion": "success"}]

@@ -48,6 +48,8 @@ attempt、job、失敗 step、責務境界、同一 SHA の red→green を含�
 30日保持する。同じ workflow/event/source SHA の別 run や PR 再開も照合し、部分的な
 再実行の成功で元の失敗を消さない。native Go コマンドは `ci-test-results.jsonl` に
 期待するテスト名、PASS/FAIL/SKIP または結果欠落、終了コードと run の識別子も保持する。
+各 attempt の workflow 結果も保持する。job が一件もない開始失敗も、後の attempt が
+開始・成功しても消えない。attempt の識別子は記録された run と source SHA に一致する必要がある。
 
 失敗 attempt がある source SHA の証拠 check は失敗し続ける。自動免除や green 化する
 retry はない。原因を修正するか、調査済み基盤障害の解決根拠を新しい commit に残す。

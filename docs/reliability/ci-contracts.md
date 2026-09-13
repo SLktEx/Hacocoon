@@ -54,6 +54,9 @@ token, including every attempt and paginated job collection. Each workflow retai
 job, failed step, boundary and same-SHA red-to-green observations. It also examines
 other runs of that workflow/event/source SHA, including reopened PR runs. Successful
 partial reruns never erase the original failed job. Native Go commands also retain `ci-test-results.jsonl` with exact expected test names, PASS/FAIL/SKIP or missing results, command exit status and run identity.
+Each attempt's workflow conclusion is also retained. A startup failure with zero
+jobs cannot disappear when a later attempt starts successfully; attempt identity
+must match the recorded run and source SHA.
 
 A failed attempt continues to fail the evidence check for that source SHA. There
 is no retry-to-green switch or automatic waiver. Investigate, fix the cause or
