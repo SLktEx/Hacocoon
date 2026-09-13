@@ -195,7 +195,8 @@ run_test() {
   node --check pkg/interactionhttp/web/app.js
   node --check clients/vscode-notify/extension.js
   node --check clients/vscode-notify/review.js
-  node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js
+  node --test test/js/notification_clients.test.js test/js/vscode_acceptance.test.js test/js/approval_review.test.js test/js/approval_panel.test.js
+  python3 tools/test_vscode_packaging.py
 }
 
 run_race() {

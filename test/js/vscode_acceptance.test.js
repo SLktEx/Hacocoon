@@ -13,7 +13,7 @@ async function observe(options = {}) {
   let shown = false, terminal = false, disposed = false, closed = false;
   const folder = {scheme: 'vscode-remote', authority: fixture.authority, path: '/workspace', ...options.uri};
   const api = {
-    UIKind: { Desktop: 1 }, ExtensionKind: { UI: 1 }, version: 'fixture', env: {uiKind: 1, remoteName: options.remoteName || 'ssh-remote'},
+    UIKind: { Desktop: 1 }, ViewColumn: {Active: -1}, ExtensionKind: { UI: 1 }, version: 'fixture', env: {uiKind: 1, remoteName: options.remoteName || 'ssh-remote'},
     Uri: {joinPath: (uri, name) => ({...uri, path: uri.path + '/' + name})},
     workspace: {
       isTrusted: true, workspaceFolders: [{uri: folder}],
@@ -28,6 +28,10 @@ async function observe(options = {}) {
       openTextDocument: async uri => ({getText: () => options.badEditor ? 'wrong' : files.get(uri.path).toString()})
     },
     window: {
+      createWebviewPanel() {
+        return {webview: {onDidReceiveMessage(fn) { fn({type: 'ready'}); }, postMessage() {}},
+          reveal() {}, dispose() {}, onDidDispose() {}};
+      },
       showTextDocument: async () => { shown = true; },
       createTerminal: ({cwd, pty}) => {
         if (pty) return { dispose() {} };
@@ -54,10 +58,8 @@ async function observe(options = {}) {
       assert.equal(settings.localUI, true);
       const review = (id) => {
         assert.equal(id, fixture.nonce);
-        localAPI.window.createTerminal({ pty: { onDidWrite(callback) {
-          callback(options.badReview ? 'wrong result' : 'haco: request is no longer pending\r\nReview ended (exit 1).');
-          return { dispose() {} };
-        } } });
+        const panel = localAPI.window.createWebviewPanel('hacocoon.approval', 'Review', -1, {enableScripts: true, enableCommandUris: false, localResourceRoots: []});
+        panel.webview.postMessage({type: 'error', error: options.badReview ? 'wrong' : 'no_longer_pending'});
       };
       review.dispose = () => {};
       return review;

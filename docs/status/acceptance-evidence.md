@@ -280,3 +280,26 @@ That existing installation was not repaired or reconfigured. This failure stays
 distinct from the passing fallback tests. Fresh packaged Windows CI now checks
 the actual Host session value against the Windows user UI setting after ordinary
 entry/restart/reinstall, without injecting a Hacocoon override. Its result is pending.
+
+### Combined candidate on Incus 7 and packaged Windows
+
+At `0c79f8209eec42b597cc811a9114e0351d8226d7` (PR #583), test
+[34724986411](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411), Ubuntu
+[34724986358](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358), Incus
+[34724986357](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357), and Windows
+[34724986361](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361) passed.
+All enabled standalone/Core/Btrfs jobs passed on verified Incus **7.0.1**, including
+Base build, native import, source deletion, snapshot/copy, persistent CoW and Store
+maintenance/cleanup. Private registry was skipped. This resolves the two snapshot
+fixture failures above on this candidate; it does not erase their retained-failure history.
+
+Windows install/restart/reinstall matched the actual Windows UI setting to Host
+`HACO_UI_LANGUAGE=en` without an injected override. Native interop, ordinary pinned
+SSH/reuse/resume, actual VS Code editor/terminal, pending CLI decisions, preview,
+export/delete/import and retained-work recreation passed. Public reclaim measured
+VHDX allocation **7,864,320,000 → 3,974,103,040 bytes**, then resumed and verified Host
+sentinel, retained Workspace/OCI and snapshot restore. Native notification ownership,
+stale/malformed refusal and listener cleanup passed. Human toast clicks/fresh GUI
+decisions and VPN/NRPT were explicitly skipped. Japanese Windows native acceptance
+and the local existing WSLInterop failure remain unresolved. These results predate
+the new GUI session and must not be relabeled as its acceptance or as distribution.

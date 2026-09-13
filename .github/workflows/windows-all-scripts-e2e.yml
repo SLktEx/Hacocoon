@@ -2,8 +2,9 @@ name: windows-installer-e2e
 
 on:
   pull_request:
-    branches: [main, dev/2.x]
+    branches: [main, dev/2.x, 'codex/**']
     paths:
+      - "clients/vscode-notify/**"
       - "cmd/**"
       - "internal/**"
       - "modules/runtime/incus/**"

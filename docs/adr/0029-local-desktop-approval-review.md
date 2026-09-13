@@ -2,7 +2,8 @@
 
 [日本語](0029-local-desktop-approval-review.ja.md) | English
 
-Status: accepted; repository implementation, installed acceptance pending.
+Status: historical presentation, superseded by [ADR 0067](0067-local-gui-approval-session.md).
+The local authority boundary remains; VS Code now uses a private GUI session.
 
 A Remote-SSH window normally runs development terminals in its untrusted Environment.
 Approval must run with the local operator's existing controller authority instead.

@@ -54,7 +54,7 @@ try {
         Write-Host "VS CODE ACCEPTANCE: FAIL phase=$safeStage"
         if ($result.PSObject.Properties.Name -contains 'reviewDiagnostics') {
             $diagnostic = $result.reviewDiagnostics
-            foreach ($key in @('localUI','desktop','trusted','terminalCreated','exitObserved','refusalObserved','cleanup')) {
+            foreach ($key in @('localUI','desktop','trusted','panelCreated','readyObserved','refusalObserved','cleanup')) {
                 if ($diagnostic.PSObject.Properties.Name -contains $key -and $diagnostic.$key -is [bool]) { Write-Host ('VS CODE REVIEW: ' + $key + '=' + $diagnostic.$key) }
             }
             if ($diagnostic.PSObject.Properties.Name -contains 'step' -and $diagnostic.step -cin @('api','create','open','wait')) { Write-Host ('VS CODE REVIEW STEP: ' + $diagnostic.step) }
@@ -62,7 +62,7 @@ try {
         throw "Editor acceptance failed at stage '$safeStage'."
     }
     Write-Host "VS Code $($result.vscode): actual Remote-SSH editor file read/write, terminal execution and probe cleanup passed."
-    Write-Host 'VS CODE LOCAL APPROVAL TERMINAL / INSTALLED CONTROLLER STALE REFUSAL: PASS'
+    Write-Host 'VS CODE LOCAL APPROVAL WEBVIEW / REAL RENDERER HANDSHAKE / INSTALLED CONTROLLER STALE REFUSAL: PASS'
     Write-Host 'VS CODE REMOTE ENVIRONMENT: PASS'
 } finally {
     # This exact executable belongs to the freshly created portable fixture;

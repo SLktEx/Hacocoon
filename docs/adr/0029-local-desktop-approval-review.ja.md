@@ -2,7 +2,8 @@
 
 日本語 | [English](0029-local-desktop-approval-review.md)
 
-状態: accepted。リポジトリ実装済み、導入済み受け入れは未確認。
+状態: 表示方式はhistorical。[ADR 0067](0067-local-gui-approval-session.md)が置き換えます。
+ローカル権限の境界は維持し、VS Codeはprivate GUI sessionを使用します。
 
 Remote-SSH window の開発 terminal は通常、信頼しない Environment で動きます。
 承認にはローカル利用者の既存コントローラー権限を使う必要があります。
