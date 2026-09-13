@@ -79,6 +79,27 @@ KillMode=process
 OOMScoreAdjust=-500
 `
 
+const hacocoonDockerAutostartPathUnit = `[Unit]
+Description=Watch for Docker Engine installation for Hacocoon compatibility
+
+[Path]
+PathExists=/usr/bin/dockerd
+Unit=hacocoon-docker-autostart.service
+
+[Install]
+WantedBy=multi-user.target
+`
+
+const hacocoonDockerAutostartServiceUnit = `[Unit]
+Description=Enable Hacocoon Docker compatibility after Docker Engine installation
+ConditionPathIsExecutable=/usr/bin/dockerd
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl enable --now hacocoon-docker.socket
+RemainAfterExit=yes
+`
+
 const maskVendorDockerUnitsScript = `set -eu
 for unit in docker.service docker.socket; do
     systemctl disable --now "$unit" >/dev/null 2>&1 || true
@@ -190,17 +211,28 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if err := p.installToolingDockerAlias(ctx, builder); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
+	if err := p.ensureToolingDockerGroup(ctx, builder); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
 	if err := p.pushBuilderFile(ctx, builder, files.socketUnit, "/etc/systemd/system/hacocoon-docker.socket", 0o644); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 	if err := p.pushBuilderFile(ctx, builder, files.serviceUnit, "/etc/systemd/system/hacocoon-docker.service", 0o644); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
+	if err := p.pushBuilderFile(ctx, builder, files.autostartPathUnit, "/etc/systemd/system/hacocoon-docker-autostart.path", 0o644); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.pushBuilderFile(ctx, builder, files.autostartServiceUnit, "/etc/systemd/system/hacocoon-docker-autostart.service", 0o644); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
 	if err := p.maskVendorDockerUnits(ctx, builder); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
-	if err := p.guestExec(ctx, builder, "systemctl", "enable", "containerd.service"); err != nil {
-		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("enable containerd in tooling Base: %w", err))
+	for _, unit := range []string{"containerd.service", "hacocoon-docker-autostart.path"} {
+		if err := p.guestExec(ctx, builder, "systemctl", "enable", unit); err != nil {
+			return seedbuild.BuildResult{}, cleanup(fmt.Errorf("enable %s in tooling Base: %w", unit, err))
+		}
 	}
 	if err := p.guestExec(ctx, builder, "systemctl", "restart", "containerd.service"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(fmt.Errorf("start containerd in tooling Base: %w", err))
@@ -225,6 +257,12 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 	if err := p.expectGuestUnitFileState(ctx, builder, "hacocoon-docker.service", "static"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.expectGuestUnitFileState(ctx, builder, "hacocoon-docker-autostart.path", "enabled"); err != nil {
+		return seedbuild.BuildResult{}, cleanup(err)
+	}
+	if err := p.expectGuestUnitFileState(ctx, builder, "hacocoon-docker-autostart.service", "static"); err != nil {
 		return seedbuild.BuildResult{}, cleanup(err)
 	}
 
@@ -353,16 +391,20 @@ func (p *SandboxProvider) BuildSeed(ctx context.Context, plan seedbuild.BuildPla
 }
 
 type toolingProvisionFiles struct {
-	policyRC    string
-	socketUnit  string
-	serviceUnit string
+	policyRC             string
+	socketUnit           string
+	serviceUnit          string
+	autostartPathUnit    string
+	autostartServiceUnit string
 }
 
 func writeToolingProvisionFiles(dir string) (toolingProvisionFiles, error) {
 	files := toolingProvisionFiles{
-		policyRC:    filepath.Join(dir, "policy-rc.d"),
-		socketUnit:  filepath.Join(dir, "hacocoon-docker.socket"),
-		serviceUnit: filepath.Join(dir, "hacocoon-docker.service"),
+		policyRC:             filepath.Join(dir, "policy-rc.d"),
+		socketUnit:           filepath.Join(dir, "hacocoon-docker.socket"),
+		serviceUnit:          filepath.Join(dir, "hacocoon-docker.service"),
+		autostartPathUnit:    filepath.Join(dir, "hacocoon-docker-autostart.path"),
+		autostartServiceUnit: filepath.Join(dir, "hacocoon-docker-autostart.service"),
 	}
 	if err := os.WriteFile(files.policyRC, []byte("#!/bin/sh\nexit 101\n"), 0o755); err != nil {
 		return toolingProvisionFiles{}, fmt.Errorf("write package service-start policy: %w", err)
@@ -372,6 +414,12 @@ func writeToolingProvisionFiles(dir string) (toolingProvisionFiles, error) {
 	}
 	if err := os.WriteFile(files.serviceUnit, []byte(hacocoonDockerServiceUnit), 0o644); err != nil {
 		return toolingProvisionFiles{}, fmt.Errorf("write Docker compatibility service unit: %w", err)
+	}
+	if err := os.WriteFile(files.autostartPathUnit, []byte(hacocoonDockerAutostartPathUnit), 0o644); err != nil {
+		return toolingProvisionFiles{}, fmt.Errorf("write Docker compatibility autostart path unit: %w", err)
+	}
+	if err := os.WriteFile(files.autostartServiceUnit, []byte(hacocoonDockerAutostartServiceUnit), 0o644); err != nil {
+		return toolingProvisionFiles{}, fmt.Errorf("write Docker compatibility autostart service unit: %w", err)
 	}
 	return files, nil
 }
@@ -400,6 +448,13 @@ func (p *SandboxProvider) installToolingDockerAlias(ctx context.Context, builder
 	}
 	if err := p.guestExec(ctx, builder, "test", toolingNerdctlPath, "-ef", toolingDockerAliasPath); err != nil {
 		return fmt.Errorf("verify docker CLI resolves to nerdctl: %w", err)
+	}
+	return nil
+}
+
+func (p *SandboxProvider) ensureToolingDockerGroup(ctx context.Context, builder string) error {
+	if err := p.guestExec(ctx, builder, "groupadd", "--system", "--force", "docker"); err != nil {
+		return fmt.Errorf("ensure Docker compatibility group: %w", err)
 	}
 	return nil
 }
