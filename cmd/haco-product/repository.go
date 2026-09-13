@@ -27,7 +27,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return workflowCommand(ctx, args, out, diagnostic)
 	}
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> [--json] <id> <URL> | haco repo list [--json] | haco repo delete [--yes] <id> | haco workspace create --repo <id> [--json] <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git connect [--json] <environment> | haco git pending [--json] | haco git approve [--save env|all|ask-env|ask-all] [--json] <id> | haco git deny [--save env|all|ask-env|ask-all] [--json] <id>")
+		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> [--json] <id> <URL> | haco repo list [--json] | haco repo delete [--yes] <id> | haco workspace create --repo <id> [--json] <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git pending [--json] | haco git approve [--save env|all|ask-env|ask-all] [--json] <id> | haco git deny [--save env|all|ask-env|ask-all] [--json] <id>")
 		return 2
 	}
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
@@ -65,7 +65,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		n = 2
 	case "workspace create":
 		flags.StringVar(&repo, "repo", "", "registered repository IDs, separated by commas")
-	case "git connect":
 	case "git approve", "git deny":
 		flags.StringVar(&save, "save", "", "save this operation scope: env, all, ask-env or ask-all")
 	case "git pending":
@@ -117,9 +116,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 			request.Repositories = strings.Split(repo, ",")
 		}
 		result, err = client.CopyWorkspace(ctx, request)
-	case "git connect":
-		err = client.ConnectGit(ctx, pos[0])
-		result = "Environment Git helper connected"
 	case "git pending":
 		result, err = client.PendingGit(ctx)
 	case "git approve", "git deny":
