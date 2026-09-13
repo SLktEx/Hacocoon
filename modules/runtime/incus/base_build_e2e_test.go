@@ -67,7 +67,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		must(err)
 		path := filepath.Join(dir, "base.json")
 		must(os.WriteFile(path, data, 0600))
-		command := exec.CommandContext(ctx, binary, "base", "build", path)
+		command := exec.CommandContext(ctx, binary, "base", "build", path, "--json")
 		var stderr strings.Builder
 		command.Stderr = &stderr
 		out, err := command.Output()
@@ -196,7 +196,6 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 			if im.Fingerprint == fingerprint {
 				t.Fatal("owned image remains")
 			}
-		}
 	}
 	must(os.RemoveAll(dir))
 	t.Log("PASS public Base cleanup: in-use refusal, all retained revisions visible after Env deletion, reviewed revision deletion and exact native absence")
