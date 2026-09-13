@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,7 +63,7 @@ func baseManageCommand(ctx context.Context, client baseImageClient, args []strin
 	}
 	images, err := client.ListBaseImages(ctx)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	if args[0] == "list" {
@@ -85,46 +84,38 @@ func baseManageCommand(ctx context.Context, client baseImageClient, args []strin
 		v := &images[i]
 		if (string(v.Name) == target && v.Current) || (prefix && strings.HasPrefix(v.Fingerprint, target)) {
 			if selected != nil {
-				fmt.Fprintln(diagnostic, "haco: ambiguous Base; select a longer fingerprint from 'haco base list --all'")
+				fmt.Fprintln(diagnostic, cliMessage("base.ambiguous"))
 				return 1
 			}
 			selected = v
 		}
 	}
 	if selected == nil {
-		fmt.Fprintln(diagnostic, "haco: built Base not found; use 'haco base list --all' for retained revisions")
+		fmt.Fprintln(diagnostic, cliMessage("base.missing"))
 		return 1
 	}
 	if err := writeBaseImages(out, []basemanage.Image{*selected}); err != nil {
 		return 1
 	}
 	if len(selected.Environments) > 0 || len(selected.NativeUsers) > 0 || len(selected.ProtectedAliases) > 0 {
-		fmt.Fprintln(diagnostic, "haco: Base has Environment or protected alias references; image retained")
+		fmt.Fprintln(diagnostic, cliMessage("base.busy"))
 		return 1
 	}
-	fmt.Fprintln(diagnostic, "This deletes the selected local Base image and its aliases. Existing Workspace, OCI and independent snapshot data remain. This revision cannot be used for new creates afterward.")
-	if !yes {
-		if !requireInteractiveConfirmation(in, diagnostic) {
-			return 2
-		}
-		fmt.Fprint(diagnostic, "Delete this Base image? [y/N] ")
-		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
-		answer = strings.ToLower(strings.TrimSpace(answer))
-		if err != nil || (answer != "y" && answer != "yes") {
-			fmt.Fprintln(diagnostic, "Base retained.")
-			return 1
-		}
+	if code := confirmDataDeletion(in, diagnostic, yes, "base.delete_warning", "base.delete_prompt", "base.retained"); code != 0 {
+		return code
 	}
 	if err := client.DeleteBaseImage(ctx, selected.Identity); err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
-	fmt.Fprintln(out, "Base image deleted; Workspace, OCI and independent snapshots retained")
+	if _, err := fmt.Fprintln(out, cliMessage("base.deleted")); err != nil {
+		return 1
+	}
 	return 0
 }
 func writeBaseImages(out io.Writer, images []basemanage.Image) error {
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "TYPE\tNAME\tFINGERPRINT\tBUILD OWNER\tCURRENT\tENVIRONMENTS\tNATIVE USERS\tPROTECTED ALIASES\tSAVED SNAPSHOTS (independent)")
+	fmt.Fprintln(table, cliMessage("base.columns"))
 	for _, v := range images {
 		fmt.Fprintf(table, "base-image\t%q\t%q\t%q\t%t\t%q\t%q\t%q\t%q\n", v.Name, v.Fingerprint, v.BuildInstance, v.Current, strings.Join(v.Environments, ","), strings.Join(v.NativeUsers, ","), strings.Join(v.ProtectedAliases, ","), strings.Join(v.IndependentSnapshots, ","))
 	}

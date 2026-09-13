@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -46,7 +45,7 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	}
 	all, err := c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "list"})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	if args[0] == "list" {
@@ -70,44 +69,36 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 		}
 	}
 	if selected == nil {
-		fmt.Fprintln(diagnostic, "haco: source repository not found")
+		fmt.Fprintln(diagnostic, cliMessage("source.missing"))
 		return 1
 	}
 	if err := writeSources(out, []gitrepo.SourceUse{*selected}); err != nil {
 		return 1
 	}
 	if len(selected.Workspaces) > 0 {
-		fmt.Fprintln(diagnostic, "haco: referenced by Workspace Git routing; retained")
+		fmt.Fprintln(diagnostic, cliMessage("source.busy"))
 		return 1
 	}
 	if selected.Source.State != "ready" && selected.Source.State != "deleting" {
-		fmt.Fprintln(diagnostic, "haco: incomplete preparation requires inspection; retained")
+		fmt.Fprintln(diagnostic, cliMessage("source.incomplete"))
 		return 1
 	}
-	fmt.Fprintln(diagnostic, "This deletes the selected Host source repository and its local Git data. Remote repositories, Workspaces, OCI Stores and independent snapshots remain.")
-	if !yes {
-		if !requireInteractiveConfirmation(in, diagnostic) {
-			return 2
-		}
-		fmt.Fprint(diagnostic, "Delete this source repository? [y/N] ")
-		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
-		answer = strings.ToLower(strings.TrimSpace(answer))
-		if err != nil || (answer != "yes" && answer != "y") {
-			fmt.Fprintln(diagnostic, "Source retained.")
-			return 1
-		}
+	if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
+		return code
 	}
 	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
-	fmt.Fprintln(out, "Source repository deleted; remote and independent data retained")
+	if _, err := fmt.Fprintln(out, cliMessage("source.deleted")); err != nil {
+		return 1
+	}
 	return 0
 }
 func writeSources(out io.Writer, sources []gitrepo.SourceUse) error {
 	t := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(t, "TYPE\tNAME\tOWNER\tSTATE\tREMOTE\tBRANCH\tWORKSPACE USERS")
+	fmt.Fprintln(t, cliMessage("source.columns"))
 	for _, s := range sources {
 		fmt.Fprintf(t, "source-repository\t%q\t%q\t%q\t%q\t%q\t%q\n", s.Source.ID, s.Source.Owner, s.Source.State, s.Source.Remote, s.Source.Branch, strings.Join(s.Workspaces, ","))
 	}

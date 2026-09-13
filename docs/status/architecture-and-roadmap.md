@@ -37,7 +37,7 @@ is never proof of implementation or acceptance.
 | A — one managed repository development cycle | Preserve clone → independent Workspace → Env → SSH/Git → stop/reuse. Broader hosts and repositories need their own acceptance. |
 | B — multiple repositories, native Windows access and retained OCI | Preserve collection isolation and approved push. Complete broader trusted Host image preparation → independent Store copy → actual image use acceptance. Windows drive/executable breadth and interrupted-installation cases remain. |
 | C — convenient daily development | SSH setup/selection, Host recipes, DNS, project setup, restricted preview and scoped doctor now exist. Remaining acceptance includes recipe recreation/cancellation, default browser, VPN/NRPT/restart combinations and broader client workflows. |
-| Temporary execution — after basic editor development | Product captured run and cleanup exist. Streamed stdin/TTY is implemented on the development candidate, with native acceptance pending. Populated OCI acceptance remains separate; explicit persistent Workspaces survive. |
+| Temporary execution — after basic editor development | Product captured run and cleanup exist. Streamed stdin/TTY is implemented on the development candidate, with scoped Incus 7.0.1 pipe/PTY and ordinary Windows ConPTY acceptance at `9767fd93`. Populated OCI acceptance remains separate; explicit persistent Workspaces survive. |
 | D — understandable permissions and optional AWS | Configuration editing, saved choices and review exist. Complete fresh OS notification decisions, Linux activation, broader saved-choice/provider acceptance and authenticated real AWS listing/download. Resolve ambiguous external outcomes without blind replay. |
 | E — retained data, snapshots, copy, Base and explicit cleanup | Keep new-Env restore/copy and reviewed deletion. Broader application consistency, build concurrency/history/import, partial collection/import recovery and full installed image-cleanup acceptance remain. |
 | F — allocation recovery and operability | Public Windows/WSL reclaim has measured CI acceptance. Existing-installation, actual interrupted-worker review, power-loss/session/Job breadth remain. Diagnostics, reinstall/upgrade and an optional management UI are separate scope. |
@@ -131,9 +131,9 @@ rerun all old tests. Main, dev/v2 and dev/2.x are distinct publication states.
 | Stage | Current candidate and next gate |
 |---|---|
 | M0: combine existing improvements | **partial**. Candidate `codex/roadmap-m0-m1` starts at dev/2.x `ac67fadb` (#576/#579), merges dev/v2 `4d74dd53` (#569/#571) as `5e43c8db`, main `9527948b` (#572/#574/#578) as `e941c080`, and #580 `dd7141c1` as `63822b94`. Existing dirty main checkout is retained. Integration target is dev/2.x; no main merge or distribution. Combined Incus 7.0.1, Ubuntu and Windows acceptance at `0c79f820` passed; see exact evidence. |
-| M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Windows UI-to-Host language transport and verified Incus 7.0.1 packaged/native gates pass at `0c79f820` (English Windows). Remaining: full help/options coverage, Japanese Windows flow, original repeated-SSH-failure route and installed long-input/resize verification. |
+| M1: ordinary Windows development | **partial**. BAT result/wait (#573), hierarchical bilingual help (#575/#577), daily failure guidance and native failure grouping (#582, roadmap R1) are implemented in the candidate. Windows UI-to-Host language transport and verified Incus 7.0.1 packaged/native gates pass at `0c79f820` (English Windows). Individual argument/option help is implemented in #592. Remaining: full result translations, Japanese Windows flow, original repeated-SSH-failure route and installed long-input/resize verification. |
 | M2: multi-repo Git and GUI decisions | **partial**. Workspace prepare/reopen/fork and scoped native acceptance come from #579. All-branch fetch (#584) and separately approved new-branch/fast-forward push (#586) are implemented on development branches. VS Code GUI responses (#568) are implemented on `codex/gui-approval`, using common saved scopes and private selection sessions. Native Git/GUI acceptance, Windows notification-contained answers and ambiguous push reconciliation (#470) remain. Main pushes still require the user's decision. |
-| M3: corporate network | **partial**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. Temporary-run stdin/TTY is implemented on the development candidate, with native gates pending. The dedicated Windows-service timeout, VPN/DNS modes and client stream forwarding remain. No firewall exception is introduced to obtain a pass. |
+| M3: corporate network | **partial**. Reuse #576 TCP/UDP plus its expiry/revocation/generation tests. Temporary-run stdin/TTY is implemented on the development candidate, with Incus 7.0.1 pipe/PTY and ordinary Windows ConPTY gates passing at `9767fd93`. The dedicated Windows-service timeout, VPN/DNS modes and client stream forwarding remain. No firewall exception is introduced to obtain a pass. |
 | M4: large repositories | **planned remaining work**. Preserve existing Base builder/CoW/OCI results. Real Packer HCL2 plus external shell (#566), Host-selected normal-Env cache generation/COW reuse (#570), cleanup and actual large-repo measurement (#241) remain. Small #579 fixtures are not giant-repository acceptance. |
 | M5: cleanup and migration | **partial existing foundation**. Preserve snapshot/copy/export/import/reclaim and stopped-containerd evidence. Deletion diagnosis (#523), required whole-installation inventory/restore/comparison and authenticated restored Git remain. Final old-WSL replacement requires identified verified data and explicit authority for deletion. |
 
@@ -325,18 +325,32 @@ workflows, including captured-run exit, retained data and cancellation cleanup.
 The next development candidate implements stdin/TTY through that same lifecycle,
 with bounded input credit, separate outputs and confirmed early-exit drainage.
 The early-exit Unix reset regression now passes repeated race checks. Real streamed
-Incus/Windows acceptance remains pending; M3 remains partial. Next validate the
-maintained native pipe/PTY fixture, then continue client forwarding and corporate
+Incus/Windows acceptance passed at `9767fd93`; M3 remains partial. Continue client forwarding and corporate
 VPN/DNS gaps independently. [ADR 0069](../adr/0069-bounded-process-streams.md) owns
 the transport decision; M4/M5 remain in scope.
 
 
-The next M1 help candidate is on `codex/cli-help-details`, following #591.
+M1 individual help is pushed as `c7169760` on `codex/cli-help-details`, PR #592 following #591.
 Individual product/Host help now describes arguments, options, defaults and
 requirements in both languages; product FlagSet descriptions reuse that catalog.
 Setup/configuration/approval/doctor/reclaim/version help returns locally, and
 remaining long subcommand usage lists route through the shared hierarchy.
 Human result/error translations and Japanese Windows acceptance remain partial.
 The obsolete switch-base return hint now directs users to normal recreation;
-no return is planned. Next complete the CLI regressions and review this slice,
-while preserving #591's separate Windows input failure and correction evidence.
+no return is planned. Focused CLI/catalog/Host tests, full local test CI and docs
+checks passed. Continue result translations while preserving #591's separate
+Windows input failure and correction evidence.
+
+
+### Retained-data operation presentation
+
+`codex/cli-operation-messages` builds on #592. Shared English/Japanese messages
+cover retained Workspace/source/Base/OCI reviews, deletion consequences and
+results, snapshot headings and Workspace fork completion. The five reviewed
+deletion clients share the existing confirmation rules and stop on failed warning
+or prompt display. Canonical ownership/reference/deletion/cleanup remains in the
+controller. Full result/error translation and Japanese Windows are still partial.
+Temporary ConPTY acceptance now passes at `9767fd93`; its earlier failure remains
+in the acceptance evidence. Continue M1 result coverage and independent M2–M5
+work; this does not establish fresh GUI/toast, authenticated Git, Packer/cache,
+large-repository measurement or complete migration acceptance.
