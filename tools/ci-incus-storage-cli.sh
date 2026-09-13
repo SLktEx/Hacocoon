@@ -167,7 +167,9 @@ PY
   [[ "$("$HACO_BIN" exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
   haco_stop_test_controller
   "$HACO_BIN" delete "$ENV_NAME"
-  if incus list "$INSTANCE" --project "$PROJECT" --format csv -c n | grep -Fx "$INSTANCE" >/dev/null 2>&1; then
+  local remaining
+  remaining="$(incus list "$INSTANCE" --project "$PROJECT" --format csv -c n)" || fail "instance absence is unknown"
+  if grep -Fxq -- "$INSTANCE" <<< "$remaining"; then
     fail "named Environment instance remained after hacoq delete"
   fi
 }
@@ -192,56 +194,85 @@ diagnostics() {
 }
 
 delete_owned_instances() {
-  local instance unexpected=0
+  local instance instances
+  instances="$(incus list --project "$PROJECT" --format csv -c n)" || return 1
+  # Validate the entire inventory before the first deletion. Failure-retained
+  # fixtures are evidence; their prefix alone does not authorize removal here.
+  while IFS= read -r instance; do
+    [[ -n "$instance" ]] || continue
+    [[ "$instance" =~ ^haco-[a-zA-Z0-9-]+$ ]] || return 1
+    case "$instance" in
+      haco-base-*|"$INSTANCE"|haco-run-*) ;;
+      *) echo "ERROR: refusing to delete unexpected instance '$instance'" >&2; return 1 ;;
+    esac
+  done <<< "$instances"
   while IFS= read -r instance; do
     [[ -n "$instance" ]] || continue
     case "$instance" in
       haco-base-*) python3 tools/cleanup_ci_base_asset.py "$instance" || return 1 ;;
       "$INSTANCE"|haco-run-*) incus delete "$instance" --project "$PROJECT" --force || return 1 ;;
-      *) echo "ERROR: refusing to delete unexpected instance '$instance'" >&2; unexpected=1 ;;
     esac
-  done < <(incus list --project "$PROJECT" --format csv -c n 2>/dev/null || true)
-  [[ "$unexpected" == "0" ]]
+  done <<< "$instances"
+  instances="$(incus list --project "$PROJECT" --format csv -c n)" || return 1
+  [[ -z "$instances" ]]
 }
 
 delete_project_images() {
-  local fingerprint
+  local fingerprint fingerprints
+  fingerprints="$(incus image list --project "$PROJECT" --format csv -c F)" || return 1
+  while IFS= read -r fingerprint; do
+    [[ -n "$fingerprint" ]] || continue
+    [[ "$fingerprint" =~ ^[a-f0-9]{64}$ ]] || return 1
+  done <<< "$fingerprints"
   while IFS= read -r fingerprint; do
     [[ -n "$fingerprint" ]] || continue
     incus image delete "$fingerprint" --project "$PROJECT" || return 1
-  done < <(incus image list --project "$PROJECT" --format csv -c f 2>/dev/null | sort -u)
+  done < <(sort -u <<< "$fingerprints")
+  fingerprints="$(incus image list --project "$PROJECT" --format csv -c F)" || return 1
+  [[ -z "$fingerprints" ]]
+}
+
+cleanup_inventory() {
+  local observed
+  CLEANUP_PROJECTS="$(incus project list --format csv -c n)" || return 1
+  grep -Fxq default <<< "$CLEANUP_PROJECTS" || return 1
+  CLEANUP_POOLS="$(incus storage list --format csv -c n)" || return 1
+  while IFS= read -r observed; do
+    [[ -n "$observed" ]] || continue
+    [[ "$observed" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || return 1
+  done <<< "$CLEANUP_PROJECTS"$'\n'"$CLEANUP_POOLS"
 }
 
 cleanup() {
   require_github_hosted_runner
-  local failed=0
-  set +e
   haco_stop_test_controller
+  cleanup_inventory || fail "cleanup inventory is unknown"
 
-  if incus project show "$PROJECT" >/dev/null 2>&1; then
-    delete_owned_instances || failed=1
-    [[ "$failed" != "0" ]] || delete_project_images || failed=1
+  if grep -Fxq -- "$PROJECT" <<< "$CLEANUP_PROJECTS"; then
+    delete_owned_instances || fail "cleanup stopped before deleting shared storage: instance ownership/absence unconfirmed"
+    delete_project_images || fail "cleanup stopped: image absence unconfirmed"
   fi
 
-  if incus storage show "$POOL" --project "$PROJECT" >/dev/null 2>&1; then
-    incus storage delete "$POOL" --project "$PROJECT" || failed=1
-  elif incus storage show "$POOL" --project default >/dev/null 2>&1; then
-    incus storage delete "$POOL" --project default || failed=1
+  if grep -Fxq -- "$POOL" <<< "$CLEANUP_POOLS"; then
+    incus storage delete "$POOL" --project default || fail "storage cleanup was incomplete"
   fi
 
-  if incus project show "$PROJECT" >/dev/null 2>&1; then
-    printf 'yes\n' | incus project delete "$PROJECT" --force || failed=1
+  if grep -Fxq -- "$PROJECT" <<< "$CLEANUP_PROJECTS"; then
+    incus project delete "$PROJECT" || fail "project cleanup was incomplete"
   fi
 
-  if [[ "$failed" == "0" ]]; then
-    sudo test ! -e "$INCUS_BACKING" || fail "Incus backing image remained after storage delete"
-    if sudo losetup --list --noheadings --output BACK-FILE | grep -Fx "$INCUS_BACKING" >/dev/null 2>&1; then
-      fail "Incus loop attachment remained after storage delete"
-    fi
-    rm -rf -- "$CLI_ROOT" "$WORKSPACE" "$RUN_WORKSPACE"
+  cleanup_inventory || fail "cleanup absence is unknown"
+  if grep -Fxq -- "$PROJECT" <<< "$CLEANUP_PROJECTS" || grep -Fxq -- "$POOL" <<< "$CLEANUP_POOLS"; then
+    fail "Incus project or storage pool remained after cleanup"
   fi
+  sudo test ! -e "$INCUS_BACKING" || fail "Incus backing image remained after storage delete"
+  local backing_files
+  backing_files="$(sudo losetup --list --noheadings --output BACK-FILE)" || fail "Incus loop attachment absence is unknown"
+  if grep -Fxq -- "$INCUS_BACKING" <<< "$backing_files"; then
+    fail "Incus loop attachment remained after storage delete"
+  fi
+  rm -rf -- "$CLI_ROOT" "$WORKSPACE" "$RUN_WORKSPACE"
   rm -f -- "$HACO_BIN" "$CONTROLLER_BIN"
-  [[ "$failed" == "0" ]] || fail "Incus storage CLI E2E cleanup was incomplete"
 }
 
 case "${1:-}" in

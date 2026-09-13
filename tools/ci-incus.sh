@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/ci-incus-cleanup-library.sh"
 
 readonly CI_REMOTE="haco-ci"
 readonly SANDBOX_PROFILE="haco-sandbox"
@@ -101,6 +102,7 @@ setup_incus() {
   # local-socket client under /root so neither can create files in the other's
   # configuration directory or touch unrelated runner state.
   install -d -m 0700 "$CLIENT_CONF"
+  timeout 65 sudo env HOME=/root INCUS_CONF="$ROOT_CLIENT_CONF" incus admin waitready --timeout=60
   root_incus admin init --minimal
 
   incus remote generate-certificate
@@ -181,7 +183,7 @@ run_core_e2e() {
   require_github_hosted_runner
   export HACO_E2E_INCUS=1
 
-  go test -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
+  python3 tools/ci_required_tests.py --expect TestRealIncusWorkspaceLifecycleE2E -- go test -v -timeout=10m -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
   bash test/e2e/incus.sh
 }
 
@@ -193,94 +195,10 @@ incus_diag() {
   fi
 }
 
-capture_instance_diagnostics() {
-  local project="$1"
-  local instance
-
-  while IFS= read -r instance; do
-    [[ -n "$instance" ]] || continue
-    case "$project:$instance" in
-      "default:${CI_PREFIX}"*|hacocoon:haco-*) ;;
-      *) continue ;;
-    esac
-
-    echo "--- instance $project/$instance config ---"
-    incus_diag config show "$instance" --expanded --project "$project" || true
-    echo "--- instance $project/$instance info ---"
-    incus_diag info "$instance" --project "$project" || true
-    echo "--- guest $project/$instance addresses/routes ---"
-    incus_diag exec "$instance" --project "$project" -- ip address || true
-    incus_diag exec "$instance" --project "$project" -- ip route || true
-    echo "--- guest $project/$instance systemd ---"
-    incus_diag exec "$instance" --project "$project" -- systemctl status --no-pager || true
-    incus_diag exec "$instance" --project "$project" -- journalctl -b --no-pager -n 250 || true
-  done < <(incus_diag list --project "$project" --format csv -c n 2>/dev/null || true)
-}
-
 diagnostics() {
   require_github_hosted_runner
-  set +e
   mkdir -p "$DIAGNOSTICS_DIR"
-
-  {
-    echo "diagnostics timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "CI prefix: $CI_PREFIX"
-
-    echo '=== runner ==='
-    cat /etc/os-release
-    uname -a
-    systemctl --version | head -n 3
-    dpkg-query -W -f='${Package}\t${Version}\n' incus-base incus-client apparmor libapparmor1 2>/dev/null || true
-    sysctl kernel.apparmor_restrict_unprivileged_unconfined 2>/dev/null || true
-    sysctl kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true
-
-    if command -v incus >/dev/null 2>&1; then
-      echo '=== Incus info/version ==='
-      incus_diag version
-      incus_diag info
-      echo '=== Incus projects/instances ==='
-      incus_diag project list
-      incus_diag list --all-projects
-      echo '=== Incus networks ==='
-      incus_diag network list --project default
-      while IFS= read -r network; do
-        [[ -n "$network" ]] || continue
-        echo "--- network $network ---"
-        incus_diag network show "$network" --project default || true
-      done < <(incus_diag network list --project default --format csv -c n 2>/dev/null || true)
-      echo '=== Incus ACLs/profiles ==='
-      incus_diag network acl list --project default
-      incus_diag profile list --project default
-      echo '=== Incus storage ==='
-      incus_diag storage list
-      while IFS= read -r pool; do
-        [[ -n "$pool" ]] || continue
-        echo "--- storage $pool ---"
-        incus_diag storage show "$pool" || true
-      done < <(incus_diag storage list --format csv -c n 2>/dev/null || true)
-      capture_instance_diagnostics default
-      capture_instance_diagnostics hacocoon
-    else
-      echo 'incus executable is unavailable'
-    fi
-
-    echo '=== host networking/routing ==='
-    ip -details address show || true
-    ip route show table all || true
-    ip rule show || true
-    bridge link show || true
-    sysctl net.ipv4.ip_forward || true
-    sysctl net.bridge.bridge-nf-call-iptables || true
-    sysctl net.bridge.bridge-nf-call-ip6tables || true
-
-    echo '=== host firewall ==='
-    sudo iptables -w 5 -S FORWARD || true
-    sudo iptables -w 5 -S DOCKER-USER || true
-    sudo nft list ruleset || sudo iptables-save || true
-
-    echo '=== Incus daemon journal ==='
-    sudo journalctl -u incus --no-pager -n 500 || true
-  } 2>&1 | tee "$DIAGNOSTICS_DIR/diagnostics.log"
+  python3 tools/ci_diagnostics.py --output "$DIAGNOSTICS_DIR/substrate.json"
 }
 
 default_root_pool() {
@@ -326,26 +244,7 @@ cleanup_standalone() {
 }
 
 cleanup_project() {
-  local project="$1"
-  local instance
-  local unexpected=0
-
-  # Force project deletion is safe only after proving every instance in this
-  # exact CI-owned project has a Hacocoon test name. The force flag also
-  # removes project-scoped cached images/volumes left by a failed init.
-  while IFS= read -r instance; do
-    [[ -n "$instance" ]] || continue
-    case "$instance" in
-      haco-*) ;;
-      *)
-        echo "ERROR: refusing to force-delete CI-owned project '$project' with unexpected instance '$instance'" >&2
-        unexpected=1
-        ;;
-    esac
-  done < <(incus list --project "$project" --format csv -c n 2>/dev/null || true)
-
-  [[ "$unexpected" == "0" ]] || return 1
-  incus project delete "$project" --force
+  ci_delete_project "$1"
 }
 
 cleanup_core() {
@@ -353,6 +252,8 @@ cleanup_core() {
   local project
   local failed=0
 
+  local projects
+  projects="$(incus project list --format csv -c n)" || return 1
   while IFS= read -r project; do
     [[ -n "$project" ]] || continue
     case "$project" in
@@ -360,7 +261,7 @@ cleanup_core() {
         cleanup_project "$project" || failed=1
         ;;
     esac
-  done < <(incus project list --format csv -c n 2>/dev/null || true)
+  done <<< "$projects"
 
   if incus profile show "$SANDBOX_PROFILE" --project default >/dev/null 2>&1; then
     incus profile delete "$SANDBOX_PROFILE" --project default || failed=1

@@ -44,7 +44,8 @@ cmp /tmp/container-before.json /tmp/container-after.json
 $ctr --address "$sock" --namespace default images list --quiet | grep -Fx docker.io/library/maintenance-used:local
 $ctr --address "$sock" --namespace default images list --quiet > /tmp/images-after
 grep -Fx docker.io/library/maintenance-used:local /tmp/images-after
-sleep 12
+# The active plugin inventory above positively proves restart/task/CRI are
+# disabled. A guessed restart-monitor interval is not a readiness condition.
 $ctr --address "$sock" --namespace default containers info aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > /tmp/container-later.json
 cmp /tmp/container-before.json /tmp/container-later.json
 systemctl stop hacocoon-maintenance-containerd

@@ -18,7 +18,8 @@ action、対象、Environment 作成識別、権限に関わる属性と、再�
 分けて表示します。今回だけの yes/no、または Environment／全体の allow・deny・ask
 を選べます。ask の保存でも、今回の操作には別途 yes/no が必要です。
 
-`haco approve --list` は承認せず、信頼された承認待ちの詳細を JSON で表示します。
+`haco approve --list` は承認せず、信頼された承認待ちの詳細を人向けに表示します。
+スクリプトで一覧を解析する場合は `--json` を付けます。
 任意の要求 ID で対象を指定することもできます。通常の Git・ネットワーク操作には
 新しい引数は不要です。既存の Git approve/deny も使えます。保存した Policy の
 確認・編集には [`haco config`](../reference/configuration.ja.md) を使います。

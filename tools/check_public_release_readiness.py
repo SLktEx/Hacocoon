@@ -15,6 +15,10 @@ RELEASE_ENVIRONMENT = "release"
 REQUIRED_PR_CREATION_POLICY = "collaborators_only"
 
 REQUIRED_STATUS_CONTEXTS = {
+    "test-evidence",
+    "incus-core-e2e-evidence",
+    "ubuntu-installer-e2e-evidence",
+    "windows-installer-e2e-evidence",
     "docs",
     "workflow-policy",
     "release-config",

@@ -39,8 +39,7 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	command := func(args ...string) string {
 		t.Helper()
 		out, err := runner.Run(ctx, "incus", args...)
-		must(err)
-		if out.ExitCode != 0 || out.StdoutTruncated {
+		if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 			t.Fatal("native command failed", args)
 		}
 		return out.Stdout

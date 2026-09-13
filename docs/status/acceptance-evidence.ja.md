@@ -152,3 +152,39 @@ Linux kernel規模の性能や負荷を統制したbenchmarkを示しません�
 同じkernel回帰試験をrootの専用network namespaceで実行して3.25秒で成功しました。
 これらは統合候補の導入済みIncus・Windows/WSL製品経路・非公開registry・稼働OCIの
 実機確認を意味しません。
+
+<a id="ci-reliability"></a>
+
+## PR CI の信頼性に関する障害 (#615)
+
+以下の過去の観測は [#615](https://github.com/SLktEx/Hacocoon/issues/615) に属する。
+rerun の成功は障害の証拠であり、解決ではない。現在の routing と gate の意味は
+[PR 検証契約](../reliability/ci-contracts.ja.md) が所有する。
+
+| 候補 / 証拠 | 判明した事実と解決状況 |
+|---|---|
+| `f3ef57b3ea028e10e942418a8408edd89a94b605` / [attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/1)、[attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/2) | `test (1.26.x)` の `TestSizedInteractivePTYReadlineResizeAndExit` が端末サイズ更新のマーカー待ちで失敗し、同じ SHA の attempt 2 は成功した。readline による端末サイズ復元との競合を避けるため、foreground コマンド開始の観測後に resize する。Linux の sized-PTY 回帰3件はローカル Go 1.27.0 で100回反復成功した。hosted native acceptance の成功は意味しない。 |
+| `69c85fb5214ba1a4a81c2c50cdec9d789c924315` / [storage attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34738362521/job/103675967861) | `TestRealIncusResourceMaintenancePreparationE2E` が対話拒否を期待しながら pipe を渡し、shipped CLI は非端末の確認を exit 2 で正しく拒否した。fixture を実 Linux PTY に変更し、子プロセスの端末判定と読み取りの回帰を追加した。native maintenance の再検証は必要。 |
+| `84062060e0ef465e73ec45b43b6ed785ce879d81` / [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34740317809/job/103678816517) | terminate 後の通常 Host entry が `Host setup is busy` を返し、harness は期限まで待ち続けた。即時失敗への変更だけでは製品不具合は直らない。後続の login-bootstrap 修正と native 再起動の証拠は下記に記録する。 |
+
+`7b4e2356d73a163b31e784a0a5b7400fed1a05cf` を基にした #615 候補 `4abadc16399dfdb1997351c7803fd76131cfdeed` では、
+ローカル Linux 検証環境で全 Go test/vet、race、shipped command の fixture E2E、文書と workflow policy が成功した。
+同環境では実 Incus と packaged Windows/WSL は未実施。commit に結び付く hosted 結果は別途記録する。
+
+main を統合した `8c645317101e007d57c752f35ae0a95f637d81b5` では、Python 3.13.15 を使い composition/Incus/製品 CLI の関連テストと vet が成功した。初回はローカル Python 3.10 に `tomllib` がなく失敗したため、検証済みの別 runtime で新しい Host-tooling テストの前提を満たした。テストを弱める変更はない。固定 Go 1.26.7 でも sized-PTY と maintenance-terminal 回帰の100回反復が成功した。これらは repository/component の結果であり、installed native acceptance ではない。
+
+候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
+
+候補 `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) は古い run 34744299866 の終了を待っていた。本体 job が取消済みでも job-level の `always()` により古い証拠 job が runner 待ちに残り、concurrency 枠を保持していた。証拠 job を `!cancelled()` に変更し、依存 job の失敗・skip の検査を保ちつつ workflow 全体の取消を完了できるようにした。これは CI 実装の不具合であり、runner 障害の証明ではない。取消を妨げる条件への差し戻しは静的回帰検査で拒否する。
+
+`7c73399bc36f2a6055c3f95d3c1f3671666481d5` の [repository checks](https://github.com/SLktEx/Hacocoon/actions/runs/34746556831) は Go 両系列、race、CLI E2E、両 architecture の build、release packaging、証拠 gate が成功した。[native Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34746556876) も未改変 installer、追加した通常ユーザーの製品 CLI lifecycle／Workspace 保持、legacy journey、network isolation、証拠 gate が成功した。
+
+Windows の [75007ec job](https://github.com/SLktEx/Hacocoon/actions/runs/34745868528/job/103693588946) と [7c73399 job](https://github.com/SLktEx/Hacocoon/actions/runs/34746556856/job/103695440904) は、ともに install、terminate/restart、reinstall、installed egress が成功した。再起動後の入室は33.547秒と35.844秒だった。native interop、Windows SSH、VS Code Remote も成功したが、設定と承認待ちの fixture で両 job とも**失敗**した。標準の人向け表示を `--json` なしで解析していたため、設定の取得・適用と承認一覧に JSON 指定を追加し、実行可能な fixture 回帰検査を設けた。後続の reclamation と通知は未実施。これは再起動復旧の証拠であり、Windows 全受入や同一 SHA の再実行成功を意味しない。
+
+同じ `7c73399` 候補の [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) は standalone と Core lifecycle／egress が成功したが、Btrfs の aggregate export と source 削除 fixture が失敗した。Incus 7 は adapter が保持する既存の匿名出力に `--force` を要求する。main に入った #600 の実装が対応する 7.0 LTS 向けにこのフラグを渡すため、別の互換 shim を作らず再利用する。source snapshot の確認にも volume と snapshot を別引数で渡す修正が必要だった。cleanup は失敗 fixture を拒否した後にも pool／project 削除へ進んでいたため、所有権や不存在が不明な時点で後続削除を止めるようにした。native 再検証は別途必要。
+
+main `f590023` を統合した候補 `fb5da79768c3fac5bf69db3c0496f936e9e1646f` では、ローカルの workflow policy、Actionlint、docs、製品 CLI／composition／Incus の test と vet が成功した。JSON／対話 fixture 8 件と cleanup テスト 5 件も成功した。新しい LTS 導入 fixture は検証 Host が Ubuntu 22.04 のため 1 件失敗し、対応する >=26.04 のガードは回避していない。
+
+hosted の初回実行 4 件（[test](https://github.com/SLktEx/Hacocoon/actions/runs/34748814241)、[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34748814235)、[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34748814274)、[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34748814262)）は job が作成されず `startup_failure` で終了した。test run の annotation は GitHub の予期しないエラーを示し、request ID は `CFDF:38DCEF:B99783:11CB2DC:6AA66658`。確認時の公開 status ページに障害告知はなく、全体障害や復旧とは推定しない。native 製品受入の成功ではない。この事象で job のない開始失敗を履歴 reader が見落とす問題が分かり、workflow attempt の結果を job と独立に保持し、開始失敗後に成功する attempt の回帰検査を追加した。rerun は依頼していない。
+
+既存の GitHub connector で取得した有効な [Protect main ruleset](https://github.com/SLktEx/Hacocoon/rules/21838612) は docs、workflow-policy、release-config、Go 両系列、race、e2e を必須としていた。追加した evidence 4 件は確認時に未指定だった。その追加は別途必要な設定作業であり、ruleset は変更していない。

@@ -105,6 +105,10 @@ def valid_network_output(output):
     return output.splitlines() == ["PENDING_NETWORK_RESULT_OK", "Project setup completed."]
 
 
+def pending_requests():
+    return json.loads(command("approve", "--list", "--json"))
+
+
 def main(environment):
     if not re.fullmatch(r"win-ssh-[a-f0-9]{16}", environment):
         raise RuntimeError("requires a disposable Windows SSH acceptance Environment")
@@ -179,7 +183,7 @@ PY
                 deadline = time.monotonic() + 60
                 prompt = None
                 while time.monotonic() < deadline:
-                    requests = json.loads(command("approve", "--list", "--json"))
+                    requests = pending_requests()
                     matches = [p for p in requests if p.get("request", {}).get("environment") == environment
                                and p.get("request", {}).get("capability") == "network.egress"
                                and p.get("request", {}).get("resource") == "example.com"]

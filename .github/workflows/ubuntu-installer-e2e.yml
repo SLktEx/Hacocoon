@@ -4,18 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "cmd/**"
-      - "internal/**"
-      - "modules/runtime/incus/packaging/**"
-      - ".goreleaser.yaml"
-      - "scripts/install-ubuntu.sh"
-      - "scripts/install.sh"
-      - "tools/package_installers.py"
-      - "tools/installer-user-journey-e2e.sh"
-      - "tools/installer-network-security-e2e.sh"
-      - "tools/installer-dhcp-diagnostics.sh"
-      - ".github/workflows/ubuntu-installer-e2e.yml"
   workflow_dispatch:
 
 permissions:
@@ -33,13 +21,15 @@ jobs:
       GOTOOLCHAIN: local
       HACO_E2E_VERSION: v0.0.0-e2e
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: "[infrastructure] Install pinned Go"
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
           check-latest: false
@@ -51,7 +41,7 @@ jobs:
           version: v2.17.1
           install-only: true
 
-      - name: Record native Ubuntu substrate
+      - name: "[infrastructure] Record native Ubuntu substrate"
         shell: bash
         run: |
           set -euo pipefail
@@ -62,7 +52,7 @@ jobs:
           id
           sudo -n true
 
-      - name: Build release-equivalent candidate artifacts
+      - name: "[fixture] Build release-equivalent candidate artifacts"
         shell: bash
         run: |
           set -euo pipefail
@@ -75,7 +65,7 @@ jobs:
           grep -Fx haco <<<"$listing"
           grep -Fx hacoq <<<"$listing"
 
-      - name: Build and extract release-equivalent Ubuntu package
+      - name: "[fixture] Build and extract release-equivalent Ubuntu package"
         shell: bash
         run: |
           set -euo pipefail
@@ -97,14 +87,14 @@ jobs:
           test ! -e "$package_root/haco_linux_arm64.tar.gz"
           printf 'HACO_E2E_PACKAGE_ROOT=%s\n' "$package_root" >> "$GITHUB_ENV"
 
-      - name: Execute packaged native Ubuntu installer unchanged
+      - name: "[product] Execute packaged native Ubuntu installer unchanged"
         shell: bash
         run: |
           set -euo pipefail
           cd "$HACO_E2E_PACKAGE_ROOT"
           ./install-ubuntu.sh
 
-      - name: Assert Hacocoon is usable through native Ubuntu user path
+      - name: "[product] Assert Hacocoon is usable through native Ubuntu user path"
         shell: bash
         run: |
           set -euo pipefail
@@ -147,14 +137,17 @@ jobs:
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock
-          sudo haco setup
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host doctor >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco --version >/dev/null
           sudo incus exec haco-host --project hacocoon -- /usr/local/bin/haco-host env list >/dev/null
           sudo incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - < tools/test_host_notification.py
           test "$(getent passwd "$login_user" | cut -d: -f7)" != /usr/local/libexec/hacocoon-login
 
-      - name: Exercise installed Hacocoon legacy user journey during migration
+      - name: "[product] Exercise installed product CLI lifecycle"
+        shell: bash
+        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/tools/installer-product-lifecycle-e2e.sh"
+
+      - name: "[product] Exercise installed Hacocoon legacy user journey during migration"
         shell: bash
         run: |
           set -euo pipefail
@@ -162,13 +155,13 @@ jobs:
           journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
           sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/hacoq bash "$journey"
 
-      - name: Verify installed network isolation and spoofing guards
+      - name: "[product] Verify installed network isolation and spoofing guards"
         shell: bash
         run: |
           set -euo pipefail
           sudo env HACO_BIN=/usr/local/bin/hacoq bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
 
-      - name: Collect diagnostics
+      - name: "[fixture] Collect diagnostics"
         if: failure()
         shell: bash
         continue-on-error: true
@@ -187,3 +180,41 @@ jobs:
           sudo systemctl status haco-controller.service --no-pager || true
           sudo incus list --all-projects || true
           sudo incus network list --project default || true
+
+      - name: "[fixture] Record bounded substrate evidence"
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: "[infrastructure] Retain substrate evidence"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ strategy.job-index || 0 }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
+  ubuntu-installer-e2e-evidence:
+    needs: [ubuntu-user-path]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify required jobs and same-commit history
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_history.py --gate --output ci-evidence.json
+      - name: "[infrastructure] Retain CI evidence"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ubuntu-installer-e2e-evidence-${{ github.run_attempt }}
+          path: ci-evidence.json
+          if-no-files-found: error
+          retention-days: 30

@@ -9,6 +9,13 @@
 実装済み: Host の `haco setup` は、時間制限付きの読み取り専用 Ping でコントローラーの準備を待ち、setup を一度だけ送ります。setup の失敗応答は自動再試行しません。systemd のサービス起動からソケットの準備完了までの差を吸収し、CLI の手順は増やしません。
 
 
+WSL の自動入室は、実ユーザーの対話 shell と、systemd ユーザーセッション準備用に
+別 PTY で起動される背景の `login` shell を区別する。login が管理する shell は
+Physical Host の通常 Bash に留まり、実ユーザーの入室だけがコントローラー経由の
+Host 準備を要求する。親コマンドの識別は UI の選択であり権限を与えない。
+setup の排他と peer 認可は変更しない。[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) を参照。
+
+
 ## 通知バイナリ
 
 実装済み: setup は同じリリースの `/usr/local/bin/haco-notify` も配布し、プロバイダーの
