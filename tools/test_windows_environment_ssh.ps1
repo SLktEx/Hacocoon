@@ -260,8 +260,38 @@ try {
         [void](Invoke-Checked 'wsl.exe' @('--terminate',$Distro) 'Terminate only the fixture WSL distribution')
         # First Hacocoon contact after termination is native OpenSSH ProxyCommand.
         if ([IO.File]::ReadAllText($managedConfig) -ne $managedBefore) { throw 'Reconnect unexpectedly rotated the managed SSH connection' }
-        $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=180', $alias, 'cat /workspace/windows-marker') 'Reconnect using generated desktop SSH alias'
-        if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
+        $reconnects = @()
+        try {
+            for ($i = 0; $i -lt 4; $i++) {
+                $start = [Diagnostics.ProcessStartInfo]::new()
+                $start.FileName = $NativeSSH
+                $start.UseShellExecute = $false
+                $start.CreateNoWindow = $true
+                $start.RedirectStandardOutput = $true
+                $start.RedirectStandardError = $true
+                foreach ($arg in @('-o','BatchMode=yes','-o','ConnectTimeout=180',$alias,'cat /workspace/windows-marker')) { [void]$start.ArgumentList.Add($arg) }
+                $process = [Diagnostics.Process]::Start($start)
+                $reconnects += [pscustomobject]@{ Process=$process; Output=$process.StandardOutput.ReadToEndAsync(); Error=$process.StandardError.ReadToEndAsync() }
+            }
+            foreach ($probe in $reconnects) {
+                if (-not $probe.Process.WaitForExit(300000) -or $probe.Process.ExitCode -ne 0) { throw 'Parallel cold SSH reconnect failed' }
+                if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($probe.Output,$probe.Error),10000)) { throw 'Parallel reconnect output did not close' }
+                if ($probe.Output.GetAwaiter().GetResult().Trim() -ne 'windows-workspace-ok') { throw 'Parallel reconnect lost Workspace content' }
+            }
+        } finally {
+            foreach ($probe in $reconnects) {
+                if (-not $probe.Process.HasExited) { $probe.Process.Kill($true); [void]$probe.Process.WaitForExit(10000) }
+                $probe.Process.Dispose()
+            }
+        }
+        $reconnected = (Invoke-Wsl @('-u','root','--exec','incus','query',"/1.0/instances/haco-$EnvironmentName`?project=hacocoon") 'Verify same provider generation after parallel cold reconnect').Stdout | ConvertFrom-Json -AsHashtable
+        if ($reconnected.config['user.hacocoon.instance-id'] -ne $connection.target.instance) { throw 'Cold reconnect replaced the Environment generation' }
+        if (@($reconnected.expanded_devices.Keys | Where-Object { $_ -like 'haco-ssh-*' }).Count -ne 0) { throw 'Cold reconnect created an SSH proxy' }
+        $coldListeners = (Invoke-Wsl @('-u','root','--exec','ss','-H','-ltn') 'Observe listeners after parallel cold reconnect').Stdout
+        $beforeLines = @($listenersBefore.Stdout -split '\r?\n' | Where-Object { $_ } | Sort-Object)
+        $afterLines = @($coldListeners -split '\r?\n' | Where-Object { $_ } | Sort-Object)
+        if (@(Compare-Object $beforeLines $afterLines | Where-Object SideIndicator -eq '=>').Count -ne 0) { throw 'Cold SSH reconnect added a Host TCP listener' }
+        Write-Host 'PARALLEL COLD SSH / SAME GENERATION / NO SSH PROXY OR NEW HOST LISTENER: PASS'
         Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
         $configurationProbe = @'
 set -eu
