@@ -21,7 +21,7 @@ canonical Workspace identity, so a new Environment for the same Workspace can
 reuse them with one setup command. The original script file may be versioned in
 the repository, but editing it does not silently change the saved snapshot.
 
-Omitting the Environment keeps the existing trusted Host setup behavior.
+Omitting the Environment uses [Host incarnation-bound setup](trusted-host.md#saved-customization-recipes). Host-only `--reapply-script` and `--script-result` are rejected for Environment targets.
 Environment project setup must never inherit a Host recipe, credential or
 management channel. No repository hook is discovered or executed automatically.
 Base tooling and optional OCI content remain separate from project dependencies.

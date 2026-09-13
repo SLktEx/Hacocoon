@@ -182,3 +182,7 @@ observations. Progress uses stderr and rejects arbitrary peer fields. Journal
 retention belongs to systemd-journald. Helper exit 42 is the fixed native WSL
 binfmt incompatibility code, not parsed stderr. See
 [setup diagnostics](../design/trusted-host.md#setup-progress-and-failure-diagnostics).
+
+Host customization keeps bounded stdout/stderr in a private result, displayed only
+by explicit `haco setup --script-result`. Raw output and the result object never
+enter structured logs, progress-stage fields or audit data.
