@@ -9,7 +9,23 @@ import sys
 import tempfile
 from unittest.mock import patch
 import test_pending_approvals as acceptance
-from test_pending_approvals import valid_network_output, command_failure_category
+import time
+from test_pending_approvals import valid_network_output, command_failure_category, terminal_command
+
+@unittest.skipUnless(sys.platform == "linux", "installed approval terminal is Linux")
+class TerminalAnswerTest(unittest.TestCase):
+    def test_terminal_answers_keep_json_and_exit_separate(self):
+        script = "import sys; assert sys.stdin.isatty(); assert sys.stdin.readline() == '5\\n'; assert sys.stdin.readline() == 'n\\n'; print('{\"receipt\":true}'); print('reviewed', file=sys.stderr); sys.exit(37)"
+        result = terminal_command([sys.executable, "-c", script], "5\nn\n", 5)
+        self.assertEqual(result.stdout, '{"receipt":true}\n')
+        self.assertEqual(result.stderr, "reviewed\n")
+        self.assertEqual(result.returncode, 37)
+
+    def test_timeout_kills_and_reaps_only_the_owned_child(self):
+        started = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            terminal_command([sys.executable, "-c", "import time; time.sleep(10)"], "n\n", .1)
+        self.assertLess(time.monotonic() - started, 3)
 
 
 class MachineOutputTest(unittest.TestCase):

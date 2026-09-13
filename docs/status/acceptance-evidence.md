@@ -6,6 +6,58 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS baseline
+
+The supported contract is `>= 7.0.1`, `< 7.1`; previous 6.0.5 results are
+historical compatibility evidence. At development candidate `0c79f8209eec42b597cc811a9114e0351d8226d7`
+in [PR #583](https://github.com/SLktEx/Hacocoon/pull/583),
+[Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358),
+[fresh Windows/WSL installation, restart and reinstall](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361),
+and [standalone/Core/Btrfs Incus gates](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)
+passed on server 7.0.1. Native gates include lifecycle, egress, Base build,
+snapshot/copy/import, retained Store operations and owned cleanup.
+[Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411) also passed.
+Private registry, VPN/NRPT and human notification decisions remain unverified.
+
+The main-targeted #479 change extracts the shared installer, doctor and required
+vendor-daemon/export/fixture fixes. The preceding integrated-candidate passes
+are not a native rerun of that extraction or evidence of publication. The
+independent extraction's acceptance is recorded below.
+
+At extraction `9a4dc42`, [repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125) and
+[real Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134) passed.
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114) passed fresh
+installation/restart/reinstall, egress, transfer, reclaim and retained-data restore,
+but the desktop aggregate failed approval review and subsequent preview setup.
+The approval fixture piped answers into a terminal-only command. It now uses a
+private PTY, preserving JSON receipts and bounded child cleanup; acceptance readers
+also request `--json` explicitly after main's output change.
+
+At corrected extraction `34ff371cedb7558959201b316a2aebe7f3542eee` in
+[PR #600](https://github.com/SLktEx/Hacocoon/pull/600),
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335) and
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)
+passed, including the Windows desktop aggregate. The earlier failed aggregate
+remains a failure. [Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)
+passed after retrying only the Go 1.27 job: the first attempt timed out in the
+existing interactive PTY resize test; 30 local repetitions with the same shuffle
+seed passed without a code change. The intermittent timeout's cause is unconfirmed.
+These results establish the extraction's tested scope, not release publication
+or acceptance of later main integrations.
+
+After main integration at `d6f078e`, [Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)
+passed installation and the first Host diagnostics on Incus 7.0.1, then failed
+ordinary entry immediately after WSL termination/restart with `Host setup is busy`.
+The fixture subsequently timed out; later Environment/desktop gates were skipped.
+Shell preparation now waits for controller setup exclusion within its existing
+deadline, retaining explicit-setup conflict refusal and failed-recipe recovery.
+Component/race coverage checks waiting, cancellation and exclusion release;
+the repaired integrated candidate still requires Windows acceptance.
+
 <a id="installation"></a>
 
 ## Installation and Host
@@ -131,7 +183,7 @@ were not run there. Commit-bound hosted results must be recorded separately.
 
 After integrating main at `8c645317101e007d57c752f35ae0a95f637d81b5`, related composition/Incus/product-CLI tests and vet passed with Python 3.13.15. The first local run failed because Python 3.10 lacked `tomllib`; installing the verified separate runtime satisfied the new Host-tooling test prerequisite without weakening the test. Sized-PTY and maintenance-terminal regressions also passed 100 repetitions on pinned Go 1.26.7. These are repository/component results, not installed native acceptance.
 
-Candidate `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) reproduced the restart busy failure. Initial install and ordinary entry passed; restart entry failed in 11.218 seconds. Reinstall and downstream SSH/IDE/network/reclamation/notification steps were not executed. WSL source inspection identified the competing PTY-backed PAM login bootstrap; [ADR 0064](../adr/0064-wsl-login-bootstrap-routing.md) records the routing fix and rejected retries. The native restart results below verify that fix separately from later acceptance failures.
+Candidate `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) reproduced the restart busy failure. Initial install and ordinary entry passed; restart entry failed in 11.218 seconds. Reinstall and downstream SSH/IDE/network/reclamation/notification steps were not executed. WSL source inspection identified the competing PTY-backed PAM login bootstrap; [ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) records the routing fix and rejected retries. The native restart results below verify that fix separately from later acceptance failures.
 
 Candidate `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) waited behind superseded run 34744299866. Its required jobs were cancelled, but job-level `always()` kept the old evidence job queued and retained the concurrency slot. Evidence jobs now use `!cancelled()`: failed/skipped dependencies still require evidence, while whole-workflow cancellation can finish. This was a CI implementation defect, not proof of a runner outage. Static regressions reject restoring the uninterruptible condition.
 
@@ -139,4 +191,4 @@ At `7c73399bc36f2a6055c3f95d3c1f3671666481d5`, [repository checks](https://githu
 
 Windows [75007ec job](https://github.com/SLktEx/Hacocoon/actions/runs/34745868528/job/103693588946) and [7c73399 job](https://github.com/SLktEx/Hacocoon/actions/runs/34746556856/job/103695440904) both passed install, terminate/restart, reinstall and installed egress; restart entry took 33.547 and 35.844 seconds. Native interop, Windows SSH and VS Code Remote also passed, but both jobs **failed** configuration and pending-approval fixtures. Those fixtures parsed human-default output without `--json`; the fix requests JSON for configuration read/apply and pending lists, with executable fixture regressions. Later reclamation and notification steps were not executed. These runs establish restart recovery, not complete Windows acceptance or a same-SHA rerun pass.
 
-At the same 7c73399 candidate, [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) passed standalone and Core lifecycle/egress, but Btrfs failed aggregate export and the source-deletion fixture. Incus 7 requires --force for the adapter-owned existing anonymous output, while Incus 6 rejects that flag; bounded capability inspection now selects the supported command without replay. The source snapshot observation also needed separate volume/snapshot arguments. Cleanup refused retained failed fixtures but previously continued toward pool/project deletion; it now stops before those operations on uncertain ownership or absence. Native revalidation is required.
+At the same `7c73399` candidate, [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) passed standalone and Core lifecycle/egress, but Btrfs failed aggregate export and the source-deletion fixture. Incus 7 requires `--force` for the adapter-owned existing anonymous output. The merged #600 implementation supplies that flag for the supported 7.0 LTS baseline; this branch reuses it without a separate compatibility shim. The source snapshot observation also needed separate volume/snapshot arguments. Cleanup refused retained failed fixtures but previously continued toward pool/project deletion; it now stops before those operations on uncertain ownership or absence. Native revalidation is required.

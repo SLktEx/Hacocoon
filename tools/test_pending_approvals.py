@@ -6,6 +6,7 @@ credential injection or guest management endpoint is used.
 """
 
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -48,11 +49,40 @@ def command_failure_category(stdout, stderr):
     return "command"
 
 
+def terminal_command(argv, answer, timeout):
+    # The installed CLI requires a real terminal for a human decision. Keep
+    # stdout separate so the existing JSON receipt assertions remain exact.
+    import pty
+    import tty
+    payload = answer.encode("utf-8")
+    if not payload or len(payload) > 256:
+        raise ValueError("invalid fixture terminal answer")
+    master, slave = pty.openpty()
+    try:
+        tty.setraw(slave)
+        process = subprocess.Popen(argv, stdin=slave, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            if os.write(master, payload) != len(payload):
+                raise RuntimeError("incomplete fixture terminal answer")
+            stdout, stderr = process.communicate(timeout=timeout)
+        except BaseException:
+            process.kill()
+            process.communicate()
+            raise
+        return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+    finally:
+        os.close(slave)
+        os.close(master)
+
+
 def command(*args, input_text=None, timeout=90):
-    result = subprocess.run(
-        ["/usr/local/bin/haco", *args], input=input_text, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
-    )
+    argv = ["/usr/local/bin/haco", *args]
+    if input_text is not None:
+        result = terminal_command(argv, input_text, timeout)
+    else:
+        result = subprocess.run(argv, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, timeout=timeout)
     if result.returncode:
         raise CommandFailure(result)
     return result.stdout

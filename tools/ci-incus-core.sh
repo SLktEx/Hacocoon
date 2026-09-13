@@ -6,6 +6,7 @@ readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
 readonly CI_REMOTE="haco-ci"
+readonly INCUS_LTS_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/incus-lts.sh"
 readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
 export INCUS_CONF="$CLIENT_CONF"
 
@@ -57,10 +58,38 @@ configure_workspace_owner_idmap() {
 }
 
 setup() {
+  local server_version
   require_github_hosted_runner
-  # Every independent runner uses the same reviewed LTS source and readiness.
-  bash "$(dirname "${BASH_SOURCE[0]}")/ci-incus.sh" setup
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get update
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+    ca-certificates curl gnupg dnsmasq-base iptables
+  sudo env DEBIAN_FRONTEND=noninteractive sh "$INCUS_LTS_HELPER" install
+
   configure_workspace_owner_idmap
+
+  # The Hacocoon sandbox keeps Incus bridge filtering enabled. GitHub-hosted
+  # Ubuntu does not guarantee that br_netfilter is loaded before the job.
+  sudo modprobe br_netfilter
+  [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]] || fail "br_netfilter IPv4 hooks unavailable"
+  [[ -e /proc/sys/net/bridge/bridge-nf-call-ip6tables ]] || fail "br_netfilter IPv6 hooks unavailable"
+
+  timeout 65s sudo incus admin waitready --timeout=60
+  sudo incus admin init --minimal
+
+  # Run Hacocoon as the ordinary runner user, not root. Keep the TLS client in
+  # the same runner-local INCUS_CONF used by tools/ci-incus.sh so independent
+  # workflow steps do not fall back to Incus' root-owned local Unix socket.
+  install -d -m 0700 "$CLIENT_CONF"
+  incus remote generate-certificate
+  sudo incus config set core.https_address 127.0.0.1:8443
+  sudo incus config trust add-certificate "$CLIENT_CONF/client.crt"
+  incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
+  incus remote switch "$CI_REMOTE"
+
+  incus version
+  server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
+  sh "$INCUS_LTS_HELPER" verify-version "$server_version"
+  incus profile show default --project default >/dev/null
 }
 
 run_test() {

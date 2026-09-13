@@ -8,6 +8,12 @@
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
+実装済み: [Incus 7.0 LTS導入](design/installer.md#incus-package-baseline)をUbuntu、
+Windows/WSLと両方の実機CI準備経路で共有し、パッチ更新と実server版の検証を行います。
+doctorは非対応版を報告し、6.0互換はベストエフォートで保持します。vendor daemonの
+認識と匿名volume exportでも所有確認を維持します。[検証証拠](status/acceptance-evidence.ja.md#incus-lts)で
+統合候補の成功と今回のmain向け切り出しを区別します。
+
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
 | [Host の標準ツール](design/trusted-host.ja.md#host-の標準ツール) | 実装済み | 通常のローカル setup がユーザースクリプトの前に Git/gh と固定版 containerd/nerdctl/BuildKit を導入。管理対象 OCI データと Host 内のソケットを利用し、再 setup はデータを保持。公開版 Windows インストーラー、arm64 実機、独自の既存導入環境の確認は別途必要。 |

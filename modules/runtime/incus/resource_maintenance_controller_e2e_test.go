@@ -103,16 +103,10 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 		var diagnostic bytes.Buffer
 		cmd.Env, cmd.Stdin, cmd.Stderr = environment, strings.NewReader(input), io.MultiWriter(log, &diagnostic)
 		if input != "" {
-			// The shipped CLI deliberately refuses piped confirmations. Supply
-			// a real terminal for both acceptance and refusal, as a user would;
-			// strings.Reader becomes an OS pipe when exec starts the child.
-			master, slave, err := openMaintenanceTestPTY()
+			terminal, closeTerminal, err := maintenanceConfirmationInput(input)
 			must(err)
-			defer master.Close()
-			defer slave.Close()
-			cmd.Stdin = slave
-			_, err = io.WriteString(master, input)
-			must(err)
+			defer closeTerminal()
+			cmd.Stdin = terminal
 		}
 		output, err := cmd.Output()
 		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), refusal)) {

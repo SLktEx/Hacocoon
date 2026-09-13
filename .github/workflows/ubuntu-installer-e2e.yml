@@ -132,7 +132,8 @@ jobs:
 
           test "$(sudo -u "$login_user" -- id -g)" = "$primary_gid"
           sudo -u "$login_user" -- id -nG | tr ' ' '\n' | grep -Fx hacocoon
-          sudo -u "$login_user" -- /usr/local/bin/hacoq doctor
+          # Ordinary users diagnose through the controller, without Incus authority.
+          sudo -u "$login_user" -- /usr/local/bin/haco doctor
 
           sudo systemctl is-active --quiet haco-controller.service
           sudo test -S /run/hacocoon/control.sock

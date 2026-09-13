@@ -1,5 +1,11 @@
 # Trusted `haco-host`
 
+対応するIncusは7.0 LTS（`>= 7.0.1`, `< 7.1`）です。Ubuntu/WSL導入は共通の
+署名検証付きLTS配布元を使い、7.0.xのパッチ更新を追従します。`haco doctor`は
+非対応または確認不能なserver版を報告し、依存する検査を実行しません。
+既存の6.0互換処理はベストエフォートで保持します。
+[導入契約](installer.md#incus-package-baseline)を参照してください。
+
 実装済み: Host の `haco setup` は、時間制限付きの読み取り専用 Ping でコントローラーの準備を待ち、setup を一度だけ送ります。setup の失敗応答は自動再試行しません。systemd のサービス起動からソケットの準備完了までの差を吸収し、CLI の手順は増やしません。
 
 
@@ -7,7 +13,7 @@ WSL の自動入室は、実ユーザーの対話 shell と、systemd ユーザ�
 別 PTY で起動される背景の `login` shell を区別する。login が管理する shell は
 Physical Host の通常 Bash に留まり、実ユーザーの入室だけがコントローラー経由の
 Host 準備を要求する。親コマンドの識別は UI の選択であり権限を与えない。
-setup の排他と peer 認可は変更しない。[ADR 0064](../adr/0064-wsl-login-bootstrap-routing.md) を参照。
+setup の排他と peer 認可は変更しない。[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) を参照。
 
 
 ## 通知バイナリ
@@ -283,6 +289,11 @@ reprovisionで再実行しません。providerの`volatile.uuid`が変わると�
 元ファイルの変更だけでは保存内容は変わらず、`--script`で明示的に更新します。
 `--reapply-script`は必須provisioningを省略し、既に所有・起動済みのHostだけで実行します。
 追加した2フラグはHost専用で、Environment指定のWorkspace recipe契約は維持します。
+
+通常のshell入口は実行中のcontroller setupが終わるまで、準備全体の15分の期限内で待ち、
+その後に自身の正規の準備を行います。明示的なsetupの重複は引き続き拒否します。
+待機中の入口をキャンセルしても、実行中の処理の排他は解放せず、失敗・完了不明のrecipeの
+再実行も許可しません。
 
 クライアントは最大1 MiBの通常UTF-8ファイルを読みます。実行bitは不要で、UTF-8 BOMと
 CRLFを正規化します。`~/`はクライアント側アカウントで解決します。PowerShellではWSLの

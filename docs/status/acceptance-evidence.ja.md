@@ -6,6 +6,51 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS対応基準
+
+対応契約は`>= 7.0.1`, `< 7.1`です。以前の6.0.5での結果は過去の互換確認として保持します。
+[PR #583](https://github.com/SLktEx/Hacocoon/pull/583)の開発候補
+`0c79f8209eec42b597cc811a9114e0351d8226d7`で、
+[Ubuntu導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358)、
+[Windows/WSL新規導入・再起動・再導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)、
+[standalone/Core/BtrfsのIncus試験](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)が
+server 7.0.1で成功しました。lifecycle、egress、Base build、snapshot/copy/import、
+保持Store操作、所有資源のcleanupを含みます。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411)も成功しました。
+private registry、VPN/NRPT、人間の通知内回答は未確認です。
+
+main向け#479では共通導入、doctorと必要なvendor daemon/export/fixture修正を切り出します。
+上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
+切り出し自体のパッケージ・実機CI結果は以下に記録します。
+
+切り出し`9a4dc42`で[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125)、
+[実Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134)は成功しました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114)も新規導入・再起動・再導入、
+egress、transfer、reclaimと保持データ復元は成功しましたが、desktop全体は承認操作と
+後続preview setupで失敗しました。承認fixtureが端末必須のCLIへパイプで回答していたため、
+専用PTYへ修正し、JSONの応答と時間制限付きの子プロセスcleanupを維持します。
+mainの出力変更に合わせ、受入試験でJSONを読む呼び出しには`--json`を明示します。
+修正後の切り出し`34ff371cedb7558959201b316a2aebe7f3542eee`
+（[PR #600](https://github.com/SLktEx/Hacocoon/pull/600)）で、
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335)、
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)が成功し、
+Windowsのdesktop全体も成功しました。元の全体失敗は失敗として保持します。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)はGo 1.27ジョブだけの
+再実行後に成功しました。初回は既存の対話PTYサイズ変更試験が時間切れになりましたが、
+同じshuffle seedでのローカル30回はコード変更なしで成功し、間欠的な時間切れの原因は未確定です。
+この結果は当該切り出しの試験範囲の証拠であり、リリース配布や後続main統合の合格を示しません。
+
+main統合後の`d6f078e`の[Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)は、
+Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了・再起動直後の通常入口で
+`Host setup is busy`と拒否されました。fixtureはその後時間切れとなり、後続のEnvironment・desktop試験は
+スキップされました。shell準備は既存の期限内でcontroller setupの排他解放を待つよう修正し、
+明示的setupの重複拒否と失敗recipeの復旧規則を維持します。構成要素・race試験で待機、キャンセル、
+排他解放を確認しましたが、修正後の統合候補のWindows受入は別途必要です。
+
 <a id="installation"></a>
 
 ## インストールとHost
@@ -128,7 +173,7 @@ rerun の成功は障害の証拠であり、解決ではない。現在の rout
 
 main を統合した `8c645317101e007d57c752f35ae0a95f637d81b5` では、Python 3.13.15 を使い composition/Incus/製品 CLI の関連テストと vet が成功した。初回はローカル Python 3.10 に `tomllib` がなく失敗したため、検証済みの別 runtime で新しい Host-tooling テストの前提を満たした。テストを弱める変更はない。固定 Go 1.26.7 でも sized-PTY と maintenance-terminal 回帰の100回反復が成功した。これらは repository/component の結果であり、installed native acceptance ではない。
 
-候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0064](../adr/0064-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
+候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
 
 候補 `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) は古い run 34744299866 の終了を待っていた。本体 job が取消済みでも job-level の `always()` により古い証拠 job が runner 待ちに残り、concurrency 枠を保持していた。証拠 job を `!cancelled()` に変更し、依存 job の失敗・skip の検査を保ちつつ workflow 全体の取消を完了できるようにした。これは CI 実装の不具合であり、runner 障害の証明ではない。取消を妨げる条件への差し戻しは静的回帰検査で拒否する。
 
@@ -136,4 +181,4 @@ main を統合した `8c645317101e007d57c752f35ae0a95f637d81b5` では、Python 
 
 Windows の [75007ec job](https://github.com/SLktEx/Hacocoon/actions/runs/34745868528/job/103693588946) と [7c73399 job](https://github.com/SLktEx/Hacocoon/actions/runs/34746556856/job/103695440904) は、ともに install、terminate/restart、reinstall、installed egress が成功した。再起動後の入室は33.547秒と35.844秒だった。native interop、Windows SSH、VS Code Remote も成功したが、設定と承認待ちの fixture で両 job とも**失敗**した。標準の人向け表示を `--json` なしで解析していたため、設定の取得・適用と承認一覧に JSON 指定を追加し、実行可能な fixture 回帰検査を設けた。後続の reclamation と通知は未実施。これは再起動復旧の証拠であり、Windows 全受入や同一 SHA の再実行成功を意味しない。
 
-同じ 7c73399 候補の [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) は standalone と Core lifecycle／egress が成功したが、Btrfs の aggregate export と source 削除 fixture が失敗した。Incus 7 は adapter が保持する既存の匿名出力に --force を要求し、Incus 6 はそのフラグを拒否する。上限付きの対応フラグ確認により、変更操作を再実行せず対応コマンドを選ぶようにした。source snapshot の確認にも volume と snapshot を別引数で渡す修正が必要だった。cleanup は失敗 fixture を拒否した後にも pool／project 削除へ進んでいたため、所有権や不存在が不明な時点で後続削除を止めるようにした。native 再検証は別途必要。
+同じ `7c73399` 候補の [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) は standalone と Core lifecycle／egress が成功したが、Btrfs の aggregate export と source 削除 fixture が失敗した。Incus 7 は adapter が保持する既存の匿名出力に `--force` を要求する。main に入った #600 の実装が対応する 7.0 LTS 向けにこのフラグを渡すため、別の互換 shim を作らず再利用する。source snapshot の確認にも volume と snapshot を別引数で渡す修正が必要だった。cleanup は失敗 fixture を拒否した後にも pool／project 削除へ進んでいたため、所有権や不存在が不明な時点で後続削除を止めるようにした。native 再検証は別途必要。
