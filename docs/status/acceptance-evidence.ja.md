@@ -806,3 +806,20 @@ Incus34770808191がPASSです。Windows34770808189、job103759936727はstep17の
 待受アドレス表示の後、driverが端末sessionの一致を待つ間に時間切れになりました。
 先行するnative SSH、VS Code、転送確認は成功を記録していますが、tunnelの所有確認・転送・中断の受入は未完了です。
 通知回答を含むstep18〜21はSKIPでした。このrunで以前の#635通知clear失敗を解決済みにしません。
+
+<a id="windows-tunnel-interruption"></a>
+## Windows転送の端末中断
+
+`codex/windows-tunnel-cancel`は#638の待受表示後のCtrl+C失敗を扱います。
+Windows34770808189のdriverはnative所有者確認、8並行1 MiBの半切断往復、application終了確認を通ってから
+中断を送っています。その後の端末結果が必要な0ではなく`TUNNEL-EXIT:1`だったため、回収までの受入はFAILです。
+
+Linux回帰は専用process sessionを所有し、実子とcontroller経由で1 MiBを転送してから前面groupへSIGINTを送ります。
+旧起動方法は`signal: interrupt`でFAILし、pipe経由の正常キャンセルより先に子が終了しました。
+interop子のgroupを分ける修正後は、子・転送先・待受の回収を含む転送packageのrace 10回がPASSしました。
+終了値の成功への置換、期限・認可・interop設定・既存Envの変更はしていません。
+ローカルの信号所有の不具合を確認した証拠であり、導入済みWindowsのCtrl+C再受入はまだ未確認です。
+標準ローカル全体では既存login-bootstrap PTYの入力待ち期限が再FAILし、以前の失敗も未解決として残します。
+今回の試験全体は6.68秒でした。実Windows amd64では、対象世代の置換拒否、親EOFと余分なbyte、
+1 MiB転送、子・転送先・待受の回収が独立してPASSしました。Windowsビルドと文書checkerの18回帰もPASSです。
+v0.67を維持します。中断処理の修正であり、M3完了や配布ではありません。

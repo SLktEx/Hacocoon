@@ -971,3 +971,28 @@ terminal-session match. Native SSH, VS Code and the preceding transfer checks
 report success, but this does not establish tunnel ownership/traffic/cancellation
 acceptance. Steps 18–21, including notification review, are skipped. This run
 cannot resolve the older #635 notification clear failure.
+
+<a id="windows-tunnel-interruption"></a>
+## Windows tunnel foreground interruption
+
+`codex/windows-tunnel-cancel` addresses #638's installed Ctrl+C failure after
+listener readiness. In Windows run 34770808189 the driver reaches its
+interrupt step only after native owner verification, eight 1 MiB half-close
+exchanges and application completion. The terminal then reports `TUNNEL-EXIT:1`
+instead of the required zero, so complete cancellation acceptance failed.
+
+A Linux regression owns a private process session, transfers 1 MiB through a
+real companion and controller, then sends SIGINT to its foreground group. The
+previous shared-group launch fails with `signal: interrupt`: the child is killed
+before its pipe lease can deliver graceful cancellation. Giving the interop
+child its own process group passes ten race repetitions of the forwarding
+package, including child, upstream and listener reaping. No result code is
+normalized and no timeout, approval, interop setting or existing Env is changed.
+This establishes the local signal-ownership defect, not yet a successful rerun
+of installed Windows Ctrl+C. The full local command again fails the existing
+login-bootstrap PTY prompt deadline; earlier failures remain unresolved.
+That test takes 6.68 seconds in this run. The actual Windows amd64 companion
+regressions pass separately: exact target replacement refusal, parent EOF and
+extra-byte handling, 1 MiB transfer and child/upstream/listener reaping.
+The Windows binary builds and the 18 documentation-checker regressions pass.
+v0.67 is unchanged; this is a cancellation fix, not M3 completion or distribution.

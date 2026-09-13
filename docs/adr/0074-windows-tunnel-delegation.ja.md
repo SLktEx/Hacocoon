@@ -18,6 +18,11 @@ Windows側はprivate controllerで両方の世代を照合してから待ち受�
 親はその子だけの終了を待ち、応答がない場合は期限付きで終了します。
 切り離した起動、常駐サービス、追加の管理待受やguest endpointは作りません。
 
+Linux側のinterop子は独立したprocess groupに置きます。端末の中断は前面のCLIだけが受け、
+pipeを閉じて子の終了を待ちます。同じgroupではpipe経由のキャンセル完了前に中継が終了し得ます。
+groupを分けても親の所有・終了待ちは維持し、別sessionにはしません。
+キャンセル時の非zero終了を成功へ置換せず、実際の失敗と既存の期限付き強制終了を保持します。
+
 導入済み実行ファイルは、その利用者領域を所有する既存Windows利用者として動きます。
 Linux側のpath／記録確認は静的な所有不一致を拒否しますが、Windowsのfile pinやACL保証ではありません。
 通常Envへdrive・interop・管理接続を渡さず、Windows容量回収workerの権限も取り込みません。
