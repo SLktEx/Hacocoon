@@ -6,6 +6,26 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS baseline
+
+The supported contract is `>= 7.0.1`, `< 7.1`; previous 6.0.5 results are
+historical compatibility evidence. At development candidate `0c79f8209eec42b597cc811a9114e0351d8226d7`
+in [PR #583](https://github.com/SLktEx/Hacocoon/pull/583),
+[Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358),
+[fresh Windows/WSL installation, restart and reinstall](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361),
+and [standalone/Core/Btrfs Incus gates](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)
+passed on server 7.0.1. Native gates include lifecycle, egress, Base build,
+snapshot/copy/import, retained Store operations and owned cleanup.
+[Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411) also passed.
+Private registry, VPN/NRPT and human notification decisions remain unverified.
+
+The main-targeted #479 change extracts the shared installer, doctor and required
+vendor-daemon/export/fixture fixes. The preceding integrated-candidate passes
+are not a native rerun of that extraction or evidence of publication. Its own
+packaged/native CI results must be checked on the independent PR.
+
 <a id="installation"></a>
 
 ## Installation and Host

@@ -30,6 +30,22 @@ install-ubuntu.sh post
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
 
+## Incus package baseline
+
+Implemented: Ubuntu/WSL installation and both dedicated Incus CI setup paths
+share `scripts/incus-lts.sh`. The supported server is Incus 7.0 LTS
+(`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly primary key, rejects
+additional keys, and selects the latest available 7.0.x package from its signed
+`lts-7.0` repository. Persistent APT preferences retain the series without
+freezing a patch. Newer installed series require explicit migration and are
+never downgraded automatically. Installation checks the actual server version
+before boot-guard adoption and Hacocoon setup; `haco doctor` reports unsupported
+or unknown versions and skips dependent probes.
+
+Existing 6.0 compatibility remains best effort, outside the supported baseline.
+See [ADR 0063](../adr/0063-shared-incus-lts-installation.md) and the separate
+[native acceptance record](../status/acceptance-evidence.md#incus-lts).
+
 The shared phase installs bundled `incus-boot-guard.py` using isolated Python
 and an Incus service drop-in. First adoption requires the existing daemon to be
 ready. Subsequent namespace boots archive stale network/proxy PID records before
@@ -45,6 +61,7 @@ hacocoon-windows-amd64.zip
   install-windows.bat
   install-windows.ps1
   install.sh
+  incus-lts.sh
   incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt
@@ -57,6 +74,7 @@ hacocoon-windows-arm64.zip
 hacocoon-ubuntu-amd64.tar.gz
   install-ubuntu.sh
   install.sh
+  incus-lts.sh
   incus-boot-guard.py
   haco_linux_amd64.tar.gz
   checksums.txt

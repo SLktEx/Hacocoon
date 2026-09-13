@@ -1,5 +1,11 @@
 # Trusted `haco-host`
 
+The supported Incus baseline is 7.0 LTS (`>= 7.0.1`, `< 7.1`). Ubuntu/WSL
+installation uses the shared signed LTS source and follows 7.0.x patches;
+`haco doctor` refuses unsupported or unverifiable server versions before
+dependent probes. Existing 6.0 fallbacks remain best effort. See the
+[installer contract](installer.md#incus-package-baseline).
+
 Implemented: Host `haco setup` waits for controller readiness through bounded read-only Ping probes before sending setup once. A failed setup response is never retried automatically. This handles the interval between systemd service activation and socket readiness without adding CLI steps.
 
 

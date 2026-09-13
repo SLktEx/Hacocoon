@@ -1,5 +1,11 @@
 # Trusted `haco-host`
 
+対応するIncusは7.0 LTS（`>= 7.0.1`, `< 7.1`）です。Ubuntu/WSL導入は共通の
+署名検証付きLTS配布元を使い、7.0.xのパッチ更新を追従します。`haco doctor`は
+非対応または確認不能なserver版を報告し、依存する検査を実行しません。
+既存の6.0互換処理はベストエフォートで保持します。
+[導入契約](installer.md#incus-package-baseline)を参照してください。
+
 実装済み: Host の `haco setup` は、時間制限付きの読み取り専用 Ping でコントローラーの準備を待ち、setup を一度だけ送ります。setup の失敗応答は自動再試行しません。systemd のサービス起動からソケットの準備完了までの差を吸収し、CLI の手順は増やしません。
 
 

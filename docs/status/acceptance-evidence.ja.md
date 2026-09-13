@@ -6,6 +6,25 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS対応基準
+
+対応契約は`>= 7.0.1`, `< 7.1`です。以前の6.0.5での結果は過去の互換確認として保持します。
+[PR #583](https://github.com/SLktEx/Hacocoon/pull/583)の開発候補
+`0c79f8209eec42b597cc811a9114e0351d8226d7`で、
+[Ubuntu導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358)、
+[Windows/WSL新規導入・再起動・再導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)、
+[standalone/Core/BtrfsのIncus試験](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)が
+server 7.0.1で成功しました。lifecycle、egress、Base build、snapshot/copy/import、
+保持Store操作、所有資源のcleanupを含みます。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411)も成功しました。
+private registry、VPN/NRPT、人間の通知内回答は未確認です。
+
+main向け#479では共通導入、doctorと必要なvendor daemon/export/fixture修正を切り出します。
+上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
+切り出し自体のパッケージ・実機CI結果は独立PRで確認してください。
+
 <a id="installation"></a>
 
 ## インストールとHost

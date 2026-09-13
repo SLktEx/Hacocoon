@@ -8,6 +8,12 @@
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
+実装済み: [Incus 7.0 LTS導入](design/installer.md#incus-package-baseline)をUbuntu、
+Windows/WSLと両方の実機CI準備経路で共有し、パッチ更新と実server版の検証を行います。
+doctorは非対応版を報告し、6.0互換はベストエフォートで保持します。vendor daemonの
+認識と匿名volume exportでも所有確認を維持します。[検証証拠](status/acceptance-evidence.ja.md#incus-lts)で
+統合候補の成功と今回のmain向け切り出しを区別します。
+
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
 | [日常操作・setup診断](reference/daily-workflow.ja.md) | 実装済み | 制限付きの進捗・相関IDをstderrへ出力し、最終応答を検証。切断後も処理終了まで排他を保持し、非対話の確認は入力待ちしない。専用Linuxでの検証とWindows既定エントリー・IDEの確認は別。 |

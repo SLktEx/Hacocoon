@@ -101,7 +101,10 @@ func (r *Runtime) ExportSnapshotVolume(ctx context.Context, c core.SnapshotCompo
 		return nil, err
 	}
 	return captureNativeArchive(ctx, root, limit, func(output string) error {
-		out, err := r.runner.Run(ctx, "incus", "storage", "volume", "export", p.Pool, p.target(), output, "--project", r.project, "--volume-only", "--compression=none", "--quiet")
+		// Incus 7 refuses an existing target unless --force is explicit. Here
+		// output is exclusively our live anonymous descriptor from the capture
+		// below, never the caller's destination or a named existing file.
+		out, err := r.runner.Run(ctx, "incus", "storage", "volume", "export", p.Pool, p.target(), output, "--project", r.project, "--volume-only", "--compression=none", "--quiet", "--force")
 		if err != nil || out.ExitCode != 0 {
 			return fmt.Errorf("Incus export failed for %s/%s/%s; inspect native backups: %w", r.project, p.Pool, p.target(), errors.Join(core.ErrRuntimeUnavailable, err))
 		}
@@ -125,7 +128,7 @@ func sameBackupObservation(a, b volumeBackupObservation) bool {
 	return a.Name == b.Name && a.CreatedAt.Equal(b.CreatedAt) && a.ExpiresAt.Equal(b.ExpiresAt) && a.VolumeOnly == b.VolumeOnly && a.OptimizedStorage == b.OptimizedStorage
 }
 
-// Incus 6.0.5 volume export opens its exact target with os.Create. A live parent
+// Incus 7 volume export with --force opens its exact target with os.Create. A live parent
 // proc-fd path lets that child write an unnamed file without stdout capture or a
 // named residue. This does not seal data against privileged Host fd inspection.
 func captureNativeArchive(ctx context.Context, root string, limit int64, produce func(string) error) (result *NativeArchive, err error) {
