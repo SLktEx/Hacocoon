@@ -17,7 +17,7 @@
 
 Hacocoonは、開発ツールを隔離された **Environment** で実行し、プロジェクトのファイルを
 永続的な **Workspace** に保存します。Hostの認証情報や外部サービスへのアクセスは
-権限の確認を経由します。エージェントにIncusの管理権限を渡さずに、編集・ビルド・テストを任せられます。
+権限の確認を経由します。エージェントにHostの管理権限を渡さずに、編集・ビルド・テストを任せられます。
 
 > [!WARNING]
 > Hacocoonは **pre-1.0** です。互換性を壊す変更が今後もあります。
@@ -36,10 +36,10 @@ haco doctor
 haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
-haco git connect sample-dev
 haco open --client ssh sample-dev
 ```
 
+managed Git WorkspaceからEnvironmentを作ると、Git brokerは自動で接続されます。
 ネットワークを使う前に、ガイドに従ってGitとパッケージ取得の権限を設定します。
 開発シェルを終了し、Hostで `haco env stop sample-dev` を実行すると停止します。
 次回は `haco open --client ssh sample-dev` で再開できます。

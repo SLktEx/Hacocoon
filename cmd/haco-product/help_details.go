@@ -49,7 +49,7 @@ func init() {
 	set([]string{"env create"}, []cliui.HelpField{field("<name>", "detail.env_new")}, []cliui.HelpField{field("--workspace <workspace>", "detail.workspace_required"), base, field("--resource oci:<store>", "flag.resource"), noOCI}, "detail.retention")
 	set([]string{"env status"}, []cliui.HelpField{env}, []cliui.HelpField{json})
 	set([]string{"env start", "env stop", "env delete", "env ssh-config", "git connect"}, []cliui.HelpField{env}, nil, "detail.retention")
-	set([]string{"env ssh"}, []cliui.HelpField{env}, []cliui.HelpField{field("--key <public-key-file>", "flag.ssh_key"), field("--port <port>", "flag.ssh_port")})
+	set([]string{"env ssh"}, []cliui.HelpField{env}, []cliui.HelpField{field("--key <public-key-file>", "flag.ssh_key"), json})
 	set([]string{"env disconnect"}, []cliui.HelpField{env, connection}, nil)
 	set([]string{"env forward"}, []cliui.HelpField{env}, []cliui.HelpField{field("--target-port <port>", "detail.target_port"), protocol, field("--port <local-port>", "flag.ssh_port")})
 	set([]string{"env tunnel"}, []cliui.HelpField{env}, clientforward.HelpOptions())

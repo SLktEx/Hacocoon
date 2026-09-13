@@ -38,6 +38,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"snapshot", "help.snapshot"},
 		{"run", "help.run"},
 		{"ssh setup", "help.ssh"},
+		{"ssh cleanup", "command.ssh.cleanup"},
 		{"open", "command.open"},
 		{"base", "help.base"},
 		{"plugin", "help.plugin"},

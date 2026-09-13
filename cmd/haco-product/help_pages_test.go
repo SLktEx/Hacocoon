@@ -47,7 +47,7 @@ func TestHelpMetadataIsUniqueAndKeepsNewDevelopmentCommands(t *testing.T) {
 		}
 		seen[page.Path] = true
 	}
-	for _, path := range []string{"env forward", "network tcp", "network udp", "workspace prepare", "workspace fork"} {
+	for _, path := range []string{"env forward", "network tcp", "network udp", "workspace prepare", "workspace fork", "ssh cleanup"} {
 		if !seen[path] {
 			t.Fatal(path)
 		}

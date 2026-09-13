@@ -97,7 +97,6 @@ func (c *Client) PrepareEnvironmentSSH(ctx context.Context, environment string, 
 	err := c.wire.Call(ctx, MethodEnvironmentSSH, EnvironmentSSHRequest{
 		Environment: environment,
 		PublicKey:   request.PublicKey,
-		HostPort:    request.HostPort,
 	}, &response)
 	return response, err
 }

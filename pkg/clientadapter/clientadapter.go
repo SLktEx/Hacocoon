@@ -40,14 +40,29 @@ type Environment struct {
 	State           State      `json:"state"`
 }
 
+type StreamTarget struct {
+	Environment string `json:"environment"`
+	Instance    string `json:"instance"`
+	Workspace   string `json:"workspace"`
+	AccessMode  string `json:"access_mode"`
+	Service     string `json:"service"`
+	Grant       string `json:"grant"`
+}
+
+func (t StreamTarget) Token() (string, error) {
+	value, err := core.EncodeStreamTarget(core.StreamTarget{Environment: t.Environment, Instance: t.Instance, Workspace: core.WorkspaceID(t.Workspace), AccessMode: core.WorkspaceAccessMode(t.AccessMode), Service: t.Service, Grant: t.Grant})
+	return value, translateError(err)
+}
+
 type Connection struct {
-	HostPublicKey string `json:"host_public_key,omitempty"`
-	ID            string `json:"id"`
-	Kind          string `json:"kind"`
-	Host          string `json:"host"`
-	Port          int    `json:"port"`
-	TargetPort    int    `json:"target_port"`
-	User          string `json:"user,omitempty"`
+	Target        *StreamTarget `json:"target,omitempty"`
+	HostPublicKey string        `json:"host_public_key,omitempty"`
+	ID            string        `json:"id"`
+	Kind          string        `json:"kind"`
+	Host          string        `json:"host"`
+	Port          int           `json:"port"`
+	TargetPort    int           `json:"target_port"`
+	User          string        `json:"user,omitempty"`
 }
 
 type EnsureRequest struct {
@@ -59,7 +74,6 @@ type EnsureRequest struct {
 type SSHRequest struct {
 	Environment string
 	PublicKey   string
-	HostPort    int
 }
 
 type ForwardRequest struct {
@@ -212,12 +226,7 @@ func (a *Adapter) PrepareSSH(ctx context.Context, req SSHRequest) (Connection, e
 	if a == nil || a.clients == nil || strings.TrimSpace(req.Environment) == "" || strings.TrimSpace(req.PublicKey) == "" {
 		return Connection{}, ErrInvalidArgument
 	}
-	if req.HostPort < 0 || req.HostPort > 65535 {
-		return Connection{}, ErrInvalidArgument
-	}
-	// Port zero must reach the authority that owns the listener. A controller
-	// client may run in a different network namespace from that authority.
-	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey, HostPort: req.HostPort})
+	raw, err := a.clients.SSH(ctx, req.Environment, core.SSHAccessRequest{PublicKey: req.PublicKey})
 	if err != nil {
 		return Connection{}, translateError(err)
 	}
@@ -352,11 +361,15 @@ func projectEnvironment(status core.EnvironmentStatus) (Environment, error) {
 }
 
 func projectConnection(raw core.ClientConnection) (Connection, error) {
-	if strings.TrimSpace(raw.ID) == "" || raw.Port < 1 || raw.Port > 65535 || raw.TargetPort < 1 || raw.TargetPort > 65535 {
+	if strings.TrimSpace(raw.ID) == "" || raw.Port < 0 || raw.Port > 65535 || raw.TargetPort < 1 || raw.TargetPort > 65535 {
 		return Connection{}, ErrIncompatibleState
 	}
 	ip := net.ParseIP(raw.Host)
-	if ip == nil || !ip.IsLoopback() {
+	if raw.Kind == "ssh" {
+		if raw.Port != 0 || raw.Host != "" || raw.Target == nil || !raw.Target.Valid() {
+			return Connection{}, ErrIncompatibleState
+		}
+	} else if ip == nil || !ip.IsLoopback() || raw.Port == 0 {
 		return Connection{}, fmt.Errorf("connection %q is not loopback-only: %w", raw.ID, ErrIncompatibleState)
 	}
 	if raw.Kind != "tcp" && raw.Kind != "ssh" {
@@ -371,6 +384,7 @@ func projectConnection(raw core.ClientConnection) (Connection, error) {
 		}
 	}
 	return Connection{
+		Target:        projectStreamTarget(raw.Target),
 		ID:            raw.ID,
 		HostPublicKey: hostKey,
 		Kind:          raw.Kind,
@@ -429,4 +443,11 @@ func translateError(err error) error {
 		return err
 	}
 	return fmt.Errorf("%v: %w", err, sentinel)
+}
+
+func projectStreamTarget(t *core.StreamTarget) *StreamTarget {
+	if t == nil {
+		return nil
+	}
+	return &StreamTarget{Environment: t.Environment, Instance: t.Instance, Workspace: string(t.Workspace), AccessMode: string(t.AccessMode), Service: t.Service, Grant: t.Grant}
 }

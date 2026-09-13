@@ -121,7 +121,9 @@ satisfy this requirement. A prepared empty/synthetic source is not acceptance of
 Host image delivery. See [ADR 0031](../adr/0031-host-oci-area-copy.md).
 
 Core keeps a provider-neutral initialization contract and neither runtime is a
-mandatory dependency. Missing optional tooling leaves non-OCI creation usable;
+mandatory Core dependency. The maintained local setup supplies
+[standard Host tools](trusted-host.md#standard-host-tools); Environment/Base
+runtime selection remains independent. Missing optional Environment tooling leaves non-OCI creation usable;
 a configured copy failure must be reported with retained exact ownership rather
 than silently producing empty content. No registry pull occurs during copying.
 

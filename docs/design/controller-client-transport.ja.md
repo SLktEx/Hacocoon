@@ -4,13 +4,13 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御とclient TCP転送は実装候補です。Windows native転送と遠隔通信は未実装です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御とWindows native companionを含むclient TCP転送は実装候補です。導入済みWindows転送は未確認で、遠隔通信は将来枠です。
 
 ## 概要
 
 現行product クライアントはBase一覧・確認と通常のEnvironment作成・削除を提供する。
 `switch-base`は無効で、復活は予定しない。別Baseを使う場合は保持Workspaceから新しいEnvironmentを作成する。
-SSH設定は既存のループバック接続情報から生成する。
+SSH設定は生成IDを固定したProxyCommand targetを使い、既存UDSのbyte sessionと終了・cancel機構で接続する。[ポート不要SSH](client-and-interactive-access.md)を参照。
 任意の`plugin.oci.store`は信頼されたコントローラーで永続OCIデータを管理し、Environmentの
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
@@ -199,10 +199,8 @@ Stream handshakeでは可能な検証を成功 acknowledgementより前に行い
 stdin／stdout／stderrと最終結果をframeに分け、共通run lifecycleを使います。
 消費分だけ入力を許す上限と、入力停止／EOF確認によって早期終了時のreset競合を防ぎます。
 結果frameと管理session完了の両方の成功が必要です。
-[ADR 0069](../adr/0069-bounded-process-streams.md)を参照してください。今後の応用には次があります。
-
-- Environment TCP 転送
-- その他の上限付きの controller-mediated ストリーム
+[ADR 0069](../adr/0069-bounded-process-streams.md)を参照してください。SSHと明示TCP転送は
+[共通のbyte処理](#sshとtcp転送の共通処理)を使用し、各serviceの権限判断を維持します。
 
 `Session`を新しい公開 domain conceptにはしません。StreamはExecutionまたはクライアント接続の実装詳細です。
 
@@ -271,8 +269,7 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 - 残る`haco` コマンドをclassifyし、適切なものをコントローラークライアント interfaceへ移行
 - replacementが確立したcompatibility aliasをremoveまたは明示deprecate
 - 信頼された Host-local ツールをlong-termの`haco-host` 名前空間へ移行
-- stdout/stderr/exit メタデータを持つstreamed Execution framing
-- generic Environment 転送
+- 残るprocess呼び出し元の統合と、導入済みWindows転送の受入
 - 実需が出た場合のみremote 通信
 - profilingで必要性が示された場合のみFD passing / zero-copy
 
@@ -397,3 +394,10 @@ optionより先に置きます。Linux/Windowsで引数・対象準備・同時1
 維持します。[配置と所有権](installer.md#windows-client-placement)を参照してください。
 この公開入口は明示的な操作です。Linuxの`haco env tunnel`はその実行場所で待ち受けます。
 そこからのWindows自動選択と、導入済みWindows/WSL/Incusの受入は残件です。
+
+## SSHとTCP転送の共通処理
+
+SSHと明示TCP転送は、上限付きの準備完了通知、byte relay、半切断、cancel、独立した最終結果を共用します。
+権限判断は各serviceに残します。SSHは保存されたgrantを照合して同じEnvを再開でき、
+明示TCP転送は稼働中Envを必要とします。準備期限はSSHが100秒、TCPが10秒です。
+準備後の通信に準備期限を引き継ぎません。一方向終了後の応答排出は共通relayで30秒に制限します。

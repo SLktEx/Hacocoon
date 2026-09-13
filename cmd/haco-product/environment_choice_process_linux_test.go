@@ -54,7 +54,7 @@ func TestDesktopChoiceTerminalProcess(t *testing.T) {
 					return nil, core.ErrInvalidArgument
 				}
 				access.Add(1)
-				return core.ClientConnection{ID: "ssh-23001", Kind: "ssh", Host: "127.0.0.1", Port: 23001, TargetPort: 22, User: "root", HostPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"}, nil
+				return core.ClientConnection{ID: "ssh-23001", Kind: "ssh", Target: &core.StreamTarget{Environment: "zeta", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work-z", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-23001"}, TargetPort: 22, User: "root", HostPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"}, nil
 			}); err != nil {
 				t.Fatal(err)
 			}

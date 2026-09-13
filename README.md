@@ -15,7 +15,7 @@ A secure workspace runtime for people, developer tools and coding agents.
 
 Hacocoon runs development tools in isolated **Environments**, keeps project files in
 retained **Workspaces**, and mediates access to Host credentials and external services.
-An agent can edit, build and test without receiving Incus management authority.
+An agent can edit, build and test without receiving Host management authority.
 
 > [!WARNING]
 > Hacocoon is **pre-1.0**. Breaking changes are expected. The current local backend
@@ -34,11 +34,11 @@ haco doctor
 haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
-haco git connect sample-dev
 haco open --client ssh sample-dev
 ```
 
-Configure the narrow Git/package permissions described in the guide before
+Creating an Environment from a managed Git Workspace automatically connects the
+Git broker. Configure the narrow Git/package permissions described in the guide before
 network operations. Exit the development shell, then run `haco env stop sample-dev`
 in the Host. Later, `haco open --client ssh sample-dev` resumes it.
 Use `haco open sample-dev` for VS Code with Remote-SSH installed.

@@ -71,13 +71,14 @@ Keep the names consistent in the permission rules below.
 haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
-haco git connect sample-dev
 haco env status sample-dev
 ```
 
 The source checkout stays in trusted Host storage. The Workspace gets independent
 files and `.git`, mounted at `/workspace` in the Environment. Its remote uses
-`haco://sample`; Git operations reach the registered upstream through the broker.
+`haco://sample`; creating the Environment automatically wires the managed Git
+broker. This local wiring does not contact the upstream remote; network activity
+starts when the Environment later runs Git operations such as fetch or push.
 
 Creation uses the default Base and, when configured, independently copies/reuses
 the Workspace's OCI Store. For a project without container tooling,

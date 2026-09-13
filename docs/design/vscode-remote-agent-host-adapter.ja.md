@@ -49,7 +49,7 @@ haco-agent-host release --session <opaque-id>
 - 内部を解釈しないセッション ID を hash 化して SSH alias を作る
 - SSH 非公開 key はクライアント側に保持し、公開 key だけを既存 SSH access パスに渡す
 - `~/.ssh/hacocoon/` 以下の adapter-owned SSH 設定 fragment だけを管理する
-- Hacocoon のループバック限定 SSH 接続を利用する
+- Hacocoon の generation に固定した controller stream を利用する
 - 互換な接続は再利用し、変更時は replacement を準備してから古い接続を外す
 - Environment、SSH alias、`/workspace`、VS Code remote-folder URI を含むセッション descriptor を出力する
 - `--no-launch` がなければ Hacocoon remote workspace を指定した状態で VS Code Agents window を起動する
@@ -77,7 +77,6 @@ JSON descriptor は次の情報を持ちます。
   "workspace_path": "/trusted/host/worktree",
   "remote_workspace": "/workspace",
   "ssh_alias": "haco-agent-...",
-  "host_port": 2222,
   "folder_uri": "vscode-remote://ssh-remote+haco-agent-.../workspace"
 }
 ```
@@ -114,7 +113,7 @@ Git worktree は作業ファイルを分けますが、Git の管理情報は共
 
 コーディングエージェント自身を Hacocoon クライアントにはしません。Environment allocation、Workspace 所有権、SSH preparation/revocation、release は信頼された side に残ります。
 
-生のセッション ID を persisted/public SSH alias に使いません。SSH 非公開 key を Environment にコピーしません。SSH access は既存のループバック限定クライアント境界を再利用します。
+生のセッション ID を persisted/public SSH alias に使いません。SSH 非公開 key を Environment にコピーしません。SSH access は既存の portless クライアント境界を再利用します。
 
 AHP は VS Code 側の external 連携プロトコルであり、Core vocabulary にはしません。task decomposition、model 経路選択、再試行、token budget、Agents UI も Hacocoon の責務にはしません。
 
@@ -135,3 +134,5 @@ AHP は VS Code 側の external 連携プロトコルであり、Core vocabulary
 real VS Code Agent Host、Windows/WSL パス translation、実際の Incus SSH、multi-session 経路選択は実機検証が必要です。#344 が新規 Windows -> `haco-host` -> worktree -> Environment -> VS Code の composed 利用者 journey を追跡します。
 
 > **VS Code がエージェント orchestration を担当し、Hacocoon はセッションごとの isolated workspace 実行基盤と権限境界を担当します。**
+
+SSH 設定は共通の ProxyCommand renderer と strict host-key pinning を使います。`--host-port` と descriptor の `host_port` は削除しました。所有 marker のない旧 Agent Host fragment は、明示的に確認・削除してから新しい grant を準備します。暗黙には上書きしません。

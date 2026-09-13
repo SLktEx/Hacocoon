@@ -106,10 +106,10 @@ func (fakeClients) Unforward(_ context.Context, name, connectionID string) error
 }
 
 func (fakeClients) SSH(_ context.Context, name string, request core.SSHAccessRequest) (core.ClientConnection, error) {
-	if name != "demo" || request.PublicKey == "" || request.HostPort != 2202 {
+	if name != "demo" || request.PublicKey == "" {
 		return core.ClientConnection{}, core.ErrInvalidArgument
 	}
-	return core.ClientConnection{ID: "ssh-two", Kind: "ssh", Host: "127.0.0.1", Port: request.HostPort, TargetPort: 22, User: "root"}, nil
+	return core.ClientConnection{ID: "ssh-two", Kind: "ssh", Target: &core.StreamTarget{Environment: name, Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}, TargetPort: 22, User: "root"}, nil
 }
 
 func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
@@ -172,11 +172,11 @@ func TestTypedClientLifecycleOverUnixSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ssh, err := client.PrepareEnvironmentSSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test", HostPort: 2202})
+	ssh, err := client.PrepareEnvironmentSSH(context.Background(), "demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ssh.ID != "ssh-two" || ssh.Port != 2202 || ssh.TargetPort != 22 {
+	if ssh.ID != "ssh-two" || ssh.Port != 0 || ssh.TargetPort != 22 {
 		t.Fatalf("ssh = %#v", ssh)
 	}
 	if err := client.UnforwardEnvironment(context.Background(), "demo", ssh.ID); err != nil {
@@ -238,9 +238,15 @@ func TestConnectionRequestsRejectMissingEnvironment(t *testing.T) {
 
 	for name, run := range map[string]func() error{
 		"connections": func() error { _, err := client.EnvironmentConnections(context.Background(), ""); return err },
-		"forward": func() error { _, err := client.ForwardEnvironment(context.Background(), "", core.LocalPortRequest{HostPort: 8080, TargetPort: 80}); return err },
+		"forward": func() error {
+			_, err := client.ForwardEnvironment(context.Background(), "", core.LocalPortRequest{HostPort: 8080, TargetPort: 80})
+			return err
+		},
 		"unforward": func() error { return client.UnforwardEnvironment(context.Background(), "", "tcp-one") },
-		"ssh": func() error { _, err := client.PrepareEnvironmentSSH(context.Background(), "", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test", HostPort: 2202}); return err },
+		"ssh": func() error {
+			_, err := client.PrepareEnvironmentSSH(context.Background(), "", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA test"})
+			return err
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var status *control.StatusError

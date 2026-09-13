@@ -24,7 +24,7 @@ var helpPages = []helpPage{
 	{Path: "env start", Syntax: "<name>", Message: "command.env.start", Example: "haco env start dev"},
 	{Path: "env stop", Syntax: "<name>", Message: "command.env.stop", Example: "haco env stop dev"},
 	{Path: "env delete", Syntax: "<name>", Message: "command.env.delete", Example: "haco env delete dev"},
-	{Path: "env ssh", Syntax: "--key <public-key-file> [--port <port>] <name>", Message: "command.env.ssh", Example: "haco env ssh --key /path/to/key.pub dev"},
+	{Path: "env ssh", Syntax: "--key <public-key-file> [--json] <name>", Message: "command.env.ssh", Example: "haco env ssh --key /path/to/key.pub dev"},
 	{Path: "env ssh-config", Syntax: "<name>", Message: "command.env.ssh-config", Example: "haco env ssh-config dev"},
 	{Path: "env disconnect", Syntax: "<name> <connection-id>", Message: "command.env.disconnect", Example: "haco env disconnect dev <connection-id>"},
 	{Path: "env forward", Syntax: "--target-port <port> [--protocol tcp|udp] [--port <local-port>] <name>", Message: "command.env.forward", Example: "haco env forward --target-port 8080 dev"},
@@ -84,6 +84,7 @@ var helpPages = []helpPage{
 	{Path: "aws s3 ls", Syntax: "[--env <name>] [--profile <name>] [--region <region>] <s3://bucket/prefix>", Message: "command.aws.s3.ls", Example: "haco aws s3 ls s3://bucket/prefix"},
 	{Path: "aws s3 cp", Syntax: "[--env <name>] [--profile <name>] [--region <region>] <s3://bucket/key> <file>", Message: "command.aws.s3.cp", Example: "haco aws s3 cp s3://bucket/key download"},
 	{Path: "ssh", Syntax: "<command>", Message: "command.ssh", Example: "haco ssh setup dev"},
+	{Path: "ssh cleanup", Syntax: "", Message: "command.ssh.cleanup", Example: "haco ssh cleanup"},
 	{Path: "ssh setup", Syntax: "[environment]", Message: "command.ssh.setup", Example: "haco ssh setup dev"},
 	{Path: "open", Syntax: "[--client vscode|ssh|none] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open --repo source ."},
 }

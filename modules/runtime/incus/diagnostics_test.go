@@ -81,6 +81,23 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 	}
 }
 
+func TestHostDiagnosticsAcceptLTSPatchUpdates(t *testing.T) {
+	for _, version := range []string{"7.0.1", "7.0.9", "7.0.99"} {
+		t.Run(version, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				if name == "incus" && reflect.DeepEqual(args, []string{"query", "/1.0"}) {
+					return jsonResult(map[string]any{"api_version": "1.0", "auth": "trusted", "environment": map[string]string{"server_version": version}}), nil
+				}
+				return diagnosticFixture(t, name, args), nil
+			}}
+			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
+			if err != nil || !report.Healthy() || !strings.Contains(report.Checks[0].Summary, version) {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+		})
+	}
+}
+
 func TestHostDiagnosticsRejectUnsupportedOrUntrustedVersionBeforeOtherProbes(t *testing.T) {
 	for _, version := range []string{"6.0.5", "7.0.0", "7.1.0", "8.0.1", "", "7.0.1-dev", "7.0.1\n7.0.2", "\x1b[31m7.0.1", strings.Repeat("7", 200)} {
 		t.Run(version, func(t *testing.T) {

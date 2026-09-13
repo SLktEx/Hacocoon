@@ -368,29 +368,35 @@ fixture correction remain distinct evidence. Product terminal behavior is
 unchanged. Continue the original SSH-failure and installed long-input gaps,
 then the independent Git result reconciliation in #470.
 
-### Windows notification answers and the M3 target
+### Active M0–M5 execution scope
 
-The user narrowed the current execution target to M3; M4/M5 contracts remain future
-work for this run. The Windows candidate implements notification-contained
-review and responses through the existing common approval service. Complete visible
-layout and fresh installed Windows/VS Code decisions, including simultaneous review
-and saved Policy effects, before closing #568. Native history/COM tests do not replace
-those checks. Continue independent M3 DNS modes, VPN/NRPT and client forwarding while
-retaining M1 Japanese Windows/original SSH gaps and authenticated Git acceptance.
+The current requested end state covers **M0–M5**. Earlier M3-only execution
+notes are superseded. The external roadmap retains those dated decisions as
+history; it does not narrow the active goal. Local regression checks take
+priority, and CI waiting does not block independent implementation.
 
-### Main synchronization before remaining M3 work
+`codex/windows-main-sync` integrates main `f47a9a41` into #634. Reuse main's
+portless SSH/cold reconnect, WSL bootstrap-parent routing, standard Host tools,
+Incus LTS and shared CI builds. The candidate retains bilingual help, notification
+answers, generation-bound temporary runs, Git authority separation/reconciliation
+and native Windows TCP client packaging. SSH and TCP share byte transport mechanics.
+See [integration evidence](acceptance-evidence.md#windows-main-integration).
 
-`codex/roadmap-main-sync` integrates main `74bc2205` (#581/#597/#602/#604) into
-#611's `f31ce3f7`. Preserve main's split lifecycle/observation owners and complete
-cleanup proof alongside schema 14, ephemeral generation fencing and bilingual CLI.
-Local maintained test, Go 1.26.8, related race and docs checks passed; combined
-installed acceptance is pending. Existing Incus LTS (#600), Host OCI tools (#605),
-CI parallelization (#609) and automatic Git connect (#610) are separate candidates
-to reuse after checking their current state, not features to reimplement.
+Remaining delivery work:
 
-#611's Windows run `34741502440` failed its final native stale-review probe after
-ordinary installation/SSH/TTY/reclaim passed. Keep that failure distinct from its
-successful test/Ubuntu/Incus runs. Next, obtain bounded classified native diagnostics
-and correct the observed route, then continue independent DNS modes and client
-forwarding under M3. This does not authorize main merge, releases or deletion of
-existing user resources. The external roadmap retains the same continuation state.
+- M0/M1: Japanese Windows daily entry, remaining messages and original SSH-failure
+  notification/long-input acceptance; retain verified later SSH/PTY results.
+- M2: fresh notification/VS Code answers and authenticated Git acceptance. All-heads
+  fetch never grants main push; exact write decisions remain separate.
+- M3: ordinary Linux-entry delegation to Windows listeners, installed Windows TCP
+  acceptance, Host/backend/disabled DNS modes and checks in environments outside
+  ordinary networks, including VPN/NRPT. Consolidate remaining process callers.
+- M4: actual Packer HCL2/external-shell Base builds (#566), ordinary-Env cache
+  collection and independent CoW generations (#570), safe bulk cleanup and measured
+  large-repository performance/capacity. Small fixtures cannot complete this gate.
+- M5: remove remaining Seed dependencies without reviving `switch-base`, finish
+  responsibility/documentation cleanup and verify migration/restored data comparison.
+
+Keep Workspace/OCI retention and fail-closed ownership through every step. Existing
+installation replacement or user-data deletion needs a concrete reviewed target;
+main merge, tags and releases remain outside this candidate's authorization.

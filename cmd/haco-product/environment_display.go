@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"net"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshconfig"
 )
 
 var configEnvironmentName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,56}$`)
@@ -31,11 +32,11 @@ func writeSSHConfig(out io.Writer, name string, connections []core.ClientConnect
 		return fmt.Errorf("expected one prepared SSH connection; run 'haco env ssh --key <public-key-file> %s', or disconnect extra SSH connections", name)
 	}
 	c := ssh[0]
-	ip := net.ParseIP(c.Host)
-	if ip == nil || !ip.IsLoopback() || c.Port < 1 || c.Port > 65535 || c.User != "root" {
+	command, err := sshconfig.StreamCommand(c.Target, os.Getenv("WSL_DISTRO_NAME"))
+	if err != nil || c.Target.Environment != name || c.Port != 0 || c.Host != "" || c.User != "root" {
 		return core.ErrIncompatibleState
 	}
-	_, err := fmt.Fprintf(out, "# Use from the controller's Physical Host or its Windows loopback.\n# Keep IdentityFile and trusted host-key pinning on your SSH client.\nHost haco-%s\n  HostName %s\n  Port %d\n  User %s\n  StrictHostKeyChecking yes\n", name, ip.String(), c.Port, c.User)
+	_, err = fmt.Fprintf(out, "# Keep IdentityFile and the trusted host-key pin on your SSH client.\nHost haco-%s\n  HostName haco-%s\n  User root\n  HostKeyAlias haco-%s\n  StrictHostKeyChecking yes\n  ProxyCommand %s\n", name, name, name, command)
 	return err
 }
 

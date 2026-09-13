@@ -128,3 +128,5 @@ v0.65はprivate controller byte sessionによるclient側TCP待受を追加す�
 controller／provider境界を共有します。Linux componentとWindows nativeの
 transport基本処理は限定した検証範囲です。導入済みIncus受入とWindows側待受から
 `wsl.exe`を通す経路は別残件であり、M3完了や配布済みreleaseではありません。
+
+v0.66候補はmain `f47a9a41`の既存SSH/WSL/CI成果を統合しています。統合と重複整理であり、新しい番号は消費しません。配布・本線M0〜M5の完了を意味しません。

@@ -116,4 +116,7 @@ bash tools/ci-local.sh e2e
 
 The local run uses the `go` binary currently on `PATH`; GitHub Actions still exercises the supported Go-version matrix separately. `release-config` requires the same local tooling used by that CI job, including GoReleaser, PowerShell, and `systemd-analyze`. It refuses to invoke `goreleaser release --clean` when `dist/` already exists so local artifacts are not silently deleted.
 
+See [PR verification contracts](docs/reliability/ci-contracts.md) for required checks,
+failure evidence and external-input limits.
+
 Run relevant provider-backed coverage as well. Do not claim real Incus or other environment-dependent acceptance unless those provider-backed tests actually ran.

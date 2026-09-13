@@ -48,8 +48,8 @@ func prepareHostRecipeRecreation(t *testing.T, ctx context.Context, runtime *Run
 	verify()
 	return func() {
 		t.Helper()
-		// This fixture has no NIC. network-online may keep overall boot in
-		// "starting" while basic.target and the service manager are usable.
+		// Wait for the service manager needed by recipe execution, without
+		// requiring unrelated network-online/overall boot jobs to finish.
 		readyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		if err := waitHostRecipeManager(readyCtx, runtime.runner, runtime.project); err != nil {

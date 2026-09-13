@@ -34,12 +34,12 @@ func (f *fakeController) StartEnvironment(context.Context, string) error {
 	f.state = core.EnvironmentRunning
 	return nil
 }
-func (f *fakeController) PrepareEnvironmentSSH(_ context.Context, _ string, r core.SSHAccessRequest) (core.ClientConnection, error) {
+func (f *fakeController) PrepareEnvironmentSSH(_ context.Context, name string, r core.SSHAccessRequest) (core.ClientConnection, error) {
 	f.count++
-	if r.HostPort != 0 || !strings.HasPrefix(r.PublicKey, "ssh-ed25519 ") {
+	if !strings.HasPrefix(r.PublicKey, "ssh-ed25519 ") {
 		return core.ClientConnection{}, core.ErrInvalidArgument
 	}
-	f.connection = core.ClientConnection{ID: "ssh-23001", Kind: "ssh", Host: "127.0.0.1", Port: 23001, TargetPort: 22, User: "root", HostPublicKey: testKey}
+	f.connection = core.ClientConnection{ID: "ssh-23001", Kind: "ssh", Target: &core.StreamTarget{Environment: name, Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-23001"}, TargetPort: 22, User: "root", HostPublicKey: testKey}
 	if f.prepare != nil {
 		f.prepare()
 	}
@@ -60,7 +60,7 @@ func TestSetupCreatesClientKeyPinsHostAndReusesResumedConnection(t *testing.T) {
 	}
 	c := &fakeController{state: core.EnvironmentStopped}
 	alias, err := Setup(context.Background(), c, Desktop{Home: home}, "dev")
-	if err != nil || alias != "haco-dev" || c.starts != 1 || c.count != 1 {
+	if err != nil || alias != "haco-dev" || c.starts != 0 || c.count != 1 {
 		t.Fatalf("%s %v %+v", alias, err, c)
 	}
 	main, err := os.ReadFile(filepath.Join(home, ".ssh/config"))
@@ -80,7 +80,7 @@ func TestSetupCreatesClientKeyPinsHostAndReusesResumedConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	keyAfter, _ := os.ReadFile(filepath.Join(home, ".ssh/hacocoon/identity"))
-	if c.count != 1 || c.starts != 2 || string(keyBefore) != string(keyAfter) {
+	if c.count != 1 || c.starts != 0 || string(keyBefore) != string(keyAfter) {
 		t.Fatal("setup rotated credentials or failed resume")
 	}
 	configs, _ := filepath.Glob(filepath.Join(home, ".ssh/hacocoon/known-*"))
@@ -136,7 +136,7 @@ func TestInvalidHostResponseRetainsRecoveryEvidence(t *testing.T) {
 	}
 }
 func TestRenderRejectsSSHConfigInjection(t *testing.T) {
-	valid := saved{Runtime: "owned", Connection: core.ClientConnection{Kind: "ssh", Host: "127.0.0.1", Port: 23000, TargetPort: 22, User: "root", HostPublicKey: testKey}}
+	valid := saved{Runtime: "owned", Connection: core.ClientConnection{ID: "ssh-one", Kind: "ssh", Target: &core.StreamTarget{Environment: "dev", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}, TargetPort: 22, User: "root", HostPublicKey: testKey}}
 	for _, name := range []string{"bad\nHost *", "../other", "-option"} {
 		if _, _, err := render(name, valid); err == nil {
 			t.Fatal("accepted injected alias")
@@ -153,7 +153,7 @@ func TestManagedConfigPreservesVSCodeDynamicForward(t *testing.T) {
 	if err != nil {
 		t.Skip("OpenSSH client unavailable")
 	}
-	config, _, err := render("dev", saved{Runtime: "owned", Connection: core.ClientConnection{Kind: "ssh", Host: "127.0.0.1", Port: 23000, TargetPort: 22, User: "root", HostPublicKey: testKey}})
+	config, _, err := render("dev", saved{Runtime: "owned", Connection: core.ClientConnection{ID: "ssh-one", Kind: "ssh", Target: &core.StreamTarget{Environment: "dev", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}, TargetPort: 22, User: "root", HostPublicKey: testKey}})
 	if err != nil {
 		t.Fatal(err)
 	}

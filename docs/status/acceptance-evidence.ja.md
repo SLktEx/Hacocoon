@@ -83,12 +83,95 @@ Ubuntu installer 34727370966、Incus 7 34727370817、Windows installer
 既存ローカルWSLInteropの失敗は未解決です。開発ブランチの証拠であり、配布済みや
 後続run所有権修正の実機確認とは扱いません。
 
+<a id="portless-ssh"></a>
+
+## ポート不要 SSH とエディターの cold reconnect
+
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631) の
+`e35a152e3d58fc917192d56e442517bd7805b8ff` で、
+[Windows 実機試験](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)は、
+実 Windows OpenSSH のコマンド実行、管理 alias/config、厳密な host key 確認、
+4 本同時の cold reconnect、削除済み接続先の拒否に成功しました。
+Environment と controller の停止、WSL 終了後の最初の接点は、ProxyCommand 経由の
+`ssh.exe` でした。同じ provider generation と Workspace marker を保持し、
+`ss -H -ltn` の Host TCP listener は増加せず、SSH 用 Incus proxy device も存在しません。
+SSH metadata の Host は空、port は 0 でした。
+
+別の cold cycle では、VS Code 標準の保存済み remote folder URI を最初に開きました。
+VS Code 1.136.1 と Microsoft Remote-SSH 0.128.0 で、実 editor のファイル読み書き、
+remote terminal の実行、ローカル承認経路の stale 拒否、probe cleanup に成功しました。
+接続確立に Hacocoon 拡張は使わず、専用 UI observer は結果の検査だけを行います。
+新しい host key を固定した Windows export/import SSH、保持データの再接続、preview、
+public reclamation も成功しました。同候補の[通常 CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527)、
+[Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)、
+[実 Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)も成功しています。
+
+ただし Windows ジョブ全体は、意図的な WSL 終了で破棄された古い Host terminal に
+driver が `exit` を書こうとして失敗しました。driver は cold 試験前に terminal を閉じ、
+試験後に新しい terminal から通常入口を確認するよう修正します。元の失敗をジョブ全体の
+成功として扱いません。初期 fixture の `/tmp` Workspace 消失は `/var/tmp` への変更で
+解消しました。`d6059131` は cold SSH に成功しましたが、標準 Remote-SSH 拡張の導入漏れと
+転送 fixture の旧 Host port 契約で失敗しています。
+[run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769)に記録を保持します。
+
+リポジトリの回帰試験は、raw binary stdio/UDS、EOF/half-close、キャンセル、controller の
+起動遅延・切断、古い identity/lease/grant の拒否、並行 resume、所有 entry の cleanup を
+確認します。実 PC の電源再投入、Remote Explorer の手動クリック、VPN/NRPT、広範な IDE は
+未検証です。private-registry ジョブは手動実行専用のため PR 実行では SKIP です。
+公式 Base の初回 SSH setup の通信不要化は[Issue #603](https://github.com/SLktEx/Hacocoon/issues/603)の責務です。
+
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS対応基準
+
+対応契約は`>= 7.0.1`, `< 7.1`です。以前の6.0.5での結果は過去の互換確認として保持します。
+[PR #583](https://github.com/SLktEx/Hacocoon/pull/583)の開発候補
+`0c79f8209eec42b597cc811a9114e0351d8226d7`で、
+[Ubuntu導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358)、
+[Windows/WSL新規導入・再起動・再導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)、
+[standalone/Core/BtrfsのIncus試験](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)が
+server 7.0.1で成功しました。lifecycle、egress、Base build、snapshot/copy/import、
+保持Store操作、所有資源のcleanupを含みます。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411)も成功しました。
+private registry、VPN/NRPT、人間の通知内回答は未確認です。
+
+main向け#479では共通導入、doctorと必要なvendor daemon/export/fixture修正を切り出します。
+上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
+切り出し自体のパッケージ・実機CI結果は以下に記録します。
+
+切り出し`9a4dc42`で[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125)、
+[実Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134)は成功しました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114)も新規導入・再起動・再導入、
+egress、transfer、reclaimと保持データ復元は成功しましたが、desktop全体は承認操作と
+後続preview setupで失敗しました。承認fixtureが端末必須のCLIへパイプで回答していたため、
+専用PTYへ修正し、JSONの応答と時間制限付きの子プロセスcleanupを維持します。
+mainの出力変更に合わせ、受入試験でJSONを読む呼び出しには`--json`を明示します。
+修正後の切り出し`34ff371cedb7558959201b316a2aebe7f3542eee`
+（[PR #600](https://github.com/SLktEx/Hacocoon/pull/600)）で、
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335)、
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)が成功し、
+Windowsのdesktop全体も成功しました。元の全体失敗は失敗として保持します。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)はGo 1.27ジョブだけの
+再実行後に成功しました。初回は既存の対話PTYサイズ変更試験が時間切れになりましたが、
+同じshuffle seedでのローカル30回はコード変更なしで成功し、間欠的な時間切れの原因は未確定です。
+この結果は当該切り出しの試験範囲の証拠であり、リリース配布や後続main統合の合格を示しません。
+
+main統合後の`d6f078e`の[Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)は、
+Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了・再起動直後の通常入口で
+`Host setup is busy`と拒否されました。fixtureはその後時間切れとなり、後続のEnvironment・desktop試験は
+スキップされました。shell準備は既存の期限内でcontroller setupの排他解放を待つよう修正し、
+明示的setupの重複拒否と失敗recipeの復旧規則を維持します。構成要素・race試験で待機、キャンセル、
+排他解放を確認しましたが、修正後の統合候補のWindows受入は別途必要です。
+
 <a id="installation"></a>
 
 ## インストールとHost
 
 | 候補・試験 | 結果と制約 |
 |---|---|
+| `fced264` / Host 標準ツール | WSL amd64 上の専用 Incus/Btrfs 構成で、Git/gh/containerd/nerdctl/BuildKit の新規導入、公開 BusyBox の pull/run、Dockerfile の build/run、サービス再起動、Host 停止・再開、再 setup 後のイメージ ID と BuildKit キャッシュ ID の保持、独立 Store でのオフライン実行と削除の独立性を確認。試験用 `haco-area-55b79c9d56f597f1` は所有確認付きの後片付けまで成功。先行試験で見つかったサービス準備待ち、システム D-Bus の起動待ち、systemd の引数展開の不具合は回帰修正済み。公開版 Windows インストーラー全工程、arm64 実機、認証付きレジストリ、独自の既存実行基盤の移行は未確認。 |
 | `1817e7c` / 管理ユーザーの準備 | 専用の復旧用WSLで、旧関数は`hacocoon`グループが存在するため失敗した。修正後のインストーラー関数は管理アカウントを作成し、対象WSLだけを再起動して既定ユーザーを確認した。PowerShellの構成要素回帰試験も成功。アカウント準備の確認であり、完全なパッケージ導入や環境全体の復元ではない。日本語Windowsへの新規導入と接続案内の実機確認は残る。 |
 | `c749ff9`, `81c0d16` / `9049df3`, `4df465a` | Windows/Ubuntuパッケージの導入、コントローラーとの往復、プロキシ許可・直接通信拒否、WSL登録の再実行をM0–M1の範囲で確認。Windows自体の再起動は対象外。 |
 | `029ff08`, `42e2fb3`, `1b2d6ae` / run 34051931616 | 以前のIncusのSIGKILL失敗は保持。PIDとworkerの追跡は名前空間をまたぐ古いPID記録の再利用を強く示すが、すべてのkill元やOOMは確定していない。起動ガードの専用試験は成功。同一起動内のPID再利用は保護対象外。 |
@@ -572,3 +655,82 @@ main反映・配布済みではありません。
   中断と待受回収のPASSを明示確認しました。#626の案内表示失敗後の修正を実経路でも
   確認したものです。前の失敗は保持します。Windows 34763683983は確認時点で実行中で、
   過去の起動・通知経路の失敗を解消扱いにしません。
+
+<a id="ci-reliability"></a>
+
+## PR CI の信頼性に関する障害 (#615)
+
+以下の過去の観測は [#615](https://github.com/SLktEx/Hacocoon/issues/615) に属する。
+rerun の成功は障害の証拠であり、解決ではない。現在の routing と gate の意味は
+[PR 検証契約](../reliability/ci-contracts.ja.md) が所有する。
+
+| 候補 / 証拠 | 判明した事実と解決状況 |
+|---|---|
+| `f3ef57b3ea028e10e942418a8408edd89a94b605` / [attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/1)、[attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/2) | `test (1.26.x)` の `TestSizedInteractivePTYReadlineResizeAndExit` が端末サイズ更新のマーカー待ちで失敗し、同じ SHA の attempt 2 は成功した。readline による端末サイズ復元との競合を避けるため、foreground コマンド開始の観測後に resize する。Linux の sized-PTY 回帰3件はローカル Go 1.27.0 で100回反復成功した。hosted native acceptance の成功は意味しない。 |
+| `69c85fb5214ba1a4a81c2c50cdec9d789c924315` / [storage attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34738362521/job/103675967861) | `TestRealIncusResourceMaintenancePreparationE2E` が対話拒否を期待しながら pipe を渡し、shipped CLI は非端末の確認を exit 2 で正しく拒否した。fixture を実 Linux PTY に変更し、子プロセスの端末判定と読み取りの回帰を追加した。native maintenance の再検証は必要。 |
+| `84062060e0ef465e73ec45b43b6ed785ce879d81` / [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34740317809/job/103678816517) | terminate 後の通常 Host entry が `Host setup is busy` を返し、harness は期限まで待ち続けた。即時失敗への変更だけでは製品不具合は直らない。後続の login-bootstrap 修正と native 再起動の証拠は下記に記録する。 |
+
+`7b4e2356d73a163b31e784a0a5b7400fed1a05cf` を基にした #615 候補 `4abadc16399dfdb1997351c7803fd76131cfdeed` では、
+ローカル Linux 検証環境で全 Go test/vet、race、shipped command の fixture E2E、文書と workflow policy が成功した。
+同環境では実 Incus と packaged Windows/WSL は未実施。commit に結び付く hosted 結果は別途記録する。
+
+main を統合した `8c645317101e007d57c752f35ae0a95f637d81b5` では、Python 3.13.15 を使い composition/Incus/製品 CLI の関連テストと vet が成功した。初回はローカル Python 3.10 に `tomllib` がなく失敗したため、検証済みの別 runtime で新しい Host-tooling テストの前提を満たした。テストを弱める変更はない。固定 Go 1.26.7 でも sized-PTY と maintenance-terminal 回帰の100回反復が成功した。これらは repository/component の結果であり、installed native acceptance ではない。
+
+候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
+
+候補 `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) は古い run 34744299866 の終了を待っていた。本体 job が取消済みでも job-level の `always()` により古い証拠 job が runner 待ちに残り、concurrency 枠を保持していた。証拠 job を `!cancelled()` に変更し、依存 job の失敗・skip の検査を保ちつつ workflow 全体の取消を完了できるようにした。これは CI 実装の不具合であり、runner 障害の証明ではない。取消を妨げる条件への差し戻しは静的回帰検査で拒否する。
+
+`7c73399bc36f2a6055c3f95d3c1f3671666481d5` の [repository checks](https://github.com/SLktEx/Hacocoon/actions/runs/34746556831) は Go 両系列、race、CLI E2E、両 architecture の build、release packaging、証拠 gate が成功した。[native Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34746556876) も未改変 installer、追加した通常ユーザーの製品 CLI lifecycle／Workspace 保持、legacy journey、network isolation、証拠 gate が成功した。
+
+Windows の [75007ec job](https://github.com/SLktEx/Hacocoon/actions/runs/34745868528/job/103693588946) と [7c73399 job](https://github.com/SLktEx/Hacocoon/actions/runs/34746556856/job/103695440904) は、ともに install、terminate/restart、reinstall、installed egress が成功した。再起動後の入室は33.547秒と35.844秒だった。native interop、Windows SSH、VS Code Remote も成功したが、設定と承認待ちの fixture で両 job とも**失敗**した。標準の人向け表示を `--json` なしで解析していたため、設定の取得・適用と承認一覧に JSON 指定を追加し、実行可能な fixture 回帰検査を設けた。後続の reclamation と通知は未実施。これは再起動復旧の証拠であり、Windows 全受入や同一 SHA の再実行成功を意味しない。
+
+同じ `7c73399` 候補の [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) は standalone と Core lifecycle／egress が成功したが、Btrfs の aggregate export と source 削除 fixture が失敗した。Incus 7 は adapter が保持する既存の匿名出力に `--force` を要求する。main に入った #600 の実装が対応する 7.0 LTS 向けにこのフラグを渡すため、別の互換 shim を作らず再利用する。source snapshot の確認にも volume と snapshot を別引数で渡す修正が必要だった。cleanup は失敗 fixture を拒否した後にも pool／project 削除へ進んでいたため、所有権や不存在が不明な時点で後続削除を止めるようにした。native 再検証は別途必要。
+
+main `f590023` を統合した候補 `fb5da79768c3fac5bf69db3c0496f936e9e1646f` では、ローカルの workflow policy、Actionlint、docs、製品 CLI／composition／Incus の test と vet が成功した。JSON／対話 fixture 8 件と cleanup テスト 5 件も成功した。新しい LTS 導入 fixture は検証 Host が Ubuntu 22.04 のため 1 件失敗し、対応する >=26.04 のガードは回避していない。
+
+hosted の初回実行 4 件（[test](https://github.com/SLktEx/Hacocoon/actions/runs/34748814241)、[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34748814235)、[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34748814274)、[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34748814262)）は job が作成されず `startup_failure` で終了した。test run の annotation は GitHub の予期しないエラーを示し、request ID は `CFDF:38DCEF:B99783:11CB2DC:6AA66658`。確認時の公開 status ページに障害告知はなく、全体障害や復旧とは推定しない。native 製品受入の成功ではない。この事象で job のない開始失敗を履歴 reader が見落とす問題が分かり、workflow attempt の結果を job と独立に保持し、開始失敗後に成功する attempt の回帰検査を追加した。rerun は依頼していない。
+
+既存の GitHub connector で取得した有効な [Protect main ruleset](https://github.com/SLktEx/Hacocoon/rules/21838612) は docs、workflow-policy、release-config、Go 両系列、race、e2e を必須としていた。追加した evidence 4 件は確認時に未指定だった。その追加は別途必要な設定作業であり、ruleset は変更していない。
+
+`def11e9ff31131e02be0eb3270bb3ebd62e1c452` の [repository checks](https://github.com/SLktEx/Hacocoon/actions/runs/34749383437) は `test-evidence` まで成功した。[Ubuntu 製品受入](https://github.com/SLktEx/Hacocoon/actions/runs/34749383422/job/103703362684) は成功したが、evidence gate は失敗した。artifact 10315158077 は必須 step の成功と `needs_success=true` を記録しながら、API の完了済み job 結果だけが null だった。上限付きの読み取り確認でこの反映差を待ち、終端の失敗を待ち直すことはしない。
+
+[Core](https://github.com/SLktEx/Hacocoon/actions/runs/34749383438/job/103703364764) と [Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34749383438/job/103703364605) は、aggregate transfer、Base build、Store COW、maintenance を含む製品 step がすべて成功した。両 job とも、現在の project を示す CSV の補足表示を厳密な識別子検査が拒否し、cleanup で失敗した。検証済み JSON の名前を使うよう修正し、不存在の確認は維持する。これらは製品 step の成功範囲が分かった失敗 job であり、native 全受入の成功ではない。
+
+同じ `def11e9` 候補の [Windows user-path job](https://github.com/SLktEx/Hacocoon/actions/runs/34749383429/job/103703363209) は、維持している native journey 全体が成功した。packaged install、通常入室、terminate/restart、reinstall、installed egress、厳密な Windows SSH／VS Code interop、設定と承認、transfer、public reclamation、通知、cleanup を含む。今回の調査で初めての Windows 製品 job 全体の成功であり、失敗 SHA の rerun ではない。workflow evidence gate も成功した。後続の CI helper 修正は、この製品受入記録と区別する。
+
+`d1c7480bd69157fb65974e9e2f2673e2ffffe4b6` では、repository、Ubuntu、Incus の全必須 job と evidence gate が成功した。[Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34750642440/job/103706445008) は public reclamation と Host 復帰の成功後、保持済み Workspace／OCI を再接続する `haco env create` が非ゼロ終了して失敗した。snapshot の復元と保持内容の確認は成功済みだった。fixture が stderr を破棄していたため原因は未解決であり、前の候補の成功でこの失敗を解決済みにはしない。通知は未到達。retention の診断は、数値の終了コード、許可リスト内の CLI reason、上限付きの読み取り専用 controller 観測を残し、raw output や元の操作の再実行は行わない。これらの観測は調査の境界を示すもので、原因を確定するものではない。
+
+<a id="windows-main-integration"></a>
+
+## Windows接続候補へのmain統合
+
+統合実装commit: `44a30b1a0f03f639f3df76eaf5730c37dc50e3ea`.
+
+`codex/windows-main-sync`はmain `f47a9a41e5c175b8f7a4dca41680595be1687c99`を
+PR #634候補へ統合しています。#631のSSH接続、#625のWSL起動修正、#612の共通build/cacheを
+再利用します。導入済み統合候補の受入は未実施です。
+初回統合試験はRelayの重複定義、次はcoreの重複importでbuild失敗しました。両方を修正して再検証しました。
+既存のSSHとTCP両方のbyte処理を共用し、target権限を分離したまま、準備期限と稼働中sessionの
+寿命を区別する回帰を追加しました。v0.66を維持し、main反映・配布・M0〜M5完了とは扱いません。
+
+親 #632 `e7ca6735`はtest 34763683967、Ubuntu 34763684021、Incus 34763683968がPASS。
+Windows 34763683983/job 103740781508はstep15（install・terminate/restart・reinstall）でFAILし、
+後続egress・SSH・TTY・reclaim・通知はSKIPでした。mainの起動修正と同じ原因とは断定しません。
+#634 `422a8f80`はtest 34765863859、Ubuntu 34765863849、Incus 34765863870がPASS。
+これらは個別候補の証拠であり、今回のmain統合候補やWindows実経路の成功を代替しません。
+
+統合後のローカル試験は、Go 1.26.8のcontrol/controlapi/client/clientforward/sshclient/streamio/Incus回帰、
+標準 `bash tools/ci-local.sh test`（Go 1.27.1、shuffle 615）、関連stream race 5回、
+文書と18件のchecker回帰、CI契約・policy、installer packageがPASSです。
+Windows PowerShell 7.6.6ではWSL停止観測、両companionの導入・再導入・所有不一致・固定worker・junction拒否がPASS。
+このPCのPowerShell 5.1追加実行は今回未実施で、以前のpolicy拒否を成功へ変えません。
+
+新しく取り込んだlogin PTY試験は全体実行で5秒の終了待ちに一度FAILし、変更前の単独実行ではPASSしました。
+fixtureのprivate login profileで実際のBash入力待ち表示を観測してから入力するようにし、
+同じ5秒の合計期限・15秒の外側期限で10回PASS、標準ローカル試験もPASSです。
+製品の親process選択・Host setup・隔離は変更していません。初回の失敗でPTY transcriptを採取しておらず、
+入力消失などの原因を断定しません。過去の実Windows起動FAILの原因証明や受入の代替でもありません。
+
+実PTYのresize・SIGWINCH・切断はraceで10回PASS。統合候補をWindows amd64へbuildし、実Windowsでclient/controller/TCPの8並行1MiB往復・半切断・cancel・待受回収、日英help・不正引数拒否がPASSです。新規WSL/Incusへの導入、通常入口からWindows待受への自動委譲、arm64実行、fresh GUI回答は未確認です。
+
+`44a30b1a`のGit archiveを新しい一時領域へそのまま展開し、記録された実行属性のまま標準ローカルCI全体を再実行してPASSしました。

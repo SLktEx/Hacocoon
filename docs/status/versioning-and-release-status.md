@@ -136,3 +136,5 @@ completion/cleanup share the existing controller and provider boundaries.
 Linux component tests and native Windows transport primitives are scoped
 evidence; installed Incus acceptance and the Windows-native `wsl.exe` listener
 path remain separate. This is not M3 completion or a distributed release.
+
+The v0.66 candidate incorporates existing SSH/WSL/CI work from main `f47a9a41`. Integration and deduplication do not consume another checkpoint or establish distribution or completion of roadmap M0–M5.
