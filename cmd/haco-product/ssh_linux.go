@@ -19,6 +19,23 @@ import (
 )
 
 func runSSH(args []string) int {
+	if len(args) == 1 && args[0] == "cleanup" {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		client, err := controlapi.NewDefaultClient()
+		if err != nil {
+			return 1
+		}
+		desktop, err := sshclient.ResolveDesktop(ctx)
+		if err == nil {
+			err = sshclient.Cleanup(ctx, client, desktop)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "haco: SSH cleanup could not establish stale targets")
+			return 1
+		}
+		return 0
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Fprintln(os.Stdout, "Usage: haco ssh setup [environment]; blank selection cancels. Keys stay on the desktop client.")
 		return 0

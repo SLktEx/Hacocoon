@@ -43,19 +43,21 @@ func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
 		return host.Result{}, nil
 	}}
 	key := "ssh-ed25519 AAAATEST comment with spaces"
-	connection, err := New(runner).PrepareSSH(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
+	connection, err := New(runner).PrepareSSH(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if connection.Command != "ssh -p 2222 root@127.0.0.1" || connection.User != "root" {
+	if connection.Port != 0 || connection.Host != "" || connection.User != "root" {
 		t.Fatalf("connection=%#v", connection)
 	}
-	if len(runner.calls) != 3 {
+	if len(runner.calls) != 4 {
 		t.Fatalf("calls=%#v", runner.calls)
 	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
+	if runner.calls[0].args[1] != "set" {
+		t.Fatal("grant was not recorded")
+	}
 	provision := runner.calls[1]
-	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:ssh-2222" || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
+	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:"+connection.ID || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
 		t.Fatalf("managed SSH argv = %#v", provision.args)
 	}
 }

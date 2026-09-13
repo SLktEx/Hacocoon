@@ -31,7 +31,7 @@ func runEnvironment(args []string) int {
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] [--json] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--port <port>] [--json] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] [--json] <name> | disconnect [--json] <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start [--json] <name> | stop [--json] <name> | delete [--json] <name>")
+		fmt.Fprintln(diagnostic, "Usage: haco env create --workspace <controller-path> [--base <base>] [--resource oci:<store> | --no-oci] [--json] <name> | list [--json] | status [--json] <name> | ssh --key <public-key-file> [--json] <name> | ssh-config <name> | forward --target-port <port> [--protocol tcp|udp] [--port <local-port>] [--json] <name> | disconnect [--json] <name> <connection-id> | copy [--json] <stopped-env> [new-env] | export [--json] <stopped-env> [file.haco] | import [--json] <file.haco> [new-env] | start [--json] <name> | stop [--json] <name> | delete [--json] <name>")
 		return 2
 	}
 	if len(args) == 0 {
@@ -75,7 +75,6 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "ssh":
 		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
 		flags.StringVar(&keyPath, "key", "", "client-owned SSH public key file")
-		flags.IntVar(&port, "port", 0, "Physical Host loopback port (default: automatic)")
 	case "ssh-config":
 	case "status", "list":
 		flags.BoolVar(&jsonOutput, "json", false, "machine-readable result")
@@ -171,7 +170,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		var key []byte
 		key, err = os.ReadFile(keyPath)
 		if err == nil {
-			result, err = client.PrepareEnvironmentSSH(ctx, pos[0], core.SSHAccessRequest{PublicKey: string(key), HostPort: port})
+			result, err = client.PrepareEnvironmentSSH(ctx, pos[0], core.SSHAccessRequest{PublicKey: string(key)})
 		}
 	}
 	if err != nil {
@@ -180,6 +179,12 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 			name = pos[0]
 		}
 		return dailyFailure(diagnostic, "environment_"+args[0], "controller", name, err)
+	}
+	if args[0] == "delete" {
+		cleanupDesktopSSH(ctx, client, pos[0], "", diagnostic)
+	}
+	if args[0] == "disconnect" {
+		cleanupDesktopSSH(ctx, client, pos[0], pos[1], diagnostic)
 	}
 	if mutating {
 		fmt.Fprintf(diagnostic, "[succeeded] environment_%s\n", args[0])

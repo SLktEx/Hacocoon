@@ -17,7 +17,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Current binfmt P/PF and fresh Japanese-Windows entry still need packaged acceptance. |
 | [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
-| [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned loopback SSH, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
+| [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
 | [Ordinary Git](guides/git-workflow.md) | partial | Fetch/pull and fixed-content push through controller-owned credentials; bounded single-ref fast-forward push approval. Large packs, branch creation/deletion, force push, LFS/submodules and general ambiguous-result recovery remain unsupported in product flow. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
@@ -46,6 +46,13 @@ families. See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md)
 and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
 
 ## Verification boundary
+
+Implemented: [Incus 7.0 LTS installation](design/installer.md#incus-package-baseline)
+is shared by Ubuntu, Windows/WSL and both native CI setup paths, with patch updates
+and actual-server version validation. Doctor reports unsupported servers; 6.0
+fallbacks remain best effort. Vendor daemon recognition and anonymous volume
+export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
+separates the successful integrated candidate from this main-targeted extraction.
 
 Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
 

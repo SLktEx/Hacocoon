@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Windows-native acceptance while an ordinary trusted Host terminal is open.
+"""Run native acceptance with ordinary Host entry before and after cold restarts.
 Reuses the maintained ConPTY driver, including product login/startup waiting.
 No source setup, provider repair or replacement controller is invoked.
 """
@@ -59,6 +59,44 @@ def verify_acceptance_result(name, result, require_vscode=False):
         raise RuntimeError('Real VS Code acceptance did not report its assertions')
 
 
+def run_in_host_terminal(driver, checks):
+    terminal = driver.TerminalProcess()
+    stage, sent_at = 0, 0
+
+    def drive(output, process):
+        nonlocal stage, sent_at
+        if stage == 0 and driver.cmd_prompt_count(output):
+            print('NATIVE ACCEPTANCE: entering ordinary Host terminal', flush=True)
+            process.write('wsl -d Hacocoon\r\n')
+            stage, sent_at = 1, len(output)
+        elif stage == 1 and re.search(r'(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$', output[sent_at:]):
+            checks()
+            process.write('exit\r\n')
+            stage, sent_at = 2, len(output)
+        elif stage == 2 and driver.cmd_prompt_count(output[sent_at:]):
+            process.write('exit\r\n')
+            stage = 3
+
+    try:
+        terminal.run(on_output=drive)
+        if stage != 3: raise RuntimeError('Ordinary Host terminal did not complete the native acceptance sequence')
+    finally:
+        if terminal.proc.isalive(): terminal.proc.terminate(force=True)
+
+
+def run_native_checks(driver, run_check, interop_only=False, host_customization=False):
+    run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
+    if interop_only:
+        return
+    # Cold acceptance deliberately terminates WSL. Close the original terminal
+    # first; no warm Host entry may precede its SSH/VS Code reconnect probes.
+    run_check('test_windows_environment_ssh.ps1')
+
+    if host_customization:
+        run_check('test_host_customization.ps1')
+    run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--interop-only', action='store_true')
@@ -73,42 +111,23 @@ def main():
     spec.loader.exec_module(driver)
     powershell = shutil.which('pwsh')
     if not powershell: raise RuntimeError('PowerShell 7 is required for the acceptance scripts')
-    terminal = driver.TerminalProcess()
-    stage, sent_at = 0, 0
+    interop_options = ['-RequireNonC'] if args.require_non_c else []
+    if args.persistence_manifest:
+        interop_options.extend(['-PersistenceManifest', str(Path(args.persistence_manifest).resolve())])
+    options = {
+        'test_windows_host_interop.ps1': interop_options,
+        'test_windows_environment_ssh.ps1': ['-ReclamationManifest', str(Path(args.reclamation_manifest).resolve())] if args.reclamation_manifest else [],
+        'test_host_customization.ps1': [],
+    }
 
-    def drive(output, process):
-        nonlocal stage, sent_at
-        if stage == 0 and driver.cmd_prompt_count(output):
-            print('NATIVE ACCEPTANCE: entering ordinary Host terminal', flush=True)
-            process.write('wsl -d Hacocoon\r\n')
-            stage, sent_at = 1, len(output)
-        elif stage == 1 and re.search(r'(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$', output[sent_at:]):
-            scripts = [('test_windows_host_interop.ps1', ['-RequireNonC'] if args.require_non_c else [])]
-            if args.persistence_manifest: scripts[0][1].extend(['-PersistenceManifest', str(Path(args.persistence_manifest).resolve())])
-            if not args.interop_only:
-                # Environment creation/deletion must not break interop in the
-                # already-open trusted Host session.
-                scripts.extend([('test_windows_environment_ssh.ps1', ['-ReclamationManifest', str(Path(args.reclamation_manifest).resolve())] if args.reclamation_manifest else [])])
-                if os.environ.get('GITHUB_ACTIONS') == 'true':
-                    scripts.append(('test_host_customization.ps1', []))
-                scripts.append(scripts[0])
-            for name, options in scripts:
-                print(f'NATIVE ACCEPTANCE START: {name}', flush=True)
-                result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
-                    '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options], timeout=1800)
-                print(result.stdout, result.stderr, flush=True)
-                verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
-            process.write('exit\r\n')
-            stage, sent_at = 2, len(output)
-        elif stage == 2 and driver.cmd_prompt_count(output[sent_at:]):
-            process.write('exit\r\n')
-            stage = 3
+    def run_check(name):
+        print(f'NATIVE ACCEPTANCE START: {name}', flush=True)
+        result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options[name]], timeout=1800)
+        print(result.stdout, result.stderr, flush=True)
+        verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
 
-    try:
-        terminal.run(on_output=drive)
-        if stage != 3: raise RuntimeError('Ordinary Host terminal did not complete the native acceptance sequence')
-    finally:
-        if terminal.proc.isalive(): terminal.proc.terminate(force=True)
+    run_native_checks(driver, run_check, args.interop_only, os.environ.get('GITHUB_ACTIONS') == 'true')
     print('WINDOWS NATIVE ACCESS THROUGH ORDINARY HOST ENTRY: PASS')
 
 

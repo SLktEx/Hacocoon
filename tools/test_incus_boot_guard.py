@@ -218,16 +218,25 @@ class DaemonDetectionTests(unittest.TestCase):
         self.assertFalse(self.detect('/usr/bin/python3', main_pid='0'))
 
     def test_managed_daemon_and_replaced_executable_are_detected(self):
-        for suffix in ('', ' (deleted)'):
-            self.assertTrue(self.detect('/usr/libexec/incus/incusd' + suffix))
+        for executable in ('/usr/libexec/incus/incusd', '/opt/incus/bin/incusd'):
+            for suffix in ('', ' (deleted)'):
+                self.assertTrue(self.detect(executable + suffix))
 
     def test_unmanaged_helpers_or_wrong_owner_refuse_retirement(self):
-        for kwargs in ({'main_pid': '0'}, {'uid': 1000}):
-            with self.assertRaises(guard.Refused):
-                self.detect('/usr/libexec/incus/incusd', **kwargs)
+        for executable in ('/usr/libexec/incus/incusd', '/opt/incus/bin/incusd'):
+            for kwargs in ({'main_pid': '0'}, {'uid': 1000}):
+                with self.assertRaises(guard.Refused):
+                    self.detect(executable, **kwargs)
 
     def test_daemon_in_another_pid_namespace_does_not_authorize_adoption(self):
-        self.assertFalse(self.detect('/usr/libexec/incus/incusd', namespace=222))
+        for executable in ('/usr/libexec/incus/incusd', '/opt/incus/bin/incusd'):
+            with self.assertRaises(guard.Refused):
+                self.detect(executable, namespace=222)
+
+    def test_unknown_managed_executable_cannot_be_mistaken_for_absence(self):
+        for executable in ('/tmp/incusd', '/opt/incus/bin/incusd-copy', '/opt/incus/lib/systemd/incusd', '/usr/bin/python3'):
+            with self.assertRaises(guard.Refused):
+                self.detect(executable)
 
 
 if __name__ == '__main__':

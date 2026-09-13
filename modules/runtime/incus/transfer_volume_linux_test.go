@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"golang.org/x/sys/unix"
 )
 
 func TestExportSnapshotVolumeOwnershipAndCleanup(t *testing.T) {
@@ -60,8 +61,14 @@ func TestExportSnapshotVolumeOwnershipAndCleanup(t *testing.T) {
 							return host.Result{Stdout: string(raw)}, nil
 						}
 						exports++
-						if len(args) != 11 || !reflect.DeepEqual(args[:5], []string{"storage", "volume", "export", p.Pool, p.target()}) || !reflect.DeepEqual(args[6:], []string{"--project", "hacocoon", "--volume-only", "--compression=none", "--quiet"}) || !strings.HasPrefix(args[5], fmt.Sprintf("/proc/%d/fd/", os.Getpid())) {
+						if len(args) != 12 || !reflect.DeepEqual(args[:5], []string{"storage", "volume", "export", p.Pool, p.target()}) || !reflect.DeepEqual(args[6:], []string{"--project", "hacocoon", "--volume-only", "--compression=none", "--quiet", "--force"}) || !strings.HasPrefix(args[5], fmt.Sprintf("/proc/%d/fd/", os.Getpid())) {
 							t.Fatal("unexpected command", args)
+						}
+						// --force must only address this process's live, unlinked,
+						// private regular file; never weaken public overwrite refusal.
+						var target unix.Stat_t
+						if err := unix.Stat(args[5], &target); err != nil || target.Nlink != 0 || target.Mode&unix.S_IFMT != unix.S_IFREG || target.Mode&0077 != 0 || target.Uid != uint32(os.Geteuid()) {
+							t.Fatalf("unsafe forced export target: %#v %v", target, err)
 						}
 						payload := data
 						if mode == "empty" {

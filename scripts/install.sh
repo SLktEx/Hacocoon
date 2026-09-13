@@ -307,7 +307,9 @@ prepare_ubuntu_host() {
   printf '==> Installing and starting Incus\n'
   # Incus may already be installed without recommended packages. The trusted
   # bridge still requires DNS/DHCP; do not rely on apt installing Recommends.
-  $SUDO apt-get install -y incus iptables nftables dnsmasq-base
+  [ -f "$BUNDLE_ROOT/incus-lts.sh" ] || die "the shared Incus LTS package helper is missing from the installer"
+  $SUDO sh "$BUNDLE_ROOT/incus-lts.sh" install
+  $SUDO apt-get install -y iptables nftables dnsmasq-base
   printf '==> Authorizing the local Hacocoon workspace owner for Incus idmap\n'
   configure_workspace_owner_idmap
   printf '==> Preparing bridge netfilter for Hacocoon sandbox filtering\n'
@@ -332,6 +334,8 @@ prepare_ubuntu_host() {
   if ! command -v incus >/dev/null 2>&1 || ! $SUDO incus info >/dev/null 2>&1; then
     die "Incus daemon is not ready after systemd startup"
   fi
+  server_version="$($SUDO incus version | awk -F': ' '$1 == "Server version" {print $2}')"
+  sh "$BUNDLE_ROOT/incus-lts.sh" verify-version "$server_version"
   configure_incus_boot_guard
 }
 

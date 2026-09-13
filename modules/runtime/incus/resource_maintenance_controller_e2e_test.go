@@ -96,10 +96,18 @@ func verifyMaintenanceControllerCLI(t *testing.T, ctx context.Context, runtime *
 		invocation++
 		started := time.Now()
 		t.Logf("maintenance CLI step=%d started", invocation)
-		defer func() { t.Logf("maintenance CLI step=%d duration_ms=%d", invocation, time.Since(started).Milliseconds()) }()
+		defer func() {
+			t.Logf("maintenance CLI step=%d duration_ms=%d", invocation, time.Since(started).Milliseconds())
+		}()
 		cmd := exec.CommandContext(ctx, product, args...)
 		var diagnostic bytes.Buffer
 		cmd.Env, cmd.Stdin, cmd.Stderr = environment, strings.NewReader(input), io.MultiWriter(log, &diagnostic)
+		if input != "" {
+			terminal, closeTerminal, err := maintenanceConfirmationInput(input)
+			must(err)
+			defer closeTerminal()
+			cmd.Stdin = terminal
+		}
 		output, err := cmd.Output()
 		if (err == nil) != success || len(output) > 1<<20 || (!success && !strings.Contains(diagnostic.String(), refusal)) {
 			exitCode := -1

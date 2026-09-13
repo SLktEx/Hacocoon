@@ -5,6 +5,7 @@ readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
 readonly CI_REMOTE="haco-ci"
+readonly INCUS_LTS_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/incus-lts.sh"
 readonly CLIENT_CONF="${HACO_CI_INCUS_CONF:-${RUNNER_TEMP:-/tmp}/haco-incus-client}"
 export INCUS_CONF="$CLIENT_CONF"
 
@@ -61,8 +62,8 @@ setup() {
   require_github_hosted_runner
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-    incus-base \
-    dnsmasq-base iptables
+    ca-certificates curl gnupg dnsmasq-base iptables
+  sudo env DEBIAN_FRONTEND=noninteractive sh "$INCUS_LTS_HELPER" install
 
   configure_workspace_owner_idmap
 
@@ -86,8 +87,7 @@ setup() {
 
   incus version
   server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
-  [[ -n "$server_version" ]] || fail "could not determine Incus server version"
-  dpkg --compare-versions "$server_version" ge 6.0.5 || fail "Incus $server_version is too old; 6.0.5+ is required"
+  sh "$INCUS_LTS_HELPER" verify-version "$server_version"
   incus profile show default --project default >/dev/null
 }
 

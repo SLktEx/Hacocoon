@@ -20,6 +20,7 @@ class InstallerNetworkTests(unittest.TestCase):
 set -eu
 trace="$1"; ready="$2"; fail_dns_package="$3"
 SUDO=privileged; SKIP_INCUS=0; GRANT_INCUS_ADMIN=0; INSTALL_UID=1000
+BUNDLE_ROOT="$4"
 die() { printf '%s\n' "$*" >&2; exit 1; }
 assert_ubuntu() { :; }
 prepare_privilege() { :; }
@@ -28,6 +29,7 @@ configure_workspace_owner_idmap() { :; }
 ensure_bridge_netfilter() { :; }
 ensure_incus_userns_compatibility() { :; }
 configure_incus_boot_guard() { :; }
+sh() { :; } # Package/helper contract is exercised by test_incus_lts.py.
 ps() { printf 'systemd\n'; }
 incus() { :; }
 privileged() {
@@ -38,21 +40,22 @@ privileged() {
         if [ "$arg" = dnsmasq-base ] && [ "$fail_dns_package" = 1 ]; then return 42; fi
       done ;;
     'incus info') [ "$ready" = 1 ] ;;
+    'incus version') printf 'Server version: 7.0.1\n' ;;
     'incus storage '*|'incus admin '*) return 2 ;;
     *) return 0 ;;
   esac
 }
 prepare_ubuntu_host
 '''
-            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package))],
+            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package)), str(ROOT / "scripts")],
                                     capture_output=True, text=True)
             return result, trace.read_text().splitlines()
 
     def test_ready_daemon_needs_no_storage_probe_or_minimal_initialization(self):
         result, commands = self.prepare(True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info"])
-        self.assertIn("apt-get install -y incus iptables nftables dnsmasq-base", commands)
+        self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info", "incus version"])
+        self.assertIn("apt-get install -y iptables nftables dnsmasq-base", commands)
 
     def test_bridge_dns_install_failure_stops_before_daemon_start(self):
         result, commands = self.prepare(True, fail_dns_package=True)

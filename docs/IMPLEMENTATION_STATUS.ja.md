@@ -8,6 +8,12 @@
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
+実装済み: [Incus 7.0 LTS導入](design/installer.md#incus-package-baseline)をUbuntu、
+Windows/WSLと両方の実機CI準備経路で共有し、パッチ更新と実server版の検証を行います。
+doctorは非対応版を報告し、6.0互換はベストエフォートで保持します。vendor daemonの
+認識と匿名volume exportでも所有確認を維持します。[検証証拠](status/acceptance-evidence.ja.md#incus-lts)で
+統合候補の成功と今回のmain向け切り出しを区別します。
+
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
 | [Host の標準ツール](design/trusted-host.ja.md#host-の標準ツール) | 実装済み | 通常のローカル setup がユーザースクリプトの前に Git/gh と固定版 containerd/nerdctl/BuildKit を導入。管理対象 OCI データと Host 内のソケットを利用し、再 setup はデータを保持。公開版 Windows インストーラー、arm64 実機、独自の既存導入環境の確認は別途必要。 |
@@ -17,7 +23,7 @@
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。現行P/PF修正と日本語Windows新規導入のパッケージ確認は残る。 |
 | [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。構成メンバーの編集と準備中断からの一般的な復旧は未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
-| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したループバック SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
+| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
 | [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | コントローラー所有の資格情報によるfetch/pullと内容を固定したpush。制限付きの単一ref fast-forward push承認。大きなpack、ブランチ作成・削除、force push、LFS/submodule、不明な結果からの一般的な復旧は通常手順では非対応。 |
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |

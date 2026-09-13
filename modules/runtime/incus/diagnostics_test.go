@@ -35,7 +35,7 @@ func diagnosticFixture(t *testing.T, name string, args []string) host.Result {
 	}
 	switch {
 	case reflect.DeepEqual(args, []string{"query", "/1.0"}):
-		return jsonResult(map[string]string{"api_version": "1.0", "auth": "trusted"})
+		return jsonResult(map[string]any{"api_version": "1.0", "auth": "trusted", "environment": map[string]string{"server_version": "7.0.1"}})
 	case reflect.DeepEqual(args, []string{"storage", "list", "--project", "default", "--format", "json"}):
 		return jsonResult([]any{map[string]any{"name": diagnosticStorage.Name, "driver": "btrfs", "status": "Created", "config": map[string]string{"btrfs.mount_options": diagnosticStorage.MountOptions, "source": diagnosticBackingFile}}})
 	case reflect.DeepEqual(args, []string{"query", "/1.0/instances/haco-host?project=hacocoon"}):
@@ -78,6 +78,48 @@ func TestHostDiagnosticsReadOnlyAndBounded(t *testing.T) {
 	report, err := runtime.DiagnoseHost(context.Background(), diagnosticStorage)
 	if err != nil || !report.Healthy() || len(runner.calls) != 11 {
 		t.Fatalf("report=%+v err=%v calls=%v", report, err, runner.calls)
+	}
+}
+
+func TestHostDiagnosticsAcceptLTSPatchUpdates(t *testing.T) {
+	for _, version := range []string{"7.0.1", "7.0.9", "7.0.99"} {
+		t.Run(version, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				if name == "incus" && reflect.DeepEqual(args, []string{"query", "/1.0"}) {
+					return jsonResult(map[string]any{"api_version": "1.0", "auth": "trusted", "environment": map[string]string{"server_version": version}}), nil
+				}
+				return diagnosticFixture(t, name, args), nil
+			}}
+			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
+			if err != nil || !report.Healthy() || !strings.Contains(report.Checks[0].Summary, version) {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+		})
+	}
+}
+
+func TestHostDiagnosticsRejectUnsupportedOrUntrustedVersionBeforeOtherProbes(t *testing.T) {
+	for _, version := range []string{"6.0.5", "7.0.0", "7.1.0", "8.0.1", "", "7.0.1-dev", "7.0.1\n7.0.2", "\x1b[31m7.0.1", strings.Repeat("7", 200)} {
+		t.Run(version, func(t *testing.T) {
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				if name != "incus" || !reflect.DeepEqual(args, []string{"query", "/1.0"}) {
+					t.Fatal("probed resources after unsupported runtime")
+				}
+				return jsonResult(map[string]any{"api_version": "1.0", "auth": "trusted", "environment": map[string]string{"server_version": version}}), nil
+			}}
+			report, err := New(runner).DiagnoseHost(context.Background(), diagnosticStorage)
+			if err != nil || report.Healthy() || report.Checks[0].Status != diagnostics.Failed || len(runner.calls) != 1 {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+			if strings.Contains(report.Checks[0].Summary, "\x1b") || len(report.Checks[0].Summary) > 256 {
+				t.Fatal("unbounded backend text escaped")
+			}
+			for _, check := range report.Checks[1:] {
+				if check.Status != diagnostics.Skipped {
+					t.Fatalf("unexpected check: %+v", check)
+				}
+			}
+		})
 	}
 }
 

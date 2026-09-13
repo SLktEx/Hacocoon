@@ -133,7 +133,7 @@ func TestRealIncusPersistentCopyE2E(t *testing.T) {
 	if err != nil || retained.State != "ready" || read(targetPath) != "copy edited\n" {
 		t.Fatalf("saved-child refusal changed ready Store: %+v %v", retained, err)
 	}
-	command("incus", "storage", "volume", "snapshot", "show", pool, volume+"/keep", "--project", project)
+	command("incus", "storage", "volume", "snapshot", "show", pool, volume, "keep", "--project", project)
 	command("incus", "storage", "volume", "snapshot", "delete", pool, volume, "keep", "--project", project)
 	stale := target.Ref()
 	stale.Owner = strings.Repeat("f", 32)

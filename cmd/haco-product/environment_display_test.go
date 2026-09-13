@@ -8,9 +8,9 @@ import (
 )
 
 func TestSSHConfigRefusesUnsafeTargetsAndAmbiguousConnections(t *testing.T) {
-	good := core.ClientConnection{Kind: "ssh", Host: "127.0.0.1", Port: 2223, User: "root"}
+	good := core.ClientConnection{Kind: "ssh", Target: &core.StreamTarget{Environment: "dev", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}, User: "root"}
 	var out bytes.Buffer
-	if err := writeSSHConfig(&out, "dev", []core.ClientConnection{good}); err != nil || !strings.Contains(out.String(), "Host haco-dev\n  HostName 127.0.0.1\n  Port 2223") {
+	if err := writeSSHConfig(&out, "dev", []core.ClientConnection{good}); err != nil || !strings.Contains(out.String(), "Host haco-dev\n  HostName haco-dev") {
 		t.Fatalf("%s %v", &out, err)
 	}
 	if writeSSHConfig(&out, "dev\nProxyCommand evil", []core.ClientConnection{good}) == nil {

@@ -15,7 +15,7 @@ A secure workspace runtime for people, developer tools and coding agents.
 
 Hacocoon runs development tools in isolated **Environments**, keeps project files in
 retained **Workspaces**, and mediates access to Host credentials and external services.
-An agent can edit, build and test without receiving Incus management authority.
+An agent can edit, build and test without receiving Host management authority.
 
 > [!WARNING]
 > Hacocoon is **pre-1.0**. Breaking changes are expected. The current local backend

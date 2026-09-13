@@ -82,6 +82,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "haco-review.exe",
                 "haco-wsl.exe",
                 "install.sh",
+                "incus-lts.sh",
                 "setup-wsl-host-interop.py",
                 "incus-boot-guard.py",
                 archive_name,
@@ -160,7 +161,7 @@ with tempfile.TemporaryDirectory() as temp:
 
         with tarfile.open(out / f"hacocoon-ubuntu-{arch}.tar.gz", "r:gz") as tf:
             names = tf.getnames()
-            expected = ["install-ubuntu.sh", "install.sh", "setup-wsl-host-interop.py", "incus-boot-guard.py", archive_name, "checksums.txt", "VERSION"]
+            expected = ["install-ubuntu.sh", "install.sh", "incus-lts.sh", "setup-wsl-host-interop.py", "incus-boot-guard.py", archive_name, "checksums.txt", "VERSION"]
             if names != expected:
                 raise SystemExit(f"unexpected Ubuntu {arch} package: {names!r}")
             if f"haco_linux_{other}.tar.gz" in names:

@@ -47,7 +47,7 @@ func TestRuntimeRejectsOptionLikeInstanceRefsBeforeIncus(t *testing.T) {
 
 func TestClientAccessRejectsUnmanagedRefBeforeIncus(t *testing.T) {
 	runner := &fakeRunner{}
-	_, err := New(runner).PrepareSSHAccess(context.Background(), "--project", core.SSHAccessRequest{HostPort: 2222, PublicKey: "ssh-ed25519 AAAA"})
+	_, err := New(runner).PrepareSSHAccess(context.Background(), "--project", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA"})
 	if !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatalf("err=%v", err)
 	}

@@ -54,7 +54,7 @@ func TestWindowsDesktopProjectionE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := strings.ReplaceAll(string(out), "\r\n", "\n")
-	for _, want := range []string{"hostname 127.0.0.1\n", "port 23001\n", "stricthostkeychecking true\n", "hostkeyalias haco-projection\n", "dynamicforward [127.0.0.1]:49101\n"} {
+	for _, want := range []string{"hostname haco-projection\n", "proxycommand C:/Windows/System32/wsl.exe --distribution " + os.Getenv("WSL_DISTRO_NAME") + " --exec /usr/local/bin/haco stream ", "stricthostkeychecking true\n", "hostkeyalias haco-projection\n", "dynamicforward [127.0.0.1]:49101\n"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("native SSH projection missing %q", want)
 		}

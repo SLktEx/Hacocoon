@@ -105,6 +105,8 @@ func run(args []string) int {
 		return runReclaimLinux(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "stream":
+		return runStream(args[1:])
 	case "ssh":
 		return runSSH(args[1:])
 	case "open":
@@ -170,6 +172,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  snapshot   Save, restore, list and explicitly delete independent saved data")
 	fmt.Fprintln(out, "  run        Execute a command in a temporary Environment and clean up")
 	fmt.Fprintln(out, "  ssh setup  Prepare desktop SSH keys and connection settings")
+	fmt.Fprintln(out, "  ssh cleanup  Remove positively stale managed SSH targets")
 	fmt.Fprintln(out, "  open       Open or resume a Workspace in a desktop client")
 	fmt.Fprintln(out, "  base       List and inspect Environment starting points")
 	fmt.Fprintln(out, "  plugin     Optional integrations, including persistent OCI Stores")

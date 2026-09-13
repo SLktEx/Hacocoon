@@ -79,3 +79,16 @@ are read by the Linux client using WSL path resolution and newline normalization
 The script retains existing trusted Host authority but gains no new Physical Host
 authority. The incarnation is read before/after execution; out-of-band privileged
 provider mutation is not an untrusted workload API.
+
+## Shell entry during active preparation
+
+Windows/WSL restart acceptance at `d6f078e` observed ordinary entry rejected with
+`Host setup is busy` while another preparation held controller exclusion.
+Shell preparation now waits within its existing 15-minute deadline for that
+operation to finish; explicit setup still refuses overlapping requests. The
+waiting caller does not own the active operation's lock and cannot release it on
+cancellation. After acquisition, canonical preparation and the durable recipe
+result checks still run. Waiting does not convert failed/unknown completion into
+permission to replay. Reject removing exclusion, retrying a rejected mutation at
+the client, or bypassing preparation on a busy response: each loses either the
+ordering guarantee or the recipe's explicit recovery decision.

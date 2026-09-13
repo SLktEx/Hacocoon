@@ -6,6 +6,88 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="portless-ssh"></a>
+
+## ポート不要 SSH とエディターの cold reconnect
+
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631) の
+`e35a152e3d58fc917192d56e442517bd7805b8ff` で、
+[Windows 実機試験](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)は、
+実 Windows OpenSSH のコマンド実行、管理 alias/config、厳密な host key 確認、
+4 本同時の cold reconnect、削除済み接続先の拒否に成功しました。
+Environment と controller の停止、WSL 終了後の最初の接点は、ProxyCommand 経由の
+`ssh.exe` でした。同じ provider generation と Workspace marker を保持し、
+`ss -H -ltn` の Host TCP listener は増加せず、SSH 用 Incus proxy device も存在しません。
+SSH metadata の Host は空、port は 0 でした。
+
+別の cold cycle では、VS Code 標準の保存済み remote folder URI を最初に開きました。
+VS Code 1.136.1 と Microsoft Remote-SSH 0.128.0 で、実 editor のファイル読み書き、
+remote terminal の実行、ローカル承認経路の stale 拒否、probe cleanup に成功しました。
+接続確立に Hacocoon 拡張は使わず、専用 UI observer は結果の検査だけを行います。
+新しい host key を固定した Windows export/import SSH、保持データの再接続、preview、
+public reclamation も成功しました。同候補の[通常 CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527)、
+[Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)、
+[実 Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)も成功しています。
+
+ただし Windows ジョブ全体は、意図的な WSL 終了で破棄された古い Host terminal に
+driver が `exit` を書こうとして失敗しました。driver は cold 試験前に terminal を閉じ、
+試験後に新しい terminal から通常入口を確認するよう修正します。元の失敗をジョブ全体の
+成功として扱いません。初期 fixture の `/tmp` Workspace 消失は `/var/tmp` への変更で
+解消しました。`d6059131` は cold SSH に成功しましたが、標準 Remote-SSH 拡張の導入漏れと
+転送 fixture の旧 Host port 契約で失敗しています。
+[run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769)に記録を保持します。
+
+リポジトリの回帰試験は、raw binary stdio/UDS、EOF/half-close、キャンセル、controller の
+起動遅延・切断、古い identity/lease/grant の拒否、並行 resume、所有 entry の cleanup を
+確認します。実 PC の電源再投入、Remote Explorer の手動クリック、VPN/NRPT、広範な IDE は
+未検証です。private-registry ジョブは手動実行専用のため PR 実行では SKIP です。
+公式 Base の初回 SSH setup の通信不要化は[Issue #603](https://github.com/SLktEx/Hacocoon/issues/603)の責務です。
+
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS対応基準
+
+対応契約は`>= 7.0.1`, `< 7.1`です。以前の6.0.5での結果は過去の互換確認として保持します。
+[PR #583](https://github.com/SLktEx/Hacocoon/pull/583)の開発候補
+`0c79f8209eec42b597cc811a9114e0351d8226d7`で、
+[Ubuntu導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358)、
+[Windows/WSL新規導入・再起動・再導入](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)、
+[standalone/Core/BtrfsのIncus試験](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)が
+server 7.0.1で成功しました。lifecycle、egress、Base build、snapshot/copy/import、
+保持Store操作、所有資源のcleanupを含みます。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411)も成功しました。
+private registry、VPN/NRPT、人間の通知内回答は未確認です。
+
+main向け#479では共通導入、doctorと必要なvendor daemon/export/fixture修正を切り出します。
+上記の統合候補の成功は今回の切り出しの実機再実行や配布の証拠ではありません。
+切り出し自体のパッケージ・実機CI結果は以下に記録します。
+
+切り出し`9a4dc42`で[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125)、
+[実Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134)は成功しました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114)も新規導入・再起動・再導入、
+egress、transfer、reclaimと保持データ復元は成功しましたが、desktop全体は承認操作と
+後続preview setupで失敗しました。承認fixtureが端末必須のCLIへパイプで回答していたため、
+専用PTYへ修正し、JSONの応答と時間制限付きの子プロセスcleanupを維持します。
+mainの出力変更に合わせ、受入試験でJSONを読む呼び出しには`--json`を明示します。
+修正後の切り出し`34ff371cedb7558959201b316a2aebe7f3542eee`
+（[PR #600](https://github.com/SLktEx/Hacocoon/pull/600)）で、
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335)、
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)が成功し、
+Windowsのdesktop全体も成功しました。元の全体失敗は失敗として保持します。
+[リポジトリCI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)はGo 1.27ジョブだけの
+再実行後に成功しました。初回は既存の対話PTYサイズ変更試験が時間切れになりましたが、
+同じshuffle seedでのローカル30回はコード変更なしで成功し、間欠的な時間切れの原因は未確定です。
+この結果は当該切り出しの試験範囲の証拠であり、リリース配布や後続main統合の合格を示しません。
+
+main統合後の`d6f078e`の[Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)は、
+Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了・再起動直後の通常入口で
+`Host setup is busy`と拒否されました。fixtureはその後時間切れとなり、後続のEnvironment・desktop試験は
+スキップされました。shell準備は既存の期限内でcontroller setupの排他解放を待つよう修正し、
+明示的setupの重複拒否と失敗recipeの復旧規則を維持します。構成要素・race試験で待機、キャンセル、
+排他解放を確認しましたが、修正後の統合候補のWindows受入は別途必要です。
+
 <a id="installation"></a>
 
 ## インストールとHost

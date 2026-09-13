@@ -47,6 +47,11 @@ haco env import /mnt/c/Users/USER/Backups/dev.haco recovered
 [退避・復元比較](../guides/data-evacuation.ja.md)で必要データを独立して復旧できると
 確認するまでは、元の環境を保持してください。
 
+対応基準のIncus 7.0 LTSでは、native volume exportの出力先が既存扱いになるため、
+controller自身が所有する生存中の匿名FDだけに`--force`を使います。利用者の出力パスは
+このコマンドへ渡さず、既存の出力ファイルは引き続き拒否します。
+[ADR 0049](../adr/0049-transfer-envelope-authority.md)を参照してください。
+
 失敗時は非ゼロで終了し、保持したresource名をJSONまたはstderrへ示します。
 応答が失われても処理が完了または継続している可能性があるため、再試行前に記録を確認します。
 自動再実行、上書き、カタログ編集による復旧は提供しません。

@@ -8,6 +8,13 @@
 Windowsでは専用のUbuntu 26.04 WSL 2を使います。
 [実機検証の範囲](../status/acceptance-evidence.ja.md#installation)は実装とは区別します。
 
+対応するIncusは **7.0 LTS** 系列（`>= 7.0.1`, `< 7.1`）です。完全な
+インストーラーは検証済みのZabbly LTS配布元から最新の7.0.xを選びます。
+通常のAPT更新でパッチを更新でき、7.1以降の機能リリースは選択しません。
+`haco doctor`は非対応版を報告します。過去の6.0.5導入は現在の対応基準外です。
+更新前に既存データを保持し、新しい系列をその場でダウングレードしないでください。
+[パッケージ契約](../design/installer.md#incus-package-baseline)を参照してください。
+
 ## 完全なパッケージを選ぶ
 
 [Releases](https://github.com/SLktEx/Hacocoon/releases)からCPUに合う

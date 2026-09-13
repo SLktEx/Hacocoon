@@ -145,6 +145,7 @@ run_release_config() {
   python3 tools/test_installer_packages.py
   python3 tools/test_install_identity.py
   python3 tools/test_install_network.py
+  python3 tools/test_incus_lts.py
   python3 tools/test_incus_boot_guard.py
   python3 tools/test_windows_user_path.py
   python3 tools/test_wsl_oobe_config.py
@@ -153,7 +154,7 @@ run_release_config() {
   goreleaser check
 
   section "release-config: shell syntax"
-  bash -n scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
+  bash -n scripts/incus-lts.sh scripts/install.sh scripts/install-ubuntu.sh tools/ci-local.sh tools/check_release_tag_trust.sh tools/test_release_tag_trust.sh tools/test_install_archive_safety.sh
 
   section "release-config: Windows installer syntax"
   pwsh -NoLogo -NoProfile -NonInteractive -Command '
