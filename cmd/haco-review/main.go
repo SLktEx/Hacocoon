@@ -1,5 +1,5 @@
-// haco-review is the optional native Windows protocol handler. It is not a
-// second user-facing haco CLI and never decides an approval.
+// haco-review presents exact approval choices inside Windows notifications.
+// The controller's common review session owns Policy, audit and execution.
 package main
 
 import (
@@ -9,7 +9,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 )
@@ -57,28 +56,25 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	p, err := desktopreview.Plan(c.Distribution, args[0], os.Getenv("SystemRoot"))
+	id := ""
+	if args[0] != "--toast-server" {
+		id, err = desktopreview.RequestFromURI(c.Distribution, args[0])
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Invalid Hacocoon review link.")
 		return 2
 	}
-	cmd := exec.Command(p.File, p.Args...)
-	cmd.Env = p.Env
-	cmd.Dir = filepath.Dir(own)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "Review ended without confirmed success. Inspect Policy and audit before retrying.")
+	if err := nativeReview(c, own, id); err != nil {
+		if errors.Is(err, desktopreview.ErrNoLongerPending) {
+			fmt.Fprintln(os.Stderr, "Hacocoon request is no longer pending.")
+		} else {
+			fmt.Fprintln(os.Stderr, "Windows notification review is unavailable. No answer was automatically retried.")
+		}
 		return 1
 	}
 	return 0
 }
 func main() {
 	code := run(os.Args[1:])
-	// The protocol opens a console. Keep its exact receipt visible for the user.
-	fmt.Fprintln(os.Stderr, "Press Enter to close.")
-	var line string
-	fmt.Fscanln(os.Stdin, &line)
 	os.Exit(code)
 }

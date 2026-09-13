@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.63**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.64**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -63,3 +63,5 @@ VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表�
 実Incusのpipe／PTYは`b3169814`でPASSです。Windowsの入力確認は一度FAILし、driver修正後の`9767fd93`でPASSしました。[一時実行](design/temporary-execution.ja.md)を参照してください。
 
 保持データの確認表、削除範囲・確認・結果、snapshot結果の見出しを共通の日英辞書で表示します。確認付き削除の5経路は一つの確認処理を使い、警告・確認文の出力失敗時は削除しません。元のエラー、JSON、所有権確認、未入力時の拒否は維持しています。全結果の翻訳と日本語Windowsは引き続きpartialです。
+
+Windowsの確認は非表示COM helperから通知内のページ・選択欄で回答し、固定したディストリビューションと共通の非公開承認sessionを使います。実COMと英日ToastGeneric履歴には構成要素の検証がありますが、人のクリック・見切れ・導入済み新規回答は未確認です。[承認の契約](design/pending-approval-review.ja.md)と[検証証拠](status/acceptance-evidence.ja.md)を参照してください。

@@ -298,6 +298,9 @@ func chooseNotifier(backend string) (notifier, error) {
 type windowsReviewNotifier struct{ commandNotifier }
 
 func (n windowsReviewNotifier) NotifyReview(ctx context.Context, title, body, request string) error {
+	if _, err := desktopreview.URI(os.Getenv("WSL_DISTRO_NAME"), request); err != nil {
+		return err
+	}
 	script := windowsReviewToastScript(title, body, os.Getenv("WSL_DISTRO_NAME"), request)
 	command := commandNotifier{command: func(ctx context.Context, _, _ string) *exec.Cmd {
 		return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShell(script))
@@ -338,29 +341,54 @@ func windowsToastScript(title, body string) string {
 // Registration is owned by the Windows installer for one local distribution.
 // The URI carries only correlation. Activation cannot contain an answer.
 func windowsReviewToastScript(title, body, distribution, request string) string {
+	if uri, err := desktopreview.URI(distribution, request); err == nil {
+		scheme, _ := desktopreview.Scheme(distribution)
+		return windowsReviewLaunchScript(distribution, scheme, uri)
+	}
 	script := windowsToastScript(title, body)
 	scheme, err := desktopreview.Scheme(distribution)
 	if err != nil {
 		return script
-	}
-	activation := ""
-	reviewTag := ""
-	if uri, err := desktopreview.URI(distribution, request); err == nil {
-		reviewTag = request[:16]
-		activation = "$xml.DocumentElement.SetAttribute('activationType','protocol');" + "$xml.DocumentElement.SetAttribute('launch','" + uri + "');"
 	}
 	registration := "$nativeStage='registration';$appID='Hacocoon';$registration='HKCU:\\Software\\Classes\\" + scheme + "';" +
 		"if(Test-Path -LiteralPath $registration){" +
 		"$owner=(Get-ItemProperty -LiteralPath $registration -Name HacocoonDistribution -ErrorAction SilentlyContinue).HacocoonDistribution;" +
 		"if($owner -ieq '" + distribution + "'){" +
 		"$appID='" + scheme + "';" +
-		activation +
 		"}};"
 	script = strings.Replace(script, "$nativeStage='create';", registration+"$nativeStage='create';", 1)
-	if reviewTag != "" {
-		script = strings.Replace(script, "$toast.Group=", "$toast.Tag='"+reviewTag+"';$toast.Group=", 1)
-	}
 	return strings.Replace(script, "CreateToastNotifier('Hacocoon')", "CreateToastNotifier($appID)", 1)
+}
+
+// A launch is a read-only request. READY is emitted only after the installed
+// hidden helper has shown the exact review; process creation alone is not delivery.
+func windowsReviewLaunchScript(distribution, scheme, uri string) string {
+	return `$ErrorActionPreference='Stop';$nativeStage='registration';$process=$null;try{
+$directory=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Hacocoon\review\` + scheme + `'
+$adapter=[IO.Path]::GetFullPath((Join-Path $directory 'haco-review.exe'))
+$registration='HKCU:\Software\Classes\` + scheme + `'
+if((Get-ItemProperty -LiteralPath $registration).HacocoonDistribution -ine '` + distribution + `'){throw 'owner'}
+if((Get-Item -LiteralPath ($registration+'\shell\open\command')).GetValue('') -cne ('"'+$adapter+'" "%1"')){throw 'command'}
+if(-not (Test-Path -LiteralPath $adapter -PathType Leaf)){throw 'adapter'}
+$nativeStage='create'
+$info=[Diagnostics.ProcessStartInfo]::new();$info.FileName=$adapter
+$info.Arguments='` + uri + `';$info.UseShellExecute=$false;$info.CreateNoWindow=$true
+$info.RedirectStandardOutput=$true;$info.RedirectStandardInput=$true
+$process=[Diagnostics.Process]::new();$process.StartInfo=$info
+if(-not $process.Start()){throw 'start'}
+$process.StandardInput.Close()
+$nativeStage='show';$deadline=[DateTime]::UtcNow.AddSeconds(20);$receipt='';$buffer=New-Object char[] 64
+while(-not $receipt.EndsWith([string][char]10)){
+ $remaining=[int]($deadline-[DateTime]::UtcNow).TotalMilliseconds
+ if($remaining -le 0 -or $receipt.Length -ge 64){throw 'ready'}
+ $read=$process.StandardOutput.ReadAsync($buffer,0,64-$receipt.Length)
+ if(-not $read.Wait($remaining)){throw 'ready'}
+ $count=$read.Result;if($count -le 0){throw 'ready'}
+ $receipt+= [string]::new($buffer,0,$count)
+}
+if($receipt -cne "HACO_REVIEW_READY` + "`n" + `"){throw 'ready'}
+}catch{[Console]::Error.WriteLine('HACO_NATIVE_FAILURE:'+$nativeStage+':'+$_.Exception.HResult);exit 1}
+finally{if($null -ne $process){$process.Dispose()}}`
 }
 
 func encodePowerShell(script string) string {

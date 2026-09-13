@@ -255,11 +255,11 @@ func TestWindowsReviewActivationIsOnlyAnExactRegisteredRequest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !strings.Contains(script, "$ErrorActionPreference='Stop'") || !strings.Contains(script, "$toast.Tag='"+id[:16]+"'") {
-		t.Fatal("notification errors and per-request identity must be preserved")
+	if !strings.Contains(script, "$ErrorActionPreference='Stop'") || !strings.Contains(script, "HACO_REVIEW_READY") || !strings.Contains(script, "CreateNoWindow=$true") {
+		t.Fatal("hidden launch and actual display acknowledgement required")
 	}
 
-	if !strings.Contains(script, "://request/"+id) || !strings.Contains(script, "HacocoonDistribution") || !strings.Contains(script, "activationType','protocol") {
+	if !strings.Contains(script, "://request/"+id) || !strings.Contains(script, "HacocoonDistribution") || strings.Contains(script, "activationType','protocol") {
 		t.Fatal("missing registered request activation")
 	}
 	for _, pair := range [][2]string{{"Hacocoon-Test", id + "?yes"}, {"-x", id}, {"Hacocoon-Test", ""}} {

@@ -22,13 +22,13 @@ identities fail closed. Upgrading an older installation requires rerunning the
 Windows installer so the identity is captured before controller setup.
 
 
-The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](../design/pending-approval-review.md).
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter uses a private child session to answer inside the OS notification. See [pending approval review](../design/pending-approval-review.md).
 
 ## Approval correlation
 
 Trusted approval prompts and pending Git proposals now carry the same controller-assigned
 `request_id` as interaction events, audit records and the final capability result.
-This is implemented groundwork for notification review; Windows native activation opens the local CLI. The ID grants no authority. Git decisions still use the existing
+This is implemented groundwork for notification review; Windows native activation uses the separate private review session. The ID grants no authority. Git decisions still use the existing
 trusted management endpoint and proposal ID. No action endpoint or sensitive detail
 is added to the read-only event bridge.
 
