@@ -114,7 +114,8 @@
         "[product] Verify owned native volume import",
         "[product] Verify definition-driven Base build and immutable revisions",
         "[product] Verify independent persistent Store COW with real Btrfs",
-        "[product] Verify retained Store maintenance through native adapter and controller CLI"
+        "[product] Verify retained Store maintenance through native adapter and controller CLI",
+        "[product] Verify standard Host tools and offline Store image reuse"
       ]
     }
   },

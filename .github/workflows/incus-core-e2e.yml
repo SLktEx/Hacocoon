@@ -160,6 +160,11 @@ jobs:
         run: |
           python3 tools/prepare-oci-runtime-fixture.py "$RUNNER_TEMP/oci-runtime-assets"
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/oci-runtime-assets/oci-transfer-probe" ./modules/runtime/incus/testdata/oci-transfer-probe
+      - name: "[product] Verify standard Host tools and offline Store image reuse"
+        run: |
+          go test -c -o "$RUNNER_TEMP/persistent-copy.test" ./modules/runtime/incus
+          python3 tools/ci_required_tests.py --expect TestRealIncusHostToolingE2E -- sudo env HACO_E2E_HOST_TOOLING=1 \
+            "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncusHostToolingE2E$' -test.v -test.timeout=18m
       - name: "[product] Verify retained Bases, aggregate snapshots and component COW"
         run: |
           image="$(incus image list --project hacocoon --format=json | python3 -c 'import json,sys; images=json.load(sys.stdin); print(sorted(i["fingerprint"] for i in images if i.get("type") == "container")[0])')"
@@ -184,7 +189,6 @@ jobs:
       - name: "[product] Verify independent persistent Store COW with real Btrfs"
         run: |
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/oci-runtime-assets/oci-probe" ./modules/runtime/incus/testdata/oci-probe
-          go test -c -o "$RUNNER_TEMP/persistent-copy.test" ./modules/runtime/incus
           python3 tools/ci_required_tests.py --expect TestRealIncusCompletedHostCopyRecoveryE2E,TestRealIncusFailedDeleteReadableDataEvacuationE2E,TestRealIncusHostAreaCopyE2E,TestRealIncusOwnedVolumeExportE2E,TestRealIncusPersistentCopyE2E,TestRealIncusReadableDataEvacuationE2E,TestRealIncusRootfsTransferE2E,TestRealIncusSavedReadableDataEvacuationE2E,TestRealIncusSavedRootfsEvacuationE2E,TestRealIncusSnapshotRootfsExportE2E,TestRealIncusVolumeTransferE2E -- sudo env HACO_E2E_INCUS_PERSISTENT_COPY=1 HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_INCUS_VOLUME_TRANSFER=1 HACO_E2E_READABLE_DATA_EVACUATION=1 HACO_E2E_SAVED_READABLE_DATA_EVACUATION=1 HACO_E2E_FAILED_DELETE_EVACUATION=1 HACO_E2E_INCUS_ROOTFS_TRANSFER=1 HACO_E2E_SAVED_ROOTFS_EVACUATION=1 \
             HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
             "$RUNNER_TEMP/persistent-copy.test" -test.run='^TestRealIncus(PersistentCopy|HostAreaCopy|CompletedHostCopyRecovery|VolumeTransfer|ReadableDataEvacuation|SavedReadableDataEvacuation|FailedDeleteReadableDataEvacuation|RootfsTransfer|SavedRootfsEvacuation|SnapshotRootfsExport|OwnedVolumeExport)E2E$' -test.v -test.timeout=22m

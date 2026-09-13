@@ -102,7 +102,7 @@ The current implementation provides:
 - `environment.HACO_CLIENT_MODE=controller`, which prevents still-unmigrated `haco` commands from silently using guest-local composition;
 - supported WSL bootstrap that verifies `haco-host doctor` before enabling default interactive entry.
 
-The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. Current OCI Stores attach only to Environments and do not require a Host runtime.
+The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. The maintained local setup supplies Host tooling described below; Core and Environment runtime selection remain independent.
 
 ## Trust and authority
 
@@ -337,8 +337,74 @@ verifying the unprivileged owned Host and its canonical ready source area.
 Missing ownership, inherited profiles, paused/pending copies or ambiguous
 provider results refuse setup. The setting persists; repeated setup revalidates
 and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
-Runtime binaries remain optional and actual image recovery requires separate
-Docker/nerdctl acceptance.
+Standard Host tooling is supplied by the maintained local integration. Docker
+and Environment runtime selection remain optional; actual image recovery requires
+runtime-specific acceptance.
+
+## Standard Host tools
+
+Ordinary `haco setup`, including the common Ubuntu setup called by the Windows/WSL
+installer, installs Git, GitHub CLI, containerd, nerdctl and BuildKit before replaying
+a saved user recipe. No per-user install script is required. The tools run rootfully
+inside the owned, unprivileged `haco-host`; they do not run on the Physical Host.
+
+| Component | Supported source/version |
+|---|---|
+| Git, GitHub CLI (`gh`) | Ubuntu 26.04+ configured signed package repositories, including universe; distro candidate on first installation, installed package reused on repeat setup |
+| nerdctl | Official `nerdctl-full` 2.3.5 release, SHA-256 pinned separately for Linux amd64/arm64 |
+| containerd / runc / BuildKit / CNI | Selected binaries from that same release: 2.3.3 / 1.5.1 / 0.31.2 / 1.9.1 |
+
+The [official distribution](https://github.com/containerd/nerdctl/releases/tag/v2.3.5)
+owns upstream component provenance. Setup downloads through HTTPS, verifies the
+fixed digest and installs only allowlisted regular files. The verified archive
+is cached in `/var/cache/hacocoon/host-tooling` for offline repeat setup. Conflicting
+existing binaries/configuration, unsafe links or permissions fail instead of being
+overwritten. Existing data migration and arbitrary custom runtime installations
+remain unsupported; inspect the conflict rather than deleting image data.
+
+`containerd.service` and `buildkit.service` are enabled and checked for readiness.
+The default nerdctl namespace is `default`, with the `native` snapshotter and a
+matching containerd transfer unpack configuration. Inside trusted `haco-host`,
+after successful setup:
+
+```bash
+git --version
+gh --version
+nerdctl pull docker.io/library/busybox:latest
+nerdctl run --rm docker.io/library/busybox:latest echo ready
+# Run in a directory containing a Dockerfile:
+nerdctl build -t example:local .
+```
+
+Image data and BuildKit cache remain under `/var/lib/hacocoon-oci/containerd` and
+`/var/lib/hacocoon-oci/buildkit`; sockets stay under `/run` inside this Host.
+Stop/start and repeat setup preserve the managed area. The existing
+[independent Store copy](persistent-oci-store.md#default-environment-creation-flow)
+retains its ownership and pause/copy/resume contract. Runtime binaries still need
+to be supplied by the receiving Environment/Base integration. No Host socket,
+registry credential or management authority is delivered with that copy. Docker
+is not installed and its existing managed configuration/data is left intact.
+
+Setup reports `host_packages`, `host_tooling` and `host_services` failures without
+raw installer output. Each bounded transient service excludes overlapping installs
+after controller loss. A retry reuses complete files and installs missing files;
+it does not roll back package changes, reset OCI data or restart healthy services.
+See [ADR 0063](../adr/0063-standard-trusted-host-tooling.md). Repository tests and
+the dedicated real-Incus fixture are distinct from released Windows installer
+acceptance and private-registry credential acceptance.
+
+On a dedicated root Linux/WSL Incus/Btrfs test host, run the maintained fixture:
+
+```bash
+HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
+  -v -timeout 18m ./modules/runtime/incus
+```
+
+The fixture creates its own project and pool, and cleans them after a pass.
+It uses normal Host setup to verify/configure `haco-host0`, which remains managed
+infrastructure. An existing different Host consuming that network is refused.
+Failure retains its printed ownership identities for inspection. See
+[acceptance evidence](../status/acceptance-evidence.md#installation) for results.
 
 
 ## Host entry language
