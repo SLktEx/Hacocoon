@@ -24,7 +24,7 @@ func (s *Service) WithClientAccess(ctx context.Context, name string, expected *c
 		return err
 	}
 	lease, err := s.store.GetWorkspaceLease(ctx, name)
-	if err != nil || lease.State != core.WorkspaceLeaseActive || !lease.MatchesEnvironment(env) || lease.Owner != env.Name || lease.SnapshotSource != "" || lease.AcquiredAt.IsZero() || !lease.AcquiredAt.Equal(env.CreatedAt) || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+	if err != nil || lease.State != core.WorkspaceLeaseActive || !lease.MatchesEnvironment(env) || lease.Owner != env.Name || lease.SnapshotSource != "" || lease.AcquiredAt.IsZero() || env.CreatedAt.IsZero() || lease.AcquiredAt.After(env.CreatedAt) || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
 		return core.ErrRecoveryRequired
 	}
 	if expected != nil && (!expected.Valid() || expected.Environment != env.Name || expected.Instance != lease.InstanceID || expected.Workspace != env.Workspace.ID || expected.AccessMode != env.AccessMode) {

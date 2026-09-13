@@ -31,6 +31,9 @@ func main() {
 }
 
 func runAdapter(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] != "open" && args[0] != "delete" {
+		return fmt.Errorf("usage: haco-vscode <open|delete> [options] <workspace>\nunknown command %q", args[0])
+	}
 	if len(args) == 0 || (args[0] != "open" && args[0] != "delete") {
 		return fmt.Errorf("usage: haco-vscode <open|delete> [--name name] [--read-only] [--no-launch] <workspace>")
 	}

@@ -39,7 +39,9 @@ func accessFixture() (*Service, *accessRuntimeFixture, *fakeEnvironmentStore, co
 	l.Owner = "resume"
 	l.AcquiredAt = time.Now().UTC()
 	env := store.environments["resume"]
-	env.CreatedAt = l.AcquiredAt
+	// Create acquires the lease before provider work and commits the Environment
+	// afterward. These timestamps describe distinct phases, not one identity.
+	env.CreatedAt = l.AcquiredAt.Add(time.Second)
 	store.environments["resume"] = env
 	store.leases["resume"] = l
 	runtime := &accessRuntimeFixture{state: core.EnvironmentStopped}
@@ -81,7 +83,7 @@ func TestStreamRejectsStaleBindingsBeforeStart(t *testing.T) {
 					l.Owner = "other"
 				}
 				if kind == "time" {
-					l.AcquiredAt = l.AcquiredAt.Add(time.Second)
+					l.AcquiredAt = store.environments["resume"].CreatedAt.Add(time.Second)
 				}
 				if kind == "snapshot" {
 					l.SnapshotSource = "pending"
