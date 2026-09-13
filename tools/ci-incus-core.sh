@@ -120,7 +120,7 @@ cleanup() {
   local failed=0
 
   local projects
-  projects="$(incus project list --format csv -c n)" || return 1
+  projects="$(ci_project_names)" || return 1
   while IFS= read -r project; do
     [[ -n "$project" ]] || continue
     case "$project" in

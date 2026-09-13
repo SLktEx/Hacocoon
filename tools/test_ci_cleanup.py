@@ -25,12 +25,14 @@ case "$1 $2" in
     esac ;;
   'project delete') touch "$MARKER" ;;
   'project list')
+    if [[ "$*" != *--format=json* ]]; then echo 'default (current)'; exit 0; fi
     case "$MODE" in
       absence-unknown) exit 1 ;;
       absence-empty) exit 0 ;;
       absence-malformed) echo 'backend error: default' ;;
-      remains) echo hacocoon ;;
-      *) echo default ;;
+      absence-duplicate) echo '[{"name":"default"},{"name":"default"}]' ;;
+      remains) echo '[{"name":"default"},{"name":"hacocoon"}]' ;;
+      *) echo '[{"name":"default"}]' ;;
     esac ;;
   *) exit 2 ;;
 esac
@@ -58,6 +60,7 @@ esac
         self.check_case("absence-unknown", False, True)
         self.check_case("absence-empty", False, True)
         self.check_case("absence-malformed", False, True)
+        self.check_case("absence-duplicate", False, True)
         self.check_case("remains", False, True)
         self.check_case("absent", True, True)
 
@@ -72,6 +75,7 @@ class StorageCleanupTests(unittest.TestCase):
                 script = root / "test.sh"
                 script.write_text('''#!/bin/bash
 set -euo pipefail
+source "$LIBRARY"
 PROJECT=hacocoon INSTANCE=haco-test POOL=haco-local-default
 INCUS_BACKING=/not-a-real-backing CLI_ROOT=unused WORKSPACE=unused RUN_WORKSPACE=unused
 HACO_BIN=unused CONTROLLER_BIN=unused
@@ -84,8 +88,8 @@ incus() {
   case "$1 $2" in
     'project list')
       [[ "$MODE" != projects-failed ]] || return 1
-      echo default
-      [[ -f "$STATE/project" ]] || echo hacocoon ;;
+      if [[ "$*" != *--format=json* ]]; then echo 'default (current)'; return 0; fi
+      if [[ -f "$STATE/project" ]]; then echo '[{"name":"default"}]'; else echo '[{"name":"default"},{"name":"hacocoon"}]'; fi ;;
     'storage list')
       [[ "$MODE" != pools-failed ]] || return 1
       [[ -f "$STATE/pool" ]] || echo haco-local-default ;;
@@ -114,7 +118,7 @@ incus() {
   return 0
 }
 ''' + functions + "\ncleanup\n")
-                result = subprocess.run(["bash", str(script)], env=dict(os.environ, MODE=mode, STATE=str(root)), capture_output=True, timeout=10)
+                result = subprocess.run(["bash", str(script)], env=dict(os.environ, MODE=mode, STATE=str(root), LIBRARY=str(LIBRARY)), capture_output=True, timeout=10)
                 deleted = (root / "deleted").read_text().splitlines() if (root / "deleted").exists() else []
                 self.assertEqual(result.returncode == 0, mode == "absent", result.stderr)
                 if mode == "absent":

@@ -50,6 +50,9 @@ attempt、job、失敗 step、責務境界、同一 SHA の red→green を含�
 期待するテスト名、PASS/FAIL/SKIP または結果欠落、終了コードと run の識別子も保持する。
 各 attempt の workflow 結果も保持する。job が一件もない開始失敗も、後の attempt が
 開始・成功しても消えない。attempt の識別子は記録された run と source SHA に一致する必要がある。
+依存 job の成功後、Actions API で job の結果が欠落／null の場合だけ、上限付きの
+読み取り待機で反映を確認する。失敗・取消・skip を待ち直して成功にはしない。
+API エラーや確認期限の超過も失敗とし、workflow やテストの再実行は行わない。
 
 失敗 attempt がある source SHA の証拠 check は失敗し続ける。自動免除や green 化する
 retry はない。原因を修正するか、調査済み基盤障害の解決根拠を新しい commit に残す。
@@ -82,6 +85,8 @@ PTY 回帰は foreground command の出力を待ってから resize する。前
 確認し、poll 間隔を同期の根拠にしない。deadline は最後の失敗上限とする。Windows の
 Host entry エラーは操作を retry せず driver を終了する。installer が所有する WSL 再起動は固定750ms待ちを使わず、正常な停止状態一覧を観測する。project cleanup は正常な一覧取得と
 削除後の不存在確認を必要とし、query 失敗を削除許可や cleanup 成功にしない。
+project の識別子は検証した JSON から取得する。Incus の CSV 表示では現在の project に
+補足表示が付くため、その文字列を除去して削除権限へ変換することはしない。
 
 ## 外部依存
 

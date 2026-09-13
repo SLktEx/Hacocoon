@@ -1,10 +1,41 @@
 #!/usr/bin/env python3
 import unittest
 
-from ci_history import Actions, check_needs, failure_boundary, summarize, missing_job_variants
+from ci_history import Actions, check_needs, failure_boundary, summarize, missing_job_variants, settled_jobs
 
 
 class HistoryTests(unittest.TestCase):
+    def test_needs_completion_waits_for_null_job_metadata(self):
+        calls = []
+        def fetch():
+            calls.append(1)
+            return [{"name": "unit", "conclusion": None if len(calls) == 1 else "success"}]
+        waits = []
+        rows = settled_jobs(fetch, ["unit"], sleep=waits.append)
+        self.assertEqual(rows[0]["conclusion"], "success")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(waits, [2])
+
+    def test_terminal_failure_is_not_polled_until_success(self):
+        for conclusion in ("failure", "cancelled", "skipped", "timed_out"):
+            with self.subTest(conclusion=conclusion):
+                waits = []
+                rows = settled_jobs(lambda: [{"name": "unit", "conclusion": conclusion}], ["unit"], sleep=waits.append)
+                self.assertEqual(rows[0]["conclusion"], conclusion)
+                self.assertEqual(waits, [])
+
+    def test_incomplete_metadata_wait_has_a_bound(self):
+        clock = [0]
+        def sleep(delay): clock[0] += delay
+        rows = settled_jobs(lambda: [{"name": "unit", "conclusion": None}], ["unit"], timeout=5, now=lambda: clock[0], sleep=sleep)
+        self.assertIsNone(rows[0]["conclusion"])
+        self.assertEqual(clock[0], 5)
+
+    def test_metadata_api_errors_are_not_retried(self):
+        def fail(): raise OSError("metadata unavailable")
+        with self.assertRaises(OSError):
+            settled_jobs(fail, ["unit"], sleep=lambda _: self.fail("API error retried"))
+
     def test_startup_failure_without_jobs_survives_successful_rerun(self):
         run = {"id": 1, "name": "test", "workflow_id": 42, "head_sha": "a" * 40,
                "event": "pull_request", "run_attempt": 2, "conclusion": "success"}

@@ -57,6 +57,10 @@ partial reruns never erase the original failed job. Native Go commands also reta
 Each attempt's workflow conclusion is also retained. A startup failure with zero
 jobs cannot disappear when a later attempt starts successfully; attempt identity
 must match the recorded run and source SHA.
+After successful dependency completion, the evidence reader allows a bounded
+read-only wait for absent/null job conclusions to appear in the Actions API.
+Terminal failure, cancellation or skip is never polled away; API errors and
+exhausted observation still fail. This wait does not rerun any workflow or test.
 
 A failed attempt continues to fail the evidence check for that source SHA. There
 is no retry-to-green switch or automatic waiver. Investigate, fix the cause or
@@ -97,6 +101,9 @@ are sampling intervals; deadlines remain upper failure bounds. Windows Host entr
 errors terminate the driver without retrying the user action. Installer-owned WSL restarts observe successful stop-state listings instead of waiting a fixed 750 milliseconds. Project cleanup
 requires successful inventory and positive project absence; a failed query cannot
 authorize deletion or report successful cleanup.
+Project identities come from validated JSON, because Incus decorates the current
+project name in CSV presentation output. Presentation suffixes are never stripped
+to construct deletion authority.
 
 ## External inputs
 

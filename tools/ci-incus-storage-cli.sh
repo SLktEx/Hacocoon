@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/ci-incus-cleanup-library.sh"
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/test/e2e/controller.sh"
 trap haco_stop_test_controller EXIT
@@ -234,7 +235,7 @@ delete_project_images() {
 
 cleanup_inventory() {
   local observed
-  CLEANUP_PROJECTS="$(incus project list --format csv -c n)" || return 1
+  CLEANUP_PROJECTS="$(ci_project_names)" || return 1
   grep -Fxq default <<< "$CLEANUP_PROJECTS" || return 1
   CLEANUP_POOLS="$(incus storage list --format csv -c n)" || return 1
   while IFS= read -r observed; do

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -134,6 +135,27 @@ def missing_job_variants(records, run_id, expected):
     return sorted(set(expected) - passed)
 
 
+def settled_jobs(fetch, expected, timeout=60, now=time.monotonic, sleep=time.sleep):
+    """Observe API propagation after needs completion; never replay a job.
+
+    Terminal failures are evidence immediately, not a condition to poll away.
+    Network/API exceptions still fail without retry. Only absent/null results
+    receive a bounded readiness wait, since Actions can publish needs first.
+    """
+    deadline = now() + timeout
+    while True:
+        jobs = fetch()
+        selected = [job for job in jobs if job["name"] in expected]
+        if any(job.get("conclusion") not in (None, "success") for job in selected):
+            return jobs
+        if set(job["name"] for job in selected) == set(expected) and all(job.get("conclusion") is not None for job in selected):
+            return jobs
+        remaining = deadline - now()
+        if remaining <= 0:
+            return jobs  # Existing missing-variant validation fails closed.
+        sleep(min(2, remaining))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gate", action="store_true")
@@ -160,7 +182,12 @@ def main(argv=None):
             raise ValueError("current run missing from Actions history")
     else:
         runs = api.get(f"runs?per_page={args.recent}")["workflow_runs"]
-    records = summarize(runs, lambda run, attempt: api.pages(f"runs/{run}/attempts/{attempt}/jobs", "jobs"),
+    def jobs_for_attempt(run, attempt):
+        fetch = lambda: api.pages(f"runs/{run}/attempts/{attempt}/jobs", "jobs")
+        if args.gate and needs_ok and run == current["id"] and attempt == current["run_attempt"]:
+            return settled_jobs(fetch, contracts[current["name"]]["job_names"])
+        return fetch()
+    records = summarize(runs, jobs_for_attempt,
                         required_steps, lambda run, attempt: api.get(f"runs/{run}/attempts/{attempt}"))
     history_failed = any(r["conclusion"] in BAD for r in records)
     missing_variants = missing_job_variants(records, current["id"], contracts[current["name"]]["job_names"]) if args.gate else []
