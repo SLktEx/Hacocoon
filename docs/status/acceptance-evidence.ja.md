@@ -810,7 +810,7 @@ Incus34770808191がPASSです。Windows34770808189、job103759936727はstep17の
 <a id="windows-tunnel-interruption"></a>
 ## Windows転送の端末中断
 
-`codex/windows-tunnel-cancel`は#638の待受表示後のCtrl+C失敗を扱います。
+`codex/windows-tunnel-cancel`の実装`297b30954153c9699a7aac356ddfca3030c57f6a`は、#638の待受表示後のCtrl+C失敗を扱います。
 Windows34770808189のdriverはnative所有者確認、8並行1 MiBの半切断往復、application終了確認を通ってから
 中断を送っています。その後の端末結果が必要な0ではなく`TUNNEL-EXIT:1`だったため、回収までの受入はFAILです。
 
@@ -823,3 +823,17 @@ interop子のgroupを分ける修正後は、子・転送先・待受の回収�
 今回の試験全体は6.68秒でした。実Windows amd64では、対象世代の置換拒否、親EOFと余分なbyte、
 1 MiB転送、子・転送先・待受の回収が独立してPASSしました。Windowsビルドと文書checkerの18回帰もPASSです。
 v0.67を維持します。中断処理の修正であり、M3完了や配布ではありません。
+
+main `266cc47f0d1e898b92a4f700f02a7e02e9c7e412`を`e82db9607b0a3973b986fe002fc6af0ea4b2be59`で統合し、
+#637の信頼済みLinux Go cacheと#639のWindows受入時amd64のみのbuildを再利用しました。
+生成前の確認を、この候補の`haco-tunnel`を含む10本へ合わせています。実PowerShellの生成結果はarchitecture以外の配布設定を保持し、
+既存workflow-policy確認もPASSしました。配布そのものは両architectureを維持します。新しい導入CI所要時間の実測ではありません。
+
+親#640 `b0ab1858b67278e3b070e9c3d339abbddd28416b`はtest34772703642、Ubuntu34772703628、Incus34772703619がPASSです。
+Windows34772703625/job103765084905はstep17で再び`TUNNEL-EXIT:1`となり、step18〜21はSKIPでした。
+通知診断の修正について、導入済み受入の成功が増えたわけではありません。
+
+別のGo 1.27診断用コピーはfixtureの5秒上限を維持し、固定の観測値だけを追加しました。
+最初は7.15秒でFAILし、Bashは生存、PTY出力118 byte、入力待ちmarkerなしでした。続く2回はPASSです。
+失敗時も分岐先は既にBashへ到達していました。profile／端末の生出力は出さず、製品や期限も変更していません。
+表示が来ない原因は未解決であり、toolchainの不具合と断定しません。
