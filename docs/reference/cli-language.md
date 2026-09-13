@@ -49,6 +49,23 @@ Use the actual distribution name in place of `Hacocoon` when different. This com
 - `haco env copy`, `haco env import`, and `haco env export`: usage, JSON-option descriptions, direct controller/output diagnostics, completion and retained-data notices, and localized failure explanations around the original error.
 - `haco doctor` usage, human report heading, and next-action label. Its controller-provided detail remains unchanged.
 
+## Retained-data operation messages
+
+Workspace, source-repository, Base, OCI Store and individual-image review tables,
+deletion consequences, confirmation, refusal and completion messages use the
+shared English/Japanese catalog. Snapshot list/create/delete/restore headings
+and direct result diagnostics, and Workspace fork completion guidance are also
+localized. Names, ownership identities, state/role tokens and JSON remain literal;
+backend errors remain original details.
+
+The five reviewed deletion clients share one confirmation function. It retains
+the existing terminal requirement, 128-byte input bound, `y`/`yes` answers,
+default refusal and explicit `--yes` behavior. Failure to display the warning or
+prompt stops before deletion, including warning failure with `--yes`. Output
+failure after an actual deletion returns failure without retrying or undoing it;
+inspect the current inventory before retrying. Reference and ownership checks
+remain in the canonical controller operations.
+
 ## Compatibility and boundaries
 
 Command and flag names, accepted input, resource identifiers, configuration keys, JSON output and values, operation decisions, and stdout/stderr routing do not change with the selected language. This includes Environment operation messages currently encoded as JSON strings, approval listings/receipts, and `version --json`. The compact `--version` output and generated SSH configuration stay unchanged.

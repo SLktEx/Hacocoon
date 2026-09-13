@@ -91,7 +91,10 @@ haco base list --all
 ```
 
 Each delete previews and confirms its exact managed target; `--yes` is for
-intentional automation. Delete a source repository only after no Workspace record
+intentional automation. The selected target and consequences are shown in the
+chosen CLI language. Failed warning/prompt output stops before deletion; a failed
+completion display does not undo deletion, so inspect the inventory before a
+retry. Delete a source repository only after no Workspace record
 needs its Git route. Never delete valuable work just to clear a dependency.
 Remote repositories, credentials and independent saves are not deleted by
 `haco repo delete <id>`.

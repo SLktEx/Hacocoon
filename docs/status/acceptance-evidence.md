@@ -23,8 +23,8 @@ closing a Unix socket with unread input could reset the peer and discard the fin
 receipt. Explicit input-stop/EOF drainage fixes the failure; three race runs of
 the control/control API/CLI regressions pass, including thirty early exits with
 unread input. Native binary pipe and Linux PTY acceptance and ordinary Windows
-ConPTY edit/resize/exit/restoration are added to the maintained gates; their results
-are **pending**, not inferred from component success.
+ConPTY edit/resize/exit/restoration are exercised by the maintained gates; exact
+native results follow and are not inferred from component success.
 
 Full local test CI on the stream candidate initially failed the existing
 `TestUDPIdleCountsBothDirections` (200 ms idle deadline). Its isolated twenty-run
@@ -43,8 +43,17 @@ Windows run 34732860626 failed its new TTY input assertion. The guest read an
 empty line before the driver's intended text; resize, exit 17 and terminal/catalog
 restoration were observed. The driver sent CRLF to start the command, leaving a
 second newline for the guest. It now sends one CR, matching Enter. Driver protocol
-regressions reject empty input and changed native ownership. Native Windows input
-acceptance requires another run; Linux success does not resolve that failure.
+regressions reject empty input and changed native ownership. The initial failed
+run remains part of the evidence.
+
+The corrected `9767fd93ad16f9ee20ea9b2eb1394c47ca68fbbb` passed test
+34734033900, Ubuntu 34734033821, Incus 34734033816 and
+[Windows 34734033825](https://github.com/SLktEx/Hacocoon/actions/runs/34734033825).
+Windows job 103662066493 confirms ordinary Windows/WSL/Host ConPTY input editing
+(`RUN-INPUT:abD`), resize to 43x132, exit 17, restored terminal/catalog and unchanged
+provider resource inventory. This rerun resolves the initial input failure within
+that fixture. Japanese Windows, fresh GUI/toast decisions and VPN/NRPT remain
+outside this acceptance.
 
 ## Local GUI candidate
 

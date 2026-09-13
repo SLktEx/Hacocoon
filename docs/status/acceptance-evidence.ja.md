@@ -21,7 +21,7 @@ Incus Btrfs job 103649531126は7.0.1で、出力捕捉型の一時実行・exit 
 Unix socketを閉じるとresetで最終receiptを失う問題です。入力停止通知とEOF排出の確認を
 追加後、control／control API／CLIのrace回帰を3回実行してPASSし、未読入力を残す早期終了も
 計30回成功しました。バイナリpipe・Linux PTYと通常Windows ConPTYの編集／resize／終了／
-復元を既存CIへ追加しています。実機結果は **未確認** であり、component成功から推定しません。
+復元を既存CIで確認します。以下に正確な実機結果を記載し、component成功から推定しません。
 
 全体local test CIの初回は既存`TestUDPIdleCountsBothDirections`（idle期限200ms）がFAILでした。
 単独20回と、その後の`ci-local.sh test`全体再実行はPASSです。初回失敗の原因は未確定で、
@@ -37,8 +37,15 @@ private registryはSKIPです。
 Windows run 34732860626は新TTYの入力確認がFAILでした。意図した入力より先に空行を読み、
 resize・exit 17・端末／catalog復元は観測されています。ドライバーが起動行にCRLFを送り、
 二つ目の改行がguestに残っていました。Enterに対応するCR一つへ変更し、空入力やnative所有権
-変化を成功としないdriver回帰を追加しました。Windows実入力の成功には再実行が必要で、
-Linux成功だけではこの失敗を解消扱いにしません。
+変化を成功としないdriver回帰を追加しました。初回の失敗記録は保持します。
+
+修正後の`9767fd93ad16f9ee20ea9b2eb1394c47ca68fbbb`はtest 34734033900、
+Ubuntu 34734033821、Incus 34734033816、
+[Windows 34734033825](https://github.com/SLktEx/Hacocoon/actions/runs/34734033825)でPASSです。
+Windows job 103662066493では通常Windows／WSL／HostのConPTY入力編集
+（`RUN-INPUT:abD`）、43x132へのリサイズ、exit 17、端末とcatalogの復元、
+providerリソース一覧が不変であることを確認しました。同じ試験経路の再実行で初回の
+入力失敗を解消しています。日本語Windows、新GUI／toast回答、VPN／NRPTの確認は含みません。
 
 ## ローカルGUI候補
 

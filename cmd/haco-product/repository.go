@@ -37,7 +37,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
 		c, err := controlapi.NewDefaultClient()
 		if err != nil {
-			fmt.Fprintln(diagnostic, "haco:", err)
+			fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 			return 1
 		}
 		return sourceManageCommand(ctx, c, args, os.Stdin, out, diagnostic)
@@ -101,7 +101,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	var result any
@@ -136,7 +136,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	encoder := json.NewEncoder(out)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(result); err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write result")
+		fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}
 	return 0

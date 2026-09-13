@@ -2,7 +2,7 @@
 
 [日本語](temporary-execution.ja.md) | English
 
-Status: **implemented captured and streamed CLI on the development candidate; native stdin/TTY acceptance pending**. Captured-run ownership and cleanup passed at `9f4cf510`.
+Status: **implemented captured and streamed CLI on the development candidate; Incus 7.0.1 pipe/PTY and ordinary Windows ConPTY acceptance passed at `9767fd93`**. Captured-run ownership and cleanup passed at `9f4cf510`.
 
 Run one command without first naming or creating an Environment:
 

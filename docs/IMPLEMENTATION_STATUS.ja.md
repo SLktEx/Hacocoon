@@ -60,4 +60,6 @@ VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表�
 一時runのcleanupは共通lifecycle APIで正確な作成identityを必須にし、未完了runが
 ある間の名前再利用を拒否します。旧記録のidentity不足は復旧待ちとして保持します。
 所有権修正は`9f4cf510`で全native workflowがPASSです。後続stdin／TTYも同じlifecycleを使い、
-実Incusのpipe／PTYは`b3169814`でPASSです。Windowsの入力確認はFAILし、driver修正後の再確認待ちです。[一時実行](design/temporary-execution.ja.md)を参照してください。
+実Incusのpipe／PTYは`b3169814`でPASSです。Windowsの入力確認は一度FAILし、driver修正後の`9767fd93`でPASSしました。[一時実行](design/temporary-execution.ja.md)を参照してください。
+
+保持データの確認表、削除範囲・確認・結果、snapshot結果の見出しを共通の日英辞書で表示します。確認付き削除の5経路は一つの確認処理を使い、警告・確認文の出力失敗時は削除しません。元のエラー、JSON、所有権確認、未入力時の拒否は維持しています。全結果の翻訳と日本語Windowsは引き続きpartialです。

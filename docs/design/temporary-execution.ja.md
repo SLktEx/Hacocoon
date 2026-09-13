@@ -2,7 +2,7 @@
 
 日本語 | [English](temporary-execution.md)
 
-状態: **開発候補で出力収集とstdin／TTYを実装済み、stdin／TTYの実機確認は未完了**。出力収集型runの所有権とcleanupは`9f4cf510`で実機確認済みです。
+状態: **開発候補で出力収集とstdin／TTYを実装済み、Incus 7.0.1のpipe／PTYと通常Windows ConPTYを`9767fd93`で確認済み**。出力収集型runの所有権とcleanupは`9f4cf510`で実機確認済みです。
 
 Environment の命名や事前作成なしに、コマンドを1回実行します。
 
