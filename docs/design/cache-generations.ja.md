@@ -68,3 +68,5 @@ Env用キャッシュは使い捨てにし、契約上保持するWorkspace・OC
 小さなカタログ・基盤fixtureは、指定パス収集や巨大レポ性能の証拠にはしません。
 
 所有管理の判断と不採用案は[ADR 0076](../adr/0076-atomic-managed-data-generations.ja.md)に記録します。
+
+小さな合成データを使ったIncus/Btrfs基盤の実測は[検証記録](../status/acceptance-evidence.ja.md#cache-generation-foundation)を参照してください。通常Envの利用全体の受入とは区別します。

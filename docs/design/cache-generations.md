@@ -83,3 +83,5 @@ fixtures prove neither cache collection nor giant-repository performance.
 
 The ownership decision and rejected alternatives are recorded in
 [ADR 0076](../adr/0076-atomic-managed-data-generations.md).
+
+Small synthetic Incus/Btrfs provider measurements are recorded in [acceptance evidence](../status/acceptance-evidence.md#cache-generation-foundation); they do not establish the normal-Env workflow.
