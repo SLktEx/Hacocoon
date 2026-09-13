@@ -52,7 +52,7 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	if req.Operation != "fetch" && len(req.Heads) != 0 {
 		return Response{}, fmt.Errorf("heads are only valid for fetch")
 	}
-	if req.Ref != "" && req.Operation != "prepare" && req.Operation != "push" {
+	if req.Ref != "" && req.Operation != "prepare" && req.Operation != "push" && req.Operation != "observe" {
 		return Response{}, fmt.Errorf("target ref is only valid for push preparation or execution")
 	}
 	if req.Operation == "fetch" {
@@ -77,7 +77,7 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 			return Response{}, fmt.Errorf("Workspace must have its own .git directory")
 		}
 		return Response{}, os.WriteFile(filepath.Join(workspace, ".git", "config"), []byte(config), 0600)
-	case "list", "fetch", "prepare", "push":
+	case "list", "fetch", "prepare", "push", "observe":
 	default:
 		return Response{}, fmt.Errorf("unsupported trusted Git operation")
 	}
@@ -87,6 +87,13 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	}
 	if req.Operation == "list" || req.Operation == "fetch" {
 		return readHeads(git, req)
+	}
+	if req.Operation == "observe" {
+		if req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 || req.Workspace != "" {
+			return Response{}, fmt.Errorf("invalid remote observation")
+		}
+		oid, err := observeHead(git, req.Remote, req.Ref)
+		return Response{OID: oid, Ref: req.Ref}, err
 	}
 	return pushOperation(git, req)
 }

@@ -36,17 +36,9 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 	if req.Operation != "prepare" || len(req.Pack) == 0 {
 		return Response{}, fmt.Errorf("invalid push preparation")
 	}
-	data, err := git(nil, "ls-remote", "--heads", "--", req.Remote, req.Ref)
+	old, err := observeHead(git, req.Remote, req.Ref)
 	if err != nil {
 		return Response{}, err
-	}
-	old := ZeroOID
-	if len(data) != 0 {
-		oid, ref, ok := strings.Cut(strings.TrimSuffix(string(data), "\n"), "\t")
-		if !ok || ref != req.Ref || !ValidOID(oid) || oid == ZeroOID {
-			return Response{}, fmt.Errorf("invalid remote push target")
-		}
-		old = oid
 	}
 	if old != req.OldOID {
 		return Response{}, fmt.Errorf("push does not match the listed remote commit or absence")
@@ -88,6 +80,26 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 		summary = summary[:8192]
 	}
 	return Response{OID: old, Ref: req.Ref, Summary: string(summary)}, nil
+}
+
+// observeHead is shared by preparation and recovery. The registered remote
+// and validated literal head never become an option or a shell expression.
+func observeHead(git func([]byte, ...string) ([]byte, error), remote, ref string) (string, error) {
+	if !validHeadRef(ref) || ValidateRemote(remote) != nil {
+		return "", fmt.Errorf("invalid remote observation target")
+	}
+	data, err := git(nil, "ls-remote", "--heads", "--", remote, ref)
+	if err != nil {
+		return "", err
+	}
+	if len(data) == 0 {
+		return ZeroOID, nil
+	}
+	oid, observedRef, ok := strings.Cut(strings.TrimSuffix(string(data), "\n"), "\t")
+	if !ok || observedRef != ref || !ValidOID(oid) || oid == ZeroOID {
+		return "", fmt.Errorf("invalid remote push target")
+	}
+	return oid, nil
 }
 
 func confirmedPush(output []byte, req AgentRequest) bool {

@@ -1,6 +1,6 @@
 # Git / GitHub Capability
 
-Status: **roadmap contract implemented on `main`.** Brokered host-side Git push exists; Hacocoon remains pre-1.0 and the concrete capability/CLI contract may still change.
+Status: **partial, including development-branch changes.** Brokered host-side Git push exists; Hacocoon remains pre-1.0 and the concrete capability/CLI contract may still change. See [implementation status](../IMPLEMENTATION_STATUS.md) for current scope, separately from main integration and distribution.
 
 ## Goal
 
@@ -46,7 +46,13 @@ exact ref and distinguish `update_kind: create` from `fast-forward`; neither
 choice authorizes the other. See [ADR 0066](../adr/0066-git-branch-creation-authority.md).
 Force push, branch deletion, multiple-ref pushes, LFS and submodules are
 **deferred**. A transport failure after an external write can leave its result
-unknown; inspect the remote before retrying. Generic retry/recovery is deferred.
+unknown. The development candidate records exact dispatch/confirmation evidence
+in the common capability audit and exposes read-only status/reconciliation. A
+fresh exact-ref fetch decision and the original source owner/Environment generation
+are required; matching remote content never upgrades an unknown push to success.
+No approval or write is replayed. See [ADR 0070](../adr/0070-git-push-reconciliation-evidence.md)
+and the [recovery commands](../guides/git-workflow.md#inspect-an-interrupted-push).
+Generic retry/recovery and audit repair remain deferred.
 
 Allow tools and agents inside a Hacocoon Environment to participate in Git/GitHub workflows without receiving broad, long-lived parent credentials.
 

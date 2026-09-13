@@ -44,6 +44,8 @@ var helpPages = []helpPage{
 	{Path: "git", Syntax: "<command>", Message: "command.git", Example: "haco git pending"},
 	{Path: "git connect", Syntax: "<environment>", Message: "command.git.connect", Example: "haco git connect dev"},
 	{Path: "git pending", Syntax: "", Message: "command.git.pending", Example: "haco git pending"},
+	{Path: "git status", Syntax: "[--json] [--request <request-id>] <environment>", Message: "command.git.status", Example: "haco git status dev"},
+	{Path: "git reconcile", Syntax: "[--json] [--request <request-id>] <environment>", Message: "command.git.reconcile", Example: "haco git reconcile dev"},
 	{Path: "git approve", Syntax: "[--save env|all|ask-env|ask-all] <id>", Message: "command.git.approve", Example: "haco git approve <id>"},
 	{Path: "git deny", Syntax: "[--save env|all|ask-env|ask-all] <id>", Message: "command.git.deny", Example: "haco git deny <id>"},
 	{Path: "base", Syntax: "<command>", Message: "command.base", Example: "haco base list"},
