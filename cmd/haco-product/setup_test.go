@@ -28,12 +28,17 @@ func (f productSetupFixture) SetupHost(ctx context.Context, update recipes.Updat
 	return f.failure
 }
 func productSetupServer(t *testing.T, failure error) string {
+	return productSetupServiceServer(t, productSetupFixture{failure})
+}
+func productSetupServiceServer(t *testing.T, service interface {
+	SetupHost(context.Context, recipes.Update) error
+}) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
 		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
 	})
-	_ = controlapi.RegisterSetup(server, productSetupFixture{failure})
+	_ = controlapi.RegisterSetup(server, service)
 
 	path := filepath.Join(t.TempDir(), "control.sock")
 	listener, err := control.ListenUnix(path, 0600)

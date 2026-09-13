@@ -41,7 +41,7 @@ func (s *Service) Apply(ctx context.Context, name string, update recipes.Update)
 	if s == nil || s.Environments == nil || !filepath.IsAbs(s.Root) {
 		return result, core.ErrInvalidArgument
 	}
-	if err = update.Validate(); err != nil {
+	if err = update.Validate(); err != nil || update.Reapply || update.ResultOnly {
 		return result, core.ErrInvalidArgument
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
