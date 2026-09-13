@@ -88,6 +88,20 @@ func (r *Runtime) dialEnvironmentAddress(ctx context.Context, ref, instance, pro
 		return nil, core.ErrCapabilityStale
 	}
 	defer unix.Close(ns)
+	// A malformed provider PID must never turn an Environment destination into
+	// a Physical Host loopback connection, even when its metadata looked valid.
+	hostNS, err := unix.Open("/proc/self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, core.ErrRuntimeUnavailable
+	}
+	defer unix.Close(hostNS)
+	var targetStat, hostStat unix.Stat_t
+	if unix.Fstat(ns, &targetStat) != nil || unix.Fstat(hostNS, &hostStat) != nil {
+		return nil, core.ErrRuntimeUnavailable
+	}
+	if targetStat.Dev == hostStat.Dev && targetStat.Ino == hostStat.Ino {
+		return nil, core.ErrPolicyDenied
+	}
 	if err := r.VerifyEnvironmentIdentity(ctx, ref, instance); err != nil {
 		return nil, err
 	}

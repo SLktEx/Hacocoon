@@ -1,6 +1,6 @@
 # Installed G1 acceptance; called by the existing Windows SSH fixture.
 function Invoke-InstalledEnvironmentTransfer {
-    param([string]$BaseName, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory, [string]$ReclamationManifest)
+    param([string]$BaseName, [string]$BaseRevision, [string]$PublicKeyWsl, [string]$PrivateKey, [string]$NativeSSH, [string]$Directory, [string]$ReclamationManifest)
     if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Transfer fixture requires the disposable GHA user' }
     $nonce = [guid]::NewGuid().ToString('N').Substring(0,16)
     $source = 'win-ssh-' + $nonce
@@ -45,17 +45,19 @@ git -C "$dir/repository" -c user.name=Transfer -c user.email=transfer@example.in
         $phase = 'source-ssh'
         Update-SSHTestPolicy 'add' $source
         $policyAdded = $true
-        $first = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--key',$PublicKeyWsl,$source) 'Prepare source SSH through installed package Policy').Stdout | ConvertFrom-Json
+        $first = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--json','--key',$PublicKeyWsl,$source) 'Prepare source SSH through installed package Policy').Stdout | ConvertFrom-Json
         $configure = {
-            param($Connection)
-            if ($Connection.kind -ne 'ssh' -or $Connection.host -ne '127.0.0.1' -or $Connection.user -ne 'root' -or [int]$Connection.port -lt 1 -or [int]$Connection.port -gt 65535 -or [int]$Connection.target_port -ne 22) { throw 'Invalid transfer SSH boundary' }
+            param($Connection, [string]$Environment)
+            if ($Connection.kind -ne 'ssh' -or $Connection.host -ne '' -or $Connection.user -ne 'root' -or [int]$Connection.port -ne 0 -or [int]$Connection.target_port -ne 22 -or $Connection.target.environment -ne $Environment -or $Connection.target.service -ne 'ssh' -or $Connection.target.grant -ne $Connection.id) { throw 'Invalid transfer SSH boundary' }
             $parts = ([string]$Connection.host_public_key).Trim() -split '\s+'
             if ($parts.Count -ne 2 -or $parts[0] -ne 'ssh-ed25519' -or $parts[1] -notmatch '^[A-Za-z0-9+/=]+$') { throw 'Invalid transfer SSH host identity' }
-            [IO.File]::WriteAllText($config, "Host transfer`n  HostName 127.0.0.1`n  Port $($Connection.port)`n  User root`n  StrictHostKeyChecking yes`n  GlobalKnownHostsFile none`n  IdentitiesOnly yes`n  ForwardAgent no`n  ProxyCommand none`n  ProxyJump none`n  PermitLocalCommand no`n", [Text.UTF8Encoding]::new($false))
-            [IO.File]::WriteAllText($known, "[127.0.0.1]:$($Connection.port) $($parts[0]) $($parts[1])`n", [Text.UTF8Encoding]::new($false))
+            $generated = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh-config',$Environment) 'Generate transfer ProxyCommand configuration').Stdout
+            if ($generated -notmatch "(?m)^Host haco-$([regex]::Escape($Environment))$" -or $generated -notmatch '(?m)^  ProxyCommand C:/Windows/System32/wsl.exe --distribution ' -or $generated -match '(?m)^  Port ') { throw 'Invalid generated transfer configuration' }
+            [IO.File]::WriteAllText($config, $generated, [Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllText($known, "haco-$Environment $($parts[0]) $($parts[1])`n", [Text.UTF8Encoding]::new($false))
         }
-        & $configure $first
-        $sshArguments = @('-F',$config,'-i',$PrivateKey,'-o',"UserKnownHostsFile=$known",'-o','BatchMode=yes','-o','ConnectTimeout=10','transfer')
+        & $configure $first $source
+        $sshArguments = @('-F',$config,'-i',$PrivateKey,'-o',"UserKnownHostsFile=$known",'-o','BatchMode=yes','-o','ConnectTimeout=10',('haco-' + $source))
         $phase = 'source-git-prerequisite'
         [void](Invoke-Checked $NativeSSH ($sshArguments + @('set -eu; if ! command -v git >/dev/null 2>&1; then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git; fi; command -v git >/dev/null')) 'Prepare Git over Windows SSH through source package Policy')
         $phase = 'source-work'
@@ -99,9 +101,10 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         if (($null -ne $base -and $null -ne $base.Value) -or $status.environment.runtime_ref -eq $sourceStatus.environment.runtime_ref -or $status.environment.workspace.id -eq $sourceStatus.environment.workspace.id) { throw 'Imported management identity or Base dependency is stale' }
         $phase = 'imported-ssh'
         # No package Policy is granted to the imported Env: sshd comes from saved rootfs.
-        $second = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--key',$PublicKeyWsl,$destination) 'Prepare imported SSH without inheriting source grants').Stdout | ConvertFrom-Json
+        $second = (Invoke-HacoHost @('/usr/local/bin/haco','env','ssh','--json','--key',$PublicKeyWsl,$destination) 'Prepare imported SSH without inheriting source grants').Stdout | ConvertFrom-Json
         if ($second.host_public_key -eq $first.host_public_key) { throw 'Imported Env reused the source SSH host key' }
-        & $configure $second
+        & $configure $second $destination
+        $sshArguments[-1] = 'haco-' + $destination
         $check = 'set -eu; cd /workspace; test "$(git rev-parse HEAD)" = ' + $commit + '; test "$(cat committed-locally)" = unpushed; test "$(cat tracked)" = uncommitted; test "$(cat untracked)" = untracked; test "$(cat /root/transfer-marker)" = rootfs-kept; test "$(cat /var/lib/hacocoon-oci/transfer-marker)" = oci-kept; test ! -e /var/lib/hacocoon-control.sock; test ! -e /var/lib/incus/unix.socket; printf continued-over-ssh > continued; printf transfer-ssh-ok'
         $continued = Invoke-Checked $NativeSSH ($sshArguments + @($check)) 'Resume imported work with Windows SSH and pinned fresh host key'
         if ($continued.Stdout -cne 'transfer-ssh-ok') { throw 'Imported SSH work not confirmed' }
@@ -135,7 +138,8 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','delete','--yes',$repository) 'Delete exact transfer source repository registration')
         if ($retainForReclaim) {
             $manifest = $ReclamationManifest
-            $record = @{version=1; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit} | ConvertTo-Json -Compress
+            if ($BaseName -cnotmatch '^win-base-[a-f0-9]{16}$' -or $BaseRevision -cnotmatch '^sha256:[a-f0-9]{64}$') { throw 'Invalid retained Base receipt' }
+            $record = @{version=2; nonce=$nonce; workspace=[string]$imported.workspace; oci=[string]$imported.oci; snapshot=$savedForReclaim; commit=$commit; base=$BaseName; base_revision=$BaseRevision} | ConvertTo-Json -Compress
             $stream = [IO.File]::Open($manifest,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
             try { $bytes=[Text.UTF8Encoding]::new($false).GetBytes($record); $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
             Write-Host 'Detached imported Workspace, OCI and snapshot retained for reclamation acceptance'

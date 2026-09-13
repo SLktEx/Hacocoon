@@ -24,8 +24,8 @@ help・versionにコントローラーは不要です。
 | Env作成 | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | 既定Base、任意に設定されたOCI初期化 |
 | 状態の参照 | `haco env list [--json]`; `haco env status [--json] <name>` | 既定はテキスト |
 | 開始・停止・削除 | `haco env start <name>`, `stop <name>`, `delete <name>` | [データの寿命](../guides/data-lifetime.ja.md) |
-| デスクトップ接続 | `haco ssh setup [environment]`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開し、複数候補は対話で選択 |
-| 手動SSH | `haco env ssh --key <public-key-file> [--port <port>] <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ポート省略時は実行基盤が割当。[SSH詳細](windows-environment-ssh.md) |
+| デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開し、複数候補は対話で選択 |
+| 手動SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | 永続targetをProxyCommandで使用。`haco stream <target>`はraw stdio接続。[SSH詳細](windows-environment-ssh.md) |
 | プレビュー | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTPプレビュー](../design/development-preview.ja.md)。Env内ループバックポート |
 | 一時実行 | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [一時実行](../design/temporary-execution.ja.md)。`--rm`の既定はtrue。`--json`は出力収集時だけ |
 | Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md)。通常のlist/inspectはJSON |

@@ -32,7 +32,9 @@ install_lts() (
 
   # A newer existing series needs an explicit migration, never an automatic downgrade.
   installed="$(dpkg-query -W -f='${Version}' incus-base 2>/dev/null || true)"
-  if [ -n "$installed" ] && dpkg --compare-versions "$installed" ge 1:7.1; then
+  # Packaging epochs order package replacements, not Incus data compatibility.
+  # A distro's unepoched 7.1 is newer than 7.0 even though dpkg orders it below 1:7.0.
+  if [ -n "$installed" ] && dpkg --compare-versions "${installed#*:}" ge 7.1; then
     fail 'an Incus series newer than 7.0 is installed; preserve its data and plan migration explicitly'
   fi
 

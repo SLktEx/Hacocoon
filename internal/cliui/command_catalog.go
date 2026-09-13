@@ -1,6 +1,8 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"command.ssh.cleanup":              {"Remove managed SSH entries only after their targets are confirmed stale; keep user configuration and keys", "接続先が失効したと確認できた管理対象SSH設定を整理する。利用者の設定と鍵は保持する"},
+	"ssh.cleanup_failed":               {"haco: SSH cleanup could not establish stale targets. Check haco doctor and retry.", "haco: SSH接続先の失効を確認できず、整理を完了できませんでした。haco doctorで状態を確認し、再実行してください。"},
 	"run.help":                         {"Run one command and remove its temporary Environment. Use -i for pipes or -it for a terminal. --workspace retains project files and OCI data; --json is available for captured output only.", "コマンドを実行し、一時Envを終了後に削除します。パイプは-i、端末は-itを使います。--workspaceで作業ファイルとOCIデータを保持できます。--jsonは出力をまとめて取得する場合に使います。"},
 	"run.flag_workspace":               {"existing Workspace to retain (default: temporary)", "保持する既存Workspace（省略時は一時領域）"},
 	"run.flag_readonly":                {"mount the selected Workspace read-only", "指定したWorkspaceを読み取り専用にする"},
@@ -36,7 +38,7 @@ var commandCatalog = map[string]translation{
 	"command.env.start":                {"Resume a stopped environment", "停止中の環境で作業を再開する"},
 	"command.env.stop":                 {"Stop work and retain the environment and its data", "環境と作業データを残して停止する"},
 	"command.env.delete":               {"Delete the runtime; retain Workspace, OCI data and snapshots", "環境を削除し、Workspace・OCIデータ・snapshotを保持する"},
-	"command.env.ssh":                  {"Prepare access using a client-owned public key; port defaults to automatic", "クライアントの公開鍵で接続を準備する。ポートは既定で自動選択"},
+	"command.env.ssh":                  {"Prepare portless SSH access using a client-owned public key", "クライアントの公開鍵でポート設定不要のSSH接続を準備する"},
 	"command.env.ssh-config":           {"Print SSH connection configuration", "SSH接続設定を表示する"},
 	"command.env.disconnect":           {"Revoke an existing connection", "既存の接続を解除する"},
 	"command.env.forward":              {"Forward a Physical Host loopback port; protocol defaults to TCP", "Physical Hostのloopbackから転送する。既定はTCP"},

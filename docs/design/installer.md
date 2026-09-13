@@ -32,19 +32,28 @@ install-ubuntu.sh post
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
 
+After terminating the owned WSL distribution for default-user or systemd changes,
+the installer observes successful registered/running distribution lists before
+starting it again. Fixed delay is not evidence of stop completion. Missing
+registration, failed or unrecognized output, or exhaustion of the observation
+budget leaves completion unproven and stops the installer without repeating the
+termination. These read-only observations do not start or repair a distribution.
+
 ## Incus package baseline
 
-Implemented in the development candidate: Ubuntu/WSL installation and dedicated
-Incus CI share `scripts/incus-lts.sh`. The supported server is 7.0 LTS
-(`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly key, uses its signed
-`lts-7.0` source, and selects the latest available 7.0.x package. APT preferences
-retain the series without freezing a patch. A newer installed series requires an
-explicit migration and is never downgraded automatically. The installer checks
-the actual server version before boot-guard adoption and Hacocoon setup.
+Implemented: Ubuntu/WSL installation and both dedicated Incus CI setup paths
+share `scripts/incus-lts.sh`. The supported server is Incus 7.0 LTS
+(`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly primary key, rejects
+additional keys, and selects the latest available 7.0.x package from its signed
+`lts-7.0` repository. Persistent APT preferences retain the series without
+freezing a patch. Newer installed series require explicit migration and are
+never downgraded automatically. Installation checks the actual server version
+before boot-guard adoption and Hacocoon setup; `haco doctor` reports unsupported
+or unknown versions and skips dependent probes.
 
-See [ADR 0063](../adr/0063-shared-incus-lts-installation.md). Existing 6.0
-compatibility remains best effort. Fresh Ubuntu/WSL acceptance is pending; prior
-6.0.5 results remain historical evidence, not acceptance of the new baseline.
+Existing 6.0 compatibility remains best effort, outside the supported baseline.
+See [ADR 0064](../adr/0064-shared-incus-lts-installation.md) and the separate
+[native acceptance record](../status/acceptance-evidence.md#incus-lts).
 
 The shared phase installs bundled `incus-boot-guard.py` using isolated Python
 and an Incus service drop-in. First adoption requires the existing daemon to be

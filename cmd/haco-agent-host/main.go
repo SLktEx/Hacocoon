@@ -3,28 +3,30 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/sshconfig"
+	"github.com/SLktEx/Hacocoon/internal/sshkey"
 )
 
 const remoteWorkspacePath = "/workspace"
 
 type managedSSHConfig struct {
 	Alias        string
-	Port         int
 	IdentityFile string
+	Connection   core.ClientConnection
+	Distro       string
 }
 
 type clientFilesystem struct {
@@ -64,7 +66,6 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 	fs.SetOutput(os.Stderr)
 	sessionID := fs.String("session", "", "opaque trusted agent-session identity")
 	identity := fs.String("identity", "", "SSH private key used by the VS Code client")
-	hostPort := fs.Int("host-port", 0, "loopback SSH port (0 chooses a free port)")
 	codeCommand := fs.String("code", "code", "VS Code CLI command")
 	noLaunch := fs.Bool("no-launch", false, "prepare the remote host without opening the VS Code Agents window")
 	readOnly := fs.Bool("read-only", false, "create a read-only Workspace lease")
@@ -73,9 +74,6 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 	}
 	if *sessionID == "" || fs.NArg() > 1 {
 		return fmt.Errorf("usage: haco-agent-host prepare --session <id> [options] [workspace]: %w", core.ErrInvalidArgument)
-	}
-	if *hostPort < 0 || *hostPort > 65535 {
-		return fmt.Errorf("host port %d: %w", *hostPort, core.ErrInvalidArgument)
 	}
 
 	workspaceArg := "."
@@ -145,33 +143,24 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 
 	alias := agentSSHAlias(*sessionID)
 	managedPath := managedConfigPath(clientFS.Home, alias)
-	previous, _ := readManagedSSHConfig(managedPath)
+	previous, previousErr := readManagedSSHConfig(managedPath)
+	if previousErr != nil && !os.IsNotExist(previousErr) {
+		return previousErr
+	}
+	if previousErr == nil && (previous.Alias != alias || previous.Distro != os.Getenv("WSL_DISTRO_NAME")) {
+		return core.ErrIncompatibleState
+	}
 	connections, err := app.Clients.Connections(ctx, binding.EnvironmentName)
 	if err != nil {
 		return err
 	}
-	oldConnection := findSSHConnection(connections, previous.Port)
-	connection := reusableSSHConnection(previous, alias, identityConfigValue, *hostPort, connections)
+	oldConnection := findSSHConnection(connections, previous.Connection.ID)
+	connection := reusableSSHConnection(previous, alias, identityConfigValue, connections)
 	preparedConnectionID := ""
 
-	if connection.Port == 0 {
-		if *hostPort != 0 && oldConnection.Port == *hostPort {
-			return fmt.Errorf(
-				"host port %d is still owned by the previous Hacocoon agent-host SSH connection; omit --host-port to rotate safely or release the old session first: %w",
-				*hostPort,
-				core.ErrAlreadyExists,
-			)
-		}
-		port := *hostPort
-		if port == 0 {
-			port, err = freeLoopbackPort()
-			if err != nil {
-				return err
-			}
-		}
+	if connection.ID == "" {
 		connection, err = app.Clients.SSH(ctx, binding.EnvironmentName, core.SSHAccessRequest{
 			PublicKey: string(publicKey),
-			HostPort:  port,
 		})
 		if err != nil {
 			return fmt.Errorf("prepare SSH for agent environment %q: %w", binding.EnvironmentName, err)
@@ -182,12 +171,15 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 	if err := ensureSSHInclude(clientFS.Home); err != nil {
 		return cleanupPreparedConnection(ctx, app, binding.EnvironmentName, preparedConnectionID, err)
 	}
-	managed := managedSSHConfig{Alias: alias, Port: connection.Port, IdentityFile: identityConfigValue}
+	managed := managedSSHConfig{Alias: alias, Connection: connection, IdentityFile: identityConfigValue, Distro: os.Getenv("WSL_DISTRO_NAME")}
+	if previous.Connection.Target != nil && (connection.Target == nil || *previous.Connection.Target != *connection.Target) {
+		return cleanupPreparedConnection(ctx, app, binding.EnvironmentName, preparedConnectionID, core.ErrIncompatibleState)
+	}
 	if err := writeManagedSSHConfig(managedPath, managed); err != nil {
 		return cleanupPreparedConnection(ctx, app, binding.EnvironmentName, preparedConnectionID, err)
 	}
 
-	if oldConnection.Port != 0 && oldConnection.ID != connection.ID {
+	if oldConnection.ID != "" && oldConnection.ID != connection.ID {
 		if err := app.Clients.Unforward(context.WithoutCancel(ctx), binding.EnvironmentName, oldConnection.ID); err != nil {
 			return errors.Join(
 				fmt.Errorf("new agent-host SSH connection is active but old managed SSH connection %q could not be revoked: %w", oldConnection.ID, err),
@@ -242,6 +234,13 @@ func releaseCommand(ctx context.Context, app *composition.App, args []string) er
 		return fmt.Errorf("session was already released but stale client SSH configuration could not be resolved: %w", err)
 	}
 	managedPath := managedConfigPath(clientFS.Home, alias)
+	managed, readErr := readManagedSSHConfig(managedPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return errors.Join(readErr, core.ErrRecoveryRequired)
+	}
+	if readErr == nil && (managed.Alias != alias || managed.Distro != os.Getenv("WSL_DISTRO_NAME")) {
+		return core.ErrIncompatibleState
+	}
 	if err := os.Remove(managedPath); err != nil && !os.IsNotExist(err) {
 		if releaseErr == nil {
 			return errors.Join(
@@ -270,26 +269,27 @@ func cleanupPreparedConnection(ctx context.Context, app *composition.App, enviro
 	)
 }
 
-func findSSHConnection(connections []core.ClientConnection, port int) core.ClientConnection {
-	if port == 0 {
+func findSSHConnection(connections []core.ClientConnection, id string) core.ClientConnection {
+	if id == "" {
 		return core.ClientConnection{}
 	}
 	for _, connection := range connections {
-		if connection.Kind == "ssh" && connection.Port == port {
+		if connection.Kind == "ssh" && connection.ID == id && connection.Port == 0 && connection.Target != nil {
 			return connection
 		}
 	}
 	return core.ClientConnection{}
 }
 
-func reusableSSHConnection(previous managedSSHConfig, alias, identity string, requestedPort int, connections []core.ClientConnection) core.ClientConnection {
-	if previous.Alias != alias || previous.Port == 0 || previous.IdentityFile != identity {
+func reusableSSHConnection(previous managedSSHConfig, alias, identity string, connections []core.ClientConnection) core.ClientConnection {
+	if previous.Alias != alias || previous.Connection.Target == nil || previous.IdentityFile != identity || previous.Distro != os.Getenv("WSL_DISTRO_NAME") {
 		return core.ClientConnection{}
 	}
-	if requestedPort != 0 && requestedPort != previous.Port {
+	connection := findSSHConnection(connections, previous.Connection.ID)
+	if connection.Target == nil || *connection.Target != *previous.Connection.Target || connection.HostPublicKey != previous.Connection.HostPublicKey {
 		return core.ClientConnection{}
 	}
-	return findSSHConnection(connections, previous.Port)
+	return connection
 }
 
 func resolveClientFilesystem(ctx context.Context) (clientFilesystem, error) {
@@ -365,19 +365,6 @@ func agentSSHAlias(sessionID string) string {
 	return fmt.Sprintf("haco-agent-%x", sum[:8])
 }
 
-func freeLoopbackPort() (int, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, fmt.Errorf("choose SSH loopback port: %w", err)
-	}
-	defer listener.Close()
-	address, ok := listener.Addr().(*net.TCPAddr)
-	if !ok || address.Port < 1 {
-		return 0, fmt.Errorf("choose SSH loopback port: %w", core.ErrRuntimeUnavailable)
-	}
-	return address.Port, nil
-}
-
 func managedConfigPath(home, alias string) string {
 	return filepath.Join(home, ".ssh", "hacocoon", alias+".conf")
 }
@@ -416,21 +403,42 @@ func ensureSSHInclude(home string) error {
 }
 
 func writeManagedSSHConfig(path string, config managedSSHConfig) error {
-	if config.Port < 1 || config.Port > 65535 || !safeSSHAlias(config.Alias) {
+	c := config.Connection
+	command, commandErr := sshconfig.StreamCommand(c.Target, config.Distro)
+	hostKey, keyErr := sshkey.NormalizePublicKey(c.HostPublicKey)
+	if commandErr != nil || keyErr != nil || c.Kind != "ssh" || c.Host != "" || c.Port != 0 || c.TargetPort != 22 || c.User != "root" || c.Target.Grant != c.ID || !safeSSHAlias(config.Alias) {
 		return core.ErrInvalidArgument
 	}
 	if err := validateSSHConfigValue(config.IdentityFile); err != nil {
 		return err
 	}
-	content := fmt.Sprintf(
-		"Host %s\n    HostName 127.0.0.1\n    User root\n    Port %d\n    IdentityFile %s\n    IdentitiesOnly yes\n",
-		config.Alias,
-		config.Port,
-		quoteSSHValue(config.IdentityFile),
-	)
+	meta, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	content := fmt.Sprintf("# Hacocoon agent connection %s\nHost %s\n    HostName %s\n    User root\n    IdentityFile %s\n    IdentitiesOnly yes\n    StrictHostKeyChecking yes\n    HostKeyAlias %s\n    UserKnownHostsFile ~/.ssh/hacocoon/%s.known_hosts\n    GlobalKnownHostsFile none\n    ProxyCommand %s\n", meta, config.Alias, config.Alias, quoteSSHValue(config.IdentityFile), config.Alias, config.Alias, command)
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create managed SSH config directory: %w", err)
+	}
+	knownPath := filepath.Join(dir, config.Alias+".known_hosts")
+	known := []byte(config.Alias + " " + hostKey + "\n")
+	if existing, err := os.ReadFile(knownPath); err == nil {
+		if string(existing) != string(known) {
+			return core.ErrIncompatibleState
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	} else {
+		keyFile, err := os.OpenFile(knownPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			return err
+		}
+		_, writeErr := keyFile.Write(known)
+		closeErr := keyFile.Close()
+		if err = errors.Join(writeErr, closeErr); err != nil {
+			return err
+		}
 	}
 	temp, err := os.CreateTemp(dir, ".haco-agent-host-*.tmp")
 	if err != nil {
@@ -465,19 +473,10 @@ func readManagedSSHConfig(path string) (managedSSHConfig, error) {
 		return managedSSHConfig{}, err
 	}
 	var config managedSSHConfig
-	for _, line := range strings.Split(string(content), "\n") {
-		fields := strings.Fields(strings.TrimSpace(line))
-		if len(fields) < 2 {
-			continue
-		}
-		switch strings.ToLower(fields[0]) {
-		case "host":
-			config.Alias = fields[1]
-		case "port":
-			config.Port, _ = strconv.Atoi(fields[1])
-		case "identityfile":
-			config.IdentityFile = strings.Trim(strings.Join(fields[1:], " "), "\"")
-		}
+	first, _, _ := strings.Cut(string(content), "\n")
+	const prefix = "# Hacocoon agent connection "
+	if !strings.HasPrefix(first, prefix) || json.Unmarshal([]byte(strings.TrimPrefix(first, prefix)), &config) != nil {
+		return config, core.ErrIncompatibleState
 	}
 	return config, nil
 }

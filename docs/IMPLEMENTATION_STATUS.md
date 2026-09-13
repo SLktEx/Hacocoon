@@ -10,13 +10,14 @@ This page describes current code reality on this development candidate. Start wi
 
 | Feature | State | Available scope, limits and remaining work |
 |---|---|---|
+| [Standard Host tools](design/trusted-host.md#standard-host-tools) | implemented | Normal local setup supplies Git/gh and pinned containerd/nerdctl/BuildKit before user recipes, using managed OCI data and Host-local sockets. Repeat setup preserves data. Released Windows installer, arm64 runtime and custom existing-installation acceptance remain separate. |
 | [Daily entry / setup diagnostics](reference/daily-workflow.md) | implemented | Bounded setup stages and correlation IDs on stderr, final-frame validation and exclusion through disconnect; noninteractive confirmations do not wait. Dedicated Linux acceptance does not establish Windows default-entry/IDE acceptance. |
 | [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |
 | [TCP/UDP development connections](design/network-connections.md) | implemented | Explicit guest loopback listeners, source-generation-bound Policy/approval, optional rule expiry and active revocation. Existing HTTP/SNI and source guards remain. Dedicated provider acceptance is scoped; outbound Internet/VPN and full Windows UI remain incomplete. |
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Packaged English-Windows entry/interop passes; fresh Japanese-Windows entry remains unverified. |
 | [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled; select another Base through normal recreation. |
-| [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned loopback SSH, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
+| [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
 | [Ordinary Git](guides/git-workflow.md) | partial | All-heads fetch/pull (1024 heads, 32 MiB pack) and fixed-content push through controller-owned credentials. Single-ref branch creation and fast-forward updates receive separate exact-ref approvals; competing creation fails closed. Durable push status and read-only exact-ref reconciliation preserve unknown results without replay; large packs, branch deletion, force/multi-ref push, LFS/submodules and general recovery remain unsupported. Native all-heads/new-branch acceptance is pending. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
@@ -46,6 +47,13 @@ and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs
 
 ## Verification boundary
 
+Implemented: [Incus 7.0 LTS installation](design/installer.md#incus-package-baseline)
+is shared by Ubuntu, Windows/WSL and both native CI setup paths, with patch updates
+and actual-server version validation. Doctor reports unsupported servers; 6.0
+fallbacks remain best effort. Vendor daemon recognition and anonymous volume
+export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
+separates the successful integrated candidate from this main-targeted extraction.
+
 Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
 
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.
@@ -54,12 +62,13 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Development candidate integration
 
-Main already includes Workspace entry/forks, TCP/UDP connections and daily setup
-diagnostics through #581. This candidate integrates main `74bc2205` with the later
-roadmap slices: bilingual CLI, generation-bound interactive runs, Git improvements
-and GUI/notification review. Main's human output, Host Git/gh and incarnation-bound
-script handling are reused. Distribution and native acceptance of this combined
-candidate remain separate; see [integration evidence](status/acceptance-evidence.md#main-sync-candidate).
+This candidate integrates main `f47a9a41`: standard Host Git/OCI tools, shared
+Incus LTS installation, portless SSH, WSL login-race correction and shared CI
+build/cache work. It retains the candidate's bilingual CLI, notification review,
+temporary execution, Git and native Windows TCP client. SSH and TCP share byte
+transport mechanics while retaining their distinct service authorization.
+Installed combined-candidate acceptance and distribution remain separate. See
+[integration evidence](status/acceptance-evidence.md#windows-main-integration).
 
 
 M1 is **partial**: hierarchical bilingual help with arguments/options/defaults, localized daily guidance, shared
@@ -99,8 +108,8 @@ rerun and later skipped storage checks remain pending. See acceptance evidence.
 M3 client forwarding is an **implemented development candidate**: `env tunnel`
 owns a bounded client-loopback TCP listener and uses creation-bound controller
 byte sessions, with immediate half-close and separate completion. Private UDS
-authority and existing provider namespace verification remain. Windows-native
-listener transport, generic process consolidation and DNS modes remain partial;
+authority and existing provider namespace verification remain. Windows-native listener transport is an implemented candidate. Installed Windows
+acceptance, remaining process consolidation and DNS modes remain partial;
 see [client transport](design/controller-client-transport.md#client-tcp-listeners).
 
 Windows process transport is **partial**: fixed shared WSL invocation, framed

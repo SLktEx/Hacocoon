@@ -8,15 +8,22 @@
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
+実装済み: [Incus 7.0 LTS導入](design/installer.md#incus-package-baseline)をUbuntu、
+Windows/WSLと両方の実機CI準備経路で共有し、パッチ更新と実server版の検証を行います。
+doctorは非対応版を報告し、6.0互換はベストエフォートで保持します。vendor daemonの
+認識と匿名volume exportでも所有確認を維持します。[検証証拠](status/acceptance-evidence.ja.md#incus-lts)で
+統合候補の成功と今回のmain向け切り出しを区別します。
+
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
+| [Host の標準ツール](design/trusted-host.ja.md#host-の標準ツール) | 実装済み | 通常のローカル setup がユーザースクリプトの前に Git/gh と固定版 containerd/nerdctl/BuildKit を導入。管理対象 OCI データと Host 内のソケットを利用し、再 setup はデータを保持。公開版 Windows インストーラー、arm64 実機、独自の既存導入環境の確認は別途必要。 |
 | [日常操作・setup診断](reference/daily-workflow.ja.md) | 実装済み | 制限付きの進捗・相関IDをstderrへ出力し、最終応答を検証。切断後も処理終了まで排他を保持し、非対話の確認は入力待ちしない。専用Linuxでの検証とWindows既定エントリー・IDEの確認は別。 |
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |
 | [TCP/UDP開発接続](design/network-connections.md) | 実装済み | ゲストの明示的なループバック待受、生成ID付きポリシー・承認、任意のルール期限、接続中の失効を実装。HTTP/SNI・送信元保護を維持。専用基盤の検証は限定範囲で、外部インターネット・VPN・Windows UI全体は未完了。 |
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。英語Windows配布物の入場／interopは確認済み。日本語Windows新規導入は未確認。 |
 | [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。構成メンバーの編集と準備中断からの一般的な復旧は未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効。別Baseは通常の環境再作成で選択。 |
-| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したループバック SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
+| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
 | [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | 全heads fetch/pull（1024 heads・pack合計32 MiB）とcontroller所有の資格情報による内容固定push。単一refの新規ブランチ作成とfast-forward更新を正確なrefで個別承認し、作成競合は拒否。pushの保存記録と正確なrefの読み取り照合を実装し、不明な結果は再送せず保持。大きなpack、ブランチ削除、force／複数ref push、LFS/submodule、一般的な復旧は非対応。全heads／新規pushの実Env受入は未確認。 |
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
@@ -50,13 +57,13 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 古い開発日誌の全文はGit履歴に残ります。現在の判断に必要な固有の証拠・未解決事項は[検証証拠](status/acceptance-evidence.ja.md)に集約しています。
 
-## 開発候補への統合
+## 開発候補の統合
 
-Workspace入口・fork、TCP/UDP接続、日常setup診断は#581でmain反映済みです。
-この候補はmainの`74bc2205`と、後続の日英CLI、世代を照合する対話run、Git改善、
-GUI／通知内回答を統合します。mainの人向け出力、Host Git/gh、世代ごとのscript処理を
-再利用しています。配布と統合候補の実機確認は別です。
-[統合の検証記録](status/acceptance-evidence.ja.md#main-sync-candidate)を参照してください。
+候補はmain `f47a9a41`までの後続成果を統合しています。Host標準Git/OCI tool、
+共有Incus LTS導入、通常SSHのProxyCommand接続、WSL起動競合修正、CIの共通build/cacheを
+再利用し、候補の日英表示・通知内回答・一時実行・Git・Windows TCP clientを保持します。
+SSHとTCPのbyte処理を共通化しました。導入済み統合候補の実機確認と配布は別です。
+[統合記録](status/acceptance-evidence.ja.md#windows-main-integration)を参照してください。
 
 
 M1は**partial**です。階層別の日英ヘルプに位置引数・オプション・既定値を追加し、日常の失敗・
@@ -89,8 +96,8 @@ Windowsの確認は非表示COM helperから通知内のページ・選択欄で
 
 M3のclient転送は**開発ブランチの実装候補**です。`env tunnel`がclient側TCP待受を
 所有し、作成世代を固定したcontroller byte sessionを使用します。半切断と最終完了を
-分離し、private UDSの権限とprovider namespace照合を維持します。Windows native待受、
-汎用process統合、DNS modeはpartialです。[client transport](design/controller-client-transport.ja.md#client側tcp待受)を参照してください。
+分離し、private UDSの権限とprovider namespace照合を維持します。Windows native待受は実装候補です。導入済み経路の確認、
+残るprocess統合、DNS modeはpartialです。[client transport](design/controller-client-transport.ja.md#client側tcp待受)を参照してください。
 
 Windowsのプロセス転送は**partial**です。共有の固定WSL起動、byte/半切断frame、
 controller UDSへの橋渡し、型付きclientの接続差し替えを開発候補に実装しました。

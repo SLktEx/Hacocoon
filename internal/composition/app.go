@@ -52,6 +52,7 @@ const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
 	hostSetupActive     sync.Mutex
+	hostSetupDone       chan struct{}
 	Workflow            *workflow.Service
 	Networks            *networkrelay.Service
 	transferCatalog     *state.EnvironmentJSONStore
@@ -242,7 +243,10 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		if err != nil {
 			return err
 		}
-		return backend.EnableHostOCI(ctx, source)
+		if err := backend.EnableHostOCI(ctx, source); err != nil {
+			return err
+		}
+		return backend.ProvisionHostTools(ctx, source)
 	})
 	environments.ConfigureDefaultResource(workspaceStores.Resolve)
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
@@ -292,7 +296,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		}},
 		Environments:  environments,
 		AgentHosts:    agenthostapp.New(environments, store, bindingStore),
-		Clients:       clientapp.New(runtime, store),
+		Clients:       clientapp.NewWithLifecycle(runtime, store, environments),
 		Capabilities:  capabilities,
 		Configuration: configuration,
 		Git:           gitcapapp.NewBroker(runner, store, capabilities),

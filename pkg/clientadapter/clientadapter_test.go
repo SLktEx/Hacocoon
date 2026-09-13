@@ -185,7 +185,7 @@ func TestPrepareSSHAcceptsOnlyPublicMaterialAndReturnsLoopback(t *testing.T) {
 	clients := &fakeClientService{
 		environments: environments,
 		sshResponse: core.ClientConnection{
-			ID: "ssh-2222", Kind: "ssh", Host: "127.0.0.1", Port: 2222, TargetPort: 22, User: "root",
+			ID: "ssh-2222", Kind: "ssh", Target: testStreamTarget(), TargetPort: 22, User: "root",
 		},
 	}
 	adapter := newAdapter(environments, clients, &fakeEventReader{})
@@ -194,15 +194,14 @@ func TestPrepareSSHAcceptsOnlyPublicMaterialAndReturnsLoopback(t *testing.T) {
 	connection, err := adapter.PrepareSSH(context.Background(), SSHRequest{
 		Environment: "demo",
 		PublicKey:   publicKey,
-		HostPort:    2222,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if clients.lastSSH.PublicKey != publicKey || clients.lastSSH.HostPort != 2222 {
+	if clients.lastSSH.PublicKey != publicKey {
 		t.Fatalf("request=%#v", clients.lastSSH)
 	}
-	if connection.Host != "127.0.0.1" || connection.Kind != "ssh" || connection.TargetPort != 22 || connection.User != "root" {
+	if connection.Host != "" || connection.Kind != "ssh" || connection.TargetPort != 22 || connection.User != "root" {
 		t.Fatalf("connection=%#v", connection)
 	}
 }
@@ -217,7 +216,7 @@ func TestPrepareSSHRejectsAndRevokesNonLoopbackProviderResult(t *testing.T) {
 	}
 	adapter := newAdapter(environments, clients, &fakeEventReader{})
 
-	_, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "ssh-ed25519 AAAA test", HostPort: 2222})
+	_, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "ssh-ed25519 AAAA test"})
 	if !errors.Is(err, ErrIncompatibleState) {
 		t.Fatalf("err=%v want ErrIncompatibleState", err)
 	}
@@ -237,7 +236,7 @@ func TestPrepareSSHCleanupFailureRequiresRecovery(t *testing.T) {
 	}
 	adapter := newAdapter(environments, clients, &fakeEventReader{})
 
-	_, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "ssh-ed25519 AAAA test", HostPort: 2222})
+	_, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "ssh-ed25519 AAAA test"})
 	if !errors.Is(err, ErrIncompatibleState) || !errors.Is(err, ErrRecoveryRequired) {
 		t.Fatalf("err=%v want incompatible+recovery", err)
 	}
@@ -307,13 +306,13 @@ func TestTranslateErrorUsesPublicSentinels(t *testing.T) {
 	}
 }
 
-func TestSSHAutomaticPortReachesControllerUnchanged(t *testing.T) {
+func TestSSHPreparationReturnsPortlessBinding(t *testing.T) {
 	clients := &fakeClientService{environments: newFakeEnvironmentService(), sshResponse: core.ClientConnection{
-		ID: "ssh-23000", Kind: "ssh", Host: "127.0.0.1", Port: 23000, TargetPort: 22, User: "root",
+		ID: "ssh-23000", Kind: "ssh", Target: testStreamTarget(), TargetPort: 22, User: "root",
 	}}
 	adapter := newAdapter(newFakeEnvironmentService(), clients, &fakeEventReader{})
 	c, err := adapter.PrepareSSH(context.Background(), SSHRequest{Environment: "demo", PublicKey: "public-key"})
-	if err != nil || c.Port != 23000 || clients.lastSSH.HostPort != 0 {
+	if err != nil || c.Port != 0 {
 		t.Fatalf("port=%d request=%+v err=%v", c.Port, clients.lastSSH, err)
 	}
 }

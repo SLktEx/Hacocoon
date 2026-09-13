@@ -114,6 +114,8 @@ func run(args []string) int {
 		return runReclaimLinux(args[1:])
 	case "doctor":
 		return runDoctor(args[1:])
+	case "stream":
+		return runStream(args[1:])
 	case "ssh":
 		return runSSH(args[1:])
 	case "open":
@@ -175,6 +177,15 @@ func runLoginShim(args []string) error {
 	// the trusted haco-host.
 	if len(args) != 0 || !stdioIsInteractive() {
 		return execProcess("/bin/bash", append([]string{"bash"}, args...))
+	}
+	bootstrap, err := loginBootstrapParent()
+	if err != nil {
+		return err
+	}
+	if bootstrap {
+		// WSL's PAM bootstrap also has a PTY. Keep that session on the
+		// Physical Host; it must not race the user's real Host entry.
+		return execProcess("/bin/bash", []string{"bash", "--login"})
 	}
 
 	client, err := controlapi.NewDefaultClient()

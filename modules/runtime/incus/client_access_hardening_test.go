@@ -2,120 +2,86 @@ package incus
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"reflect"
-	"testing"
-
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
+	"strings"
+	"testing"
 )
-
-func TestPrepareSSHAccessReservesProxyBeforeMutatingKeys(t *testing.T) {
-	proxyErr := errors.New("port already in use")
-	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
-		if call == 0 {
-			return host.Result{}, proxyErr
-		}
-		return host.Result{}, nil
-	}}
-
-	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA", HostPort: 2222})
-	if !errors.Is(err, proxyErr) {
-		t.Fatalf("error = %v", err)
-	}
-	if len(runner.calls) != 1 {
-		t.Fatalf("failed proxy reservation mutated environment: %#v", runner.calls)
-	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
-}
-
-func TestPrepareSSHAccessRollsBackProxyWhenProvisioningFails(t *testing.T) {
-	provisionErr := errors.New("sshd setup failed")
-	runner := &fakeRunner{run: func(_ context.Context, call int, _ string, _ []string) (host.Result, error) {
-		if call == 1 {
-			return host.Result{}, provisionErr
-		}
-		return host.Result{}, nil
-	}}
-
-	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: "ssh-ed25519 AAAA", HostPort: 2222})
-	if !errors.Is(err, provisionErr) {
-		t.Fatalf("error = %v", err)
-	}
-	if len(runner.calls) != 3 {
-		t.Fatalf("calls = %#v", runner.calls)
-	}
-	assertRunnerCall(t, runner.calls[2], "incus", "config", "device", "remove", "haco-demo", "haco-ssh-2222", "--project", defaultProject)
-}
-
-func TestPrepareSSHAccessUsesConnectionScopedManagedKey(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
-			return host.Result{Stdout: testHostPublicKey + " guest-comment\n"}, nil
-		}
-		return host.Result{}, nil
-	}}
-	key := "ssh-ed25519 AAAATEST"
-	connection, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key, HostPort: 2222})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if connection.HostPublicKey != testHostPublicKey || connection.ID != "ssh-2222" || connection.Command != "ssh -p 2222 root@127.0.0.1" {
-		t.Fatalf("connection = %#v", connection)
-	}
-	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-ssh-2222", "proxy", "listen=tcp:127.0.0.1:2222", "connect=tcp:127.0.0.1:22", "--project", defaultProject)
-	provision := runner.calls[1]
-	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:ssh-2222" || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
-		t.Fatalf("managed key argv = %#v", provision.args)
-	}
-}
-
-func TestRevokeSSHAccessRemovesManagedKeyBeforeProxy(t *testing.T) {
-	runner := &fakeRunner{}
-	if err := New(runner).RevokeSSHAccess(context.Background(), "haco-demo", "ssh-2222"); err != nil {
-		t.Fatal(err)
-	}
-	if len(runner.calls) != 2 {
-		t.Fatalf("calls = %#v", runner.calls)
-	}
-	if got := runner.calls[0].args[len(runner.calls[0].args)-1]; got != "haco:ssh-2222" {
-		t.Fatalf("revoke marker = %q", got)
-	}
-	assertRunnerCall(t, runner.calls[1], "incus", "config", "device", "remove", "haco-demo", "haco-ssh-2222", "--project", defaultProject)
-}
-
-func TestListClientConnectionsReconcilesManagedProxyDevices(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
-		return host.Result{Stdout: `{"devices":{"haco-ssh-2222":{"type":"proxy","listen":"tcp:127.0.0.1:2222","connect":"tcp:127.0.0.1:22"},"haco-tcp-8080-3000":{"type":"proxy","listen":"tcp:127.0.0.1:8080","connect":"tcp:127.0.0.1:3000"},"foreign":{"type":"proxy","listen":"tcp:0.0.0.0:9000","connect":"tcp:127.0.0.1:9000"}}}`}, nil
-	}}
-
-	connections, err := New(runner).ListClientConnections(context.Background(), "haco-demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []core.ClientConnection{
-		{ID: "ssh-2222", Kind: "ssh", Host: "127.0.0.1", Port: 2222, TargetPort: 22, User: "root", Command: "ssh -p 2222 root@127.0.0.1"},
-		{ID: "tcp-8080-3000", Kind: "tcp", Host: "127.0.0.1", Port: 8080, TargetPort: 3000},
-	}
-	if !reflect.DeepEqual(connections, want) {
-		t.Fatalf("connections = %#v want %#v", connections, want)
-	}
-	assertRunnerCall(t, runner.calls[0], "incus", "query", "/1.0/instances/haco-demo?project="+defaultProject)
-}
 
 const testHostPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
 
-func TestAutomaticSSHPortBindFailureDoesNotMutateGuestKeys(t *testing.T) {
-	bindErr := errors.New("proxy bind failed")
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
-		return host.Result{}, bindErr
+func TestSSHGrantIsDurableBeforeGuestMutationAndHasNoPort(t *testing.T) {
+	r := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey}, nil
+		}
+		return host.Result{}, nil
 	}}
-	_, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
-	if !errors.Is(err, bindErr) || len(runner.calls) != 1 {
-		t.Fatalf("err=%v calls=%+v", err, runner.calls)
+	c, err := New(r).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if err != nil || !validSSHGrantID(c.ID) || c.Host != "" || c.Port != 0 || c.TargetPort != 22 || c.HostPublicKey != testHostPublicKey {
+		t.Fatalf("%+v %v", c, err)
 	}
-	args := runner.calls[0].args
-	if len(args) < 8 || args[0] != "config" || args[1] != "device" || args[2] != "add" || args[6] == "listen=tcp:127.0.0.1:0" {
-		t.Fatalf("invalid automatic proxy reservation: %+v", args)
+	if len(r.calls) != 4 || r.calls[0].args[1] != "set" || !strings.HasSuffix(r.calls[0].args[3], "=pending") {
+		t.Fatalf("missing write-ahead grant: %+v", r.calls)
+	}
+	if r.calls[1].args[len(r.calls[1].args)-2] != "haco:"+c.ID {
+		t.Fatal("key not grant scoped")
+	}
+	for _, call := range r.calls {
+		for _, arg := range call.args {
+			if arg == "device" || strings.Contains(arg, "listen=tcp:") {
+				t.Fatal("SSH created a Host proxy")
+			}
+		}
+	}
+}
+
+func TestSSHGrantReservationFailureDoesNotInstallKey(t *testing.T) {
+	failure := errors.New("persist failed")
+	r := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) { return host.Result{}, failure }}
+	_, err := New(r).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if !errors.Is(err, failure) || len(r.calls) != 1 {
+		t.Fatalf("%v %+v", err, r.calls)
+	}
+}
+
+func TestSSHProvisionFailureRevokesKeyBeforeRemovingGrant(t *testing.T) {
+	failure := errors.New("provision failed")
+	r := &fakeRunner{run: func(_ context.Context, n int, _ string, _ []string) (host.Result, error) {
+		if n == 1 {
+			return host.Result{}, failure
+		}
+		return host.Result{}, nil
+	}}
+	_, err := New(r).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if !errors.Is(err, failure) || len(r.calls) != 5 {
+		t.Fatalf("%v %+v", err, r.calls)
+	}
+	if r.calls[2].args[1] != "set" || r.calls[3].args[0] != "exec" || r.calls[4].args[1] != "unset" {
+		t.Fatal("unsafe revoke ordering")
+	}
+}
+
+func TestListPortlessGrantAndUnrelatedForward(t *testing.T) {
+	id := "ssh-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	grant, _ := json.Marshal(core.ClientConnection{ID: id, Kind: "ssh", TargetPort: 22, User: "root", HostPublicKey: testHostPublicKey})
+	data, _ := json.Marshal(map[string]any{"config": map[string]string{"user.hacocoon." + id: string(grant)}, "devices": map[string]any{"haco-tcp-8080-3000": map[string]string{"type": "proxy", "listen": "tcp:127.0.0.1:8080", "connect": "tcp:127.0.0.1:3000"}}})
+	r := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: string(data)}, nil
+	}}
+	got, err := New(r).ListClientConnections(context.Background(), "haco-demo")
+	if err != nil || len(got) != 2 || got[0].Port != 0 || got[1].Port != 8080 {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+func TestPendingGrantFailsClosed(t *testing.T) {
+	r := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: `{"config":{"user.hacocoon.ssh-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa":"pending"}}`}, nil
+	}}
+	if _, err := New(r).ListClientConnections(context.Background(), "haco-demo"); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatal(err)
 	}
 }

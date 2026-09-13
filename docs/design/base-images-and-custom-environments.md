@@ -36,8 +36,9 @@ inside an ordinary isolated Environment, never as Host commands. Network access
 uses the ordinary permission path; package downloads are not implicitly allowed.
 No private Workspace, OCI Store or Host credentials are supplied to the builder.
 
-The command returns JSON containing the Base name/revision, state and any retained
-builder name. Build output is not copied into controller logs or error messages.
+The command prints a human-readable result. Pass `--json` to read the Base
+name/revision, state and any retained builder name as JSON. Build output is not
+copied into controller logs or error messages.
 A failure is nonzero. The destination name must differ from an explicitly selected parent. Concurrent
 builds, caching, import and history UI are not
 promised by this first build path.

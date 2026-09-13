@@ -7,6 +7,10 @@ if ((Get-TransferFailureEvidence 'destination requires anonymous-file support: o
 $sample = "debug1: Connection established.`nAuthenticated to SECRET-PEER using `"publickey`".`ndebug1: Entering interactive session.`ndebug1: Exit status 0`nidentity file SECRET-KEY"
 $expected = 'connected,authenticated,session,exit_received,windows-workspace-ok'
 if ((Get-SSHProgressEvidence "windows-workspace-ok`nSECRET-CONTENT" $sample) -cne $expected) { throw 'Progress selection failed' }
+if ((Get-SSHProgressEvidence '' "[failed] operation=stream stage=target reason=incompatible_state`nSECRET") -cne 'stream_incompatible_state') { throw 'Stream reason selection failed' }
+foreach ($hostile in @('[failed] operation=stream stage=target reason=SECRET', '[failed] operation=stream stage=target reason=denied SECRET', 'prefix [failed] operation=stream stage=target reason=denied')) {
+    if ((Get-SSHProgressEvidence '' $hostile) -cne 'no-recognized-progress') { throw 'Untrusted stream reason escaped allowlist' }
+}
 foreach ($hostile in @('SECRET', "windows-workspace-ok SECRET", "prefix windows-workspace-ok", "WINDOWS-WORKSPACE-OK")) {
     if ((Get-SSHProgressEvidence $hostile $hostile) -cne 'no-recognized-progress') { throw 'Untrusted progress escaped allowlist' }
 }

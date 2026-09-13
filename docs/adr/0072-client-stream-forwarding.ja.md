@@ -33,7 +33,8 @@ socket生成はtransport設定後の所有されたstream callback内で行い�
 応答送信失敗でsocketが漏れる順序にしません。
 
 待受は同時16接続、1秒〜1時間。controllerの準備・接続は10秒、streamは
-最大1時間です。キャンセルは待受・socketを閉じ、copy workerの終了を待ちます。
+最大1時間です。SSHとTCPが共用するrelayは片方向終了後の応答排出を30秒に制限します。
+準備完了後は準備期限で稼働中sessionを切断しません。キャンセルは待受・socketを閉じ、copy workerの終了を待ちます。
 proxy device、永続的な転送記録、自動再起動・再接続は作りません。
 保持データとlifecycle所有権は変えません。
 
@@ -46,7 +47,7 @@ proxy device、永続的な転送記録、自動再起動・再接続は作り�
 - namespace経由の任意の外部宛先は別の外向きproxyになる。外向き通信は
   既存の独立した承認を伴うnetwork接続が担当する。
 
-Windows側待受から`wsl.exe`を通すtransport、汎用process streamの残る統合、
-VPN／DNS modeはM3の別残件です。WSL／trusted Host内で実行するLinux clientは
+Windows側待受から`wsl.exe`を通すtransportは[実装候補](0073-wsl-process-transport.ja.md)です。
+導入済み経路の確認、汎用process streamの残る統合、VPN／DNS modeはM3の別残件です。WSL／trusted Host内で実行するLinux clientは
 その場所で待ち受けるため、Windows native待受の証拠とはしません。
 [契約](../design/controller-client-transport.ja.md#client側tcp待受)を参照してください。

@@ -9,7 +9,8 @@ haco config
 haco config --edit
 ```
 
-The first command prints the current revision and Policy as JSON. The second
+The first command prints the current revision and Policy in readable text; use
+`haco config --json` for a machine-readable snapshot. The second
 edits that same document using `VISUAL`, then `EDITOR`, or `vi` when neither
 is set. Edit `policy`; keep `revision` unchanged. This requires no new argument
 for ordinary approval or Git operations.
@@ -17,10 +18,12 @@ for ordinary approval or Git operations.
 For file-based editing:
 
 ```bash
-haco config > configuration.json
+haco config --json > configuration.json
 # Edit policy inside configuration.json, preserving revision.
 haco config --file configuration.json
 ```
+
+Add `--json` to the apply command when a script also parses the saved receipt.
 
 `policy.rules` contains administrator rules and `policy.saved_decisions`
 contains choices saved by ordinary approval. Both participate in the same

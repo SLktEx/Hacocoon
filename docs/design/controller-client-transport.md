@@ -4,14 +4,15 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and client TCP forwarding are implemented candidates; native Windows forwarding and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and client TCP forwarding, including a native Windows companion, are implemented candidates. Installed Windows forwarding remains unverified; remote transport is deferred.
 
 ## Summary
 
 The product client exposes Base list/inspect and normal Environment create/delete.
 `switch-base` is disabled and its return is not planned. Use a new Environment
-with the retained Workspace to select another Base. SSH configuration
-reads existing loopback connection metadata. Optional `plugin.oci.store` manages
+with the retained Workspace to select another Base. SSH configuration uses creation-bound
+ProxyCommand targets over the existing UDS byte-session and completion/cancellation
+mechanism. See [portless SSH](client-and-interactive-access.md). Optional `plugin.oci.store` manages
 persistent OCI data through the trusted controller; it is never registered on
 the Environment Git-only endpoint. `environment.create` can atomically reserve
 an optional persistent resource with its Workspace. See the
@@ -202,10 +203,13 @@ The separate `run.process` method now carries framed stdin/stdout/stderr and a
 final receipt through the same run lifecycle. Input credit bounds buffering;
 input-stop/EOF drainage prevents early-exit reset races. The receipt and managed
 session completion must both succeed. See [ADR 0069](../adr/0069-bounded-process-streams.md).
-Further framing applications may include:
-
-- Environment TCP forwarding;
-- other bounded controller-mediated streams.
+SSH and explicit TCP forwarding share the bounded readiness envelope, byte relay,
+half-close, cancellation and independent completion implementation. Their target
+authorization remains separate: SSH validates a retained grant and may resume the
+exact saved Environment; explicit TCP preparation requires a running Environment.
+Preparation is bounded to 100 seconds for SSH and 10 seconds for explicit TCP.
+A completed preparation does not impose that deadline on application traffic.
+After either direction ends, the common relay bounds response drainage to 30 seconds.
 
 `Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
 
@@ -279,8 +283,7 @@ Still planned:
 - classify and migrate the remaining appropriate `haco` commands onto the controller client interface;
 - remove or explicitly deprecate compatibility aliases once their replacements are established;
 - move trusted Host-local tooling into the long-term `haco-host` namespaces;
-- streamed Execution framing with explicit stdout/stderr/exit metadata;
-- generic Environment forwarding;
+- remaining process caller consolidation and installed Windows forwarding acceptance;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
 

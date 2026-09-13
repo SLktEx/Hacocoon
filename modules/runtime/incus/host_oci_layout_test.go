@@ -76,7 +76,7 @@ func TestHostLayoutVerificationRejectsDrift(t *testing.T) {
 	if err != nil {
 		t.Skip("python3 unavailable")
 	}
-	for _, mode := range []string{"valid", "wrong-root", "malformed", "oversized", "missing", "symlink"} {
+	for _, mode := range []string{"valid", "native", "wrong-snapshotter", "wrong-root", "malformed", "oversized", "missing", "symlink"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			containerd := root + "/etc/containerd/config.toml"
@@ -92,6 +92,12 @@ state = "/run/containerd"
 [grpc]
   address = "/run/containerd/containerd.sock"
 `
+			if mode == "native" || mode == "wrong-snapshotter" {
+				config += "\n[[plugins.\"io.containerd.transfer.v1.local\".unpack_config]]\n  platform = \"linux/" + runtime.GOARCH + "\"\n  snapshotter = \"native\"\n"
+				if mode == "wrong-snapshotter" {
+					config = strings.ReplaceAll(config, "\"native\"", "\"overlayfs\"")
+				}
+			}
 			if err := os.WriteFile(containerd, []byte(config), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -115,7 +121,7 @@ state = "/run/containerd"
 			}
 			script := strings.ReplaceAll(hostOCILayoutVerify, "/etc/", root+"/etc/")
 			output, err := exec.Command(python, "-I", "-c", script).CombinedOutput()
-			if (mode == "valid") != (err == nil) {
+			if (mode == "valid" || mode == "native") != (err == nil) {
 				t.Fatalf("%s: %v %s", mode, err, output)
 			}
 			if len(output) != 0 {

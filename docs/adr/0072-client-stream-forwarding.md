@@ -38,6 +38,8 @@ avoiding resource leaks if initial acknowledgement fails.
 
 The client limits a listener to 16 concurrent connections and 1 second–1 hour.
 Controller preparation/dial is bounded to 10 seconds; each stream to 1 hour.
+The relay shared with SSH bounds drainage after one direction ends to 30 seconds.
+Successful preparation does not impose its preparation deadline on an active session.
 Cancellation closes listeners and sockets and joins copy workers. No proxy
 device, persistent forwarding object, automatic restart or reconnection is
 created. Data and lifecycle ownership are unchanged.
@@ -52,7 +54,7 @@ created. Data and lifecycle ownership are unchanged.
   this application-access command into an additional outbound proxy. Existing
   separately authorized network connections own that use case.
 
-Native Windows listener transport through `wsl.exe`, broader generic process
-stream consolidation and VPN/DNS modes remain separate M3 work. Running a
+Native Windows listener transport through `wsl.exe` is an [implemented candidate](0073-wsl-process-transport.md).
+Installed acceptance, remaining process consolidation and VPN/DNS modes remain separate M3 work. Running a
 Linux client in WSL or trusted Host places its listener there; it is not
 evidence of a Windows-native listener. See the [owning contract](../design/controller-client-transport.md#client-tcp-listeners).

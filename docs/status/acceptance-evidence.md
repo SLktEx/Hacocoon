@@ -95,12 +95,106 @@ VPN/NRPT remain explicit **SKIP**. Japanese Windows and the existing local WSL
 Interop failure remain unverified/unresolved respectively. This is development
 branch evidence, not distribution or acceptance of later run-ownership changes.
 
+<a id="portless-ssh"></a>
+
+## Portless SSH and cold editor reconnect
+
+At `e35a152e3d58fc917192d56e442517bd7805b8ff` in
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631), the
+[Windows native run](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)
+passed real Windows OpenSSH command execution, managed alias/configuration,
+strict host-key checks, four simultaneous cold reconnects and deleted-target
+refusal. After Environment stop, controller stop and WSL termination, the first
+Hacocoon contact was `ssh.exe` through ProxyCommand. The same provider generation
+and Workspace marker survived. `ss -H -ltn` showed no new Host TCP listener,
+Incus had no SSH proxy device, and SSH metadata had an empty Host and port zero.
+
+A second cold cycle began with standard VS Code's saved remote-folder URI.
+VS Code 1.136.1 and Microsoft's Remote-SSH 0.128.0 passed actual editor file
+read/write, remote terminal execution, local approval stale refusal and probe
+cleanup. No Hacocoon extension established the connection; the disposable UI
+observer only checked the resulting session. Windows export/import SSH with a
+fresh host-key pin, retained-data recreation, preview and public reclamation
+also passed. [Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527),
+[Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)
+and [real Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)
+passed on that candidate.
+
+The Windows aggregate still failed when its driver wrote `exit` to the old Host
+terminal destroyed by the intentional WSL shutdown. The driver now closes the
+terminal before cold checks and verifies ordinary Host entry in a new terminal
+afterward; the earlier failed aggregate is not a whole-job pass. Earlier cold
+fixtures used a lost `/tmp` Workspace; `/var/tmp` fixed that prerequisite.
+At `d6059131`, cold SSH passed but the fixture omitted the standard Remote-SSH
+extension and transfer still expected a Host port; these failures remain recorded
+in [run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769).
+
+Repository regressions cover raw binary stdio/UDS, EOF and half-close, cancellation,
+controller delay/disconnect, stale identity/lease/grant refusal, concurrent resume
+and owned-fragment cleanup. A real PC power-cycle, manual Remote Explorer mouse
+selection, VPN/NRPT and broad IDE compatibility were not tested. The private-registry
+job is manual-dispatch-only and skipped in PR runs. Network-independent initial SSH
+setup on official Bases remains [Issue #603](https://github.com/SLktEx/Hacocoon/issues/603).
+
+<a id="incus-lts"></a>
+
+## Incus 7.0 LTS baseline
+
+The supported contract is `>= 7.0.1`, `< 7.1`; previous 6.0.5 results are
+historical compatibility evidence. At development candidate `0c79f8209eec42b597cc811a9114e0351d8226d7`
+in [PR #583](https://github.com/SLktEx/Hacocoon/pull/583),
+[Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34724986358),
+[fresh Windows/WSL installation, restart and reinstall](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361),
+and [standalone/Core/Btrfs Incus gates](https://github.com/SLktEx/Hacocoon/actions/runs/34724986357)
+passed on server 7.0.1. Native gates include lifecycle, egress, Base build,
+snapshot/copy/import, retained Store operations and owned cleanup.
+[Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34724986411) also passed.
+Private registry, VPN/NRPT and human notification decisions remain unverified.
+
+The main-targeted #479 change extracts the shared installer, doctor and required
+vendor-daemon/export/fixture fixes. The preceding integrated-candidate passes
+are not a native rerun of that extraction or evidence of publication. The
+independent extraction's acceptance is recorded below.
+
+At extraction `9a4dc42`, [repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/34739589129),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34739589125) and
+[real Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34739589134) passed.
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34739589114) passed fresh
+installation/restart/reinstall, egress, transfer, reclaim and retained-data restore,
+but the desktop aggregate failed approval review and subsequent preview setup.
+The approval fixture piped answers into a terminal-only command. It now uses a
+private PTY, preserving JSON receipts and bounded child cleanup; acceptance readers
+also request `--json` explicitly after main's output change.
+
+At corrected extraction `34ff371cedb7558959201b316a2aebe7f3542eee` in
+[PR #600](https://github.com/SLktEx/Hacocoon/pull/600),
+[Windows/WSL](https://github.com/SLktEx/Hacocoon/actions/runs/34741178336),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34741178335) and
+[Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34741178370)
+passed, including the Windows desktop aggregate. The earlier failed aggregate
+remains a failure. [Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34741178334)
+passed after retrying only the Go 1.27 job: the first attempt timed out in the
+existing interactive PTY resize test; 30 local repetitions with the same shuffle
+seed passed without a code change. The intermittent timeout's cause is unconfirmed.
+These results establish the extraction's tested scope, not release publication
+or acceptance of later main integrations.
+
+After main integration at `d6f078e`, [Windows run 34742409841](https://github.com/SLktEx/Hacocoon/actions/runs/34742409841)
+passed installation and the first Host diagnostics on Incus 7.0.1, then failed
+ordinary entry immediately after WSL termination/restart with `Host setup is busy`.
+The fixture subsequently timed out; later Environment/desktop gates were skipped.
+Shell preparation now waits for controller setup exclusion within its existing
+deadline, retaining explicit-setup conflict refusal and failed-recipe recovery.
+Component/race coverage checks waiting, cancellation and exclusion release;
+the repaired integrated candidate still requires Windows acceptance.
+
 <a id="installation"></a>
 
 ## Installation and Host
 
 | Candidate / gate | Result and limits |
 |---|---|
+| `fced264` / standard Host tooling | Dedicated Incus/Btrfs fixture on WSL amd64 passed fresh Git/gh/containerd/nerdctl/BuildKit provisioning, public BusyBox pull/run, Dockerfile build/run, service restart, Host stop/start, repeat setup preserving image identity and BuildKit cache IDs, and offline image execution/deletion in an independent Store. Fixture `haco-area-55b79c9d56f597f1` completed owned cleanup. Earlier attempts exposed service readiness, system D-Bus startup and systemd argument expansion failures; regression fixes are included. Full released Windows installer, arm64 runtime, authenticated registry and custom existing-runtime migration remain unverified. |
 | `1817e7c` / managed-user preparation | On a dedicated recovery WSL, the old function failed because the `hacocoon` group already existed. The corrected installer function created the managed account and verified its default-user setting after an exact-distribution restart; PowerShell component regressions passed. This is account-preparation acceptance, not a complete packaged installation or whole-installation restore. Fresh Japanese-Windows locale/entry acceptance remains pending. |
 | `c749ff9`, `81c0d16` / `9049df3`, `4df465a` | Packaged Windows/Ubuntu setup, controller round trip, proxy-allowed/direct-denied traffic and WSL registration continuation passed within M0–M1. Actual Windows OS reboot was outside that scope. |
 | `029ff08`, `42e2fb3`, `1b2d6ae` / run 34051931616 | Earlier Incus SIGKILL failures remain recorded. Stale cross-namespace PID replay is strongly supported by PID/worker traces; no userspace stack proved every kill source or OOM. The boot guard passed its dedicated gate; same-boot PID reuse is outside its protection. |
@@ -681,3 +775,89 @@ not established by this candidate's component checks.
   listener cleanup. This verifies the correction after #626's readiness failure;
   that previous failure is retained. Windows 34763683983 was still running when
   checked; earlier startup and notification failures remain separate.
+
+<a id="ci-reliability"></a>
+
+## PR CI reliability incidents (#615)
+
+These historical observations belong to [#615](https://github.com/SLktEx/Hacocoon/issues/615).
+A successful rerun is evidence of an incident, not its resolution. Current routing
+and gate semantics are owned by [PR verification contracts](../reliability/ci-contracts.md).
+
+| Candidate / evidence | Finding and resolution status |
+|---|---|
+| `f3ef57b3ea028e10e942418a8408edd89a94b605` / [attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/1), [attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34740688741/attempts/2) | `test (1.26.x)` failed `TestSizedInteractivePTYReadlineResizeAndExit` waiting for the resized terminal marker; the same SHA passed on attempt 2. Fixture synchronization now waits for a foreground command before resize, avoiding readline's terminal-size restoration window. The three Linux sized-PTY regressions passed 100 repetitions locally with Go 1.27.0; this does not establish hosted native acceptance. |
+| `69c85fb5214ba1a4a81c2c50cdec9d789c924315` / [storage attempt 2](https://github.com/SLktEx/Hacocoon/actions/runs/34738362521/job/103675967861) | `TestRealIncusResourceMaintenancePreparationE2E` expected interactive decline but supplied a pipe; shipped CLI correctly refused nonterminal confirmation with exit 2. The fixture now supplies a real Linux PTY, with a child-process terminal/read regression. Native maintenance revalidation is required. |
+| `84062060e0ef465e73ec45b43b6ed785ce879d81` / [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34740317809/job/103678816517) | Post-termination ordinary Host entry reported `Host setup is busy`; the harness then waited for its deadline. Fail-fast reporting alone did not fix that product defect. The subsequent login-bootstrap fix and native restart evidence are recorded below. |
+
+At #615 candidate `4abadc16399dfdb1997351c7803fd76131cfdeed`, based on `7b4e2356d73a163b31e784a0a5b7400fed1a05cf`,
+full Go test/vet, race, shipped-command fixture E2E, documentation and workflow policy
+passed on the local Linux validation environment. Real Incus and packaged Windows/WSL
+were not run there. Commit-bound hosted results must be recorded separately.
+
+After integrating main at `8c645317101e007d57c752f35ae0a95f637d81b5`, related composition/Incus/product-CLI tests and vet passed with Python 3.13.15. The first local run failed because Python 3.10 lacked `tomllib`; installing the verified separate runtime satisfied the new Host-tooling test prerequisite without weakening the test. Sized-PTY and maintenance-terminal regressions also passed 100 repetitions on pinned Go 1.26.7. These are repository/component results, not installed native acceptance.
+
+Candidate `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) reproduced the restart busy failure. Initial install and ordinary entry passed; restart entry failed in 11.218 seconds. Reinstall and downstream SSH/IDE/network/reclamation/notification steps were not executed. WSL source inspection identified the competing PTY-backed PAM login bootstrap; [ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md) records the routing fix and rejected retries. The native restart results below verify that fix separately from later acceptance failures.
+
+Candidate `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) waited behind superseded run 34744299866. Its required jobs were cancelled, but job-level `always()` kept the old evidence job queued and retained the concurrency slot. Evidence jobs now use `!cancelled()`: failed/skipped dependencies still require evidence, while whole-workflow cancellation can finish. This was a CI implementation defect, not proof of a runner outage. Static regressions reject restoring the uninterruptible condition.
+
+At `7c73399bc36f2a6055c3f95d3c1f3671666481d5`, [repository checks](https://github.com/SLktEx/Hacocoon/actions/runs/34746556831) passed both Go series, race, CLI E2E, both build architectures, release packaging and the evidence gate. [Native Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34746556876) passed the unchanged installer, added ordinary-user product CLI lifecycle/Workspace retention, legacy journey, network isolation and evidence gate.
+
+Windows [75007ec job](https://github.com/SLktEx/Hacocoon/actions/runs/34745868528/job/103693588946) and [7c73399 job](https://github.com/SLktEx/Hacocoon/actions/runs/34746556856/job/103695440904) both passed install, terminate/restart, reinstall and installed egress; restart entry took 33.547 and 35.844 seconds. Native interop, Windows SSH and VS Code Remote also passed, but both jobs **failed** configuration and pending-approval fixtures. Those fixtures parsed human-default output without `--json`; the fix requests JSON for configuration read/apply and pending lists, with executable fixture regressions. Later reclamation and notification steps were not executed. These runs establish restart recovery, not complete Windows acceptance or a same-SHA rerun pass.
+
+At the same `7c73399` candidate, [native Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34746556850) passed standalone and Core lifecycle/egress, but Btrfs failed aggregate export and the source-deletion fixture. Incus 7 requires `--force` for the adapter-owned existing anonymous output. The merged #600 implementation supplies that flag for the supported 7.0 LTS baseline; this branch reuses it without a separate compatibility shim. The source snapshot observation also needed separate volume/snapshot arguments. Cleanup refused retained failed fixtures but previously continued toward pool/project deletion; it now stops before those operations on uncertain ownership or absence. Native revalidation is required.
+
+At integrated candidate `fb5da79768c3fac5bf69db3c0496f936e9e1646f` (main `f590023`), local workflow policy, Actionlint, docs, product CLI/composition/Incus tests and vet passed. Eight JSON/terminal fixtures and five cleanup tests passed. The new LTS installer fixture had one failure because the validation Host is Ubuntu 22.04; the supported >=26.04 guard was not bypassed.
+
+The four first-attempt hosted runs ([test](https://github.com/SLktEx/Hacocoon/actions/runs/34748814241), [Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34748814235), [Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34748814274), [Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34748814262)) ended in `startup_failure` with no jobs. The test run's annotation reports an unexpected GitHub error, request ID `CFDF:38DCEF:B99783:11CB2DC:6AA66658`. The public status page showed no reported incident at inspection; no platform-wide outage or recovery is inferred. This is no native product acceptance. The incident exposed a history-reader gap for jobless startup failures; workflow-attempt conclusions are now recorded independently of jobs, with a regression for startup failure followed by a successful attempt. No rerun was requested.
+
+The active [Protect main ruleset](https://github.com/SLktEx/Hacocoon/rules/21838612), read through the existing GitHub connector, requires docs, workflow-policy, release-config, both Go checks, race and e2e. The four additional evidence contexts were absent at inspection. Their addition remains a separate required configuration action; no ruleset settings were changed.
+
+At `def11e9ff31131e02be0eb3270bb3ebd62e1c452`, [repository checks](https://github.com/SLktEx/Hacocoon/actions/runs/34749383437) passed including `test-evidence`. [Ubuntu product acceptance](https://github.com/SLktEx/Hacocoon/actions/runs/34749383422/job/103703362684) passed, but its evidence gate failed: artifact 10315158077 contains successful required steps and `needs_success=true` while the API still reported the completed job's conclusion as null. A bounded read-only metadata observation now covers that propagation window without polling away terminal failures.
+
+[Core](https://github.com/SLktEx/Hacocoon/actions/runs/34749383438/job/103703364764) and [Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34749383438/job/103703364605) passed every product step, including aggregate transfer, Base build, Store COW and maintenance. Both jobs failed cleanup because Incus decorates the current project's CSV name and the strict identity check rejected it. Cleanup now consumes validated JSON names and still requires positive absence. These are failed jobs with scoped product evidence, not complete native acceptance.
+
+The same `def11e9` candidate's [Windows user-path job](https://github.com/SLktEx/Hacocoon/actions/runs/34749383429/job/103703363209) passed the complete maintained native journey: packaged install, ordinary entry, terminate/restart, reinstall, installed egress, strict Windows SSH/VS Code interop, configuration and approvals, transfer, public reclamation, notification and cleanup. This is the first full Windows product-job pass in this investigation, not a rerun of a failed SHA. The workflow evidence gate also passed; later CI-helper changes remain separate from this product receipt.
+
+At `d1c7480bd69157fb65974e9e2f2673e2ffffe4b6`, repository, Ubuntu and all required Incus jobs including their evidence gates passed. The [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34750642440/job/103706445008) failed after public reclamation and Host resumption succeeded: detached Workspace/OCI reattachment through `haco env create` returned nonzero. Snapshot restoration and its retained content had already passed. The fixture discarded stderr, so the root cause remains unresolved; the preceding candidate's pass does not resolve this failure. Notification was not reached. Retention diagnostics now preserve numeric exit status, an allowlisted CLI reason and bounded read-only controller observations without raw output or mutation replay. These observations identify investigation boundaries, not proven root causes.
+
+<a id="windows-main-integration"></a>
+
+## Main integration into the Windows connection candidate
+
+`codex/windows-main-sync` integrates main `f47a9a41e5c175b8f7a4dca41680595be1687c99`
+into the PR #634 candidate, reusing #631 portless SSH, #625 WSL startup routing and
+#612 shared CI build/cache changes. Installed combined-candidate acceptance is
+not run. Initial
+integration checks failed on duplicate Relay declarations, then a duplicate core
+import; both were corrected before revalidation. SSH and TCP now share byte
+mechanics while retaining target authorization. Focused regressions distinguish
+preparation expiry from established-session lifetime. The checkpoint stays v0.66;
+this is not main publication, distribution or completion of roadmap M0–M5.
+
+Parent #632 `e7ca6735` passed test 34763683967, Ubuntu 34763684021 and Incus
+34763683968. Windows 34763683983/job 103740781508 failed step 15 (install,
+terminate/restart and reinstall); subsequent egress, SSH, TTY, reclamation and
+notification steps were skipped. This does not establish the same root cause as
+main's startup fix. #634 `422a8f80` passed test 34765863859, Ubuntu 34765863849 and
+Incus 34765863870. Those are separate candidate results, not acceptance of this
+combined candidate or the Windows installed TCP route.
+
+Local integration validation passes: Go 1.26.8 control/controlapi/client/clientforward/
+sshclient/streamio/Incus regressions; maintained `bash tools/ci-local.sh test` on
+Go 1.27.1 with shuffle 615; five related stream race repetitions; documentation
+and 18 checker regressions; CI contracts/policy and installer packaging. Native
+Windows PowerShell 7.6.6 passes WSL stop observations and both companions' install,
+reinstall, ownership mismatch, pinned-worker and junction refusal. PowerShell 5.1
+was not rerun locally; the previously recorded policy refusal is not changed to a pass.
+
+The newly integrated login PTY regression timed out once at its five-second exit
+wait in the focused batch; an unchanged isolated run passed. The fixture now uses
+its private login profile to observe the actual Bash input prompt before sending
+input. Ten repetitions and maintained local CI pass with the same five-second
+combined observation/exit budget and 15-second outer deadline. Product parent
+routing, setup and isolation are unchanged. The first failure did not capture a
+PTY transcript, so input loss or another root cause is not established. This is
+not root-cause proof or native acceptance for the older Windows startup failures.
+
+Real PTY resize/SIGWINCH/disconnect tests pass ten race repetitions. Integrated Windows amd64 builds pass actual Windows client/controller/TCP eight-concurrent 1 MiB round trips, half-close, cancellation/listener cleanup, bilingual help and invalid-argument refusal. New WSL/Incus installation, automatic delegation from ordinary entry, arm64 execution and fresh GUI decisions remain unverified.
