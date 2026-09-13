@@ -9,7 +9,7 @@ haco config
 haco config --edit
 ```
 
-最初のコマンドは現在の revision と Policy を JSON で表示します。
+最初のコマンドは現在の revision と管理者 Policy を JSON で表示します。
 `--edit` は同じ文書を `VISUAL`、`EDITOR`、未設定なら `vi` で開きます。
 `policy` を編集し、`revision` は変えません。通常の承認や Git 操作に
 新しい必須引数はありません。
@@ -30,6 +30,12 @@ Git はリポジトリ・remote・ref・fast-forward を固定します。
 [Policy の意味](../design/policy-and-capability-foundation.md)と
 [Git の手順](../guides/git-workflow.ja.md)を参照してください。
 
+製品所有の baseline grant は、この revision-bound な管理者文書へ直列化しません。
+特に [egress authorization](../design/egress-authorization.ja.md#製品既定の-package-repository-許可)
+に記載した固定 Ubuntu package repository は、一致する管理者／保存済みルールがない場合だけ
+評価します。その接続先をさらに制限する場合は、一致する `deny` または `require-approval` を
+追加します。guest 設定から baseline の接続先が増えることはありません。
+
 コントローラーを再起動せず次の要求へ反映します。既存接続は取り消しません。
 実行中の操作には、通常の実行直前の Policy 再確認が適用されます。
 
@@ -39,12 +45,13 @@ Git はリポジトリ・remote・ref・fast-forward を固定します。
 成功応答は永続化と完了監査の成功を意味します。不明確なエラーの後は、保存済みの可能性が
 あるため現在の設定を確認してから再試行します。
 
-Physical Host の保護された `/var/lib/hacocoon/policy.json` が唯一の設定元です。
-直接編集は `.policy-save.lock` と協調するかコントローラーを停止して行います。
-通常コマンドは自動で協調します。既に壊れた Policy や安全でないファイルは拒否し、
-管理者による修復が必要です。読めないルールを初期値に置き換えません。
-Policy の詳細は通知内容 に載せません。[ADR 0027](../adr/0027-revision-bound-policy-editing.ja.md)
-を参照してください。
+Physical Host の保護された `/var/lib/hacocoon/policy.json` は revision-bound な管理者 Policy の
+唯一の設定元です。直接編集は `.policy-save.lock` と協調するかコントローラーを停止して行います。
+通常コマンドは自動で協調します。製品 baseline は shipped code であり、このファイルには
+コピーしません。既に壊れた Policy や安全でないファイルは拒否し、管理者による修復が必要です。
+読めないルールを初期値に置き換えません。Policy の詳細は通知内容に載せません。
+[ADR 0027](../adr/0027-revision-bound-policy-editing.ja.md)と
+[ADR 0063](../adr/0063-default-package-repository-egress.ja.md)を参照してください。
 
 リポジトリ内で競合、承認保存との同時更新、危険なファイル、不正入力、保存前後の監査失敗、
 次要求への反映を確認します。製品 CLI／コントローラー E2E は確認・エディター・ファイル反映・
