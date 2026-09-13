@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	"github.com/SLktEx/Hacocoon/internal/basebuild"
@@ -50,6 +51,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	hostSetupActive     sync.Mutex
 	Workflow            *workflow.Service
 	Networks            *networkrelay.Service
 	transferCatalog     *state.EnvironmentJSONStore
@@ -60,7 +62,7 @@ type App struct {
 	AWS                 *awsplugin.Broker
 	Reviews             *review.Service
 	Configuration       *capabilityapp.PolicyConfiguration
-	HostCustomization   *recipes.Service
+	HostCustomization   *recipes.HostService
 	ProjectSetup        *projectsetup.Service
 	Environments        *workspaceapp.Service
 	AgentHosts          *agenthostapp.Broker
@@ -283,7 +285,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,
 		ProjectSetup:        &projectsetup.Service{Root: filepath.Join(root, "project-setup"), Environments: environments},
-		HostCustomization:   &recipes.Service{Root: filepath.Join(root, "host-customization"), Execute: incusRuntime.RunTrustedHostCustomization},
+		HostCustomization:   &recipes.HostService{Root: filepath.Join(root, "host-customization"), Identity: incusRuntime.TrustedHostIdentity, Execute: incusRuntime.RunTrustedHostCustomization},
 		PersistentResources: resources,
 		OCIImages: &ociplugin.ManagedImages{Catalog: store, Environments: environments, Host: &incus.PersistentResourceBackend{Runtime: incusRuntime}, Maintain: func(ctx context.Context, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) error) error {
 			_, err := runs.MaintainResource(ctx, resource, operation)
