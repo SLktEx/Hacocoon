@@ -84,8 +84,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.59 | All-branch Git Fetch | implemented on development candidate; native acceptance pending |
 | v0.60 | Reviewed Git Branch Creation | implemented on development candidate; native acceptance pending |
 | v0.61 | Local GUI Approval Review | implemented on development candidate; installed GUI acceptance pending |
+| v0.62 | Temporary Process Streams | implemented on development candidate; native pipe/TTY acceptance pending |
 
-The current milestone position is **v0.61**. This declaration and the table mirror YAML.
+The current milestone position is **v0.62**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -104,3 +105,8 @@ and updates to one exact existing branch. Real Git component and full local test
 CI pass; native Git, GUI decisions and large-repository acceptance remain pending.
 
 The v0.61 slice replaces VS Code terminal answers with a local GUI and reuses the existing approval/Policy service through a private bounded session. Windows notification-contained answers remain open. This checkpoint is not a release or completion of M2.
+
+The v0.62 slice adds stdin and optional TTY to temporary execution through the
+common creation/cleanup lifecycle. It preserves separate piped outputs, actual
+exit codes, input bounds and confirmation of cleanup. Native pipe/terminal gates
+remain pending; this is neither M3 completion nor a distributed release.

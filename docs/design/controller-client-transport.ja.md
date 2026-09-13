@@ -194,9 +194,12 @@ haco-host doctor
 
 Stream handshakeでは可能な検証を成功 acknowledgementより前に行い、その後同じUnix-domain 通信上でbidirectional バイト列を流します。
 
-現在はinteractive Environment シェルに利用し、クライアント half-closeも維持します。今後のframingでは次を追加できます。
+対話Env shellは既存のraw streamとhalf-closeを維持します。別methodの`run.process`は
+stdin／stdout／stderrと最終結果をframeに分け、共通run lifecycleを使います。
+消費分だけ入力を許す上限と、入力停止／EOF確認によって早期終了時のreset競合を防ぎます。
+結果frameと管理session完了の両方の成功が必要です。
+[ADR 0069](../adr/0069-bounded-process-streams.md)を参照してください。今後の応用には次があります。
 
-- streamed 非対話 stdin/stdout/stderrとexit メタデータ
 - Environment TCP 転送
 - その他の上限付きの controller-mediated ストリーム
 

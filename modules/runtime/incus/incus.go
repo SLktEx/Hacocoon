@@ -240,22 +240,14 @@ func (r *Runtime) SupportsWorkingDirectory() bool { return true }
 func (r *Runtime) SupportsStdin() bool            { _, ok := r.runner.(host.InputRunner); return ok }
 
 func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.ExecutionResult{}, err
-	}
 	if len(req.Argv) == 0 || len(req.Stdin) > core.MaxExecutionInputBytes {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	args := []string{"exec", ref, "--project", r.project}
-	if req.WorkingDirectory != "" {
-		if !strings.HasPrefix(req.WorkingDirectory, "/") || strings.ContainsAny(req.WorkingDirectory, "\x00\r\n") {
-			return core.ExecutionResult{}, core.ErrInvalidArgument
-		}
-		args = append(args, "--cwd", req.WorkingDirectory)
+	args, err := r.executionArgs(ref, req.WorkingDirectory, req.Argv)
+	if err != nil {
+		return core.ExecutionResult{}, err
 	}
-	args = append(append(args, "--"), req.Argv...)
 	var result host.Result
-	var err error
 	if req.Stdin != nil {
 		runner, ok := r.runner.(host.InputRunner)
 		if !ok {

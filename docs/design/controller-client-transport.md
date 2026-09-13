@@ -196,9 +196,13 @@ The `haco-host env ...` surface remains useful during migration, but ordinary En
 
 The stream handshake validates the request before acknowledging success where possible, then carries bidirectional bytes over the same Unix-domain transport.
 
-The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
+Interactive Environment shells preserve their existing raw-stream half-close semantics.
+The separate `run.process` method now carries framed stdin/stdout/stderr and a
+final receipt through the same run lifecycle. Input credit bounds buffering;
+input-stop/EOF drainage prevents early-exit reset races. The receipt and managed
+session completion must both succeed. See [ADR 0069](../adr/0069-bounded-process-streams.md).
+Further framing applications may include:
 
-- streamed non-interactive stdin/stdout/stderr plus exit metadata;
 - Environment TCP forwarding;
 - other bounded controller-mediated streams.
 

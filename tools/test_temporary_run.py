@@ -7,6 +7,8 @@ import subprocess
 import sys
 import time
 
+from temporary_run_stream import verify_streaming
+
 if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("HACO_CI_RUNNER_ENVIRONMENT") != "github-hosted":
     raise SystemExit("temporary run acceptance requires the disposable GHA host")
 product, workspace = sys.argv[1:]
@@ -34,6 +36,8 @@ assert failed["execution"]["exit_code"] == 17 and failed["cleaned_up"] is True a
 invoke("run", "--workspace", workspace, "--", "sh", "-ec", "printf retained > /workspace/temporary-run-retained")
 with open(os.path.join(workspace, "temporary-run-retained"), encoding="utf-8") as stream:
     assert stream.read() == "retained"
+
+verify_streaming(product, workspace, rows)
 
 process = subprocess.Popen([product, "run", "--rm", "--", "sh", "-ec", "printf started > /workspace/temporary-run-started; exec sleep 600"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:

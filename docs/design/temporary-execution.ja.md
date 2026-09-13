@@ -2,7 +2,7 @@
 
 日本語 | [English](temporary-execution.md)
 
-状態: **product CLI は実装済み、実 Incus の検証は 4adfe19 で成功**。
+状態: **開発候補で出力収集とstdin／TTYを実装済み、stdin／TTYの実機確認は未完了**。出力収集型runの所有権とcleanupは`9f4cf510`で実機確認済みです。
 
 Environment の命名や事前作成なしに、コマンドを1回実行します。
 
@@ -32,13 +32,28 @@ lease を持つ場合は、その Environment を削除してから貸し出し�
 その一時 Workspace に結び付いた既定のコピーだけです。Host Docker/nerdctl の公開や
 実イメージ利用の残件は [実装状態](../IMPLEMENTATION_STATUS.ja.md) と区別します。
 
-コマンドの stdout/stderr と終了コードを返します。出力は既存の上限付きで収集し、
-対話的なストリーミングではありません。切り詰めは明示します。
---json は execution と cleaned_up を返します。コマンドの非ゼロ終了は、
-片付け成功時にも失敗です。片付け失敗を別に報告し、成功扱いにしません。
---rm=false と対話 stdin/TTY は未対応です。
+コマンドのstdout／stderrと終了値を返します。既定では上限付きで出力を収集し、
+省略がある場合は明示します。`--json`はexecutionとcleaned_upを返します。
+非ゼロ終了は片付け成功時にも失敗です。片付け失敗は別に報告し、成功扱いにしません。
+`--rm=false`は未対応です。
 
-Ctrl+C はコントローラーに中断を要求し、130 を返します。クライアントは切断済みなので、
+パイプ入力は`-i`（`--interactive`）、端末は`-it`または`-t`（`--tty`）を使います。
+
+```sh
+printf 'input\n' | haco run -i -- cat
+haco run -it -- bash
+haco run -it --workspace managed:dev -- bash
+```
+
+TTYには実際の端末入力が必要で、入力・編集・画面サイズ変更を転送します。
+パイプのEOFは入力だけを終え、コマンドを中断しません。raw端末のCtrl+C／Ctrl+Dは
+ゲストへ渡し、物理端末のEOFはPTYを終了させます。パイプはstdout／stderrを分離し、
+ゲストPTYでは両出力がまとまります。逐次出力は収集・省略せず、`--json`とは併用できません。
+入力は消費済みの分だけ追加送信を許し、stdinを読まないコマンドでも切断を検知します。
+早期終了では入力停止・EOFの確認後に結果を返します。引数は256個・合計32 KiBまでです。
+上限と完了証明は[ADR 0069](../adr/0069-bounded-process-streams.md)を参照してください。
+
+rawゲストTTY以外では、Ctrl+Cはcontrollerに中断を要求し、130を返します。クライアントは切断済みなので、
 削除を確認できたとは報告しません。haco env list と haco env status <name> で残件を確認します。
 コントローラーは片付け失敗時に復旧識別情報を残し、起動時または次の run で再試行します。
 エラーを隠すために状態ファイルを削除しないでください。不確かな OCI コピーの予約解除には、
@@ -83,4 +98,5 @@ run記録を消せず、保持Workspace／OCIデータも削除しません。
 schema 14は旧記録を保持し、所有権を推測して補いません。作成identityがない旧runが
 保持Workspaceを使っていた場合は復旧待ちになります。名前だけでは削除対象を安全に
 選べないためです。旧一時Workspaceのrunは正確なWorkspace所有権の照合を維持します。
-この開発変更にはリポジトリ回帰試験があり、新変更の実機確認とstdin／TTY実装は残件です。
+この開発変更にはリポジトリ回帰試験があり、出力収集型runは`9f4cf510`で実機確認済みです。
+後続stdin／TTY実装の実機確認は残件です。

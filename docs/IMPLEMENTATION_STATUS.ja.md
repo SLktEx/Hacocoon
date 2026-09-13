@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.61**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.62**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページは現在の開発候補のコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -19,7 +19,7 @@
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
 | [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
 | [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host設定とEnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
-| [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。出力取得のみで対話stdin/TTYは非対応。後始末失敗時は所有記録を保持。 |
+| [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は作成世代を照合して片付け、指定したWorkspace／OCIを保持。既定は出力収集、`-i`はパイプ、`-it`は実端末。逐次出力の実機確認は未完了。片付け失敗時は所有記録を保持。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCIと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
@@ -61,7 +61,8 @@ VS CodeはローカルGUI内で回答まで完結し、共通保存範囲と表�
 
 一時runのcleanupは共通lifecycle APIで正確な作成identityを必須にし、未完了runが
 ある間の名前再利用を拒否します。旧記録のidentity不足は復旧待ちとして保持します。
-この修正の実機確認とstdin／TTY対応は残件です。[一時実行](design/temporary-execution.ja.md)を参照してください。
+所有権修正は`9f4cf510`で全native workflowがPASSです。後続stdin／TTYも同じlifecycleを使い、
+その実機確認は残件です。[一時実行](design/temporary-execution.ja.md)を参照してください。
 
 最新M1候補`0c79f820`では、有効なIncus 7.0.1 Core／BtrfsとUbuntu／Windows配布物のworkflowがすべてPASSです。
 英語WindowsからHostへの表示言語一致、通常SSH／VS Code、移送、public reclaim、通知起動を確認しました。

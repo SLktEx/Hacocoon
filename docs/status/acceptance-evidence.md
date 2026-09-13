@@ -6,6 +6,33 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+## Temporary-run ownership and streams
+
+`9f4cf5105f01c5da7dfe40e080651979789c799b` (PR #590) passed test
+[34729490922](https://github.com/SLktEx/Hacocoon/actions/runs/34729490922), Ubuntu
+[34729490923](https://github.com/SLktEx/Hacocoon/actions/runs/34729490923), Incus
+[34729490810](https://github.com/SLktEx/Hacocoon/actions/runs/34729490810) and Windows
+[34729490822](https://github.com/SLktEx/Hacocoon/actions/runs/34729490822).
+Incus Btrfs job 103649531126 used 7.0.1 and passed captured temporary execution,
+exit 17, retained Workspace data, cancellation cleanup and detached Store cleanup.
+Private registry was skipped. This establishes the ownership change on the
+disposable native fixture, before the later stdin/TTY implementation.
+
+The following stream candidate initially failed its early-exit integration race:
+closing a Unix socket with unread input could reset the peer and discard the final
+receipt. Explicit input-stop/EOF drainage fixes the failure; three race runs of
+the control/control API/CLI regressions pass, including thirty early exits with
+unread input. Native binary pipe and Linux PTY acceptance and ordinary Windows
+ConPTY edit/resize/exit/restoration are added to the maintained gates; their results
+are **pending**, not inferred from component success.
+
+Full local test CI on the stream candidate initially failed the existing
+`TestUDPIdleCountsBothDirections` (200 ms idle deadline). Its isolated twenty-run
+repetition and a subsequent complete `ci-local.sh test` passed. The original
+failure's cause remains unconfirmed; no relay behavior or timeout was relaxed.
+The final six-package process/temporary race check, documentation check,
+workflow-policy suite and native fixture syntax checks passed separately.
+
 ## Local GUI candidate
 
 `e7ba798728dcbe48a5179845673a333f8ff8968f` (PR #588) passed test

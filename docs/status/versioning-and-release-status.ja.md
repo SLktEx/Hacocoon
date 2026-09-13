@@ -82,8 +82,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.59 | All-branch Git Fetch | 開発候補に実装済み、実Env受入は未確認 |
 | v0.60 | Reviewed Git Branch Creation | 実装済み |
 | v0.61 | Local GUI Approval Review | 実装済み |
+| v0.62 | Temporary Process Streams | 開発候補に実装済み、実機pipe／TTY受入は未確認 |
 
-現在のmilestone位置は **v0.61**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.62**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -99,3 +100,7 @@ v0.60はGitブランチ一つの新規作成と、正確な既存ブランチ一
 実Git componentと全体local test CIが成功し、実EnvのGit、GUI回答、巨大レポ受入は未完了です。
 
 v0.61はVS Codeのterminal入力をローカルGUI回答へ置き換え、privateで上限付きのsessionから既存approval/Policy serviceを使います。Windows通知内回答は残件です。リリースやM2完了を意味しません。
+
+v0.62は共通の作成／cleanup lifecycleを使い、一時実行にstdinと任意TTYを追加します。
+pipeの出力分離・実際の終了コード・入力上限・cleanup確認を維持します。実機pipe／端末の
+受入は未確認であり、M3完了や配布済みのリリースではありません。
