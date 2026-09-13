@@ -6,6 +6,43 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="portless-ssh"></a>
+
+## ポート不要 SSH とエディターの cold reconnect
+
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631) の
+`e35a152e3d58fc917192d56e442517bd7805b8ff` で、
+[Windows 実機試験](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)は、
+実 Windows OpenSSH のコマンド実行、管理 alias/config、厳密な host key 確認、
+4 本同時の cold reconnect、削除済み接続先の拒否に成功しました。
+Environment と controller の停止、WSL 終了後の最初の接点は、ProxyCommand 経由の
+`ssh.exe` でした。同じ provider generation と Workspace marker を保持し、
+`ss -H -ltn` の Host TCP listener は増加せず、SSH 用 Incus proxy device も存在しません。
+SSH metadata の Host は空、port は 0 でした。
+
+別の cold cycle では、VS Code 標準の保存済み remote folder URI を最初に開きました。
+VS Code 1.136.1 と Microsoft Remote-SSH 0.128.0 で、実 editor のファイル読み書き、
+remote terminal の実行、ローカル承認経路の stale 拒否、probe cleanup に成功しました。
+接続確立に Hacocoon 拡張は使わず、専用 UI observer は結果の検査だけを行います。
+新しい host key を固定した Windows export/import SSH、保持データの再接続、preview、
+public reclamation も成功しました。同候補の[通常 CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527)、
+[Ubuntu 導入](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)、
+[実 Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)も成功しています。
+
+ただし Windows ジョブ全体は、意図的な WSL 終了で破棄された古い Host terminal に
+driver が `exit` を書こうとして失敗しました。driver は cold 試験前に terminal を閉じ、
+試験後に新しい terminal から通常入口を確認するよう修正します。元の失敗をジョブ全体の
+成功として扱いません。初期 fixture の `/tmp` Workspace 消失は `/var/tmp` への変更で
+解消しました。`d6059131` は cold SSH に成功しましたが、標準 Remote-SSH 拡張の導入漏れと
+転送 fixture の旧 Host port 契約で失敗しています。
+[run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769)に記録を保持します。
+
+リポジトリの回帰試験は、raw binary stdio/UDS、EOF/half-close、キャンセル、controller の
+起動遅延・切断、古い identity/lease/grant の拒否、並行 resume、所有 entry の cleanup を
+確認します。実 PC の電源再投入、Remote Explorer の手動クリック、VPN/NRPT、広範な IDE は
+未検証です。private-registry ジョブは手動実行専用のため PR 実行では SKIP です。
+公式 Base の初回 SSH setup の通信不要化は[Issue #603](https://github.com/SLktEx/Hacocoon/issues/603)の責務です。
+
 <a id="incus-lts"></a>
 
 ## Incus 7.0 LTS対応基準
@@ -173,7 +210,7 @@ rerun の成功は障害の証拠であり、解決ではない。現在の rout
 
 main を統合した `8c645317101e007d57c752f35ae0a95f637d81b5` では、Python 3.13.15 を使い composition/Incus/製品 CLI の関連テストと vet が成功した。初回はローカル Python 3.10 に `tomllib` がなく失敗したため、検証済みの別 runtime で新しい Host-tooling テストの前提を満たした。テストを弱める変更はない。固定 Go 1.26.7 でも sized-PTY と maintenance-terminal 回帰の100回反復が成功した。これらは repository/component の結果であり、installed native acceptance ではない。
 
-候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
+候補 `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) で再起動後の busy を再現した。初回 install と通常入室は成功し、再起動後の入室は11.218秒で失敗した。reinstall と後続の SSH/IDE/network/reclamation/通知は未実施。WSL の実装から、PTY を持つ PAM login bootstrap による競合経路を特定し、[ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md) に routing 修正と retry を採らない理由を記録した。修正後の再起動成功は、後続の受入失敗と分けて下記に記録する。
 
 候補 `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) は古い run 34744299866 の終了を待っていた。本体 job が取消済みでも job-level の `always()` により古い証拠 job が runner 待ちに残り、concurrency 枠を保持していた。証拠 job を `!cancelled()` に変更し、依存 job の失敗・skip の検査を保ちつつ workflow 全体の取消を完了できるようにした。これは CI 実装の不具合であり、runner 障害の証明ではない。取消を妨げる条件への差し戻しは静的回帰検査で拒否する。
 

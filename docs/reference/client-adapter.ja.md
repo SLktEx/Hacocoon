@@ -14,7 +14,7 @@ Hacocoon は `github.com/SLktEx/Hacocoon/pkg/clientadapter` を通じて、clien
 | `Ensure` | Environment/Workspace/access-modeが完全一致すれば再利用し、それ以外は新規作成 |
 | `Status` | client-safeなEnvironment 状態を取得 |
 | `Connections` | Hacocoon/runtime 状態から現在のクライアント接続を照合・調整 |
-| `PrepareSSH` | クライアントが渡す **公開 key** のみをinstallし、ループバック限定 SSHを作成 |
+| `PrepareSSH` | クライアントが渡す **公開 key** のみをinstallし、永続 SSH grant と portless stream target を作成 |
 | `Forward` | ループバック限定 TCP 転送を作成 |
 | `Revoke` | 管理対象の SSH/forward 接続を1つ撤回 |
 | `Delete` | EnvironmentとHacocoon ライフサイクル状態を削除 |
@@ -35,7 +35,7 @@ Host側元データパスはlocal lifecycle/reuse判定用に `source_workspace`
 - Environment 識別 / ライフサイクル
 - Workspace lease enforcement
 - Incus/provider 接続 setup / 後始末
-- ループバック限定 proxy enforcement
+- generation に固定した SSH stream と明示的 forwarding のループバック制限
 - Environmentへinstallする管理対象の SSH **public-key** 識別情報
 - 再接続可能な接続メタデータ
 - 信頼された Policy/Capability 承認 / execution
@@ -49,7 +49,7 @@ Host側元データパスはlocal lifecycle/reuse判定用に `source_workspace`
 - UI、通知、Browser Notification permission
 - セッション間 dedupが必要な場合の対話 cursor/event ID persist
 
-`pkg/clientadapter` は非公開 keyを受け取りません。`PrepareSSH` が受け取るのはpublic-key textだけです。対応する非公開 keyはクライアント自身がループバック接続先へ接続するときに直接使います。
+`pkg/clientadapter` は非公開 keyを受け取りません。`PrepareSSH` が受け取るのはpublic-key textだけです。対応する非公開 keyはクライアント自身が返された target を ProxyCommand で利用するときに直接使います。
 
 ## Fail-closed reuse
 
@@ -64,13 +64,13 @@ Host側元データパスはlocal lifecycle/reuse判定用に `source_workspace`
 
 ## Connection security
 
-underlying プロバイダーは管理対象の proxyをループバック限定に制限しています。`pkg/clientadapter` でもprojection時に再検証し、返却/reconcileされた接続のHostがループバックでなければrejectします。
+SSH は Host address/port を持たず、有効な stream target を必要とします。明示的 TCP forwarding はループバック制限を維持します。
 
 SSHではさらに次を要求します。
 
 - 接続 kindが `ssh`
 - 対象ポートが `22`
-- validなループバック Host / Host ポート
+- Host address/port がなく、Environment generation・Workspace・grant を束縛する target
 
 TCP 転送ではrequested 対象ポートとの一致を検証します。新規接続が契約違反ならアダプターが撤回し、撤回を証明できなければrecovery-requiredです。
 
@@ -84,7 +84,7 @@ TCP 転送ではrequested 対象ポートとの一致を検証します。新規
 2. `Connections(environment)`
 3. `InteractionBatch(lastOffset, ...)`
 
-Incus-backed 接続照合・調整は管理対象の proxy メタデータを実行基盤から再構成するため、再接続するクライアントはメモリ内なVS Code セッションなしでも現在の接続先を発見できます。その接続を再利用するか、明示的に撤回できます。
+Incus-backed 接続照合・調整は永続 SSH grant と明示的 forwarding の proxy メタデータを実行基盤から再構成するため、再接続するクライアントはメモリ内なVS Code セッションなしでも現在の接続先を発見できます。その接続を再利用するか、明示的に撤回できます。
 
 ## VS Codeを使わないgeneric proof
 
@@ -92,8 +92,8 @@ Incus-backed 接続照合・調整は管理対象の proxy メタデータを実
 
 ```sh
 hacoq create --workspace "$PWD" demo
-hacoq ssh demo --public-key "$HOME/.ssh/id_ed25519.pub" --host-port 2222
-ssh -i "$HOME/.ssh/id_ed25519" -p 2222 root@127.0.0.1
+haco ssh setup demo
+ssh haco-demo
 ```
 
 クライアントシェルや別アダプタープロセスを再起動した後も確認できます。
@@ -106,7 +106,7 @@ hacoq connections demo --json
 クライアント接続だけを撤回する場合:
 
 ```sh
-hacoq unforward demo ssh-2222
+haco env disconnect demo <grant-id>
 ```
 
 Environment ライフサイクルを終える場合:
@@ -145,10 +145,9 @@ recovery-requiredです。非公開 Host keyは読みません。アダプター
 識別を取得する必要があります。既存known-host keyの無断置換を許可する機能ではありません。
 製品の SSH 準備は自動化済みで、非公開 keyとローカル設定はクライアントが所有します。
 
-## SSHの自動ポート選択
+## Portless SSH target
 
-`PrepareSSH`の`HostPort: 0`は実行基盤権限側にループバックポート選択を任せます。
-アダプターはクライアントのネットワーク名前空間でSSHポートを選びません。Incusはguestの鍵を
-変更する前にproxyをbindし、bind失敗は操作失敗として返します。クライアントは応答の検証済み
-ポートを使います。明示した非ゼロのポートも利用できます。この規則はSSHが対象で、
-汎用転送は従来のクライアント側ポート選択のままです。
+`PrepareSSH` は Host port を受け取りません。返す target は Environment generation、
+Workspace、grant を束縛し、`StreamTarget.Token()` が `haco stream` の引数を生成します。
+汎用 forwarding は独立したループバックポート契約を維持します。
+詳細は [interactive access](../design/client-and-interactive-access.md) を参照してください。

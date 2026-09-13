@@ -6,6 +6,47 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="portless-ssh"></a>
+
+## Portless SSH and cold editor reconnect
+
+At `e35a152e3d58fc917192d56e442517bd7805b8ff` in
+[PR #631](https://github.com/SLktEx/Hacocoon/pull/631), the
+[Windows native run](https://github.com/SLktEx/Hacocoon/actions/runs/34756266534)
+passed real Windows OpenSSH command execution, managed alias/configuration,
+strict host-key checks, four simultaneous cold reconnects and deleted-target
+refusal. After Environment stop, controller stop and WSL termination, the first
+Hacocoon contact was `ssh.exe` through ProxyCommand. The same provider generation
+and Workspace marker survived. `ss -H -ltn` showed no new Host TCP listener,
+Incus had no SSH proxy device, and SSH metadata had an empty Host and port zero.
+
+A second cold cycle began with standard VS Code's saved remote-folder URI.
+VS Code 1.136.1 and Microsoft's Remote-SSH 0.128.0 passed actual editor file
+read/write, remote terminal execution, local approval stale refusal and probe
+cleanup. No Hacocoon extension established the connection; the disposable UI
+observer only checked the resulting session. Windows export/import SSH with a
+fresh host-key pin, retained-data recreation, preview and public reclamation
+also passed. [Repository CI](https://github.com/SLktEx/Hacocoon/actions/runs/34756266527),
+[Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/34756266617)
+and [real Incus Core/Btrfs](https://github.com/SLktEx/Hacocoon/actions/runs/34756266512)
+passed on that candidate.
+
+The Windows aggregate still failed when its driver wrote `exit` to the old Host
+terminal destroyed by the intentional WSL shutdown. The driver now closes the
+terminal before cold checks and verifies ordinary Host entry in a new terminal
+afterward; the earlier failed aggregate is not a whole-job pass. Earlier cold
+fixtures used a lost `/tmp` Workspace; `/var/tmp` fixed that prerequisite.
+At `d6059131`, cold SSH passed but the fixture omitted the standard Remote-SSH
+extension and transfer still expected a Host port; these failures remain recorded
+in [run 34755298769](https://github.com/SLktEx/Hacocoon/actions/runs/34755298769).
+
+Repository regressions cover raw binary stdio/UDS, EOF and half-close, cancellation,
+controller delay/disconnect, stale identity/lease/grant refusal, concurrent resume
+and owned-fragment cleanup. A real PC power-cycle, manual Remote Explorer mouse
+selection, VPN/NRPT and broad IDE compatibility were not tested. The private-registry
+job is manual-dispatch-only and skipped in PR runs. Network-independent initial SSH
+setup on official Bases remains [Issue #603](https://github.com/SLktEx/Hacocoon/issues/603).
+
 <a id="incus-lts"></a>
 
 ## Incus 7.0 LTS baseline
@@ -183,7 +224,7 @@ were not run there. Commit-bound hosted results must be recorded separately.
 
 After integrating main at `8c645317101e007d57c752f35ae0a95f637d81b5`, related composition/Incus/product-CLI tests and vet passed with Python 3.13.15. The first local run failed because Python 3.10 lacked `tomllib`; installing the verified separate runtime satisfied the new Host-tooling test prerequisite without weakening the test. Sized-PTY and maintenance-terminal regressions also passed 100 repetitions on pinned Go 1.26.7. These are repository/component results, not installed native acceptance.
 
-Candidate `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) reproduced the restart busy failure. Initial install and ordinary entry passed; restart entry failed in 11.218 seconds. Reinstall and downstream SSH/IDE/network/reclamation/notification steps were not executed. WSL source inspection identified the competing PTY-backed PAM login bootstrap; [ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) records the routing fix and rejected retries. The native restart results below verify that fix separately from later acceptance failures.
+Candidate `8c645317101e007d57c752f35ae0a95f637d81b5` / [Windows job 103689222832](https://github.com/SLktEx/Hacocoon/actions/runs/34744299884/job/103689222832) reproduced the restart busy failure. Initial install and ordinary entry passed; restart entry failed in 11.218 seconds. Reinstall and downstream SSH/IDE/network/reclamation/notification steps were not executed. WSL source inspection identified the competing PTY-backed PAM login bootstrap; [ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md) records the routing fix and rejected retries. The native restart results below verify that fix separately from later acceptance failures.
 
 Candidate `75007eccd3b6d4290e456b1e346031203dcef227` / [test run 34745868490](https://github.com/SLktEx/Hacocoon/actions/runs/34745868490) waited behind superseded run 34744299866. Its required jobs were cancelled, but job-level `always()` kept the old evidence job queued and retained the concurrency slot. Evidence jobs now use `!cancelled()`: failed/skipped dependencies still require evidence, while whole-workflow cancellation can finish. This was a CI implementation defect, not proof of a runner outage. Static regressions reject restoring the uninterruptible condition.
 

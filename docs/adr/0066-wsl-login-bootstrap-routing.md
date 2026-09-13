@@ -1,4 +1,4 @@
-# ADR 0065: Keep WSL login bootstrap out of automatic Host entry
+# ADR 0066: Keep WSL login bootstrap out of automatic Host entry
 
 Status: accepted
 Date: 2026-09-13

@@ -47,7 +47,7 @@ haco-agent-host release --session <opaque-id>
 - hashes the opaque session identity before deriving the SSH alias;
 - keeps the SSH private key on the client side and passes only the public key through the existing Hacocoon SSH access path;
 - writes only an adapter-owned SSH config fragment under `~/.ssh/hacocoon/`;
-- binds SSH to an existing Hacocoon loopback-only client connection;
+- binds SSH to the existing generation-pinned controller stream;
 - reuses a compatible managed SSH connection or rotates it only after the replacement is ready;
 - emits a session descriptor containing the bound Environment, SSH alias, `/workspace`, and VS Code remote-folder URI;
 - launches the VS Code Agents window directly on the Hacocoon remote workspace unless `--no-launch` is requested.
@@ -75,7 +75,6 @@ The JSON descriptor includes:
   "workspace_path": "/trusted/host/worktree",
   "remote_workspace": "/workspace",
   "ssh_alias": "haco-agent-...",
-  "host_port": 2222,
   "folder_uri": "vscode-remote://ssh-remote+haco-agent-.../workspace"
 }
 ```
@@ -112,7 +111,7 @@ Git worktrees separate working directories while sharing repository metadata; Ha
 
 The adapter does not make a coding agent a Hacocoon client. Environment allocation, SSH preparation/revocation, Workspace ownership, and release remain on the trusted side.
 
-Raw session IDs are not used as persisted/public SSH host aliases. Private SSH keys are not copied into the Environment. The adapter uses the same loopback-only client-access boundary as the existing VS Code adapter.
+Raw session IDs are not used as persisted/public SSH host aliases. Private SSH keys are not copied into the Environment. The adapter uses the same portless client-access boundary as the existing VS Code adapter.
 
 AHP is an external VS Code integration protocol and does not become Core vocabulary. Hacocoon also does not own task decomposition, model routing, retries, token budgets, or the Agents UI.
 
@@ -128,8 +127,10 @@ This allows tools such as future task schedulers or multi-agent orchestrators to
 
 ## Validation
 
-Repository CI covers helper behavior, descriptor serialization, remote-folder URI construction, SSH-config injection rejection, connection reuse/rotation helpers, Go tests/vet/race, release packaging, installer checks, and existing host-independent E2Es.
+Repository CI covers helper behavior, descriptor serialization, remote-folder URI construction, SSH-config injection rejection, exact-target connection reuse helpers, Go tests/vet/race, release packaging, installer checks, and existing host-independent E2Es.
 
 Real VS Code Agent Host behavior, Windows/WSL path translation, real Incus SSH, and multi-session routing remain real-host acceptance work. #344 tracks the composed fresh-Windows -> `haco-host` -> worktree -> Environment -> VS Code user journey.
 
 > **VS Code owns agent orchestration; Hacocoon owns the isolated per-session workspace runtime and authority boundary.**
+
+SSH config uses the shared ProxyCommand renderer and strict host-key pins. `--host-port` and descriptor `host_port` are removed. Legacy Agent Host fragments without an ownership marker require explicit inspection/removal before preparing a new grant; they are never silently overwritten.

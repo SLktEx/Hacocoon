@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 import unittest
 
 spec = importlib.util.spec_from_file_location('native_runner', Path(__file__).with_name('windows-native-access-e2e.py'))
@@ -12,6 +13,50 @@ runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
 class NativeRunnerTests(unittest.TestCase):
+    def test_cold_checks_have_no_retained_host_terminal(self):
+        terminals, checks = [], []
+
+        class Terminal:
+            def __init__(self):
+                self.proc = self
+                self.alive = True
+                self.writes = []
+                terminals.append(self)
+
+            def isalive(self):
+                return self.alive
+
+            def terminate(self, force):
+                self.alive = False
+
+            def write(self, text):
+                if not self.alive:
+                    raise EOFError('closed terminal')
+                self.writes.append(text)
+
+            def run(self, on_output):
+                on_output('CMD>', self)
+                on_output('CMD>\nroot@haco-host:~# ', self)
+                on_output('CMD>\nroot@haco-host:~# \nCMD>', self)
+                if self.writes != ['wsl -d Hacocoon\r\n', 'exit\r\n', 'exit\r\n']:
+                    raise AssertionError('ordinary terminal was not closed normally')
+                self.alive = False
+
+        driver = SimpleNamespace(TerminalProcess=Terminal,
+                                 cmd_prompt_count=lambda output: output.count('CMD>'))
+
+        def check(name):
+            active = sum(terminal.alive for terminal in terminals)
+            self.assertEqual(active, 1 if name == 'test_windows_host_interop.ps1' else 0)
+            checks.append(name)
+
+        runner.run_native_checks(driver, check, host_customization=True)
+        self.assertEqual(checks, ['test_windows_host_interop.ps1',
+            'test_windows_environment_ssh.ps1', 'test_host_customization.ps1',
+            'test_windows_host_interop.ps1'])
+        self.assertEqual(len(terminals), 2)
+        self.assertFalse(any(terminal.alive for terminal in terminals))
+
     def test_result_requires_success_and_all_markers(self):
         name = 'test_windows_environment_ssh.ps1'
         marker = 'WINDOWS DIRECT ENVIRONMENT SSH: PASS'

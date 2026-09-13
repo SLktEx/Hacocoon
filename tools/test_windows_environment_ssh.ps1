@@ -1,14 +1,14 @@
 # Follow-on B1+B5 acceptance after the exact Windows installer journey has passed.
-# The test proves a real Windows OpenSSH client can use Hacocoon's loopback-only
+# The test proves a real Windows OpenSSH client can use Hacocoon's portless ProxyCommand
 # SSH transport. Desktop SSH setup is also exercised on the disposable GHA user;
 # local manual execution preserves the operator's SSH configuration.
 #Requires -Version 7.0
-param([string]$Distro = 'Hacocoon', [int]$Port = 0, [string]$ReclamationManifest)
+param([string]$Distro = 'Hacocoon', [string]$ReclamationManifest)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $EnvironmentName = 'win-ssh-' + [guid]::NewGuid().ToString('N').Substring(0,16)
-$Workspace = "/tmp/$EnvironmentName-workspace"
+$Workspace = "/var/tmp/$EnvironmentName-workspace"
 $Work = Join-Path ([IO.Path]::GetTempPath()) $EnvironmentName
 $PrivateKey = Join-Path $Work 'id_ed25519'
 $PublicKey = "$PrivateKey.pub"
@@ -191,16 +191,12 @@ try {
         Write-Host 'SKIP: VPN/NRPT acceptance requires an available VPN and private test name.'
     }
 
+    $listenersBefore = Invoke-Wsl @('-u','root','--exec','ss','-H','-ltn') 'Observe Host listeners before SSH preparation'
     $sshArgs = @('/usr/local/bin/haco', 'env', 'ssh', '--json', '--key', $PublicKeyWsl)
-    if ($Port -ne 0) { $sshArgs += @('--port', $Port.ToString()) }
     $sshArgs += $EnvironmentName
-    $prepared = Invoke-HacoHost $sshArgs 'Prepare loopback-only SSH from trusted haco-host'
+    $prepared = Invoke-HacoHost $sshArgs 'Prepare portless SSH from trusted haco-host'
     $connection = $prepared.Stdout | ConvertFrom-Json
-    if ([int]$connection.port -lt 1 -or [int]$connection.port -gt 65535) { throw 'Invalid allocated SSH port' }
-    if ($Port -eq 0) { $Port = [int]$connection.port }
-    if ($connection.kind -ne 'ssh' -or $connection.host -ne '127.0.0.1' -or [int]$connection.port -ne $Port -or $connection.user -ne 'root') {
-        throw "Unexpected prepared SSH connection metadata: $($prepared.Stdout.Trim())"
-    }
+    if ($connection.kind -ne 'ssh' -or $connection.host -ne '' -or [int]$connection.port -ne 0 -or $connection.target.service -ne 'ssh' -or $connection.target.environment -ne $EnvironmentName -or $connection.user -ne 'root') { throw 'Unexpected portless SSH metadata' }
     $ConnectionId = [string]$connection.id
     if ([string]::IsNullOrWhiteSpace($ConnectionId)) {
         throw 'Prepared SSH connection did not return an ID.'
@@ -212,16 +208,17 @@ try {
     $guard = Invoke-Wsl @('-u', 'root', '--exec', 'python3', $guardScript.Stdout.Trim(), "haco-$EnvironmentName", [string]$observed.config['user.hacocoon.instance-id']) 'Verify installed Environment MAC/IP source guard'
     $guardResult = $guard.Stdout | ConvertFrom-Json
     if ($guardResult.status -ne 'PASS' -or $guardResult.guard_rules -ne 'verified' -or $guardResult.generation -ne $observed.config['user.hacocoon.instance-id']) { throw 'Source guard observation incomplete' }
-    $proxy = $observed.expanded_devices["haco-$ConnectionId"]
-    if ($proxy.type -ne 'proxy' -or $proxy.listen -ne "tcp:127.0.0.1:$Port" -or $proxy.connect -ne 'tcp:127.0.0.1:22') { throw 'SSH proxy is not loopback-only into Environment sshd' }
+    if (@($observed.expanded_devices.Keys | Where-Object { $_ -like 'haco-ssh-*' }).Count -ne 0) { throw 'SSH created an Incus proxy device' }
+    $listenersAfter = Invoke-Wsl @('-u','root','--exec','ss','-H','-ltn') 'Observe Host listeners after SSH preparation'
+    if ($listenersAfter.Stdout -ne $listenersBefore.Stdout) { throw 'SSH preparation changed Host TCP listeners' }
     $generated = Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'ssh-config', $EnvironmentName) 'Generate OpenSSH config from trusted haco-host'
     $config = $generated.Stdout
     if ($config -notmatch "(?m)^Host haco-$([regex]::Escape($EnvironmentName))$" -or
-        $config -notmatch '(?m)^  HostName 127\.0\.0\.1$' -or
-        $config -notmatch "(?m)^  Port $Port$" -or
+        $config -notmatch '(?m)^  ProxyCommand C:/Windows/System32/wsl.exe --distribution ' -or
+        $config -match '(?m)^  Port ' -or
         $config -notmatch '(?m)^  User root$' -or
         $config -notmatch '(?m)^  StrictHostKeyChecking yes$') {
-        throw "Generated SSH config does not describe the expected Windows loopback target.`n$config"
+        throw "Generated SSH config does not describe the expected Windows ProxyCommand target.`n$config"
     }
     [IO.File]::WriteAllText($ConfigPath, $config, [Text.UTF8Encoding]::new($false))
 
@@ -229,7 +226,7 @@ try {
     # treat an unauthenticated network scan as proof of server identity.
     $keyParts = ([string]$connection.host_public_key).Trim() -split '\s+'
     if ($keyParts.Length -ne 2 -or $keyParts[0] -ne 'ssh-ed25519' -or $keyParts[1] -notmatch '^[A-Za-z0-9+/=]+$') { throw 'Malformed controller-provided host public key' }
-    $hostKey = "[127.0.0.1]:$Port $($keyParts[0]) $($keyParts[1])"
+    $hostKey = "haco-$EnvironmentName $($keyParts[0]) $($keyParts[1])"
     [IO.File]::WriteAllText($KnownHosts, $hostKey + "`n", [Text.UTF8Encoding]::new($false))
 
     $alias = "haco-$EnvironmentName"
@@ -259,10 +256,46 @@ try {
         $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Use generated desktop SSH alias'
         if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Generated SSH alias reached the wrong Workspace' }
         [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'stop', $EnvironmentName) 'Stop Environment before desktop reconnect')
-        [void](Invoke-HacoHost @('/usr/local/bin/haco', 'ssh', 'setup', $EnvironmentName) 'Resume and reuse desktop SSH settings')
+        [void](Invoke-Wsl @('-u','root','--exec','systemctl','stop','haco-controller.service') 'Stop controller before cold reconnect')
+        [void](Invoke-Checked 'wsl.exe' @('--terminate',$Distro) 'Terminate only the fixture WSL distribution')
+        # First Hacocoon contact after termination is native OpenSSH ProxyCommand.
         if ([IO.File]::ReadAllText($managedConfig) -ne $managedBefore) { throw 'Reconnect unexpectedly rotated the managed SSH connection' }
-        $desktop = Invoke-Checked $NativeSSH @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'cat /workspace/windows-marker') 'Reconnect using generated desktop SSH alias'
-        if ($desktop.Stdout.Trim() -ne 'windows-workspace-ok') { throw 'Reconnect lost Workspace content' }
+        $reconnects = @()
+        try {
+            for ($i = 0; $i -lt 4; $i++) {
+                $start = [Diagnostics.ProcessStartInfo]::new()
+                $start.FileName = $NativeSSH
+                $start.UseShellExecute = $false
+                $start.CreateNoWindow = $true
+                $start.RedirectStandardOutput = $true
+                $start.RedirectStandardError = $true
+                foreach ($arg in @('-v','-o','BatchMode=yes','-o','ConnectTimeout=180',$alias,'cat /workspace/windows-marker')) { [void]$start.ArgumentList.Add($arg) }
+                $process = [Diagnostics.Process]::Start($start)
+                $reconnects += [pscustomobject]@{ Process=$process; Output=$process.StandardOutput.ReadToEndAsync(); Error=$process.StandardError.ReadToEndAsync() }
+            }
+            foreach ($probe in $reconnects) {
+                if (-not $probe.Process.WaitForExit(300000)) { throw 'Parallel cold SSH reconnect timed out' }
+                if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($probe.Output,$probe.Error),10000)) { throw 'Parallel reconnect output did not close' }
+                if ($probe.Process.ExitCode -ne 0) {
+                    $progress = Get-SSHProgressEvidence $probe.Output.GetAwaiter().GetResult() $probe.Error.GetAwaiter().GetResult()
+                    throw "Parallel cold SSH reconnect failed; exit=$($probe.Process.ExitCode) ssh_progress=$progress"
+                }
+                if ($probe.Output.GetAwaiter().GetResult().Trim() -ne 'windows-workspace-ok') { throw 'Parallel reconnect lost Workspace content' }
+            }
+        } finally {
+            foreach ($probe in $reconnects) {
+                if (-not $probe.Process.HasExited) { $probe.Process.Kill($true); [void]$probe.Process.WaitForExit(10000) }
+                $probe.Process.Dispose()
+            }
+        }
+        $reconnected = (Invoke-Wsl @('-u','root','--exec','incus','query',"/1.0/instances/haco-$EnvironmentName`?project=hacocoon") 'Verify same provider generation after parallel cold reconnect').Stdout | ConvertFrom-Json -AsHashtable
+        if ($reconnected.config['user.hacocoon.instance-id'] -ne $connection.target.instance) { throw 'Cold reconnect replaced the Environment generation' }
+        if (@($reconnected.expanded_devices.Keys | Where-Object { $_ -like 'haco-ssh-*' }).Count -ne 0) { throw 'Cold reconnect created an SSH proxy' }
+        $coldListeners = (Invoke-Wsl @('-u','root','--exec','ss','-H','-ltn') 'Observe listeners after parallel cold reconnect').Stdout
+        $beforeLines = @($listenersBefore.Stdout -split '\r?\n' | Where-Object { $_ } | Sort-Object)
+        $afterLines = @($coldListeners -split '\r?\n' | Where-Object { $_ } | Sort-Object)
+        if (@(Compare-Object $beforeLines $afterLines | Where-Object SideIndicator -eq '=>').Count -ne 0) { throw 'Cold SSH reconnect added a Host TCP listener' }
+        Write-Host 'PARALLEL COLD SSH / SAME GENERATION / NO SSH PROXY OR NEW HOST LISTENER: PASS'
         Write-Host 'PASS: ordinary ssh setup, Windows-owned key/config, strict native SSH, stopped resume and connection reuse'
         $configurationProbe = @'
 set -eu
@@ -511,11 +544,11 @@ fi
 
     # A changed key must fail closed before any remote command is executed.
     $wrongKey = (Get-Content -Raw -LiteralPath $PublicKey).Trim() -split '\s+'
-    [IO.File]::WriteAllText($KnownHosts, "[127.0.0.1]:$Port $($wrongKey[0]) $($wrongKey[1])`n", [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($KnownHosts, "haco-$EnvironmentName $($wrongKey[0]) $($wrongKey[1])`n", [Text.UTF8Encoding]::new($false))
     $mismatch = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'echo MUST-NOT-EXECUTE')
     if ($mismatch.ExitCode -eq 0 -or $mismatch.Stdout.Contains('MUST-NOT-EXECUTE') -or $mismatch.Stderr -notmatch 'HOST IDENTIFICATION HAS CHANGED|Host key verification failed') { throw 'Changed host key did not fail safely' }
     Write-Host "Native client: $NativeSSH"
-    Write-Host "Route: Windows 127.0.0.1:$Port -> WSL Physical Host -> Incus proxy -> haco-$EnvironmentName sshd"
+    Write-Host "Route: Windows OpenSSH -> ProxyCommand -> wsl.exe -> controller UDS -> Environment sshd"
     Write-Host 'Private key remained in its Windows directory; only the .pub was passed to haco-host.'
 
 } finally {
@@ -540,13 +573,12 @@ fi
         # Confirm actual WSL listener removal and Windows connection refusal,
         # independently of the controller cleanup response. Windows WSL
         # forwarding may report a timeout instead of ECONNREFUSED after removal.
-        $listeners = Invoke-Wsl @('-u', 'root', '--exec', 'ss', '-H', '-ltn', "sport = :$Port") 'Verify Physical Host SSH listener was removed'
         $closed = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=2', "haco-$EnvironmentName", 'echo MUST-NOT-EXECUTE')
-        if (-not [string]::IsNullOrWhiteSpace($listeners.Stdout) -or $closed.ExitCode -eq 0 -or $closed.Stdout.Contains('MUST-NOT-EXECUTE')) {
+        if ($closed.ExitCode -eq 0 -or $closed.Stdout.Contains('MUST-NOT-EXECUTE')) {
             $CleanupFailed = $true
             Write-Warning 'SSH listener removal or Windows connection rejection could not be confirmed.'
         } else {
-            Write-Host 'Cleanup: WSL loopback listener absent; Windows SSH connection rejected.'
+            Write-Host 'Cleanup: Portless Windows SSH connection rejected after deletion.'
         }
     }
     if ($WorkspaceCreated -and $EnvironmentGone) {

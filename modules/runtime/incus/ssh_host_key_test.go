@@ -17,7 +17,7 @@ func TestInvalidHostKeyNeverLeavesPublishedSSHConnection(t *testing.T) {
 				if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
 					return host.Result{Stdout: raw}, nil
 				}
-				if len(args) > 2 && args[0] == "config" && args[2] == "remove" {
+				if len(args) > 2 && args[0] == "config" && args[1] == "unset" {
 					removed = true
 					if cleanupFails {
 						return host.Result{}, errors.New("cleanup failed")
@@ -25,7 +25,7 @@ func TestInvalidHostKeyNeverLeavesPublishedSSHConnection(t *testing.T) {
 				}
 				return host.Result{}, nil
 			}}
-			c, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey, HostPort: 2222})
+			c, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
 			if err == nil || c != (core.ClientConnection{}) || !removed {
 				t.Fatalf("c=%+v err=%v removed=%v", c, err, removed)
 			}
@@ -46,7 +46,7 @@ func TestTruncatedHostKeyResponseCannotPublishConnection(t *testing.T) {
 		}
 		return host.Result{}, nil
 	}}
-	c, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey, HostPort: 2222})
+	c, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
 	if !errors.Is(err, core.ErrIncompatibleState) || c != (core.ClientConnection{}) {
 		t.Fatalf("%+v %v", c, err)
 	}

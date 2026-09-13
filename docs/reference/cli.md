@@ -23,8 +23,8 @@ help and version require no controller.
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
 | Lifecycle | `haco env start <name>`, `stop <name>`, `delete <name>` | [Data lifetime](../guides/data-lifetime.md) |
-| Desktop | `haco ssh setup [environment]`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; interactive choice if ambiguous |
-| Manual SSH | `haco env ssh --key <public-key-file> [--port <port>] <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | Port defaults to runtime allocation; [SSH](windows-environment-ssh.md) |
+| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; interactive choice if ambiguous |
+| Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; no TTY |
 | Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |

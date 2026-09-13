@@ -10,7 +10,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func TestSSHPortProbeUsesLoopbackAndReleasesListener(t *testing.T) {
+func TestForwardPortProbeUsesLoopbackAndReleasesListener(t *testing.T) {
 	port, err := chooseLoopbackPort(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +22,7 @@ func TestSSHPortProbeUsesLoopbackAndReleasesListener(t *testing.T) {
 	defer listener.Close()
 }
 
-func TestSSHPortSelectionRejectsInvalidAndCanceledRequests(t *testing.T) {
+func TestForwardPortSelectionRejectsInvalidAndCanceledRequests(t *testing.T) {
 	for _, port := range []int{-1, 65536} {
 		if _, err := chooseLoopbackPort(context.Background(), port); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatal(err)

@@ -14,7 +14,7 @@ The package is a **client integration boundary**, not a new UI and not an author
 | `Ensure` | Reuse an exact Environment/Workspace/access-mode match or create it |
 | `Status` | Inspect client-safe Environment state |
 | `Connections` | Reconcile current client connections from Hacocoon/runtime state |
-| `PrepareSSH` | Install a client-supplied **public** key and create loopback-only SSH access |
+| `PrepareSSH` | Install a client-supplied **public** key and create a persistent SSH grant with a portless stream target |
 | `Forward` | Create a loopback-only TCP forwarding connection |
 | `Revoke` | Revoke one managed SSH/forward connection |
 | `Delete` | Delete the Environment and its Hacocoon lifecycle state |
@@ -35,7 +35,7 @@ The Host source path is returned separately as `source_workspace` for local life
 - Environment identity and lifecycle;
 - Workspace lease enforcement;
 - Incus/provider connection setup and cleanup;
-- loopback-only proxy enforcement;
+- generation-bound SSH streams and loopback-only explicit forwarding;
 - the managed SSH **public-key** marker installed in the Environment;
 - reconnectable connection metadata;
 - trusted Policy/Capability approval/execution;
@@ -49,7 +49,7 @@ The Host source path is returned separately as `source_workspace` for local life
 - UI, notifications, and Browser Notification permission;
 - persistence of its own interaction cursor/event IDs when cross-session deduplication is desired.
 
-A private key is not accepted by `pkg/clientadapter`. `PrepareSSH` accepts only public-key text. The client uses the corresponding private key directly when it connects to the loopback endpoint.
+A private key is not accepted by `pkg/clientadapter`. `PrepareSSH` accepts only public-key text. The client uses the corresponding private key directly when it uses ProxyCommand with the returned target.
 
 ## Fail-closed reuse
 
@@ -64,13 +64,14 @@ If creation succeeds but post-create verification fails, the adapter attempts to
 
 ## Connection security
 
-The underlying provider already enforces loopback-only managed proxies. `pkg/clientadapter` performs a second projection-time check and refuses any returned/reconciled connection whose Host is not a loopback address.
+The adapter verifies that SSH has no Host address/port and carries a valid stream target. Explicit TCP forwarding remains loopback-only.
 
 For SSH, the adapter additionally requires:
 
 - connection kind `ssh`;
 - target port `22`;
-- valid loopback Host and host port.
+- no Host address or allocated port, and a durable target whose Token method
+  encodes the ProxyCommand argument.
 
 For TCP forwarding it requires the expected target port. If a newly-created connection violates the contract, the adapter revokes it; if revocation cannot be proven, recovery is required.
 
@@ -84,7 +85,7 @@ A client process does not own Hacocoon's connection truth. After restart it can 
 2. `Connections(environment)`;
 3. `InteractionBatch(lastOffset, ...)`.
 
-Incus-backed connection reconciliation reconstructs managed proxy metadata, so a reconnecting client does not need an in-memory VS Code session to discover the current endpoint. The client can then reuse or explicitly revoke the existing connection.
+Incus-backed connection reconciliation reads persistent SSH grants and explicit forwarding proxy metadata, so a reconnecting client does not need an in-memory VS Code session to discover the current endpoint. The client can then reuse or explicitly revoke the existing connection.
 
 ## Generic non-VS-Code proof
 
@@ -92,8 +93,8 @@ The retained `hacoq` CLI exercises this external-path adapter on the Physical Ho
 
 ```sh
 hacoq create --workspace "$PWD" demo
-hacoq ssh demo --public-key "$HOME/.ssh/id_ed25519.pub" --host-port 2222
-ssh -i "$HOME/.ssh/id_ed25519" -p 2222 root@127.0.0.1
+haco ssh setup demo
+ssh haco-demo
 ```
 
 Inspect/reconnect after restarting the client shell or another adapter process:
@@ -106,7 +107,7 @@ hacoq connections demo --json
 Revoke only the client connection:
 
 ```sh
-hacoq unforward demo ssh-2222
+haco env disconnect demo <grant-id>
 ```
 
 Or delete the Environment when its lifecycle is finished:
@@ -145,14 +146,12 @@ A failed cleanup remains recovery-required. Private host keys are never read.
 The adapter validates the key again before exposing it to clients. Other
 providers and connection-list reconciliation may omit it; clients must obtain
 trusted identity before installing or changing a pin. This does not authorize
-silently replacing an existing known-host key. Automated SSH setup remains
-planned; clients retain ownership of private keys and local configuration.
+silently replacing an existing known-host key. Automated SSH setup is implemented; clients retain ownership of private keys and local configuration.
 
-## Automatic SSH port ownership
+## Portless SSH target
 
-`PrepareSSH` accepts `HostPort: 0` to let the runtime authority choose its
-loopback port. The adapter must not allocate an SSH port in the client namespace.
-Incus binds the selected proxy before modifying guest credentials; a bind failure
-is a failed operation. Clients use the returned validated port. Explicit nonzero
-ports remain available. This rule concerns SSH; generic forwarding currently
-retains its earlier client-side port selection.
+`PrepareSSH` no longer accepts a Host port. Its portless target binds the
+Environment generation, Workspace and grant; `StreamTarget.Token()` produces
+the argument consumed by `haco stream`. Generic forwarding keeps its separate
+loopback-port contract. See [interactive access](../design/client-and-interactive-access.md)
+for exact identity validation and cold-start behavior.

@@ -10,6 +10,9 @@ function Get-SSHProgressEvidence([string]$Stdout, [string]$Stderr) {
     )) {
         if ($Stderr -cmatch $entry[1]) { $observations.Add($entry[0]) }
     }
+    if ($Stderr -cmatch '(?m)^\[failed\] operation=stream stage=target reason=(not_found|already_exists|invalid_argument|unsupported|unavailable|denied|busy|incompatible_state|recovery_required|canceled|failed)\r?$') {
+        $observations.Add('stream_' + $Matches[1])
+    }
     $lines = $Stdout -split "`r?`n"
     foreach ($marker in @('windows-base-tool-ok','windows-ssh-ok','windows-workspace-ok','windows-ssh-command-complete')) {
         if ($lines -ccontains $marker) { $observations.Add($marker) }

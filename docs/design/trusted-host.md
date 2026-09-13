@@ -14,7 +14,7 @@ Automatic WSL entry distinguishes the real interactive shell from the background
 A login-managed shell remains ordinary Bash on the Physical Host; only real
 interactive entry requests controller-backed Host preparation. Parent command
 identity selects UI behavior and grants no authority. Setup exclusion and peer
-authorization remain unchanged. See [ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md).
+authorization remain unchanged. See [ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md).
 
 
 ## Notification companion

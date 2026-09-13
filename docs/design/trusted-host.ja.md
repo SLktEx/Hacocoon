@@ -13,7 +13,7 @@ WSL の自動入室は、実ユーザーの対話 shell と、systemd ユーザ�
 別 PTY で起動される背景の `login` shell を区別する。login が管理する shell は
 Physical Host の通常 Bash に留まり、実ユーザーの入室だけがコントローラー経由の
 Host 準備を要求する。親コマンドの識別は UI の選択であり権限を与えない。
-setup の排他と peer 認可は変更しない。[ADR 0065](../adr/0065-wsl-login-bootstrap-routing.md) を参照。
+setup の排他と peer 認可は変更しない。[ADR 0066](../adr/0066-wsl-login-bootstrap-routing.md) を参照。
 
 
 ## 通知バイナリ

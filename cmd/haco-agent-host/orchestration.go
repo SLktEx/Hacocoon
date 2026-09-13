@@ -23,7 +23,6 @@ type agentSessionDescriptor struct {
 	WorkspacePath   string `json:"workspace_path"`
 	RemoteWorkspace string `json:"remote_workspace"`
 	SSHAlias        string `json:"ssh_alias"`
-	HostPort        int    `json:"host_port,omitempty"`
 	FolderURI       string `json:"folder_uri"`
 }
 
@@ -227,11 +226,6 @@ func descriptorForBinding(ctx context.Context, binding agenthost.Binding) agentS
 		RemoteWorkspace: remoteWorkspacePath,
 		SSHAlias:        alias,
 		FolderURI:       agentRemoteFolderURI(alias),
-	}
-	if clientFS, err := resolveClientFilesystem(ctx); err == nil {
-		if managed, readErr := readManagedSSHConfig(managedConfigPath(clientFS.Home, alias)); readErr == nil && managed.Alias == alias {
-			descriptor.HostPort = managed.Port
-		}
 	}
 	return descriptor
 }

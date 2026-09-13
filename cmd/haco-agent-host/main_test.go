@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestManagedSSHConfigRoundTrip(t *testing.T) {
 	path := managedConfigPath(home, alias)
 	want := managedSSHConfig{
 		Alias:        alias,
-		Port:         2222,
+		Connection:   testAgentConnection(),
 		IdentityFile: "~/.ssh/id test",
 	}
 	if err := writeManagedSSHConfig(path, want); err != nil {
@@ -58,7 +59,7 @@ func TestManagedSSHConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip mismatch: got=%+v want=%+v", got, want)
 	}
 	info, err := os.Stat(path)
@@ -72,7 +73,7 @@ func TestManagedSSHConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, required := range []string{"HostName 127.0.0.1", "User root", "IdentitiesOnly yes"} {
+	for _, required := range []string{"ProxyCommand /usr/local/bin/haco stream", "StrictHostKeyChecking yes", "User root", "IdentitiesOnly yes"} {
 		if !strings.Contains(string(content), required) {
 			t.Fatalf("managed config missing %q: %s", required, content)
 		}
@@ -83,9 +84,9 @@ func TestManagedSSHConfigRejectsInjectionValues(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, "managed.conf")
 	cases := []managedSSHConfig{
-		{Alias: "haco-agent-good\nHost-evil", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"},
-		{Alias: "haco-agent-good", Port: 2222, IdentityFile: "~/.ssh/id_ed25519\nProxyCommand evil"},
-		{Alias: "haco agent bad", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"},
+		{Alias: "haco-agent-good\nHost-evil", Connection: testAgentConnection(), IdentityFile: "~/.ssh/id_ed25519"},
+		{Alias: "haco-agent-good", Connection: testAgentConnection(), IdentityFile: "~/.ssh/id_ed25519\nProxyCommand evil"},
+		{Alias: "haco agent bad", Connection: testAgentConnection(), IdentityFile: "~/.ssh/id_ed25519"},
 	}
 	for _, config := range cases {
 		if err := writeManagedSSHConfig(path, config); err == nil {
@@ -94,49 +95,42 @@ func TestManagedSSHConfigRejectsInjectionValues(t *testing.T) {
 	}
 }
 
-func TestReusableSSHConnectionRequiresAliasIdentityAndCompatiblePort(t *testing.T) {
+func TestReusableSSHConnectionRequiresAliasIdentityAndExactTarget(t *testing.T) {
+	t.Setenv("WSL_DISTRO_NAME", "")
 	connections := []core.ClientConnection{
 		{ID: "tcp-2222", Kind: "tcp", Port: 2222},
-		{ID: "ssh-2222", Kind: "ssh", Port: 2222, User: "root"},
+		testAgentConnection(),
 	}
-	previous := managedSSHConfig{Alias: "haco-agent-abcd", Port: 2222, IdentityFile: "~/.ssh/id_ed25519"}
+	previous := managedSSHConfig{Alias: "haco-agent-abcd", Connection: testAgentConnection(), IdentityFile: "~/.ssh/id_ed25519"}
 
-	for _, requestedPort := range []int{0, 2222} {
-		got := reusableSSHConnection(previous, previous.Alias, previous.IdentityFile, requestedPort, connections)
-		if got.ID != "ssh-2222" {
-			t.Fatalf("expected reusable SSH connection for port %d, got %+v", requestedPort, got)
-		}
+	if got := reusableSSHConnection(previous, previous.Alias, previous.IdentityFile, connections); got.ID != previous.Connection.ID {
+		t.Fatal("same grant not reused")
 	}
-	if got := reusableSSHConnection(previous, "haco-agent-other", previous.IdentityFile, 0, connections); got.Port != 0 {
+	if got := reusableSSHConnection(previous, "haco-agent-other", previous.IdentityFile, connections); got.ID != "" {
 		t.Fatalf("different alias must not reuse old connection: %+v", got)
 	}
-	if got := reusableSSHConnection(previous, previous.Alias, "~/.ssh/other", 0, connections); got.Port != 0 {
+	if got := reusableSSHConnection(previous, previous.Alias, "~/.ssh/other", connections); got.ID != "" {
 		t.Fatalf("different identity must not reuse old connection: %+v", got)
 	}
-	if got := reusableSSHConnection(previous, previous.Alias, previous.IdentityFile, 3333, connections); got.Port != 0 {
-		t.Fatalf("different explicit port must not reuse old connection: %+v", got)
+	previous.Connection.Target.Instance = "env-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	if got := reusableSSHConnection(previous, previous.Alias, previous.IdentityFile, connections); got.ID != "" {
+		t.Fatalf("different generation must not reuse old connection: %+v", got)
 	}
 }
 
 func TestFindSSHConnectionIgnoresNonSSHConnections(t *testing.T) {
 	connections := []core.ClientConnection{
 		{ID: "tcp-2222", Kind: "tcp", Port: 2222},
-		{ID: "ssh-3333", Kind: "ssh", Port: 3333},
+		testAgentConnection(),
 	}
-	if got := findSSHConnection(connections, 2222); got.Port != 0 {
+	if got := findSSHConnection(connections, "tcp-2222"); got.ID != "" {
 		t.Fatalf("non-SSH connection must not match: %+v", got)
 	}
-	if got := findSSHConnection(connections, 3333); got.ID != "ssh-3333" {
+	if got := findSSHConnection(connections, "ssh-one"); got.ID != "ssh-one" {
 		t.Fatalf("expected SSH connection, got %+v", got)
 	}
 }
 
-func TestFreeLoopbackPortReturnsValidPort(t *testing.T) {
-	port, err := freeLoopbackPort()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if port < 1 || port > 65535 {
-		t.Fatalf("invalid port: %d", port)
-	}
+func testAgentConnection() core.ClientConnection {
+	return core.ClientConnection{ID: "ssh-one", Kind: "ssh", User: "root", TargetPort: 22, HostPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f", Target: &core.StreamTarget{Environment: "agent-demo", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}}
 }
