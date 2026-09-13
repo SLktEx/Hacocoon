@@ -548,8 +548,8 @@ main反映・配布済みではありません。
 
 ## Windows公開転送クライアント候補
 
-#632を親にした`codex/windows-tunnel-client`で、Windowsの明示的な転送入口と
-配布・配置を実装しています。component確認をmain反映・配布済み・Linux入口の
+実装`700372233a9b470e06daa97433ce7c9948751497`、#632を親にした
+`codex/windows-tunnel-client`で、Windowsの明示的な転送入口と配布・配置を実装しています。component確認をmain反映・配布済み・Linux入口の
 自動委譲・導入済みWindows/WSL/Incus経路の受入とは扱いません。
 
 - Windows amd64の実client/controller/TCPで、8並行×1 MiB binary、半切断、

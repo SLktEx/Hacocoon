@@ -650,8 +650,9 @@ not excused by component success.
 
 ## Windows tunnel client candidate
 
-Development branch `codex/windows-tunnel-client`, based on #632, implements the
-explicit Windows client and installer packaging. Main integration, publication,
+Implementation `700372233a9b470e06daa97433ce7c9948751497`, on
+`codex/windows-tunnel-client` based on #632, implements the explicit Windows client
+and installer packaging. Main integration, publication,
 automatic Linux entry delegation and installed Windows/WSL/Incus acceptance are
 not established by this candidate's component checks.
 

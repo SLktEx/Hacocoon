@@ -88,7 +88,7 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.63 | Durable Git Push Reconciliation | ✅ implemented |
 | v0.64 | Notification-contained Approval | ✅ implemented |
 | v0.65 | Client TCP Stream Forwarding | ✅ implemented |
-| v0.66 | Native Windows TCP Client | ✅ implemented |
+| v0.66 | Native Windows TCP Client | implemented candidate — installed acceptance and automatic Linux entry remain pending |
 
 The current milestone position is **v0.66**. This declaration and the table mirror YAML.
 
