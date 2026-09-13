@@ -95,12 +95,17 @@ func (p *BaseProvider) builtBases(ctx context.Context) (map[core.BaseName]core.B
 		if !basebuild.NamePattern.MatchString(string(name)) {
 			return nil, core.ErrIncompatibleState
 		}
-		if _, exists := p.sources[name]; exists {
-			return nil, core.ErrAlreadyExists
-		}
 		image, err := p.ownedBaseImage(ctx, name, a)
 		if err != nil {
 			return nil, err
+		}
+		// Trusted official Builder output is addressed through the reserved logical
+		// haco/ name and must never appear as a user-created custom Base.
+		if basebuild.IsOfficialBuildName(name) {
+			continue
+		}
+		if _, exists := p.sources[name]; exists {
+			return nil, core.ErrAlreadyExists
 		}
 		result[name] = core.BaseInfo{Name: name, Revision: core.BaseRevision("sha256:" + image.Fingerprint)}
 	}

@@ -147,6 +147,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	runtimeSpec := core.EnvironmentRuntimeSpec{
 		InstanceID:          instanceID,
 		TemporaryWorkspace:  spec.TemporaryWorkspace != nil,
+		ParentBaseOnly:      spec.ParentBaseOnly,
 		ResourceMaintenance: spec.TemporaryWorkspace != nil && spec.PersistentResource != "",
 		PersistentResource:  persistent,
 		Name:                name,

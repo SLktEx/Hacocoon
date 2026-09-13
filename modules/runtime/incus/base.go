@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/SLktEx/Hacocoon/internal/basebuild"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
@@ -141,9 +142,20 @@ func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.Environm
 	if spec.ResourceMaintenance {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported
 	}
+	if spec.ParentBaseOnly && !spec.TemporaryWorkspace {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
 	p.baseMu.RLock()
 	defer p.baseMu.RUnlock()
-	resolved, err := p.resolveBase(ctx, spec.Base)
+	var (
+		resolved resolvedBase
+		err      error
+	)
+	if spec.ParentBaseOnly {
+		resolved, err = p.resolveParentBase(ctx, spec.Base)
+	} else {
+		resolved, err = p.resolveBase(ctx, spec.Base)
+	}
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
@@ -194,11 +206,24 @@ func (p *BaseProvider) InspectBase(ctx context.Context, name core.BaseName) (cor
 }
 
 // resolveBase returns the effective immutable starting point for a new
-// Environment. When a current Seed exists for the exact parent Base revision,
-// the Seed revision becomes the effective Base revision. Existing Environment
-// metadata therefore remains pinned even if the current Seed pointer advances.
+// Environment. Official Base names first resolve to the private revision produced
+// by the trusted Base Builder. Before bootstrap, they fall back to their configured
+// upstream parent so the official builder itself can be created.
 func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName) (resolvedBase, error) {
-	parent, err := p.resolveParentBase(ctx, requested)
+	name := requested
+	if name == "" {
+		name = defaultBaseName
+	}
+	if buildName, ok := basebuild.OfficialBuildName(name); ok {
+		built, found, err := p.resolveOfficialBuiltBase(ctx, name, buildName)
+		if err != nil {
+			return resolvedBase{}, err
+		}
+		if found {
+			return built, nil
+		}
+	}
+	parent, err := p.resolveParentBase(ctx, name)
 	if err != nil {
 		return resolvedBase{}, err
 	}
@@ -229,9 +254,35 @@ func (p *BaseProvider) resolveBase(ctx context.Context, requested core.BaseName)
 	}, nil
 }
 
-// resolveParentBase deliberately bypasses the current Seed pointer. The Seed
-// builder uses this path so rebuilding never recursively treats the previous
-// Seed as the parent Base.
+func (p *BaseProvider) resolveOfficialBuiltBase(ctx context.Context, logical, buildName core.BaseName) (resolvedBase, bool, error) {
+	aliases, err := p.baseAliases(ctx)
+	if err != nil {
+		return resolvedBase{}, false, err
+	}
+	aliasName := builtBasePrefix + string(buildName)
+	for _, alias := range aliases {
+		if alias.Name != aliasName {
+			continue
+		}
+		image, err := p.ownedBaseImage(ctx, buildName, alias)
+		if err != nil {
+			return resolvedBase{}, false, err
+		}
+		return resolvedBase{
+			ref: core.BaseRef{
+				Name:     logical,
+				Revision: core.BaseRevision("sha256:" + image.Fingerprint),
+			},
+			pinnedSource: "local:" + image.Fingerprint,
+			built:        true,
+		}, true, nil
+	}
+	return resolvedBase{}, false, nil
+}
+
+// resolveParentBase deliberately bypasses the current Seed and official built
+// pointers. Trusted Base builders use this path so rebuilding never recursively
+// treats the previous derived revision as its parent Base.
 func (p *BaseProvider) resolveParentBase(ctx context.Context, requested core.BaseName) (resolvedBase, error) {
 	if p == nil {
 		return resolvedBase{}, core.ErrRuntimeUnavailable

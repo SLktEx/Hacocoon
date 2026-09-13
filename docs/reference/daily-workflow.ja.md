@@ -24,16 +24,12 @@ OWNER/REPOと既存branchを置き換えてください。private Gitの認証�
 
 `haco open`はdesktop所有のSSH鍵・設定を準備しeditorを起動します。`haco open --client ssh sample-dev`は標準SSH shellを開きます。接続準備だけなら`haco ssh setup sample-dev`です。秘密鍵はdesktopに保持します。editorプロセスの起動だけで接続・build/testが正常とは判定しません。[Windows SSH](windows-environment-ssh.md)も参照してください。
 
-最初の`open`では、`sshd`を含まないBaseに`openssh-server`を導入するため、
-パッケージ取得の許可が必要です。**trusted haco-host**で`haco config`を使って
-現在のPolicyを確認し、`haco approve --list`で判断を行わずに承認待ちを一覧します。
-承認待ちが0件でも通信許可を意味しません。既定のdenyでは承認promptは作られません。
-`haco config --edit`で既存snapshotを確認し、必要なEnv・hostname・protocol・portだけに
-限定した規則を追加します。他の規則とdefault denyを保持してください。Ubuntuの既定の
-配布先は`archive.ubuntu.com`と`security.ubuntu.com`ですが、Baseでmirrorを使っていないか
-確認します。[Policy例](../design/egress-authorization.md#policy-example)を参照してください。
-SSH失敗だけでは原因は確定しません。Envの状態・接続とPolicyを確認してから、明示的に
-SSH準備をやり直します。導入済みパッケージは停止・起動をまたいでEnvのrootfsに残ります。
+Hacocoon公式Baseには、Base Builderでpublishされる時点でOpenSSH serverが組み込まれています。
+そのため、公式Baseから作った新しいEnvで`haco ssh setup`を使うだけならUbuntuのpackage mirrorを
+許可する必要はなく、SSH準備中にpackage installもしません。独自Baseを使う場合は、互換性のある
+`sshd`とsystemdのSSH unitをBase自身が提供してください。不足している場合はSSH準備が明示的に
+失敗するため、必要なpackageはBase Builderで組み込みます。SSH失敗だけでは原因は確定しないので、
+再試行前にEnvの状態と接続を確認してください。
 
 ## 作業・停止・翌日の再開
 

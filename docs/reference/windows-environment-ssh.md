@@ -19,15 +19,33 @@ pins and the SSH include, resumes stopped Environments and reuses matching
 connections. See the [client contract](../design/client-adapters-and-vscode-integration.md#desktop-ssh-setup-and-vs-code-opening)
 for ownership and recovery.
 
+Hacocoon official Bases are built through the ordinary Base Builder publication
+lifecycle with OpenSSH server already installed. A fresh Environment created from
+an official Base therefore does **not** need package-mirror network permission for
+`haco ssh setup`. Setup generates fresh instance host keys, starts the supported
+`ssh.service`/`sshd.service`, installs the desktop public key, validates sshd and
+creates the loopback-only connection.
+
+A custom Base is responsible for providing a compatible `sshd` and systemd SSH
+unit. SSH setup never runs a distro package manager. If the Base lacks that
+capability, setup fails with an actionable unsupported-Base error; build or select
+an SSH-capable Base instead. This keeps package installation in Base construction
+rather than giving an ordinary Environment network authority merely to become
+reachable from the desktop.
+
 The installed Windows acceptance fixture records editor, project setup, preview
 and Environment doctor failures separately and continues the independent probes.
-For the initial native SSH probe, a timeout records only allowlisted client
-progress and fixed fixture markers: connection, authentication, session, received
-exit status and command progress. Raw verbose SSH output and key/peer details
-are not emitted. These observations diagnose a failure and never replace pinned
-host-key checks or successful completion. The five-minute deadline is unchanged.
-Any recorded failure still fails the job after host-key refusal checks and
-cleanup. A later PASS marker never erases an earlier failure.
+Before the broader SSH fixture adds any test-specific network Policy, the dedicated
+`test_windows_official_base_ssh.ps1` path creates a fresh default-official-Base
+Environment under default-deny Policy, proves `sshd` is already present, runs
+ordinary `haco ssh setup`, and connects with Windows native OpenSSH. For the
+initial native SSH probe, a timeout records only allowlisted client progress and
+fixed fixture markers: connection, authentication, session, received exit status
+and command progress. Raw verbose SSH output and key/peer details are not emitted.
+These observations diagnose a failure and never replace pinned host-key checks or
+successful completion. The five-minute deadline is unchanged. Any recorded
+failure still fails the job after host-key refusal checks and cleanup. A later
+PASS marker never erases an earlier failure.
 
 ## Advanced manual configuration
 
@@ -85,8 +103,8 @@ probe, `/workspace` verification and cleanup; it never installs user SSH config.
 After a fresh candidate ZIP passes the ordinary Windows installer gate, run
 `python tools/windows-native-access-e2e.py --require-non-c` on a machine with
 a writable additional drive. The maintained ConPTY driver keeps an ordinary
-trusted Host shell open, checks native interop before and after the complete
-SSH lifecycle, and leaves the user's SSH configuration untouched.
+trusted Host shell open and checks native interop around both the default-deny
+official-Base SSH probe and the complete SSH lifecycle.
 
 ## Package access from SSH sessions
 
@@ -95,4 +113,3 @@ an OpenSSH SetEnv drop-in, validates sshd configuration and reloads it. Interact
 and command sessions can use the same policy-controlled proxy as Incus exec.
 This does not permit a domain or inherit an old Env grant; configure current
 network Policy as usual. See [ADR 0058](../adr/0058-ssh-session-egress-environment.md).
-Installed SSH package and transfer acceptance passed at `684e411`; `7517c27` failed before this fix. See [the bounded evidence](../status/acceptance-evidence.md#transfer).
