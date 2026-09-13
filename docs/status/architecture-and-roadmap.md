@@ -354,3 +354,11 @@ Temporary ConPTY acceptance now passes at `9767fd93`; its earlier failure remain
 in the acceptance evidence. Continue M1 result coverage and independent M2–M5
 work; this does not establish fresh GUI/toast, authenticated Git, Packer/cache,
 large-repository measurement or complete migration acceptance.
+
+The parent #592 Go 1.26 job exposed a local Bash PTY fixture race, reproduced
+also on Go 1.27. `codex/pty-resize-race` synchronizes each command with its fresh
+readline prompt; syscall evidence shows the stand-in otherwise writes a stale
+window size over the transport's resize. Native Windows/Incus passes and this
+fixture correction remain distinct evidence. Product terminal behavior is
+unchanged. Continue the original SSH-failure and installed long-input gaps,
+then the independent Git result reconciliation in #470.
