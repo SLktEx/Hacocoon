@@ -87,12 +87,12 @@ Gitのremoteは `haco://sample` となり、Environment作成時にmanaged Git b
 revisionと既存のPolicyルールを保持してください。編集方法と承認保存との関係は
 [設定の参照](../reference/configuration.ja.md)にあります。
 
-SSHの準備ではsshdの導入が必要になるため、先にEnvironmentが利用するパッケージ配布先を許可します。
-[外向き通信の例](../design/egress-authorization.ja.md#policy例)に従い、
-`network.egress/connect` の対象Environmentを `sample-dev`、
-resourceを実際の配布先ホスト名、プロトコルとポートを対応するHTTP／HTTPSの値にします。
-Ubuntuの配布先はBaseやCPUの種類で異なります。無制限のワイルドカードで代用しないでください。
-必要なパッケージを含むBaseを用意する方法もあります。
+Hacocoon公式Baseには、Base Builderでの生成時にOpenSSH serverが組み込まれています。
+そのため、公式Baseから作った新しいEnvironmentで `haco ssh setup` や
+`haco open --client ssh` を使うためだけにUbuntuのパッケージ配布先を許可する必要はありません。
+SSH準備時にEnvironment内で `apt-get` を実行することもありません。
+独自Baseを使う場合は、そのBase自身が互換性のある `sshd` とsystemdのSSH unitを提供する必要があります。
+不足している場合はSSH準備が明示的に失敗するため、必要なパッケージはBase Builderで組み込んでください。
 
 通常のfetch／pullと承認付きpushには、
 [管理対象Gitの権限設定](git-workflow.ja.md#configure-git-policy)から

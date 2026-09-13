@@ -18,13 +18,23 @@ import (
 
 const managedSSHProvisionScript = `
 set -eu
-export DEBIAN_FRONTEND=noninteractive
 if ! command -v sshd >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y --no-install-recommends openssh-server
+  printf '%s\n' "Hacocoon SSH setup requires a Base with OpenSSH server preinstalled; rebuild or switch the Base so 'sshd' is available." >&2
+  exit 127
+fi
+SSH_SERVICE=""
+for candidate in ssh.service sshd.service; do
+  if systemctl cat "$candidate" >/dev/null 2>&1; then
+    SSH_SERVICE="$candidate"
+    break
+  fi
+done
+if [ -z "$SSH_SERVICE" ]; then
+  printf '%s\n' "Hacocoon SSH setup requires a systemd OpenSSH server unit (ssh.service or sshd.service)." >&2
+  exit 126
 fi
 ssh-keygen -A
-systemctl enable --now ssh
+systemctl enable --now "$SSH_SERVICE"
 # Incus exec inherits environment.*; sshd creates a separate session environment.
 # Replace only our drop-in and validate sshd before reloading current settings.
 test ! -L /etc/ssh
@@ -37,7 +47,7 @@ chmod 0644 "$proxy_config"
 mv -T "$proxy_config" /etc/ssh/sshd_config.d/00-hacocoon-egress.conf
 trap - EXIT
 sshd -t
-systemctl reload ssh
+systemctl reload "$SSH_SERVICE"
 install -d -m 0700 /root/.ssh
 key="$1"
 marker="$2"
@@ -88,11 +98,18 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 		return core.ClientConnection{}, err
 	}
 	marker := "haco:" + id
-	if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker, managedSSHProxySettings()); err != nil {
+	provision, provisionErr := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "sh", "-ceu", managedSSHProvisionScript, "haco-ssh", req.PublicKey, marker, managedSSHProxySettings())
+	if provisionErr != nil {
+		cause := provisionErr
+		if provision.ExitCode == 127 {
+			cause = fmt.Errorf("Environment Base does not provide sshd; build or select an SSH-capable Base before creating the Environment: %w", core.ErrUnsupported)
+		} else if provision.ExitCode == 126 {
+			cause = fmt.Errorf("Environment Base provides sshd but no supported systemd ssh.service/sshd.service; use an SSH-capable Base: %w", core.ErrUnsupported)
+		}
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeout)
 		defer cancel()
 		cleanupErr := r.RevokeSSHAccess(cleanupCtx, ref, id)
-		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, err), cleanupErr)
+		return core.ClientConnection{}, errors.Join(fmt.Errorf("prepare SSH in %s: %w", ref, cause), cleanupErr)
 	}
 
 	// Retrieve only the public key through the trusted provider channel. Never

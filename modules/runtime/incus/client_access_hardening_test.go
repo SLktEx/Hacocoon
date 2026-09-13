@@ -12,6 +12,38 @@ import (
 
 const testHostPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
 
+func TestManagedSSHProvisionDoesNotInstallPackages(t *testing.T) {
+	for _, forbidden := range []string{"apt-get", "dnf ", "apk ", "pacman "} {
+		if strings.Contains(managedSSHProvisionScript, forbidden) {
+			t.Fatalf("runtime SSH provisioning still installs packages with %q", forbidden)
+		}
+	}
+	for _, required := range []string{"command -v sshd", "systemctl enable --now \"$SSH_SERVICE\""} {
+		if !strings.Contains(managedSSHProvisionScript, required) {
+			t.Fatalf("runtime SSH provisioning is missing %q", required)
+		}
+	}
+}
+
+func TestPrepareSSHAccessReportsMissingBaseCapability(t *testing.T) {
+	r := &fakeRunner{run: func(_ context.Context, n int, _ string, _ []string) (host.Result, error) {
+		if n == 1 {
+			return host.Result{ExitCode: 127}, errors.New("guest exit 127")
+		}
+		return host.Result{}, nil
+	}}
+	_, err := New(r).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: testHostPublicKey})
+	if !errors.Is(err, core.ErrUnsupported) || !strings.Contains(err.Error(), "does not provide sshd") {
+		t.Fatalf("error = %v", err)
+	}
+	if len(r.calls) != 5 {
+		t.Fatalf("calls = %#v", r.calls)
+	}
+	if r.calls[2].args[1] != "set" || r.calls[3].args[0] != "exec" || r.calls[4].args[1] != "unset" {
+		t.Fatalf("unsafe cleanup ordering: %#v", r.calls)
+	}
+}
+
 func TestSSHGrantIsDurableBeforeGuestMutationAndHasNoPort(t *testing.T) {
 	r := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {

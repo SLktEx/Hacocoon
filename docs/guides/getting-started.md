@@ -92,13 +92,13 @@ Run `haco config --edit` in the **trusted management terminal**. Preserve the
 revision and existing Policy rules. [Configuration](../reference/configuration.md)
 explains how edits and saved approvals interact.
 
-Before SSH setup, permit the Environment's actual package archive hostnames:
-SSH preparation may need to install sshd. Add exact HTTP/HTTPS
-`network.egress/connect` rules using the [egress example](../design/egress-authorization.md#policy-example),
-with `environment` set to `sample-dev`, the real archive hostname as
-`resource`, and the matching protocol/port. Ubuntu sources can vary by Base and
-architecture; do not substitute an unrestricted wildcard.
-Use a prepared Base if the required packages are already available.
+Hacocoon official Bases contain OpenSSH server when they are published through
+the Base Builder. A fresh Environment created from an official Base therefore
+does **not** need Ubuntu package-mirror permission merely for `haco ssh setup` or
+`haco open --client ssh`, and SSH setup does not run `apt-get` in the Environment.
+A custom Base must itself provide a compatible `sshd` and systemd SSH unit. If it
+does not, SSH setup fails explicitly; add the required package while building the
+Base rather than widening the Environment's network Policy.
 
 For ordinary fetch/pull and reviewed push, add the scoped rules from
 [managed Git](git-workflow.md#configure-git-policy), replacing the URL and branch

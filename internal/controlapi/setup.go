@@ -8,18 +8,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"io"
 	"net"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"github.com/SLktEx/Hacocoon/internal/logging"
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 )
 
 const MethodSetup = "system.setup"
-const setupTimeout = 15 * time.Minute
+const setupTimeout = 30 * time.Minute
 
 type setupService interface {
 	SetupHost(context.Context, recipes.Update) error

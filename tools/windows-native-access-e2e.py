@@ -50,6 +50,7 @@ def verify_acceptance_result(name, result, require_vscode=False):
         raise RuntimeError(f'{name} failed with exit {result.returncode}')
     expected = {
         'test_windows_host_interop.ps1': 'Direct .exe / Windows PATH / stdout / stderr / exit 23 / spaces: PASS',
+        'test_windows_official_base_ssh.ps1': 'WINDOWS OFFICIAL BASE DEFAULT-DENY SSH: PASS',
         'test_windows_environment_ssh.ps1': 'WINDOWS DIRECT ENVIRONMENT SSH: PASS',
         'test_host_customization.ps1': 'HOST CUSTOMIZATION SAVE / REPLAY / UPDATE / CLEAR: PASS',
     }[name]
@@ -90,6 +91,10 @@ def run_native_checks(driver, run_check, interop_only=False, host_customization=
         return
     # Cold acceptance deliberately terminates WSL. Close the original terminal
     # first; no warm Host entry may precede its SSH/VS Code reconnect probes.
+    # Prove a fresh official Base can set up SSH before the broader SSH fixture
+    # adds any Environment-specific package/network test policy.
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        run_check('test_windows_official_base_ssh.ps1')
     run_check('test_windows_environment_ssh.ps1')
 
     if host_customization:
@@ -116,6 +121,7 @@ def main():
         interop_options.extend(['-PersistenceManifest', str(Path(args.persistence_manifest).resolve())])
     options = {
         'test_windows_host_interop.ps1': interop_options,
+        'test_windows_official_base_ssh.ps1': [],
         'test_windows_environment_ssh.ps1': ['-ReclamationManifest', str(Path(args.reclamation_manifest).resolve())] if args.reclamation_manifest else [],
         'test_host_customization.ps1': [],
     }

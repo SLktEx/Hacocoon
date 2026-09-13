@@ -84,6 +84,10 @@ type EnvironmentSpec struct {
 	TemporaryWorkspace  *Workspace
 	SkipDefaultResource bool
 	PersistentResource  string
+	// ParentBaseOnly is an internal Base Builder control. It is valid only for a
+	// temporary Workspace and asks the runtime to start from the configured parent
+	// source instead of a derived official/Seed revision.
+	ParentBaseOnly bool
 	// ExpectedResource pins an explicit resource to its reviewed owner.
 	ExpectedResource PersistentResourceRef
 	Name             string
@@ -97,6 +101,8 @@ type EnvironmentRuntimeSpec struct {
 	// InstanceID binds the provider resource to the durable creation reservation.
 	InstanceID         string
 	TemporaryWorkspace bool
+	// ParentBaseOnly is the trusted Base Builder counterpart of EnvironmentSpec.ParentBaseOnly.
+	ParentBaseOnly bool
 	// ResourceMaintenance requires preparation before retained data attachment.
 	// Runtimes must refuse it until that sequence is supported.
 	ResourceMaintenance bool
@@ -140,6 +146,6 @@ func (lease WorkspaceLease) MatchesEnvironment(environment Environment) bool {
 		lease.RuntimeRef == environment.RuntimeRef &&
 		lease.WorkspaceID == environment.Workspace.ID &&
 		lease.SourcePath == environment.Workspace.Path &&
-		lease.AccessMode == environment.AccessMode &&
-		lease.PersistentResource == environment.PersistentResource
+		lease.PersistentResource == environment.PersistentResource &&
+		ValidEnvironmentInstanceID(lease.InstanceID)
 }
