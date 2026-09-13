@@ -36,7 +36,7 @@ func TestStoreCreateFromUsesExistingControllerRoute(t *testing.T) {
 	t.Cleanup(func() { cancel(); <-done })
 	t.Setenv("HACO_CONTROL_SOCKET", socket)
 	t.Setenv("PATH", t.TempDir())
-	for _, args := range [][]string{{"plugin", "oci", "store", "create", "dev", "--from", "shared"}, {"plugin", "oci", "store", "create", "--from", "shared", "dev"}} {
+	for _, args := range [][]string{{"plugin", "oci", "store", "create", "dev", "--from", "shared", "--json"}, {"plugin", "oci", "store", "create", "--json", "--from", "shared", "dev"}} {
 		code, out, stderr := captureRun(t, args...)
 		if code != 0 || stderr != "" || !strings.Contains(out, `"id":"oci:dev"`) {
 			t.Fatalf("code=%d stdout=%s stderr=%s", code, out, stderr)

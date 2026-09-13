@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -124,6 +123,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	repos := flags.String("repo", "", "Host repository IDs separated by commas")
 	base := flags.String("base", "", "Base for later open")
 	oci := flags.String("oci", "", "auto, none, or an existing oci: Store")
+	jsonOutput := flags.Bool("json", false, "machine-readable result")
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -131,7 +131,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		return 2
 	}
 	if *path == "" || (args[0] == "prepare" && flags.NArg() != 0) || (args[0] == "fork" && (flags.NArg() != 1 || *repos != "" || *oci != "")) {
-		fmt.Fprintln(diagnostic, "Usage: haco workspace prepare --path DIR --repo first,second [--name NAME] [--oci auto|none|oci:ID] | haco workspace fork --path DIR [--name NAME] [--base BASE] SOURCE")
+		fmt.Fprintln(diagnostic, "Usage: haco workspace prepare --path DIR --repo first,second [--name NAME] [--oci auto|none|oci:ID] [--json] | haco workspace fork --path DIR [--name NAME] [--base BASE] [--json] SOURCE")
 		return 2
 	}
 	c, err := controlapi.NewDefaultClient()
@@ -147,7 +147,9 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		}
 		defer h.Close()
 		ref, e := preparePath(ctx, c, h, pathOpenOptions{Path: *path, Name: *name, Repositories: *repos, Base: *base, OCI: *oci})
-		_ = json.NewEncoder(out).Encode(ref)
+		if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
+			return 1
+		}
 		if e != nil {
 			fmt.Fprintln(diagnostic, "haco:", e)
 			return 1
@@ -215,7 +217,9 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		ref.State = "recovery-required"
 	}
 	err = errors.Join(err, h.Save(ref))
-	_ = json.NewEncoder(out).Encode(ref)
+	if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
+		return 1
+	}
 	if err != nil {
 		fmt.Fprintln(diagnostic, "haco:", err)
 		return 1

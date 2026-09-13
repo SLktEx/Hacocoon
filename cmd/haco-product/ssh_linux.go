@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -34,7 +33,7 @@ func runOpen(args []string) int {
 	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	flags.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]\n       haco open [--repo first,second] [--name name] [--base base] [--oci auto|none|oci:ID] [--client vscode|ssh|none] <directory>\nReopens an owner-pinned Workspace reference, or prepares one from explicit Host repositories. Existing directory files are not imported. Blank Environment selection cancels.")
+		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]\n       haco open [--repo first,second] [--name name] [--base base] [--oci auto|none|oci:ID] [--client vscode|ssh|none] [--json] <directory>\nReopens an owner-pinned Workspace reference, or prepares one from explicit Host repositories. Existing directory files are not imported. --json is available with --client none. Blank Environment selection cancels.")
 		flags.PrintDefaults()
 	}
 	port := flags.Int("port", 0, "open an Environment HTTP port in the browser")
@@ -45,6 +44,7 @@ func runOpen(args []string) int {
 	workName := flags.String("name", "", "name for a new path reference")
 	base := flags.String("base", "", "Base when creating the work Env")
 	oci := flags.String("oci", "", "auto, none, or a retained oci: Store")
+	jsonOutput := flags.Bool("json", false, "machine-readable Workspace open result; requires --client none")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -63,6 +63,10 @@ func runOpen(args []string) int {
 	})
 	selectedArgs := flags.Args()
 	pathMode := len(selectedArgs) == 1 && workspacePath(selectedArgs[0])
+	if *jsonOutput && (!pathMode || *selected != "none") {
+		fmt.Fprintln(os.Stderr, "haco: --json requires a directory and --client none")
+		return 2
+	}
 	if !pathMode && (*repos != "" || *workName != "" || *base != "" || *oci != "" || *selected == "none") {
 		fmt.Fprintln(os.Stderr, "haco: --repo, --name, --base, --oci and --client none require a directory")
 		return 2
@@ -88,7 +92,7 @@ func runOpen(args []string) int {
 		}
 		selectedArgs = []string{result.Environment.Name}
 		if *selected == "none" {
-			if json.NewEncoder(os.Stdout).Encode(result) != nil {
+			if writeCLIResult(os.Stdout, result, *jsonOutput) != nil {
 				return 1
 			}
 			return 0

@@ -30,18 +30,29 @@ func TestCreateOCIOptOutUsesExistingCreateRoute(t *testing.T) {
 	t.Cleanup(func() { cancel(); <-done })
 	t.Setenv("HACO_CONTROL_SOCKET", socket)
 	for _, skip := range []bool{false, true} {
-		args := []string{"env", "create", "--workspace", "managed:dev"}
-		if skip {
-			args = append(args, "--no-oci")
-		}
-		args = append(args, "dev")
-		code, stdout, stderr := captureRun(t, args...)
-		if code != 0 || !strings.Contains(stderr, "[succeeded] environment_create") || got.SkipDefaultResource != skip || got.WorkspacePath != "managed:dev" {
-			t.Fatalf("code=%d req=%+v err=%s", code, got, stderr)
-		}
-		var decoded map[string]any
-		if json.Unmarshal([]byte(stdout), &decoded) != nil {
-			t.Fatal("progress corrupted stdout", stdout)
+		for _, machine := range []bool{false, true} {
+			args := []string{"env", "create", "--workspace", "managed:dev"}
+			if skip {
+				args = append(args, "--no-oci")
+			}
+			if machine {
+				args = append(args, "--json")
+			}
+			args = append(args, "dev")
+			code, stdout, stderr := captureRun(t, args...)
+			if code != 0 || !strings.Contains(stderr, "[succeeded] environment_create") || got.SkipDefaultResource != skip || got.WorkspacePath != "managed:dev" {
+				t.Fatalf("code=%d req=%+v err=%s", code, got, stderr)
+			}
+			if machine {
+				var decoded map[string]any
+				if json.Unmarshal([]byte(stdout), &decoded) != nil {
+					t.Fatal("--json result is not valid JSON", stdout)
+				}
+			} else {
+				if json.Valid([]byte(stdout)) || !strings.Contains(stdout, "name: dev") {
+					t.Fatal("default result is not human-readable", stdout)
+				}
+			}
 		}
 	}
 }
