@@ -43,7 +43,7 @@ before boot-guard adoption and Hacocoon setup; `haco doctor` reports unsupported
 or unknown versions and skips dependent probes.
 
 Existing 6.0 compatibility remains best effort, outside the supported baseline.
-See [ADR 0063](../adr/0063-shared-incus-lts-installation.md) and the separate
+See [ADR 0064](../adr/0064-shared-incus-lts-installation.md) and the separate
 [native acceptance record](../status/acceptance-evidence.md#incus-lts).
 
 The shared phase installs bundled `incus-boot-guard.py` using isolated Python

@@ -1,4 +1,4 @@
-# ADR 0063: Shared Incus LTS installation
+# ADR 0064: Shared Incus LTS installation
 
 Status: accepted.
 
