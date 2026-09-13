@@ -101,3 +101,52 @@ func TestConfigureNestedOCIBuilderUsesOnlyManagedUnprivilegedSettings(t *testing
 		}
 	}
 }
+
+func TestToolingBasePackagesExcludeDockerEngine(t *testing.T) {
+	for _, packageName := range toolingBasePackages {
+		if packageName == "docker.io" {
+			t.Fatalf("tooling Base must not install Docker Engine: %#v", toolingBasePackages)
+		}
+	}
+	for _, want := range []string{"containerd", "containernetworking-plugins"} {
+		found := false
+		for _, packageName := range toolingBasePackages {
+			if packageName == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("tooling Base packages missing %q: %#v", want, toolingBasePackages)
+		}
+	}
+}
+
+func TestInstallToolingDockerAliasLinksDockerToNerdctl(t *testing.T) {
+	runner := &fakeRunner{}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := provider.installToolingDockerAlias(context.Background(), "builder"); err != nil {
+		t.Fatal(err)
+	}
+
+	wantFragments := []string{
+		"-- ln -sfn " + toolingNerdctlPath + " " + toolingDockerAliasPath,
+		"-- test -L " + toolingDockerAliasPath,
+		"-- test " + toolingNerdctlPath + " -ef " + toolingDockerAliasPath,
+	}
+	for _, want := range wantFragments {
+		found := false
+		for _, call := range runner.calls {
+			if strings.Contains(strings.Join(call.args, " "), want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing docker alias command %q: %#v", want, runner.calls)
+		}
+	}
+}
