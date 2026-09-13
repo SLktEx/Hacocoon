@@ -1,0 +1,224 @@
+{
+  "test": {
+    "file": "test.yml",
+    "jobs": [
+      "docs",
+      "workflow-policy",
+      "release-config",
+      "build",
+      "aws-plugin",
+      "test",
+      "race",
+      "e2e"
+    ],
+    "contracts": [
+      "CLI process",
+      "Git and approval",
+      "unit/integration/race",
+      "release packaging"
+    ],
+    "steps": {
+      "docs": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Check documentation consistency",
+        "[fixture] Test documentation consistency regressions"
+      ],
+      "workflow-policy": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Validate workflow trust boundary",
+        "[fixture] Test workflow trust policy",
+        "[fixture] Test public release readiness policy",
+        "[fixture] Validate Renovate fail-closed policy",
+        "[fixture] Test Renovate policy regressions",
+        "[fixture] Scan complete Git history for secrets"
+      ],
+      "release-config": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Test release tag trust validation",
+        "[fixture] Validate release provenance contract",
+        "[fixture] Test installer archive safety",
+        "[fixture] Test architecture-specific installer packaging",
+        "[fixture] Test installer identity and managed WSL first launch",
+        "[infrastructure] Install pinned Go",
+        "[infrastructure] Install GoReleaser",
+        "[fixture] Validate Actions syntax and expressions",
+        "[fixture] Validate GoReleaser configuration",
+        "[fixture] Validate installer and CI shell syntax",
+        "[fixture] Validate Windows installer syntax",
+        "[fixture] Validate pre/main/post installer boundary",
+        "[fixture] Validate Docker compatibility systemd units",
+        "[product] Dry-run release packaging",
+        "[fixture] Validate release artifacts"
+      ],
+      "build": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[product] Build Linux binaries"
+      ],
+      "aws-plugin": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Prepare optional AWS SDK test environment",
+        "[product] Verify AWS identity, signing scope and redirect refusal without AWS access"
+      ],
+      "test": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[product] Go unit and integration tests",
+        "[fixture] Go static analysis",
+        "[fixture] Test native WSL trusted-host interop",
+        "[fixture] Test trusted-host forwarding in an isolated Linux network",
+        "[product] Smoke-test the new product CLI without runtime state",
+        "[fixture] Test Browser and VS Code notification clients",
+        "[fixture] Test VS Code agent workspace client"
+      ],
+      "race": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[product] Go race tests"
+      ],
+      "e2e": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate E2E shell syntax",
+        "[product] Shipped command black-box E2E",
+        "[product] Capability E2E",
+        "[product] Git/GitHub E2E",
+        "[product] Orchestrator E2E"
+      ]
+    },
+    "job_names": [
+      "docs",
+      "workflow-policy",
+      "release-config",
+      "build (amd64)",
+      "build (arm64)",
+      "aws-plugin",
+      "test (1.26.x)",
+      "test (1.27.x)",
+      "race",
+      "e2e"
+    ]
+  },
+  "incus-core-e2e": {
+    "file": "incus-core-e2e.yml",
+    "jobs": [
+      "incus-standalone",
+      "incus-core-e2e",
+      "incus-owned-btrfs"
+    ],
+    "contracts": [
+      "Incus lifecycle and egress",
+      "Btrfs storage",
+      "Base",
+      "snapshots",
+      "transfer",
+      "retained OCI Store"
+    ],
+    "steps": {
+      "incus-standalone": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Validate standalone Incus E2E helpers",
+        "[infrastructure] Install and initialize Incus substrate",
+        "[infrastructure] Verify standalone Incus system containers"
+      ],
+      "incus-core-e2e": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate Core and CLI E2E helper syntax",
+        "[infrastructure] Prepare proven Incus substrate for Hacocoon Core",
+        "[infrastructure] Allow leased workspace owner in Incus root idmap",
+        "[product] Run Hacocoon egress policy against real Incus",
+        "[product] Run Hacocoon Core and shipped CLI lifecycle against real Incus"
+      ],
+      "incus-owned-btrfs": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Run normal haco create and run against Incus-owned Btrfs",
+        "[product] Verify Incus pool trim retains volume and snapshot",
+        "[product] Verify ordinary tar tree capture",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
+        "[product] Verify standard Host tools and offline Store image reuse",
+        "[product] Verify retained Bases, aggregate snapshots and component COW",
+        "[product] Verify owned native volume import",
+        "[product] Verify definition-driven Base build and immutable revisions",
+        "[product] Verify independent persistent Store COW with real Btrfs",
+        "[product] Verify retained Store maintenance through native adapter and controller CLI"
+      ]
+    },
+    "job_names": [
+      "incus-standalone",
+      "incus-core-e2e",
+      "incus-owned-btrfs"
+    ]
+  },
+  "ubuntu-installer-e2e": {
+    "file": "ubuntu-installer-e2e.yml",
+    "jobs": [
+      "ubuntu-user-path"
+    ],
+    "contracts": [
+      "packaged native Ubuntu install",
+      "installed lifecycle",
+      "network isolation"
+    ],
+    "steps": {
+      "ubuntu-user-path": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[infrastructure] Record native Ubuntu substrate",
+        "[fixture] Build release-equivalent candidate artifacts",
+        "[fixture] Build and extract release-equivalent Ubuntu package",
+        "[product] Execute packaged native Ubuntu installer unchanged",
+        "[product] Assert Hacocoon is usable through native Ubuntu user path",
+        "[product] Exercise installed product CLI lifecycle",
+        "[product] Exercise installed Hacocoon legacy user journey during migration",
+        "[product] Verify installed network isolation and spoofing guards"
+      ]
+    },
+    "job_names": [
+      "ubuntu-user-path"
+    ]
+  },
+  "windows-installer-e2e": {
+    "file": "windows-all-scripts-e2e.yml",
+    "jobs": [
+      "windows-user-path"
+    ],
+    "contracts": [
+      "packaged Windows/WSL install/restart/reinstall",
+      "SSH/IDE",
+      "egress",
+      "reclamation",
+      "notifications"
+    ],
+    "steps": {
+      "windows-user-path": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Set up Go",
+        "[fixture] Test native Windows reclamation boundaries",
+        "[infrastructure] Install pinned GoReleaser",
+        "[infrastructure] Prepare pinned portable VS Code client",
+        "[infrastructure] Record Windows and WSL substrate",
+        "[fixture] Build release-equivalent candidate artifacts",
+        "[fixture] Build and extract release-equivalent Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[infrastructure] Stage cached WSL image into installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[product] Verify Windows installer components on PowerShell 5.1",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Exercise cached install, terminate/restart, and reinstall user path",
+        "[product] Verify installed controller Environment HTTPS and direct-egress refusal",
+        "[product] Verify native Windows interop and strict OpenSSH through ordinary Host entry",
+        "[product] Verify installed Linux reclamation stages",
+        "[product] Verify public reclamation through ordinary Host entry",
+        "[product] Verify installed native notification review route"
+      ]
+    },
+    "job_names": [
+      "windows-user-path"
+    ]
+  }
+}

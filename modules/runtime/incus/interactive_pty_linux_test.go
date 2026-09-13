@@ -84,9 +84,15 @@ func TestSizedInteractivePTYReadlineResizeAndExit(t *testing.T) {
 	prefix := strings.Repeat("x", 240)
 	send("printf '__VALUE_%s__\\n' '" + prefix + "BAD'" + strings.Repeat("\x1b[D", 4) + strings.Repeat("\x1b[3~", 3) + "OK\x05\n")
 	output.wait(t, ctx, "__VALUE_"+prefix+"OK__")
+	// Wait until Bash has left readline and started a foreground command before
+	// resizing. Seeing a command's stdout alone does not mean readline has
+	// finished restoring its previous terminal settings. A concurrent resize
+	// there can be overwritten by that restoration in the local Bash stand-in.
+	send("printf '__RESIZE_%s__\\n' ready; until [ \"$(stty size)\" = '17 37' ]; do sleep 0.01; done; printf '__RESIZED_%s__\\n' \"$(stty size)\"\n")
+	output.wait(t, ctx, "__RESIZE_ready__")
 	updates <- core.TerminalSize{Columns: 37, Rows: 17}
-	send("until [ \"$(stty size)\" = '17 37' ]; do :; done; printf '__RESIZED_%s__\\n' yes\n")
-	output.wait(t, ctx, "__RESIZED_yes__")
+	// The condition above is bounded by the test context, not by a guessed delay.
+	output.wait(t, ctx, "__RESIZED_17 37__")
 	send("printf '__FINAL_%s__\\n' complete; exit 17\n")
 	select {
 	case err := <-done:

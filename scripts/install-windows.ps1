@@ -355,6 +355,30 @@ function Get-InstalledDistros {
     return @($probe.Stdout -split '\r?\n' | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
 }
 
+function Wait-WslStopped([string]$Name) {
+    Assert-SafeName $Name 'WSL distribution'
+    $registered = @(Get-InstalledDistros)
+    if ($registered -notcontains $Name) {
+        throw "WSL registration disappeared before restart; stop completion is unproven."
+    }
+    # Observe only: never terminate twice, start a probe inside the distro, or
+    # infer absence from a failed command. The polling budget bounds observations;
+    # a native WSL command that stops responding still leaves completion unknown.
+    for ($attempt = 0; $attempt -lt 120; $attempt++) {
+        $probe = Invoke-WslCapture @('--list', '--running', '--quiet')
+        if ($probe.ExitCode -ne 0) {
+            throw "Unable to observe WSL stop completion (exit code $($probe.ExitCode))."
+        }
+        $running = @($probe.Stdout -split '\r?\n' | ForEach-Object { ($_ -replace "`0", '').Trim() } | Where-Object { $_ })
+        if (@($running | Where-Object { $registered -notcontains $_ }).Count) {
+            throw "Unrecognized WSL running-distribution response; stop completion is unproven."
+        }
+        if ($running -notcontains $Name) { return }
+        if ($attempt -lt 119) { Start-Sleep -Milliseconds 250 }
+    }
+    throw "WSL distribution '$Name' remained running after termination; no restart was attempted."
+}
+
 function Get-WslGeneration([string]$Name) {
     $escaped = [regex]::Escape($Name)
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
@@ -584,7 +608,7 @@ function Ensure-ManagedWslLoginUser([string]$Name) {
     Set-WslDefaultUser $Name $ManagedLoginUser
     & wsl.exe --terminate $Name | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after configuring the managed login user." }
-    Start-Sleep -Milliseconds 750
+    Wait-WslStopped $Name
 
     $actual = Get-WslDefaultUser $Name
     if ($actual -ne $ManagedLoginUser) {
@@ -753,7 +777,7 @@ rm -f "$tmp"
 
     & wsl.exe --terminate $Name
     if ($LASTEXITCODE -ne 0) { throw "Failed to restart '$Name' after enabling systemd." }
-    Start-Sleep -Milliseconds 750
+    Wait-WslStopped $Name
     $probe = Invoke-WslCapture @("--distribution", $Name, "--exec", "true")
     if ($probe.ExitCode -ne 0) { throw "Failed to start '$Name' after enabling systemd." }
     Assert-SystemdActive $Name
