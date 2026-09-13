@@ -69,7 +69,7 @@ Repository regressions cover binary input, separate output, EOF, backpressure,
 early exit/reset, malformed frames, failed completion, cancellation cleanup,
 generation pinning and literal provider arguments. The maintained disposable
 Incus fixture adds real pipe and PTY editing/resize/restore acceptance. Those
-checks do not establish Windows terminal acceptance, corporate VPN behavior or
+checks do not establish Windows terminal acceptance, VPN behavior or
 large-repository performance.
 
 Incus execution modes follow the [official execution contract](https://linuxcontainers.org/incus/docs/main/instance-exec/).
