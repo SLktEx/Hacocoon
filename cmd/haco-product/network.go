@@ -44,21 +44,27 @@ func runNetwork(args []string) int {
 	return networkCommand(ctx, client, args, os.Stdout, os.Stderr)
 }
 func networkUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: haco network tcp|udp --target name --port port [--kind external|host|environment] [--listen 127.0.0.1:0] [--duration 5m]")
-	fmt.Fprintln(out, "       haco network list | revoke <connection-id>")
-	fmt.Fprintln(out, "       haco network host add --address IP --port port [--protocol tcp|udp] <name>")
-	fmt.Fprintln(out, "       haco network host list | remove <name>")
-	fmt.Fprintln(out, "       haco network rule --env name --target name --port port --decision allow|ask|deny [--kind external|host|environment] [--protocol tcp|udp] [--duration 5m] [--ttl 1h] [--scope instance|environment|global]")
+	fmt.Fprintln(out, "Usage: haco network tcp|udp --target name --port port [--kind external|host|environment] [--listen 127.0.0.1:0] [--duration 5m] [--json]")
+	fmt.Fprintln(out, "       haco network list [--json] | revoke <connection-id>")
+	fmt.Fprintln(out, "       haco network host add --address IP --port port [--protocol tcp|udp] [--json] <name>")
+	fmt.Fprintln(out, "       haco network host list [--json] | remove <name>")
+	fmt.Fprintln(out, "       haco network rule --env name --target name --port port --decision allow|ask|deny [--kind external|host|environment] [--protocol tcp|udp] [--duration 5m] [--ttl 1h] [--scope instance|environment|global] [--json]")
 }
 func networkCommand(ctx context.Context, client networkClient, args []string, out, diagnostic io.Writer) int {
 	usage := func() int { networkUsage(diagnostic); return 2 }
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	result := func(value any, err error) int {
 		if err != nil {
 			fmt.Fprintln(diagnostic, "haco:", err)
 			return 1
 		}
 		if value != nil {
-			if json.NewEncoder(out).Encode(value) != nil {
+			if writeCLIResult(out, value, jsonOutput) != nil {
 				return 1
 			}
 		}
@@ -181,6 +187,12 @@ func networkSpecFlags(f *flag.FlagSet, spec *networkrelay.Spec, duration *time.D
 	f.DurationVar(duration, "duration", 5*time.Minute, "connection/listener maximum lifetime (UDP at most 5m)")
 }
 func networkListenCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	clean, jsonOutput, flagErr := splitJSONFlag(args)
+	if flagErr != nil {
+		fmt.Fprintln(diagnostic, "haco:", flagErr)
+		return 2
+	}
+	args = clean
 	f := flag.NewFlagSet("network "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	spec := networkrelay.Spec{Protocol: args[0]}
@@ -219,7 +231,7 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 		}
 	}
 	emit := func(address string) error {
-		return json.NewEncoder(out).Encode(map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds})
+		return writeCLIResult(out, map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds}, jsonOutput)
 	}
 	if spec.Protocol == "udp" {
 		address, e := net.ResolveUDPAddr("udp", listen)

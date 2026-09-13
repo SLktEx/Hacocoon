@@ -51,15 +51,17 @@ follow its diagnosis before creating work.
 ## Create independent project data
 
 The following commands run in **trusted haco-host**, not in an Environment.
-Install Git first; authenticate here with GitHub CLI only when the selected
-repository needs credentials or you intend to push:
+`haco setup` guarantees `git` and GitHub CLI (`gh`) as standard Host tools, so
+no manual package installation is required. Authenticate with GitHub CLI only
+when the selected repository needs credentials or you intend to push:
 
 ```bash
-apt-get update
-apt-get install -y git gh
 # For a private repository or a repository you can push to:
 gh auth login --hostname github.com --git-protocol https
 ```
+
+Authentication, dotfiles and additional personal or organization-specific tools
+are not baked into the standard Host tool set.
 
 The public example is sufficient for reading and local edits. For your own work,
 replace the URL and branch with a repository and an **existing** branch you may use.
