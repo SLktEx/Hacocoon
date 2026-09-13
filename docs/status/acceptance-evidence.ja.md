@@ -966,3 +966,46 @@ step13〜20の通常SSH・tunnel終了0・一時TTY・reclaimがPASS。
 通知step21は再びactivationの `reason=unavailable` でFAILし、native/child_exit/durationは未記録です。
 以前のclear失敗、日本語Windows、人のGUI回答、元のSSH障害の再現を解決済みにはしません。
 以前失敗したnative cache fixtureと、残した作成途中の試験領域の復旧・回収も未解決です。
+
+
+<a id="incus-cache-placement"></a>
+## Incusへのキャッシュ配置と所有確認付き再開
+
+実装 `094cc93090475ba8ddbbd51edebfd37f0d3ed91c` はv0.71 **partial** の開発候補です。
+最終の実機検証コピーは、このcommit内の1,494ファイル全てとbyte単位で一致します。
+WSL `hacocoon-second`、Go 1.26.8、Incus 6.0.5、キャッシュ済みUbuntu 26.04
+イメージ `b36d486c9412aee50d36c8875437070014bebd94d2207e0f703cd1b235c63033` で、
+通常のWorkspaceサービス・Sandbox基盤経路が **114.01秒でPASS** しました。
+Env本体へ2つの書き込み可能な領域を配置し、通常Env内で模擬データを生成、停止・手動再開・
+クライアント起因の再開後も保持しました。実体名だけの再開と配置先の改変を拒否し、
+共通処理でEnv・追加領域を削除した後も外部Workspaceのファイルを保持しました。
+専用Envは `data-e2e-5521f55a56777f84`、記録は
+`/var/lib/haco-data-placement-3367763557/state.json` に残しています。
+
+最初の実機試行は、6.0.5の `incus config show` に未対応のJSON形式指定を渡したため32.34秒でFAILしました。
+通常の回収処理で専用Envと領域はなくなり、`/var/lib/haco-data-placement-880853873/state.json` には
+共通元の登録2件だけが残っています。設定取得を実体APIへ変更し、明示設定・展開後設定を照合する実装と
+実際の要求・応答に対応する回帰を追加しました。修正後の途中候補は111.21秒と114.74秒でPASS。
+上記のcommit一致結果は、作成失敗・名前衝突時に試験側から削除しない保護も含む最終候補です。
+
+Environment・Workspace・保存領域・state・Incusの集中回帰、race 3回、文書整合性と18 checker回帰、
+責務検査、全体vet、JavaScript構文3件、通知32試験、packaging 2試験がPASSしました。
+配布対象のWindows amd64クライアントと変更した共通Environment・WorkspaceのクロスビルドもPASSし、
+Windows実行とは区別します。標準ローカルCI（Go 1.27.1、shuffle615）は、既存の
+`TestLoginBootstrapPTYDoesNotStartHostSetup` のBash入力待ち確認が **6.44秒でFAIL** しました。
+他のGo packageはPASS。後続のvet・通知・packagingはその実行ではSKIPし、独立実行でPASSしました。
+以前のPTY失敗も未解決のまま残します。
+
+親PR #645の `2f144ebcc08e2c204749dbe28a5f8824b5a95cdb` は、
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34786247504)、
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34786247496)、
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34786247501) がPASSしました。
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34786247538) のjob 103802142460は製品step13〜20がPASS、
+通知step21が `stage=clear`、`reason=timeout`、`child_exit=1`、`duration_ms=8024` でFAILし、native完了は未記録です。
+以前のactivation・clear失敗、新規の人の通知・VS Code回答を解決済みにはしません。
+
+試験では信頼済みの選択処理をサービスへ組み込み、公開するHost設定やキャッシュ操作はまだ有効化していません。
+収集、レポ相対パス、既存Envの登録、別Baseでの再利用、クリア・履歴・復旧、追加領域のsnapshot・copy・transferは残件です。
+模擬データの書き込みだけで実ツールの再取得削減や巨大レポ性能を完了扱いにしません。
+隔離・承認・試験期限は緩めていません。以前失敗した世代管理の実機fixtureも未解決です。
+[配置の契約](../design/cache-generations.ja.md#env本体への配置と再開)を参照してください。

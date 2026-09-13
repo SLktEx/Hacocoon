@@ -1171,3 +1171,56 @@ temporary TTY and reclamation. Step 21 again fails notification activation with
 resolve the earlier clear-stage failure, Japanese Windows, human GUI responses or
 the original SSH-failure reproduction. The earlier failed native-cache fixture
 and its retained creating resource also remain unresolved.
+
+
+<a id="incus-cache-placement"></a>
+## Incus cache placement and bound resume
+
+Implementation `094cc93090475ba8ddbbd51edebfd37f0d3ed91c` is a v0.71 **partial** development candidate.
+All 1,494 files in the final native test copy match that commit byte-for-byte.
+On WSL `hacocoon-second`, Go 1.26.8 and Incus 6.0.5, the ordinary Workspace
+service/Sandbox provider test passes in **114.01 seconds** using cached Ubuntu
+26.04 image `b36d486c9412aee50d36c8875437070014bebd94d2207e0f703cd1b235c63033`.
+It creates two writable rootfs areas, writes synthetic data inside the ordinary
+Env, preserves it across stop/manual/client-triggered resume, refuses reference-only
+resume and native target drift, deletes the owned Env/data through canonical
+cleanup, and retains the external Workspace's file. Exact fixture:
+`data-e2e-5521f55a56777f84`; retained catalog:
+`/var/lib/haco-data-placement-3367763557/state.json`.
+
+The first native attempt failed in 32.34 seconds because `incus config show`
+does not accept the requested JSON-format option on 6.0.5. Normal cleanup removed
+that owned Env/data; its catalog at `/var/lib/haco-data-placement-880853873/state.json`
+retains only the two source generations. The implementation now reads the native
+instance API, checks both explicit and expanded bindings, and has a faithful
+command/response regression. Intermediate corrected runs passed in 111.21 and
+114.74 seconds; the commit-bound result above also includes the fixture guard
+that never invokes delete after a failed creation/name collision.
+
+Focused environment/Workspace/resource/state/Incus tests, three race repetitions,
+documentation consistency and 18 checker regressions, architecture, whole-tree vet,
+three JavaScript syntax checks, 32 notification tests and two packaging tests pass.
+The configured Windows amd64 clients and changed shared environment/Workspace
+packages cross-build; this is not native Windows execution. The maintained local
+CI run (Go 1.27.1, shuffle 615) still fails the unchanged
+`TestLoginBootstrapPTYDoesNotStartHostSetup` Bash-prompt check in **6.44 seconds**.
+Other Go packages pass. Later vet/notification/packaging stages were skipped in
+that run and then passed independently; older PTY failures remain unresolved.
+
+Parent #645 at `2f144ebcc08e2c204749dbe28a5f8824b5a95cdb` passes
+[test](https://github.com/SLktEx/Hacocoon/actions/runs/34786247504),
+[Ubuntu](https://github.com/SLktEx/Hacocoon/actions/runs/34786247496) and
+[Incus](https://github.com/SLktEx/Hacocoon/actions/runs/34786247501).
+[Windows](https://github.com/SLktEx/Hacocoon/actions/runs/34786247538), job
+103802142460, passes product steps 13–20 but fails notification step 21 at
+`stage=clear`, `reason=timeout`, `child_exit=1`, `duration_ms=8024`;
+native completion is unrecorded. Earlier activation/clear failures and fresh
+human notification/VS Code answers are not resolved by this result.
+
+This fixture uses a trusted in-process selector, not a released Host configuration
+or public cache command. Collection, repository-relative paths, pre-existing Env
+enrollment, cross-Base reuse, cache clearing/history/recovery and complete added-data
+snapshot/copy/transfer remain open. Synthetic writes prove neither real tool-cache
+reduction nor large-repository performance. No isolation, approval rule or timeout
+was relaxed. The older failed native generation fixture remains unresolved.
+See the [placement contract](../design/cache-generations.md#rootfs-placement-and-resume).

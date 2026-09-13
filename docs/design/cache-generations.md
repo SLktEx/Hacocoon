@@ -6,7 +6,7 @@ Status: **partial**. Atomic selection of complete managed sources and detached
 Incus cache-volume copying are implemented on this development candidate.
 Env-owned disposable resource reservation, materialization and cleanup now share
 canonical lifecycle transitions. Linux Incus rootfs placement and bound resume
-are implemented candidates. Host configuration is not enabled. Selected-path collection, enrollment/placement, history, clearing and real
+are implemented candidates. Host configuration is not enabled. Selected-path collection, existing-Env enrollment, repository placement, history, clearing and real
 cache-workflow acceptance remain planned. There is no public cache command yet.
 See [remaining work](../status/architecture-and-roadmap.md).
 
