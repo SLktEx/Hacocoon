@@ -27,7 +27,7 @@ help and version require no controller.
 | Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; `--json` is captured-output only |
-| Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
+| Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build --name <name> [--from <base>] [--output] [--json] <directory>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
 | Git broker | `haco git connect <env>`; `status [--json] [--request <id>] <env>`; `reconcile [--json] [--request <id>] <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
@@ -69,3 +69,5 @@ Its defaults and bounds match Linux; its listener is on Windows. Put the require
 On WSL/trusted Host entry, ordinary `haco env tunnel` automatically places its
 listener on Windows using the matching installed companion. Native Linux keeps
 its local listener. See [automatic selection and failure behavior](../design/controller-client-transport.md#automatic-windows-tunnel-entry).
+
+See [Packer Base builds](../design/packer-base-builds.md) for real HCL2/external-shell input and failure output. The JSON definition remains a migration path.

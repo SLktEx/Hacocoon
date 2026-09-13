@@ -10,7 +10,11 @@ Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 Existing Environments retain their original immutable revision when a name moves.
 No switch-base step is required.
 
-To add a reusable tool, save this definition as `base.json`:
+For new builds, use [Packer HCL2 and external shell files](packer-base-builds.md)
+with `haco base build --name my-tools <directory>`. Actual Packer and all its
+extensions run inside the ordinary builder; installed acceptance is separate.
+
+The historical JSON definition remains a migration path. Save it as `base.json`:
 
 ```json
 {
