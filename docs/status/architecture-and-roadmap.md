@@ -304,9 +304,23 @@ That existing installation was left unchanged. Component selection/fallback and
 the packaged user-path assertion are separate from native acceptance. The next
 packaged Windows run must compare the Host value with the Windows setting.
 
-Current next step: review the GUI slice on top of PR #587 (new-branch push,
+The GUI slice PR #588 is stacked on PR #587 (new-branch push,
 implementation `7bdd3db6`, merged parent `9d9e67ec`) and PR #585 (all-branch fetch,
 merged parent `bc78d535`). Keep native GUI results distinct from the completed
 `0c79f820` M1 acceptance. Existing read-only Git fetch and separately scoped main
 push authority remain unchanged. Stacked work-branch PRs now use the same maintained
 CI, so their changed packages receive native checks without merging to main.
+
+At `e7ba7987`, all four maintained workflows passed, including real Windows
+VS Code panel rendering and installed-controller stale-request refusal. Fresh
+human GUI answers, notification-contained Windows answers and native new-branch
+Git acceptance remain open. See [acceptance evidence](acceptance-evidence.md).
+
+Issue #589 tracks temporary-run stdin/TTY. Its preparation found retained-run
+cleanup selected only an Environment name. The development fix binds creation
+and cleanup to one durable identity through the canonical lifecycle, blocks
+unfinished-run name reuse, and preserves ambiguous legacy records for recovery.
+[ADR 0068](../adr/0068-ephemeral-run-creation-ownership.md) owns the decision.
+Focused run/state/workspace tests pass; native acceptance of this change remains
+pending. Next implement streaming input/TTY using this same run lifecycle; do not
+duplicate create/delete in transport. M3 remains partial.

@@ -73,3 +73,14 @@ Linux `flock`を保持します。プロセス終了後にロックが取得で�
 識別情報だけ、PID推測は削除権限ではありません。稼働所有者のロックは飛ばし、
 失敗時は`cleanup-required`を保持します。非対応platformでは弱い証明へ切り替えません。
 SIGINT/SIGTERM時の後始末は実行キャンセルとは独立した期限で動きます。
+
+新しい記録は正規作成の前に、予測困難なEnv作成identityへ束縛します。
+catalogは未完了runの名前を予約し、cleanupはlifecycle lock内で同じ一時実行leaseの
+identityを照合します。再作成した別Envは削除しません。Envとleaseが残る間は
+run記録を消せず、保持Workspace／OCIデータも削除しません。
+[ADR 0068](../adr/0068-ephemeral-run-creation-ownership.md)を参照してください。
+
+schema 14は旧記録を保持し、所有権を推測して補いません。作成identityがない旧runが
+保持Workspaceを使っていた場合は復旧待ちになります。名前だけでは削除対象を安全に
+選べないためです。旧一時Workspaceのrunは正確なWorkspace所有権の照合を維持します。
+この開発変更にはリポジトリ回帰試験があり、新変更の実機確認とstdin／TTY実装は残件です。

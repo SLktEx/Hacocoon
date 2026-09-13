@@ -204,7 +204,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 	}
 
 	for _, r := range data.PersistentResources {
-		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && data.Version != environmentStateVersion {
+		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion) {
 			return core.ErrIncompatibleState
 		}
 		if r.State == "created" && (r.RestoreSource == "" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{})) {

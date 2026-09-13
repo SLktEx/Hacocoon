@@ -79,3 +79,16 @@ A `run-` name, a marker alone or PID guessing is not deletion authority.
 Live-owner locks are skipped; failure retains `cleanup-required`. Unsupported
 platforms fail rather than substitute weaker ownership proof. SIGINT/SIGTERM
 cleanup uses a separate bounded context independent of execution cancellation.
+
+Each new marker binds an unpredictable Environment creation identity before
+canonical creation. The catalog reserves that name for the unfinished run;
+cleanup checks the same ephemeral lease identity under the lifecycle lock.
+It cannot delete a replacement creation. Marker removal is refused until the
+Environment and lease are absent. Retained Workspace/OCI data are not removed.
+See [ADR 0068](../adr/0068-ephemeral-run-creation-ownership.md).
+
+Schema 14 retains older records without inventing ownership. A legacy run with
+no creation identity and a retained Workspace remains recovery-required; retries
+cannot safely choose an Env by name. Legacy temporary runs retain their exact
+Workspace ownership check. This development change has repository regression
+coverage; its native acceptance and stdin/TTY implementation remain pending.

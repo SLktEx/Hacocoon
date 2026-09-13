@@ -6,6 +6,19 @@ Status: recorded acceptance evidence. These tests ran on the identified historic
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+## Local GUI candidate
+
+`e7ba798728dcbe48a5179845673a333f8ff8968f` (PR #588) passed test
+34727370959, Ubuntu installer 34727370966, Incus 7 34727370817 and Windows
+installer 34727370876. Windows job 103643786611 reports
+`VS CODE LOCAL APPROVAL WEBVIEW / REAL RENDERER HANDSHAKE / INSTALLED CONTROLLER STALE REFUSAL: PASS`.
+This proves the packaged local panel, its actual renderer readiness and stale
+request refusal through the installed controller. Ordinary SSH, interop, installer,
+restart and reclaim steps also passed. Human toast clicks/fresh GUI decisions and
+VPN/NRPT remain explicit **SKIP**. Japanese Windows and the existing local WSL
+Interop failure remain unverified/unresolved respectively. This is development
+branch evidence, not distribution or acceptance of later run-ownership changes.
+
 <a id="installation"></a>
 
 ## Installation and Host

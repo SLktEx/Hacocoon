@@ -15,6 +15,15 @@ type temporaryEnvironments struct {
 func (f temporaryEnvironments) DeleteTemporary(ctx context.Context, name string, w core.Workspace) error {
 	return f.temporaryDelete(ctx, name, w)
 }
+func (f temporaryEnvironments) DeleteRun(ctx context.Context, name, instance string) error {
+	if instance != f.createSpec.EphemeralInstance {
+		return core.ErrCapabilityStale
+	}
+	if f.createSpec.TemporaryWorkspace != nil {
+		return f.DeleteTemporary(ctx, name, *f.createSpec.TemporaryWorkspace)
+	}
+	return f.fakeEnvironments.DeleteRun(ctx, name, instance)
+}
 func TestTemporaryRunRetainsIdentityUntilAllCleanupCompletes(t *testing.T) {
 	store := newFakeRunStore()
 	ordinary := &fakeEnvironments{}
