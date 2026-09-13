@@ -557,3 +557,21 @@ codes and expected-text booleans on mismatch. The #611 failure remains unresolve
 its old log cannot establish whether duplicate COM refusal caused that failure.
 No Windows settings, existing registration or provider data were changed by the
 native COM component tests.
+
+## Main integration native Base-build fixture failure
+
+At #616 head `6d5a713f`, Ubuntu `34742660449` passed. Incus `34742660441`
+passed standalone and Core egress/lifecycle, plus ordinary owned-Btrfs create/run,
+trim, tree capture, aggregate snapshots/CoW and native volume import. The later
+Base-build step (job `103684889525`) failed at JSON decoding with
+`invalid character 'b' looking for beginning of value`. Its CLI call omitted
+`--json` after main #602 made human output the default. Both workflow cleanup
+steps passed; subsequent persistent-copy/Store-maintenance steps and private
+registry were skipped. This is not a completed Base-build acceptance.
+
+`codex/base-build-json-fixture` requests JSON explicitly in that E2E call and adds
+a controller/CLI component regression for human and JSON output with identical
+build definitions. Product output and lifecycle permissions remain unchanged.
+Focused Go 1.26.8 and the maintained local test entry pass. Real Incus Base-build
+and the skipped later steps still need a fresh run. At this observation, #616's
+test job was queued and Windows was running; #619's new runs were not complete.
