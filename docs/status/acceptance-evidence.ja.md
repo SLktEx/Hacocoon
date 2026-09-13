@@ -768,3 +768,10 @@ step13〜20のPowerShell 5.1導入部品、通常install／restart／reinstall�
 一時TTY、Linux回収と公開reclaim／保持データ復元はPASSです。VHDX割当は7,931,428,864から5,040,504,832 bytesへ減少しました。
 失効要求の試験は期待どおり終了1でしたが、期待した拒否文がなく、`stage=clear`、`reason=unavailable`、`native=unrecorded`でした。
 原因と新規通知回答は未解決です。後続の起動成功で過去のFAILを消さず、今回の新転送経路の受入へも読み替えません。
+
+その後、正確な`bc8b915b`のGit archiveによる追加確認で、変更した転送packageはPASSしましたが、
+既存の`TestLoginBootstrapPTYDoesNotStartHostSetup`はprivate Bash入力待ち表示の5秒期限にFAILしました（試験全体6.90秒）。
+この試験はPTY transcriptを残しておらず、原因は未解決です。変更せずGo 1.26.8で単独10回はPASSしましたが、
+先の組み合わせ実行のFAILを消さず、修正済みとも扱いません。先に成功した標準ローカルCIとも分けて記録します。
+commit済み文書、既存native-access driverの5回帰、新driverのPython構文確認は独立してPASSしました。
+製品／試験の期限やplatform設定を緩めていません。

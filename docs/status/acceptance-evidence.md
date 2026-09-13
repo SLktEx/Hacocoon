@@ -914,3 +914,14 @@ exit 1 as expected but lacks the expected refusal text: `stage=clear`,
 `reason=unavailable`, `native=unrecorded`. Its root cause and fresh notification
 answers remain unresolved. These later successful startup results do not erase
 older failed runs or prove this new tunnel's installed route.
+
+A later check of the exact `bc8b915b` Git archive passes the changed forwarding
+packages but fails the existing `TestLoginBootstrapPTYDoesNotStartHostSetup`:
+its five-second fixture deadline expires before the private Bash prompt appears
+(6.90 seconds for that whole test). No PTY transcript was captured by that test,
+so the cause is unresolved. The unchanged test subsequently passes ten isolated
+Go 1.26.8 repetitions; that does not erase the failed combined check or establish
+a fix. The earlier full maintained local CI pass remains separate evidence.
+Committed docs, the five existing native-access driver regressions and the new
+driver's Python syntax check pass independently. No product/test timeout or
+platform setting was relaxed.
