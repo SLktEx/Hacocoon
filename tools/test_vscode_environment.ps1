@@ -33,9 +33,17 @@ $settings['remote.SSH.remotePlatform'] = @{ $alias = 'linux' }
 try {
     & $code --install-extension $vsix
     if ($LASTEXITCODE -ne 0) { throw 'Failed to install disposable UI observer.' }
-    # No replacement SSH transport, provider setup or product test override.
-    & wsl.exe -d $Distro -u root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco open $EnvironmentName
-    if ($LASTEXITCODE -ne 0) { throw 'Ordinary haco open failed.' }
+    # SSH setup has already persisted this target. Simulate shutdown, then make
+    # standard Remote-SSH's saved-folder route the first contact with Hacocoon.
+    & wsl.exe -d $Distro -u root --exec incus exec haco-host --project hacocoon -- /usr/local/bin/haco env stop $EnvironmentName
+    if ($LASTEXITCODE -ne 0) { throw 'Could not stop fixture Environment.' }
+    & wsl.exe -d $Distro -u root --exec systemctl stop haco-controller.service
+    if ($LASTEXITCODE -ne 0) { throw 'Could not stop fixture controller.' }
+    & wsl.exe --terminate $Distro
+    if ($LASTEXITCODE -ne 0) { throw 'Could not terminate fixture distribution.' }
+    # No haco command, WSL shell, product extension, or repair precedes reconnect.
+    & $code --folder-uri "vscode-remote://ssh-remote+$alias/workspace"
+    if ($LASTEXITCODE -ne 0) { throw 'Standard saved remote folder launch failed.' }
     $deadline = [DateTime]::UtcNow.AddMinutes(10)
     while (-not (Test-Path -LiteralPath $resultFile -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline) {
         Start-Sleep -Seconds 2
