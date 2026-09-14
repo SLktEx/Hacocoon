@@ -75,6 +75,9 @@ func interactiveShellWithPrompt(argv []string, prompt, shellContext string, term
 	if terminal.ColorTerm != "" {
 		wrapped = append(wrapped, "COLORTERM="+terminal.ColorTerm)
 	}
+	if shellContext == "trusted-host" && (terminal.DisplayLanguage == "en" || terminal.DisplayLanguage == "ja") {
+		wrapped = append(wrapped, "HACO_UI_LANGUAGE="+terminal.DisplayLanguage)
+	}
 	return append(wrapped, argv...)
 }
 

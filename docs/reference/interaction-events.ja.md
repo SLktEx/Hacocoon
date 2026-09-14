@@ -174,3 +174,17 @@ Windows インストールはデスクトッププロトコル登録後に、信
 recovery-required として返します。
 
 通常の `haco setup` はバイナリの公開後に有効化済みの通知サービスを更新します。無効化したサービスを有効に戻さず、Windows のデスクトップ登録前にサービスを作成しません。
+
+## 同じ失敗によるnative通知の連発
+
+開発候補で実装済み: 同じEnvironment・capability・action・kind・codeの
+`operation-failed`、`policy-denied`、`approval-denied`を、通知成功後の1分間まとめます。
+別request IDの監査イベントは個別に残します。保護されたcursor stateに最大64件の
+表示用hashと時刻を保持し、再起動でも連発しません。配送失敗ではcursorやhashを
+確定せず、時計が戻った場合は再通知します。
+
+承認待ち・回復要求はまとめません。別対象・別capability・別codeは個別に通知します。
+`haco doctor`、`haco approve --list`、`haco config`へ案内し、SSH失敗の原因を
+断定したりPolicyを変更したりしません。native表示だけの処理で、read-only APIや
+browser履歴・VS Code streamのフィルターではありません。報告された実Windows
+SSH/toastの受入は#582に残します。

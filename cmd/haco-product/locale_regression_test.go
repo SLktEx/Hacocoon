@@ -10,12 +10,17 @@ import (
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/capability"
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 // Existing output snapshots are English. Locale-specific tests explicitly set
 // all three variables, rather than depending on the developer's shell locale.
 func TestMain(m *testing.M) {
+	if err := os.Unsetenv("HACO_UI_LANGUAGE"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if err := os.Setenv("LC_ALL", "C"); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -30,9 +35,33 @@ const (
 
 func setCLITestLocale(t *testing.T, locale string) {
 	t.Helper()
+	t.Setenv("HACO_UI_LANGUAGE", "")
 	t.Setenv("LC_ALL", "")
 	t.Setenv("LC_MESSAGES", "")
 	t.Setenv("LANG", locale)
+}
+
+func TestPresentationOverridePreservesJSONAndFailureExit(t *testing.T) {
+	var baseline string
+	for _, language := range []string{"en", "ja"} {
+		t.Setenv("HACO_UI_LANGUAGE", language)
+		code, output, diagnostic := captureRun(t, "version", "--json")
+		if code != 0 || diagnostic != "" || !json.Valid([]byte(output)) {
+			t.Fatalf("invalid version: %d %q %q", code, output, diagnostic)
+		}
+		if baseline == "" {
+			baseline = output
+		} else if baseline != output {
+			t.Fatal("presentation changed JSON")
+		}
+		code, output, diagnostic = captureRun(t, "unknown-command")
+		if code != 2 || output != "" || !strings.Contains(diagnostic, `"unknown-command"`) {
+			t.Fatalf("presentation changed failure: %d %q %q", code, output, diagnostic)
+		}
+		if cliLanguage() != cliui.Language(language) {
+			t.Fatal("presentation override was not applied")
+		}
+	}
 }
 
 func TestLocalePreservesVersionJSONAndExitCodes(t *testing.T) {

@@ -289,3 +289,50 @@ Ubuntu assertion uses the same vertical heading/command/create contract as the
 shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2 with
 all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
 pass. Native acceptance for this correction remains pending.
+
+At final PR #660 head `24cd508369ca5937495b378f69cec4414b9e8cfd`, repository,
+quality, Ubuntu, Incus and Windows workflows all passed (runs 34886106686,
+34886106919, 34886106764, 34886106700 and 34886106868). It was merged into main
+as `7e876bc1e5e92432971427d3c778a4f5a07cb72e`. Earlier failed heads remain recorded.
+This does not establish the later Windows-language handoff or human GUI answers.
+
+<a id="main-notification-installer"></a>
+## Main notification and installer integration candidate
+
+The candidate reuses #583's failure grouping and BAT final-result implementation.
+Local Go 1.27.1 notification/catalog/event tests passed (1.22s), notification/event
+race tests passed (3.93s), maintained local test CI passed (13.11s), and docs/checker
+regressions passed (4.79s). Existing tests exercise 100 distinct failed requests,
+restart cursor preservation, independent targets and ungrouped approval/recovery.
+
+The PowerShell 5.1 fixture script could not start because that shell's policy is
+Restricted. This was an execution failure before tests, not a product failure or
+pass. No execution-policy setting was changed. A direct invocation reused the
+same native fixture source and the shipped BAT: 0/1/37/3010, missing PowerShell and
+missing adjacent script all passed. The existing pywinpty 3.0.2 ConPTY fixture
+passed final wait, explicit keypress and retained exit 37. It used an isolated
+local Python environment and generated native stand-in, not a WSL installation.
+The PowerShell wrapper's extra cleanup-sharing tests were not rerun by this route.
+Fresh Explorer interaction, full packaged installation and original SSH failure
+acceptance remain pending; previous native results do not establish this candidate.
+
+<a id="main-host-language"></a>
+## Windows presentation handoff on main
+
+The implementation at `45b53f98bb3b24942011ddd7b0ff73474a8b65f5` reuses
+#583's `3b8eefce`, `0c79f820` and `8c07e126` on the current M1 candidate,
+with explicit `LC_ALL`/`LC_MESSAGES` kept ahead of Windows autodetection.
+Local focused product/Host/catalog/control/Incus tests passed (15.05s), the full
+maintained local test entry passed (14.38s), and catalog/control race tests passed
+(7.57s). Initial changed-code lint failed on an unchecked test connection close;
+the corrected control test passed (2.79s), and pinned golangci-lint 2.13.2 passed
+with new files included (15.27s). Documentation checks/regressions passed (6.21s).
+
+On this same PC, `TestNativeWindowsLanguageReadOnly` in `hacocoon-second` returned
+`ja` through the actual system PowerShell query (0.26s test, 0.95s command).
+Windows installer component tests passed under PowerShell 7.6.6. Neither test
+changed OS/WSL locale or installed candidate binaries. This is a native read-only
+query and component result, not fresh packaged login, complete Japanese text,
+notification response or human GUI acceptance. Those remain open with #577.
+
+After rebasing onto main `7e876bc1`, the immutable candidate passed the full local test entry (23.78s), shipped CLI E2E (4.54s) and documentation checks/regressions (5.17s). The Windows ordinary-entry observer now compares exactly one normalized Host language marker against an independent Windows UI-language query; all 13 observer tests passed locally. The first WSL launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; a later ordinary launch succeeded without restarting WSL. No product test was executed by the failed launch.
