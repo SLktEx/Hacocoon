@@ -44,7 +44,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	var machine bool
 	switch args[0] {
 	case "create", "list":
-		flags.BoolVar(&machine, "json", false, "machine-readable saved data")
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
 	default:
 		return usage()
@@ -69,7 +69,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	response, err := client.Snapshot(ctx, req)
@@ -78,24 +78,24 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		writeErr = json.NewEncoder(out).Encode(response.Snapshots)
 	} else if args[0] == "list" {
 		table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(table, "ID\tENVIRONMENT\tSTATE\tWORKSPACES\tOCI")
+		_, _ = fmt.Fprintln(table, cliMessage("snapshot.columns"))
 		for _, saved := range response.Snapshots {
 			fmt.Fprintf(table, "%s\t%q\t%s\t%d\t%t\n", saved.ID, saved.Environment, saved.State, saved.Workspaces, saved.OCI)
 		}
 		writeErr = table.Flush()
 	} else if args[0] == "create" {
 		for _, saved := range response.Snapshots {
-			_, writeErr = fmt.Fprintf(out, "Snapshot %s (%s) for %q\n", saved.ID, saved.State, saved.Environment)
+			_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.created"), saved.ID, saved.State, saved.Environment)
 		}
 	} else if err == nil {
-		_, writeErr = fmt.Fprintln(out, "Snapshot deleted; current Environments, Workspace and OCI data retained")
+		_, writeErr = fmt.Fprintln(out, cliMessage("snapshot.deleted"))
 	}
 	if err != nil {
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)
 		return 1
 	}
 	if writeErr != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write snapshot result")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("snapshot.write_failed"))
 		return 1
 	}
 	return 0
@@ -105,10 +105,9 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	flags := flag.NewFlagSet("haco snapshot restore", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco snapshot restore [--json] <snapshot-id> [new-env]")
-		flags.PrintDefaults()
+		commandHelp(diagnostic, "snapshot restore", cliLanguage())
 	}
-	machine := flags.Bool("json", false, "machine-readable restore result")
+	machine := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -117,7 +116,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	}
 	pos := flags.Args()
 	if len(pos) < 1 || len(pos) > 2 || !regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(pos[0]) {
-		fmt.Fprintln(diagnostic, "Usage: haco snapshot restore [--json] <snapshot-id> [new-env]")
+		flags.Usage()
 		return 2
 	}
 	req := controlapi.SnapshotRestoreRequest{ID: pos[0]}
@@ -126,7 +125,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	response, err := client.RestoreSnapshot(ctx, req)
@@ -134,12 +133,12 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	if *machine {
 		writeErr = json.NewEncoder(out).Encode(response.Result)
 	} else if response.Result.Environment != "" {
-		_, writeErr = fmt.Fprintf(out, "Environment %s (%s)\n", response.Result.Environment, response.Result.State)
+		_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_environment"), response.Result.Environment, response.Result.State)
 		if writeErr == nil && response.Result.Workspace != "" {
-			_, writeErr = fmt.Fprintf(out, "Workspace %s\n", response.Result.Workspace)
+			_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_workspace"), response.Result.Workspace)
 		}
 		if writeErr == nil && response.Result.OCI != "" {
-			_, writeErr = fmt.Fprintf(out, "OCI Store %s\n", response.Result.OCI)
+			_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_oci"), response.Result.OCI)
 		}
 	}
 	if err != nil {
@@ -147,7 +146,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 		return 1
 	}
 	if writeErr != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write restore result")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("snapshot.restore_write_failed"))
 		return 1
 	}
 	return 0

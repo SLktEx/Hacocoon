@@ -156,3 +156,12 @@ real Windows query returned Japanese. Full packaged language/GUI acceptance and
 remaining command translations stay open. M5 runtime/builder/sampling retirement
 is proceeding independently on current main. Per the user's 2026-09-15 scope
 correction, old-version compatibility and migration are outside M0–M5.
+
+## Daily guidance follow-up
+
+Reuse #592/#593's detailed bilingual help and retained-data results while keeping
+current JSON, portless SSH and once-per-Host recipe behavior. Deletion confirmation
+stays common in the client; controller lifecycle remains canonical. Reuse #659 to
+remove duplicate preliminary Host tooling. M2 push reconciliation, M3 stream/TTY/DNS,
+M4 public cache/Packer and current-version M5 cleanup remain active. Old-version
+compatibility/migration are excluded; new installed acceptance remains distinct.
