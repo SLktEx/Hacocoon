@@ -304,3 +304,28 @@ The subsequent full local test entry (13.99s), related race (6.18s), CLI E2E
 (3.49s) and docs/regressions (4.51s) passed. This is repository/component evidence,
 not fresh installed Webview or human answers. Historical #588 acceptance remains
 scoped to its own source and cannot establish this main integration.
+
+The combined candidate `da064d83` adds Windows notification-contained choices
+from #611 (`667ae5bf`) plus duplicate-refusal and cancellation diagnostics
+(`7de0ad51`, `8eeac2b8`). On the verified source, focused tests (2.84s), pinned
+changed-code lint (4.38s), the full local test entry (10.77s), related race
+(6.64s), CLI E2E (2.93s), docs (4.59s) and workflow policy (1.02s) passed.
+The first lint attempt found three unchecked test-stream closes and one error
+capitalization; those were corrected before this successful run.
+
+Windows amd64 test/GUI-adapter builds and Windows-target vet passed. Actual
+Windows review components (4.27s), shared desktop review tests (0.30s) and the
+isolated registration test (2.27s) passed. This includes the ordinary initial
+owned-history clear, English/Japanese ToastGeneric selection XML accepted by
+Windows history, removal, COM activation/refusal, cancellation/process reaping,
+and exact registration ownership. The registration fixture cleaned only its
+fresh keys/files; no installation, execution policy or pending user request was
+changed. A first test harness launch stopped before tests because its PowerShell
+path variable was missing; selecting the current executable resolved that
+harness error without altering execution policy.
+
+These results do not establish human button answers, visible layout or the
+installed notification-to-controller journey. Earlier development candidates'
+8-second notification clear timeouts remain unexplained failures; a successful
+isolated current-component run does not erase them. Fresh installed VS Code
+answers and authenticated Git also remain unverified.
