@@ -1249,3 +1249,55 @@ all Go packages, vet, client syntax, 32 notification tests and two packaging tes
 These are local repository results, not new installed Windows/PAM/SSH acceptance.
 Earlier failed runs remain recorded; original SSH, long-input and fresh GUI
 acceptance still need their own evidence. See [fixture rationale](../adr/0066-wsl-login-bootstrap-routing.md#verification).
+
+<a id="managed-repository-cache-placement"></a>
+## Managed-repository cache placement candidate
+
+Candidate `3a6e2bbc3cf6203ed412f45c14a03a7cfa5c9d02` adds lease-bound managed
+Workspace placement through Incus's custom-volume file API. Checkpoint v0.72 is
+partial; public Host selection, stopped-writer collection, cross-Base reuse,
+history/clearing/recovery and added-data snapshot/copy/transfer remain incomplete.
+The [placement contract](../design/cache-generations.md#managed-repository-placement)
+defines the supported paths and failure behavior.
+
+Focused Core/Environment/Workspace/Incus tests pass with Go 1.26.8, including
+read-only lease forwarding, exact ownership/device binding, wrong-member and
+link/nonempty-path refusal, bounded metadata and cancellation. Three race
+repetitions pass. The maintained local test CI passes with Go 1.27.1/shuffle 615,
+including all Go packages, vet, client syntax, 32 notification tests and two
+packaging tests. Final focused tests and native rootfs acceptance also pass after
+the final E2E opt-in and generated checkpoint changes. Documentation and workflow
+policy checks plus their maintained regressions pass.
+
+Before the final native run, all **1,497 files** in the implementation archive
+matched the Linux test copy byte for byte. On WSL `hacocoon-second` / Incus 6.0.5,
+`TestRealIncusEnvironmentDataPlacementE2E` passes in **9.50 seconds**: ordinary
+creation with two rootfs areas, manual/client resume, target-drift refusal,
+canonical disposable cleanup and retained external Workspace data. The fixture
+is `data-e2e-1c3224709e1570e1`; its retained catalog is
+`/var/lib/haco-data-placement-4136726670/state.json`. This is not repository-volume,
+new OCI, tool-cache or large-repository acceptance.
+
+`TestRealIncusEnvironmentWorkspaceDataPlacementE2E` explicitly **fails** in
+**0.02 seconds** on that existing Incus because `file_storage_volume` is absent,
+before creating fixture resources. It is neither a skip nor an accepted native
+placement. The supported Incus 7.0.1 API defines the extension; required CI executes
+the two-member placement/reuse/guest-link test and rejects missing or skipped
+results. Supported-host acceptance remains pending. Existing Incus/controller and
+user data were not replaced; the earlier failed generation fixture remains open.
+
+The initial workflow edit was rejected by the repository's policy checker for
+using the broad `HACO_E2E_INCUS` flag. Both placement tests now use the existing
+`HACO_E2E_INCUS_RESUME` opt-in, with no product behavior change or policy exception.
+A Windows-path checkpoint-lock invocation also failed before mutation; the same
+canonical lock/tool succeeded with the lock held by Windows. Neither failure was
+an automatic approval-review rejection or evidence of native product acceptance.
+
+Parent #648 / `102a6e5a` has passing test, Ubuntu and Incus CI, but Windows run
+[34792505058](https://github.com/SLktEx/Hacocoon/actions/runs/34792505058), job
+103819246698, fails at step 17. Ordinary SSH, stopped reuse, VS Code editor/terminal
+and retained-work transfer report passes within that step; subsequent Host entry
+reports `stage=notification_setup reason=failed`, then times out waiting for the
+exact terminal session. Steps 18–21 are skipped. Keep this distinct from earlier
+notification clear/activation failures; it does not establish fresh notification
+or VS Code approval answers. Original SSH/long-input and Japanese Windows gaps remain.

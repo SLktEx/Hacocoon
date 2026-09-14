@@ -416,3 +416,5 @@ The login-routing PTY fixture now excludes unrelated Ubuntu login announcements
 in its temporary HOME; local test CI and repeated routing checks pass. Keep this
 [fixture evidence](acceptance-evidence.md#login-pty-fixture) separate from the
 remaining installed SSH, long-input, Japanese Windows and GUI acceptance above.
+
+The managed-repository placement candidate is recorded in [acceptance evidence](acceptance-evidence.md#managed-repository-cache-placement). The existing Incus lacks its required API; supported-host acceptance is pending. Parent #648 also leaves a Windows notification-setup/terminal-entry failure to investigate. Keep these separate from prior successful rootfs/SSH checks.
