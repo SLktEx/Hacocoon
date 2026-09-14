@@ -272,3 +272,16 @@ quality実行34883913571はcoverage成功、出力書き込み結果9件の未�
 （2.58 秒）、CI と同じ golangci-lint 2.13.2 で変更範囲の指摘数を制限しない検査
 （6.62 秒）、workflow policy（1.05 秒）、CLI E2E（3.06 秒）は成功しました。
 この修正を含む実機の利用確認は保留です。
+
+<a id="main-gui-approval"></a>
+## main向け画面内承認
+
+VS Code部分は #588（`e7ba7987`）をmain `7e876bc1`へ再利用しました。
+desktop・共通review・control・製品の集中試験（2.67秒）と変更差分の
+golangci-lint 2.13.2（4.49秒）はPASS。最初の全体確認はGoとrenderer/clientの32試験が
+PASSした後、検証archiveの未コミット新規ファイルに日時0を付けたためVSIX作成2試験がFAIL。
+Windowsのcheckout上でのパッケージ試験はPASSし、製品の作成条件は緩めていません。
+検証コピーが元の日時を保持するように直し、標準ローカル試験（13.99秒）、
+関連race（6.18秒）、CLI E2E（3.49秒）、文書と回帰（4.51秒）がPASSしました。
+新しく導入した実Webviewや人の回答の受入ではありません。
+#588の過去の受入を今回のmain統合の成功に読み替えません。

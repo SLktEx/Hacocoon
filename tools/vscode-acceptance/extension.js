@@ -16,7 +16,7 @@ exports.activate = function (context) {
     for (const uri of ownedProbes) await vscode.workspace.fs.delete(uri);
     ownedProbes.length = 0;
   };
-  let review, reviewSubscription;
+  let review;
   const checks = [];
   const reviewDiagnostics = {};
   const finish = status => {
@@ -25,7 +25,6 @@ exports.activate = function (context) {
     clearTimeout(deadline);
     terminal?.dispose();
     review?.dispose();
-    reviewSubscription?.dispose();
     // A pre-existing result is never overwritten or interpreted as this run.
     const temporary = fixture.result + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify({
@@ -74,18 +73,30 @@ exports.activate = function (context) {
       ownedProbes.push(terminalURI);
       checks.push('remote-terminal-exec');
       stage = 'local-approval-review';
-      let reviewOutput = '';
+      let refusalObserved = false, readyObserved = false;
       reviewDiagnostics.step = "api";
       // VS Code exposes gated API getters. Never enumerate the complete API.
       const localAPI = { env: vscode.env, UIKind: vscode.UIKind, workspace: vscode.workspace,
-        EventEmitter: vscode.EventEmitter, window: {
+        ViewColumn: vscode.ViewColumn, window: {
         showWarningMessage: (...args) => vscode.window.showWarningMessage(...args),
         showErrorMessage: (...args) => vscode.window.showErrorMessage(...args),
-        createTerminal(options) {
-        reviewDiagnostics.terminalCreated = true;
-        if (!options.pty || options.cwd || options.shellPath) throw new Error('review is not a custom local terminal');
-        reviewSubscription = options.pty.onDidWrite((text) => { reviewOutput = (reviewOutput + text).slice(-8192); });
-        return vscode.window.createTerminal(options);
+        createWebviewPanel(type, title, column, options) {
+        reviewDiagnostics.panelCreated = true;
+        if (!options.enableScripts || options.enableCommandUris || options.localResourceRoots.length !== 0) throw new Error('review webview is not isolated');
+        const panel = vscode.window.createWebviewPanel(type, title, column, options);
+        // Observe the real renderer's handshake and the real controller's stale
+        // refusal without injecting a click, request detail or decision.
+        panel.webview.onDidReceiveMessage(message => { if (message.type === 'ready') readyObserved = true; });
+        const webview = {
+          get html() { return panel.webview.html; }, set html(value) { panel.webview.html = value; },
+          onDidReceiveMessage: (...args) => panel.webview.onDidReceiveMessage(...args),
+          postMessage(message) {
+            if (message.type === 'error' && message.error === 'no_longer_pending') refusalObserved = true;
+            return panel.webview.postMessage(message);
+          }
+        };
+        return { webview, reveal: (...args) => panel.reveal(...args), dispose: () => panel.dispose(),
+          onDidDispose: (...args) => panel.onDidDispose(...args) };
       } } };
       reviewDiagnostics.step = "create";
       reviewDiagnostics.localUI = context.extension.extensionKind === vscode.ExtensionKind.UI;
@@ -98,12 +109,12 @@ exports.activate = function (context) {
       review(fixture.nonce);
       reviewDiagnostics.step = "wait";
       for (let i = 0; i < 300 && !finished; i++) {
-        if (reviewOutput.includes('Review ended (exit 1).')) break;
+        if (readyObserved && refusalObserved) break;
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      reviewDiagnostics.exitObserved = reviewOutput.includes("Review ended (exit 1).");
-      reviewDiagnostics.refusalObserved = reviewOutput.includes("haco: request is no longer pending");
-      if (!reviewOutput.includes('haco: request is no longer pending') || !reviewOutput.includes('Review ended (exit 1).')) {
+      reviewDiagnostics.readyObserved = readyObserved;
+      reviewDiagnostics.refusalObserved = refusalObserved;
+      if (!readyObserved || !refusalObserved) {
         throw new Error('local review did not reach the installed controller');
       }
       checks.push('local-approval-stale-refusal');

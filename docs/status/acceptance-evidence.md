@@ -289,3 +289,18 @@ Ubuntu assertion uses the same vertical heading/command/create contract as the
 shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2 with
 all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
 pass. Native acceptance for this correction remains pending.
+
+<a id="main-gui-approval"></a>
+## Main GUI approval integration candidate
+
+The VS Code portion reuses #588 (`e7ba7987`) on main `7e876bc1`.
+Focused desktop/common review/control/product tests (2.67s) and changed-code
+golangci-lint 2.13.2 (4.49s) passed. The first full local run passed Go and all
+32 renderer/client tests, then failed both VSIX packaging tests because our
+verification archive assigned epoch-zero timestamps to uncommitted new files.
+The Windows checkout packaging tests passed; product packaging rules were not
+weakened. Correctly preserving source timestamps fixed the verification copy.
+The subsequent full local test entry (13.99s), related race (6.18s), CLI E2E
+(3.49s) and docs/regressions (4.51s) passed. This is repository/component evidence,
+not fresh installed Webview or human answers. Historical #588 acceptance remains
+scoped to its own source and cannot establish this main integration.

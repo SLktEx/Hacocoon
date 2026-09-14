@@ -139,8 +139,16 @@ is implied by development-branch completion.
 Prioritize ordinary installation, help, SSH and approval use. The first candidate
 integrates #580/#583's daily bilingual presentation and vertical help; Windows
 language transport, notification grouping and installer final-screen integration
-follow. M2 Git/GUI, M3 transport/DNS, M4 cache/Packer and M5 Seed/data migration
+follow. M2 Git/GUI, M3 transport/DNS, M4 cache/Packer and M5 Seed retirement
 remain active. Local regression checks are primary; continue independent work
 while required hosted checks run. Large-repository measurement and additional
 validation follow usable implementation and remain unverified until executed.
 Retained-data ownership and authority checks remain required throughout.
+
+## GUI approval integration
+
+The optional VS Code client now reuses #588 to show current requests and complete
+explicit allow/deny and saved-scope choices inside a local GUI. Fresh human answers
+and installed GUI acceptance remain separate. Windows notification-contained
+answers are the next client integration; both reuse the existing common review
+and Policy services. Old-version compatibility/migration are outside M0–M5.
