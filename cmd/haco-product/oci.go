@@ -20,7 +20,7 @@ func runPlugin(args []string) int {
 		return runOCIStoreManage(args[2:])
 	}
 	usage := func() int {
-		fmt.Fprintln(os.Stderr, "Usage: haco plugin oci store create [--json] <store> [--from <store>] | haco plugin oci store inspect [--json] <store> | haco plugin oci store delete [--yes] <store> | haco plugin oci store list [--json]")
+		commandHelp(os.Stderr, "plugin oci store", cliLanguage())
 		return 2
 	}
 	clean, jsonOutput, flagErr := splitJSONFlag(args)

@@ -57,3 +57,12 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入試験を区別します。実AWS・非公開 registry・実デスクトップなど、前提がなくスキップした検証は合格扱いにしません。障害時の権限・リース・後始末は[失敗時の表](reliability/failure-injection-matrix.md)と各設計が定義します。
 
 古い開発日誌の全文はGit履歴に残ります。現在の判断に必要な固有の証拠・未解決事項は[検証証拠](status/acceptance-evidence.ja.md)に集約しています。
+
+## main向け日英CLI統合候補
+
+**partial**：#580/#583の日常操作の日英表示と共通の縦型ヘルプを現在のmainへ
+再利用しています。明示的なJSON指定、ポート指定の不要なSSH、Git接続、
+Experimental VS Codeの既存動作を保持します。Windowsの言語引き継ぎ、
+結果表示の全文翻訳、新しい導入済み環境での確認は未完了です。
+[言語対応範囲](reference/cli-language.ja.md)と
+[検証記録](status/acceptance-evidence.ja.md#main-cli-language)を参照してください。

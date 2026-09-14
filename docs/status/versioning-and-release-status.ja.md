@@ -91,3 +91,10 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 パスによるWorkspace再開とデータforkをmainへ統合しました。取り込んだv0.58の節目を維持し、
 統合によるリリースやタグは作成しません。[現在の範囲](../IMPLEMENTATION_STATUS.ja.md)と
 [限定された検証証拠](acceptance-evidence.ja.md#development-branch-integration)を参照してください。
+
+## mainへの言語対応統合
+
+既存v0.59の範囲で、#580/#583の日常CLIの日英表示・ヘルプを部分統合します。
+開発成果の再利用であり、新しい段階やリリースの公開ではありません。
+Windowsの表示とGUI受け入れは別途確認します。
+[言語対応範囲](../reference/cli-language.ja.md)を参照してください。

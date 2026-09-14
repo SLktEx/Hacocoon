@@ -141,7 +141,7 @@ func TestImportCommandUsage(t *testing.T) {
 		}
 	}
 	var out, diag bytes.Buffer
-	if code := environmentCommand(context.Background(), []string{"import", "--help"}, &out, &diag); code != 0 || !strings.Contains(diag.String(), "<file.haco> [new-env]") {
+	if code := environmentCommand(context.Background(), []string{"import", "--help"}, &out, &diag); code != 0 || !strings.Contains(out.String(), "<file.haco>") || !strings.Contains(out.String(), "[new-env]") || diag.Len() != 0 {
 		t.Fatal(code, diag.String())
 	}
 }

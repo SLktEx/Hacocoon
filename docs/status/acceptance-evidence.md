@@ -247,3 +247,45 @@ At `def11e9ff31131e02be0eb3270bb3ebd62e1c452`, [repository checks](https://githu
 The same `def11e9` candidate's [Windows user-path job](https://github.com/SLktEx/Hacocoon/actions/runs/34749383429/job/103703363209) passed the complete maintained native journey: packaged install, ordinary entry, terminate/restart, reinstall, installed egress, strict Windows SSH/VS Code interop, configuration and approvals, transfer, public reclamation, notification and cleanup. This is the first full Windows product-job pass in this investigation, not a rerun of a failed SHA. The workflow evidence gate also passed; later CI-helper changes remain separate from this product receipt.
 
 At `d1c7480bd69157fb65974e9e2f2673e2ffffe4b6`, repository, Ubuntu and all required Incus jobs including their evidence gates passed. The [Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34750642440/job/103706445008) failed after public reclamation and Host resumption succeeded: detached Workspace/OCI reattachment through `haco env create` returned nonzero. Snapshot restoration and its retained content had already passed. The fixture discarded stderr, so the root cause remains unresolved; the preceding candidate's pass does not resolve this failure. Notification was not reached. Retention diagnostics now preserve numeric exit status, an allowlisted CLI reason and bounded read-only controller observations without raw output or mutation replay. These observations identify investigation boundaries, not proven root causes.
+
+<a id="main-cli-language"></a>
+## Main daily language integration candidate
+
+`codex/main-daily-ux` reuses #580/#583 language/help work on main `ed3ad1a5`.
+The first local focused attempt failed two stale test expectations: approval
+listing was parsed as JSON without `--json`, and Open help was read from stderr
+instead of its new local stdout route. Tests now use the actual public contract;
+product output/authorization behavior was not reverted. The second immutable local
+source passed focused product/Host/catalog/approval tests (2.60s), the maintained
+`bash tools/ci-local.sh test` (all Go tests/vet plus Python/client checks, 13.28s),
+related race tests (9.93s) and docs/checker regressions (4.73s). All current Go
+sources match the tested archive. Hosted/installed checks for this candidate remain
+pending; this is implementation and local verification, not distribution.
+
+The shipped CLI E2E initially failed its historical one-line Environment usage
+expectation. Reuse #583's existing `195172f4` fixture correction: assert the vertical
+heading, command and create entry, compare usage with explicit help, and preserve
+exit-code/stdout/stderr checks. The corrected black-box CLI E2E passed in 5.16s.
+The matching installed-Incus assertion is updated, but no new native run is claimed.
+
+The candidate's quality run 34883913571 passed coverage but failed lint on nine
+unacknowledged output-write results. These are now explicitly acknowledged:
+already-failed diagnostics remain failures, and help path recognition cannot fall
+through into command execution when output closes. Existing return semantics are
+preserved. This is separate from the successful repository test workflow.
+
+Previous #583 head `0c79f820` passed repository, Ubuntu, Incus and Windows workflows
+([Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)).
+That development result does not prove this main integration or fresh Japanese
+Windows, human GUI decisions, long-input/resize or the original SSH-failure route.
+Performance measurement and M2–M5 acceptance remain separate.
+
+At `2eb2e2f5`, repository checks passed, but quality run 34885076668 found
+additional unchecked localized diagnostic writes; Ubuntu run 34885076467 completed
+installation and failed the old horizontal-help assertion before later acceptance
+steps ran. Those failures remain distinct from skipped downstream checks. The
+remaining changed writes now explicitly preserve their existing outcomes, and the
+Ubuntu assertion uses the same vertical heading/command/create contract as the
+shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2 with
+all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
+pass. Native acceptance for this correction remains pending.

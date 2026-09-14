@@ -12,12 +12,12 @@ func TestOpenClientChoiceIsExplicitAndValidatedBeforeSetup(t *testing.T) {
 	if code != 2 || !strings.Contains(err, "--client vscode|ssh") {
 		t.Fatalf("%d %s", code, err)
 	}
-	code, _, err = captureRun(t, "open", "--help")
-	if code != 0 || !strings.Contains(err, "desktop client: vscode, ssh or none") {
-		t.Fatalf("%d %s", code, err)
+	code, out, err := captureRun(t, "open", "--help")
+	if code != 0 || err != "" || !strings.Contains(out, "--client vscode|ssh|none") {
+		t.Fatalf("%d %s %s", code, out, err)
 	}
-	if !strings.Contains(err, "<directory>") || !strings.Contains(err, "--repo") || strings.Contains(err, "path discovery is not implemented") {
-		t.Fatalf("help does not describe the integrated Workspace entry: %s", err)
+	if !strings.Contains(out, "environment-or-directory") || !strings.Contains(out, "--repo") || strings.Contains(out, "path discovery is not implemented") {
+		t.Fatalf("help does not describe the integrated Workspace entry: %s", out)
 	}
 }
 
