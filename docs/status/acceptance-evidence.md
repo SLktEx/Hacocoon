@@ -336,3 +336,19 @@ query and component result, not fresh packaged login, complete Japanese text,
 notification response or human GUI acceptance. Those remain open with #577.
 
 After rebasing onto main `7e876bc1`, the immutable candidate passed the full local test entry (23.78s), shipped CLI E2E (4.54s) and documentation checks/regressions (5.17s). The Windows ordinary-entry observer now compares exactly one normalized Host language marker against an independent Windows UI-language query; all 13 observer tests passed locally. The first WSL launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; a later ordinary launch succeeded without restarting WSL. No product test was executed by the failed launch.
+
+## Detailed guidance and single Host tool preparation
+
+Candidate `4d7435cc` reuses #592/#593 and #659 on main `44211fd2`. Current
+JSON opt-in, portless SSH, HTTP preview and once-per-Host setup semantics remain.
+Focused CLI/catalog/Host/Incus tests (4.39s), pinned changed-code lint (4.09s),
+full local tests (44.27s), related race (9.69s), CLI E2E (3.64s), documentation
+(5.03s) and workflow policy (1.08s) passed on a verified source archive.
+
+The first focused attempt exposed old fixture language selection and an overly
+broad SSH-port assertion: current `haco open --port` selects HTTP preview. The
+fixtures now use the shared locale selector and distinguish preview from portless
+SSH. The next lint found two unchecked test-file closes; both are checked now.
+These failures remain distinct from the subsequent passes. Fresh installed Host
+preparation and original SSH-failure reproduction were not run for this head;
+#655's original Host apt failure remains historical unresolved evidence.
