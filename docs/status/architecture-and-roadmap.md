@@ -150,5 +150,6 @@ Retained-data ownership and authority checks remain required throughout.
 The optional VS Code client now reuses #588 to show current requests and complete
 explicit allow/deny and saved-scope choices inside a local GUI. Fresh human answers
 and installed GUI acceptance remain separate. Windows notification-contained
-answers are the next client integration; both reuse the existing common review
-and Policy services. Old-version compatibility/migration are outside M0–M5.
+answers now reuse #611 and subsequent refusal/cancellation corrections; both
+clients use the existing common review and Policy services. Fresh installed
+answers and visible notification layout still require acceptance. Old-version compatibility/migration are outside M0–M5.

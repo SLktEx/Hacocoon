@@ -54,3 +54,5 @@ a request ID or sending an arbitrary URI must not authorize a decision.
 
 See the [owning contract](../design/pending-approval-review.md) and official
 [VS Code Webview security guidance](https://code.visualstudio.com/api/extension-guides/webview#security).
+
+The Windows notification client now reuses this session; see [ADR 0083](0083-notification-contained-approval.md). Fresh human acceptance remains separate.

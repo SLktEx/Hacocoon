@@ -6,6 +6,16 @@ function Get-HacocoonReviewScheme([string]$Name) {
     finally { $hash.Dispose() }
     return 'hacocoon-review-' + (($bytes[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')
 }
+function Get-HacocoonReviewClassID([string]$Name) {
+    [void](Get-HacocoonReviewScheme $Name)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { $bytes = $hash.ComputeHash([Text.Encoding]::UTF8.GetBytes("Hacocoon.ToastCOM`0" + $Name.ToLowerInvariant())) }
+    finally { $hash.Dispose() }
+    $bytes[6] = ($bytes[6] -band 15) -bor 128
+    $bytes[8] = ($bytes[8] -band 63) -bor 128
+    $hex = (($bytes[0..15] | ForEach-Object { $_.ToString('x2') }) -join '')
+    return ([guid]::ParseExact($hex, 'N')).ToString('B')
+}
 # Use .NET directly: the supported Windows PowerShell installer environment may
 # not have the module that supplies Get-FileHash loaded or available.
 function Get-HacocoonReviewFileHash([string]$Path) {
@@ -57,9 +67,20 @@ function Install-HacocoonDesktopReview([string]$Name, [string]$BundleRoot) {
         if ($existingCommand -cne $command) { throw 'Review protocol command differs; inspect the existing registration' }
     }
     $appID = 'HKCU:\Software\Classes\AppUserModelId\' + $scheme
+    $class = Get-HacocoonReviewClassID $Name
+    $classKey = 'HKCU:\Software\Classes\CLSID\' + $class
+    $serverCommand = '"' + $target + '" --toast-server'
+    if (Test-Path -LiteralPath $classKey) {
+        $classOwner = Get-ItemProperty -LiteralPath $classKey
+        if ($classOwner.HacocoonDistribution -ine $Name) { throw 'Notification activator is owned by another registration' }
+        $serverKey = $classKey + '\LocalServer32'
+        if ((Test-Path -LiteralPath $serverKey) -and (Get-Item -LiteralPath $serverKey).GetValue('') -cne $serverCommand) { throw 'Notification activator command differs' }
+    }
     if (Test-Path -LiteralPath $appID) {
         $owner = Get-ItemProperty -LiteralPath $appID
         if ($owner.HacocoonDistribution -ine $Name) { throw 'Notification identity is owned by another registration' }
+        $activator = (Get-Item -LiteralPath $appID).GetValue('CustomActivator', $null)
+        if ($null -ne $activator -and $activator -ine $class) { throw 'Notification identity activator differs' }
     }
     $temporary = Join-Path $directory ('adapter-' + [guid]::NewGuid().ToString('N') + '.tmp')
     try {
@@ -77,5 +98,12 @@ function Install-HacocoonDesktopReview([string]$Name, [string]$BundleRoot) {
     [void](New-Item -Path $appID -Force)
     [void](New-ItemProperty -LiteralPath $appID -Name 'HacocoonDistribution' -Value $Name -PropertyType String -Force)
     [void](New-ItemProperty -LiteralPath $appID -Name 'DisplayName' -Value ('Hacocoon (' + $Name + ')') -PropertyType String -Force)
+    # Persist ownership before publishing the launch target. A partial owned
+    # registration can be resumed; a foreign registration is never overwritten.
+    [void](New-Item -Path $classKey -Force)
+    [void](New-ItemProperty -LiteralPath $classKey -Name 'HacocoonDistribution' -Value $Name -PropertyType String -Force)
+    [void](New-Item -Path ($classKey + '\LocalServer32') -Force)
+    Set-Item -LiteralPath ($classKey + '\LocalServer32') -Value $serverCommand
+    [void](New-ItemProperty -LiteralPath $appID -Name 'CustomActivator' -Value $class -PropertyType String -Force)
     Write-Host 'Windows notification review registered for this Hacocoon distribution.'
 }

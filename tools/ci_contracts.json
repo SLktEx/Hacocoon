@@ -198,7 +198,7 @@
       "windows-user-path": [
         "[fixture] Checkout candidate",
         "[infrastructure] Set up Go",
-        "[fixture] Test native Windows reclamation boundaries",
+        "[fixture] Test native Windows client boundaries",
         "[infrastructure] Install pinned GoReleaser",
         "[infrastructure] Prepare pinned portable VS Code client",
         "[infrastructure] Record Windows and WSL substrate",

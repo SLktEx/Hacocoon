@@ -122,3 +122,15 @@ Host setupは固定`stage`、`state`、`reason`と`request_id`、`duration_ms`�
 Hostのユーザー設定のstdout/stderrは上限付き非公開結果として保存し、明示的な
 `haco setup --script-result`だけで表示します。生の出力や結果objectを構造化log、
 progress stage、auditに記録しません。
+
+Windows review実行ファイルはnative review利用不能時の単一`notification_review` ERRORを
+所有します。`stage`はregistration／session_plan／ownership／activation／clear／peer_start／
+review／events／unknown、`reason`はunavailable／timeout／canceledに限定します。
+検証済み表示結果では`native_stage`（runtime／xml／create／identity／show／history）と数値の
+`native_error`（HRESULT）も記録できます。生エラー、controller応答、XML、page token、path、
+子プロセス出力は含めません。導入済みprobeの失敗時も、これらの固定分類と終了値・期待文一致の
+真偽値だけを表示します。
+
+native通知描画の失敗は数値`exit_code`と`duration_ms`も記録します。終了値-1は、子の起動前失敗など、
+移植可能な終了コードが得られない場合です。contextのキャンセル／期限切れを子出力より優先します。
+単一ERRORの所有者は同じreview境界のままで、生のprocessエラー・stdout・stderrはlogへ出しません。

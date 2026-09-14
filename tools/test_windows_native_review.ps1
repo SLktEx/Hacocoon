@@ -12,6 +12,13 @@ $registration = 'HKCU:\Software\Classes\' + $scheme
 $owner = Get-ItemProperty -LiteralPath $registration
 $command = (Get-Item -LiteralPath ($registration + '\shell\open\command')).GetValue('')
 if ($owner.HacocoonDistribution -ine $Distro -or $command -cne ('"' + $adapter + '" "%1"')) { throw 'Native review registration differs from the installed adapter' }
+& (Join-Path $PSScriptRoot 'test_windows_toast_registration.ps1') -AdapterPath $adapter
+$class = Get-HacocoonReviewClassID $Distro
+$appKey = Get-Item -LiteralPath ('HKCU:\Software\Classes\AppUserModelId\' + $scheme)
+$classKey = 'HKCU:\Software\Classes\CLSID\' + $class
+if ($appKey.GetValue('CustomActivator') -ine $class -or
+    (Get-ItemProperty -LiteralPath $classKey).HacocoonDistribution -ine $Distro -or
+    (Get-Item -LiteralPath ($classKey + '\LocalServer32')).GetValue('') -cne ('"' + $adapter + '" --toast-server')) { throw 'Native COM registration differs' }
 function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expected) {
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $adapter
@@ -29,12 +36,22 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
         $started = $true
         $output = $process.StandardOutput.ReadToEndAsync()
         $errorOutput = $process.StandardError.ReadToEndAsync()
-        # No approval answer is sent. The newline only dismisses the stale receipt.
-        $process.StandardInput.WriteLine('')
+        # No approval answer is supplied through stdin or argv.
         $process.StandardInput.Close()
         if (-not $process.WaitForExit(60000)) { throw 'Native review timed out' }
         $receipt = $output.GetAwaiter().GetResult() + $errorOutput.GetAwaiter().GetResult()
-        if ($process.ExitCode -ne $ExitCode -or -not $receipt.Contains($Expected)) { throw 'Native review response did not match the expected refusal' }
+        if ($process.ExitCode -ne $ExitCode -or -not $receipt.Contains($Expected)) {
+            # Print only product-owned fixed classifications, never raw native output.
+            $stage = 'unknown'; $reason = 'unavailable'
+            if ($receipt -match 'stage=(registration|session_plan|ownership|activation|clear|peer_start|review|events|unknown)\b') { $stage = $Matches[1] }
+            if ($receipt -match 'reason=(timeout|canceled|unavailable)\b') { $reason = $Matches[1] }
+            $native = 'unrecorded'
+            if ($receipt -match 'native_stage=(runtime|xml|create|identity|show|history) native_error=(-?[0-9]{1,11})\b') { $native = $Matches[1] + ':' + $Matches[2] }
+            $childExit = 'unrecorded'; $duration = 'unrecorded'
+            if ($receipt -match '\bexit_code=(-?[0-9]{1,11})\b') { $childExit = $Matches[1] }
+            if ($receipt -match '\bduration_ms=([0-9]{1,12})\b') { $duration = $Matches[1] }
+            throw ('Native review response did not match the expected refusal: exit={0}, expected_exit={1}, expected_text={2}, stage={3}, reason={4}, native={5}, child_exit={6}, duration_ms={7}' -f $process.ExitCode, $ExitCode, $receipt.Contains($Expected), $stage, $reason, $native, $childExit, $duration)
+        }
     } finally {
         if ($started -and -not $process.HasExited) { $process.Kill($true); $process.WaitForExit() }
         $process.Dispose()
@@ -42,7 +59,7 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
 }
 $id = [guid]::NewGuid().ToString('N')
 $uri = $scheme + '://request/' + $id
-Invoke-ReviewProbe @($uri) 1 'haco: request is no longer pending'
+Invoke-ReviewProbe @($uri) 1 'Hacocoon request is no longer pending.'
 Invoke-ReviewProbe @($uri + '?answer=yes') 2 'Invalid Hacocoon review link.'
 Invoke-ReviewProbe @($uri, '--yes') 2 'requires one Windows notification link'
 
@@ -81,7 +98,7 @@ try {
 }
 Write-Host 'WINDOWS REVIEW FOREIGN OWNERSHIP REFUSAL: PASS'
 Write-Host 'INSTALLED NATIVE REVIEW / EXACT REGISTRATION / STALE AND MALFORMED REFUSAL: PASS'
-Write-Host 'SKIP: this console fixture does not observe a human toast click or fresh UI decision'
+Write-Host 'SKIP: this hidden-launch fixture does not observe a human toast click or fresh UI decision'
 
 Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'test_host_notification.py') | & wsl.exe --distribution $Distro --user root --exec incus exec haco-host --project hacocoon --disable-stdin=false -- python3 -I - $Distro
 if ($LASTEXITCODE -ne 0) { throw 'Installed Host notification subscription failed' }

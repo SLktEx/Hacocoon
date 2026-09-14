@@ -20,13 +20,13 @@ Windows インストールは検証済みのディストリビューション名
 名前を記録してください。
 
 
-信頼された Host の haco approve で現在の承認待ちを確認できます。これは非公開な管理経路であり、VS Code はローカル確認を開けます。任意の Windows native アダプターは同じローカル CLI を開きます。[承認待ちの契約](../design/pending-approval-review.ja.md)を参照してください。
+信頼された Host の haco approve で現在の承認待ちを確認できます。これは非公開な管理経路であり、VS Code はローカル確認を開けます。任意のWindows nativeアダプターは、非公開の子プロセス接続を使いOS通知内で回答します。[承認待ちの契約](../design/pending-approval-review.ja.md)を参照してください。
 
 ## 承認要求の照合
 
 信頼された承認画面と Git の承認待ち情報には、通知イベント・監査・実行結果と
 同じコントローラー発行の `request_id` を渡します。この照合部分は実装済みですが、
-VS Code からの確認はローカル CLI を使い、任意の Windows native アダプターは同じローカル CLI を開きます。ID 自体は権限を与えません。Git の決定には
+VS Codeからの確認は非公開接続を使うローカルGUIで行い、任意のWindows nativeアダプターは、非公開の子プロセス接続を使いOS通知内で回答します。ID 自体は権限を与えません。Git の決定には
 既存の信頼された管理接続先と proposal ID を使います。読み取り専用のイベント
 bridge に操作接続先や機密の詳細情報を追加しません。
 
@@ -135,7 +135,7 @@ native通知文は最小化済み公開対話項目だけから生成します�
 
 `interaction.NewDefaultReader()` は local Hacocoon と同じ root 規則を使います。`HACO_ROOT` があればそれを、なければ `/var/lib/hacocoon` を使います。明示的な adapter/test では `NewReader(root)` を利用できます。
 
-任意のデスクトップ VS Code Review は回答せずローカルの信頼された CLI を開きます。任意の Windows native アダプターは同じローカル CLI を開きます。 [Contract](../design/pending-approval-review.ja.md).
+任意のデスクトップ VS Code Review は回答せずローカルの信頼された CLI を開きます。任意のWindows nativeアダプターは、非公開の子プロセス接続を使いOS通知内で回答します。 [Contract](../design/pending-approval-review.ja.md).
 
 ### Native 通知の状態ファイル
 
