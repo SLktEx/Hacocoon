@@ -34,3 +34,16 @@ contents through a tool-specific mount and nesting policy.
 This is a foundation for the [cache contract](../design/cache-generations.md).
 Host settings, path collection and disposable Env attachment are still required;
 the decision does not claim that the complete user workflow is implemented.
+
+## Host selection decision
+
+Standard configuration defaults to exact Workspace scope; sharing requires an
+explicit group and tool/platform/data-format compatibility identity. Bind the
+complete rule into a structured digest, including path expression and repository
+applicability. Do not infer compatibility from Base names, guest probes or arbitrary
+client fields. Shortened internal names must still match the complete catalog digest.
+Freeze and validate the complete selection before source initialization. Reuse the
+managed repository catalog for member identity; do not infer membership from a
+guest path. Configuration parsing does not authorize persistence or activation.
+This keeps sharing decisions in trusted Host configuration and preserves Core
+generation semantics. See the [selection contract](../design/cache-generations.md#host-target-and-compatibility-selection).

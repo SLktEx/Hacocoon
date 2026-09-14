@@ -177,3 +177,41 @@ The ownership decision and rejected alternatives are recorded in
 [ADR 0076](../adr/0076-atomic-managed-data-generations.md).
 
 Small synthetic Incus/Btrfs provider measurements are recorded in [acceptance evidence](../status/acceptance-evidence.md#cache-generation-foundation); they do not establish the normal-Env workflow.
+
+
+## Host target and compatibility selection
+
+Status: **implemented Standard component; not enabled in production**. The cache
+selector accepts a trusted Host configuration of up to 32 named areas. Its bounded
+JSON decoder rejects duplicate keys (including case aliases), unknown fields,
+trailing documents, invalid UTF-8 and documents over 64 KiB. Parsing does not choose
+a configuration file or authorize edits. The public settings command and automatic
+registration remain open with collection and complete added-data transfer support.
+
+An area specifies `name`, `path`, `compatibility`, optional `repository`, `scope`
+and `group`. Without `repository`, `path` is an absolute path inside the Env.
+With a repository name, it is a strict relative path within that managed repository;
+a collection resolves it to the named member. Absolute `/workspace` paths are refused
+so a rule cannot evade repository matching. Paths are not shell-expanded. Provider
+checks still own protected destinations, symlink/content inspection and native ownership.
+An unrelated repository rule does not apply, and external Workspaces are not adopted
+as managed repository data. Read-only Envs receive no selected areas.
+
+The default `workspace` scope isolates generations by the exact Workspace identity.
+Explicit `shared` scope requires a group. `compatibility` must explicitly identify
+the relevant tool/platform/data format; it is not inferred from Base names or guest
+output. Matching shared rules may reuse a source across compatible Bases and
+Workspaces. Rule name, path expression, repository, scope/group and compatibility
+are encoded unambiguously into the full source digest. A changed contract selects
+a different source and retains old data. Generated catalog names are internal;
+attachments preserve the configured name for presentation. The catalog verifies
+the full digest even if shortened generated names collide.
+
+The selector freezes its configuration, validates the whole placement set before
+initializing sources, rejects overlaps and verifies exact managed Workspace ownership.
+It uses the existing generation catalog and Env lifecycle API, without another
+cache index, resource creator or cleanup path. An error may leave harmless empty
+source entries but returns no partial selection and never creates provider data.
+The native rootfs fixture now uses this Standard selector. That does not establish
+stopped-writer publication, public configuration, data-bearing cross-Base reuse,
+large-repository performance or new Windows acceptance.
