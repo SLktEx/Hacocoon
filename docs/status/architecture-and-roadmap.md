@@ -441,3 +441,11 @@ Seed-only tests are removed. The Seed-only private-registry test and manual job
 are retired with their production path; historical evidence is retained. Current
 Store credential acceptance remains separate. Retained Seed data is not permission
 to clean it up.
+
+
+Ordinary Host setup now uses its canonical storage/tooling callback once instead
+of a preliminary Git/gh-only apt invocation. Verify installed setup and repeat
+setup before closing the #655 Host-tools failure; its underlying apt failure was
+not diagnosed by the job log. Shared preparation's existing ownership, copy
+recovery, operation lock and deadlines remain. Windows notification registration
+and fresh human acceptance, OCI telemetry separation and M0–M5 work above remain.

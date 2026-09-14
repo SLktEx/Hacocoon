@@ -30,6 +30,12 @@ retried explicitly and never causes resource/lease release.
 
 ## Rejected alternatives
 
+- A preliminary Git/gh-only apt path duplicates the maintained provisioner and
+  runs outside its canonical Host storage, operation lock and bounded systemd
+  execution. Remove that earlier path; ordinary setup reaches package preparation
+  once through the maintained composition. Notification refresh and user recipes
+  remain after successful preparation. This does not claim that every historical
+  apt failure had the same cause.
 - Per-user recipes for required tools make fresh setup incomplete and give common
   provisioning no stable failure/retry contract.
 - Installing Docker as well duplicates the default runtime and can conflict with

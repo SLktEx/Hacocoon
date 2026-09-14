@@ -158,3 +158,9 @@ substitution, legacy Seed commands and the unused harvest adapter. Managed-kind
 markers belong to the existing Environment identity code. It preserves old data
 and removes the remaining builder, maintenance and Seed catalog code; OCI sampling/recommendation, shared deletion-state separation and migration remain open. This is development progress, not a
 release or full M5 completion; see [retirement evidence](acceptance-evidence.md#seed-runtime-retirement).
+
+
+The current checkpoint also removes preliminary Git/gh-only setup in favor of the
+canonical Host storage/tooling callback. Ownership, copy recovery, bounded stages,
+failed-preparation refusal and retry remain authoritative. Installed acceptance is
+pending; [evidence](acceptance-evidence.md#host-tool-setup) retains the earlier failure.
