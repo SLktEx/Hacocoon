@@ -9,7 +9,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/internal/workspace"
+	cacheapp "github.com/SLktEx/Hacocoon/modules/standard/cache"
 )
 
 // This exercises ordinary Env creation, two rootfs cache placements and canonical
@@ -58,15 +58,13 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state.json"))
 	resources := &persistentresource.Service{Store: store, Backend: &PersistentResourceBackend{Runtime: r}}
 	svc := workspace.New(p, store)
-	selected := []core.EnvironmentResourceSelection{}
+	configuration := cacheapp.Configuration{}
 	for _, key := range []string{"compiler", "packages"} {
-		origin, err := store.EnsureResourceGeneration(ctx, key, CacheResourceKind, strings.Repeat("a", 64))
-		must(err)
-		selected = append(selected, core.EnvironmentResourceSelection{Key: key, Target: "/root/.cache/haco-e2e-" + key, Origin: origin})
+		configuration.Areas = append(configuration.Areas, cacheapp.Area{Name: key, Path: "/root/.cache/haco-e2e-" + key, Compatibility: "fixture-format-1"})
 	}
-	svc.ConfigureEnvironmentResources(resources, func(context.Context, core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error) {
-		return selected, nil
-	})
+	selector, err := cacheapp.NewSelector(configuration, store, nil)
+	must(err)
+	svc.ConfigureEnvironmentResources(resources, selector.Select)
 	cleaned, createdOK := false, false
 	defer func() {
 		// Create owns failed-creation cleanup. A name collision is not authority

@@ -150,3 +150,5 @@ command, with exact installation/Env selection and parent-owned lifetime. Local
 and actual Windows component verification are recorded in [acceptance evidence](acceptance-evidence.md#windows-tunnel-delegation).
 Installed Windows/WSL/Incus acceptance remains pending; this checkpoint is not
 M3 completion, main integration or a release.
+
+The current partial cache checkpoint now includes a Standard Host target/scope/compatibility selector candidate. It remains unregistered pending the complete configured cache workflow; final local validation is blocked by Host storage I/O errors. See [selection evidence](acceptance-evidence.md#host-cache-selection). This does not advance release or acceptance status.

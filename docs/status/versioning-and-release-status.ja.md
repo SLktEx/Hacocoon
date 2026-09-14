@@ -140,3 +140,5 @@ v0.66候補はmain `f47a9a41`の既存SSH/WSL/CI成果を統合しています�
 v0.67は通常WSL／trusted HostコマンドからWindows転送を自動起動し、正確な導入先・Env選択と親による寿命管理を行う進捗です。
 ローカルと実Windowsの構成要素検証は[受入記録](acceptance-evidence.ja.md#windows-tunnel-delegation)を参照してください。
 導入済みWindows/WSL/Incusの確認は残件で、M3完了・main反映・releaseではありません。
+
+現在のpartialなキャッシュcheckpointに、StandardのHost対象・共有範囲・互換条件の選択候補を追加しました。設定からの一連の利用手順が揃うまで製品へ未登録で、Hostストレージの入出力エラーにより最終ローカル検証は中断しています。[選択処理の記録](acceptance-evidence.ja.md#host-cache-selection)を参照してください。配布や受入の完了状態は進めません。

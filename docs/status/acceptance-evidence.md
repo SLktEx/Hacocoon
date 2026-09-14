@@ -1360,3 +1360,39 @@ An initial component assertion wrongly expected a detailed final stream error;
 that assertion was corrected to the existing generic final error and structured
 progress contract. Initial direct Windows execution of POSIX ownership tests failed;
 those tests run on WSL without weakening the ownership checks.
+
+
+<a id="host-cache-selection"></a>
+## Host cache selection candidate
+
+The Standard selector and bounded Host configuration decoder are implemented on
+`codex/cache-host-selection`; production registration remains disabled. It resolves
+exact Workspace/member scope and explicit sharing/compatibility into the existing
+source catalog. The rootfs native fixture now calls the selector instead of supplying
+hand-built generation selections. This is not acceptance of public configuration,
+collection, complete snapshot/copy/transfer or large-repository performance.
+
+Initial focused tests compiled the selector but three tests failed because their
+fixture omitted the required `env-` identity prefix. The fixture was corrected,
+without relaxing the production identity check. Further local Go verification is
+**blocked by infrastructure**, not passed: the Windows C drive had about 3 MB free;
+WSL reads failed with input/output errors in Go cache/toolchain/modules, `dmesg`
+and `/etc/ssl/certs/ca-certificates.crt`. Two task-created reproducible archives were
+removed, leaving about 20 MB. No user data, installed runtime or Env was deleted.
+A private memory-backed build/module cache did not resolve system-file read errors;
+TLS verification was preserved. Native selection, final focused/race and full local
+CI are unverified. Windows-side documentation consistency passes. The previous
+notification/placement successes do not verify this new selector.
+
+Parent #649 at `de3aa64429440635d2a7c0b3a3795ef13be059d8` now has successful
+Incus run [34804131630](https://github.com/SLktEx/Hacocoon/actions/runs/34804131630).
+Job 103852509211 passes the rootfs test in **12.46 seconds** and managed-repository
+test in **19.78 seconds**. The latter verifies two members, native path inspection,
+resume, parent-drift refusal, disposable cleanup, retained Workspace reuse and
+refusal of a guest-created link with retained data. Fixtures are
+`data-e2e-1281de8ec95e23e9` / `/var/lib/haco-data-placement-1019880765/state.json`
+and `repo-data-85c827faafbffc91` /
+`/var/lib/haco-repository-data-2889433042/state.json`. Core, standalone and aggregate
+Incus jobs pass; private registry skips. This resolves that candidate's required
+repository-placement acceptance, not the earlier failed fixture cleanup, public
+cache workflow, or this new selector. The failed run 34802001614 remains recorded.

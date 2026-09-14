@@ -1127,3 +1127,32 @@ reclaim 10試験がPASSです。文書・CI設定と各回帰試験もPASSしま
 最初の部品試験は終端エラーに詳細を期待してFAILし、既存の一般的な終端エラーと構造化進捗の
 契約に期待値を修正しました。POSIX所有者検査のWindows直接実行も当初FAILしました。
 所有者検査を緩めず、該当試験はWSLで確認しています。
+
+
+<a id="host-cache-selection"></a>
+## Hostのキャッシュ選択候補
+
+`codex/cache-host-selection` にStandardの選択処理とサイズ制限付きHost設定読込を実装しました。
+製品への自動登録は無効のままです。正確なWorkspace・メンバーと、明示的な共有・互換条件を
+既存の世代カタログへ結び付けます。Env本体の実機fixtureも手書きの世代選択からこの処理へ変更しました。
+公開設定、収集、完全なsnapshot/copy/transfer、巨大レポ性能の受入ではありません。
+
+初回の集中試験では選択処理がコンパイルされましたが、試験データの識別子に必要な `env-` がなく
+3試験がFAILしました。製品の識別子検査を緩めずfixtureを修正しました。その後のGo検証は
+**検証基盤の障害により中断**しており、PASSではありません。WindowsのCドライブの空きが約3 MBとなり、
+WSLのGoキャッシュ・ツールチェーン・依存物、`dmesg`、`/etc/ssl/certs/ca-certificates.crt` の読取りで
+入出力エラーが発生しました。この作業で作った再生成可能なアーカイブ二つを削除し、約20 MBを確保しました。
+利用者データ・導入済みruntime・Envは削除していません。メモリ上の専用ビルド/依存キャッシュでも
+システムファイルの読取りは解消せず、TLS検証を維持しました。選択処理の実機確認、最終集中試験・race・
+標準ローカルCIは未確認です。Windows上の文書整合性はPASSです。以前の通知・配置の成功を
+この新しい選択処理の検証として扱いません。
+
+親 #649 の `de3aa64429440635d2a7c0b3a3795ef13be059d8` はIncus run
+[34804131630](https://github.com/SLktEx/Hacocoon/actions/runs/34804131630)が成功しました。
+job103852509211でEnv本体の配置が**12.46秒PASS**、管理対象レポの配置が**19.78秒PASS**です。
+後者は二メンバー、nativeパス検査、再開、親配置の変更拒否、使い捨て領域回収、保持Workspaceの再利用、
+Env由来リンクの拒否とデータ保持を確認しています。fixtureは `data-e2e-1281de8ec95e23e9`
+（`/var/lib/haco-data-placement-1019880765/state.json`）と `repo-data-85c827faafbffc91`
+（`/var/lib/haco-repository-data-2889433042/state.json`）です。Core・standalone・集約Incus jobはPASS、
+private registryはSKIPです。同候補の必須レポ配置受入を確認できましたが、以前の失敗fixtureの回収、
+公開キャッシュ手順や今回の新しい選択処理を完了とはしません。FAILしたrun34802001614の記録は保持します。
