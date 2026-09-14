@@ -15,6 +15,58 @@ SOURCE = 'https://pkgs.zabbly.com/incus/lts-7.0'
 
 
 class LTS(unittest.TestCase):
+    def verify_server(self, response, *, status=0, locale='ja_JP.UTF-8'):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / 'incus'
+            fake.write_text('''#!/usr/bin/python3
+import os, sys
+if sys.argv[1:] != ['query', '/1.0']: sys.exit(99)
+print(os.environ['RESPONSE'])
+print('private-backend-diagnostic', file=sys.stderr)
+sys.exit(int(os.environ['QUERY_STATUS']))
+''', encoding='utf-8')
+            fake.chmod(0o755)
+            env = dict(os.environ, PATH=directory + ':' + os.environ['PATH'],
+                       LANG=locale, LC_ALL=locale, LANGUAGE='ja:en',
+                       RESPONSE=response, QUERY_STATUS=str(status))
+            return subprocess.run(['sh', str(HELPER), 'verify-server'], env=env,
+                                  capture_output=True, text=True)
+
+    def test_api_version_is_independent_of_locale_and_json_layout(self):
+        # Incus v7.0.1 cmd/incus/query.go emits Response.Metadata by default:
+        # https://github.com/lxc/incus/blob/v7.0.1/cmd/incus/query.go
+        # GET /1.0 metadata contains environment.server_version (server API).
+        for locale in ('C', 'ja_JP.UTF-8'):
+            for indent in (None, 2):
+                with self.subTest(locale=locale, indent=indent):
+                    response = json.dumps({'unrelated': 'Server version: 6.0.5',
+                                           'environment': {'server_version': '7.0.9'}}, indent=indent)
+                    result = self.verify_server(response, locale=locale)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('Incus 7.0.9: supported', result.stdout)
+                    self.assertEqual(result.stderr, '')
+
+    def test_api_version_failures_are_closed_and_do_not_echo_backend_data(self):
+        responses = ['', 'private-backend-data', '{', 'null', '[]', '{}',
+                     '{"environment": null}', '{"environment": []}', '{"environment": {}}']
+        responses += [json.dumps({'environment': {'server_version': version}})
+                      for version in (None, True, 7.0, [], {}, '', '6.0.5', '7.0.0', '7.1.0',
+                                      '7.0.1-rc1', '--help', '7.0.1\n', '7.0.1\r',
+                                      '\x1bprivate-backend-data', '7.0.' + '1' * 33)]
+        for response in responses:
+            with self.subTest(response=response):
+                result = self.verify_server(response)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
+                self.assertNotIn('private-backend', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+
+    def test_failed_query_cannot_succeed_with_valid_version_json(self):
+        result = self.verify_server('{"environment":{"server_version":"7.0.1"}}', status=42)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertNotIn('private-backend', result.stderr)
+
     def test_every_native_ci_setup_uses_the_same_install_and_version_gate(self):
         # CI routing is part of the supported-substrate contract. A distro
         # package install here previously let Core/Btrfs silently stay on 6.x.
@@ -23,7 +75,8 @@ class LTS(unittest.TestCase):
                 source = (ROOT / 'tools' / name).read_text()
                 self.assertIn('/incus-lts.sh"', source)
                 self.assertIn('sh "$INCUS_LTS_HELPER" install', source)
-                self.assertIn('sh "$INCUS_LTS_HELPER" verify-version "$server_version"', source)
+                self.assertIn('sh "$INCUS_LTS_HELPER" verify-server', source)
+                self.assertNotIn('Server version', source)
                 self.assertNotIn('ge 6.0', source)
                 commands = source.replace('\\\n', ' ').splitlines()
                 for command in commands:

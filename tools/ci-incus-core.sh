@@ -58,7 +58,6 @@ configure_workspace_owner_idmap() {
 }
 
 setup() {
-  local server_version
   require_github_hosted_runner
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
@@ -87,8 +86,7 @@ setup() {
   incus remote switch "$CI_REMOTE"
 
   incus version
-  server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
-  sh "$INCUS_LTS_HELPER" verify-version "$server_version"
+  sh "$INCUS_LTS_HELPER" verify-server
   incus profile show default --project default >/dev/null
 }
 

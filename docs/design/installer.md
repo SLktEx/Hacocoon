@@ -46,7 +46,10 @@ additional keys, and selects the latest available 7.0.x package from its signed
 `lts-7.0` repository. Persistent APT preferences retain the series without
 freezing a patch. Newer installed series require explicit migration and are
 never downgraded automatically. Installation checks the actual server version
-before boot-guard adoption and Hacocoon setup; `haco doctor` reports unsupported
+before boot-guard adoption and Hacocoon setup. The shared helper reads
+`environment.server_version` from `incus query /1.0` JSON; it does not parse
+translated `incus version` labels. Query failures, invalid JSON and missing or
+non-string versions stop installation. `haco doctor` reports unsupported
 or unknown versions and skips dependent probes.
 
 Existing 6.0 compatibility remains best effort, outside the supported baseline.

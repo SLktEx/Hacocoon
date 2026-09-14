@@ -90,6 +90,11 @@ When fixing a vulnerability or serious bug, add a regression test when practical
 
 ## Validation
 
+When adding or changing a check that blocks installation, setup or a user
+operation, follow [blocking validation and external observations](docs/reliability/validation-and-probes.md).
+Require a concrete refusal rationale, an independently grounded observation
+contract, and regression coverage that supported environments are not rejected.
+
 Run the narrowest relevant tests while iterating, then run the maintained local CI entry point when practical:
 
 ```bash
