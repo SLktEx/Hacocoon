@@ -10,16 +10,19 @@ import (
 type CommandHelp struct{ Path, Syntax, Message, Example string }
 
 // WriteCommandHelp renders one hierarchy using the shared bilingual catalog.
+// The result reports path recognition, not delivery: output failure must not
+// fall through into command dispatch. Like the existing top-level help, this
+// presentation-only API deliberately ignores writes to a closed output.
 func WriteCommandHelp(out io.Writer, program, path string, pages []CommandHelp, language Language) bool {
 	for _, page := range pages {
 		if page.Path != path {
 			continue
 		}
-		fmt.Fprint(out, HelpLines("", language.Text(page.Message), 60))
-		fmt.Fprintln(out, language.Text("help.usage"))
+		_, _ = fmt.Fprint(out, HelpLines("", language.Text(page.Message), 60))
+		_, _ = fmt.Fprintln(out, language.Text("help.usage"))
 		// Keep each option on a separate continuation line, independent of TTY width.
 		syntax := strings.ReplaceAll(page.Syntax, " [", "\n    [")
-		fmt.Fprintf(out, "  %s %s\n", strings.TrimSpace(program+" "+path), syntax)
+		_, _ = fmt.Fprintf(out, "  %s %s\n", strings.TrimSpace(program+" "+path), syntax)
 		children := false
 		for _, child := range pages {
 			suffix, ok := strings.CutPrefix(child.Path, path+" ")
@@ -30,16 +33,16 @@ func WriteCommandHelp(out io.Writer, program, path string, pages []CommandHelp, 
 				continue
 			}
 			if !children {
-				fmt.Fprintln(out, "\n"+language.Text("help.commands"))
+				_, _ = fmt.Fprintln(out, "\n"+language.Text("help.commands"))
 				children = true
 			}
-			fmt.Fprint(out, HelpLines(fmt.Sprintf("  %-14s", suffix), language.Text(child.Message), 60))
+			_, _ = fmt.Fprint(out, HelpLines(fmt.Sprintf("  %-14s", suffix), language.Text(child.Message), 60))
 		}
 		if children {
-			fmt.Fprintf(out, "\n  %s <command> --help\n", strings.TrimSpace(program+" "+path))
+			_, _ = fmt.Fprintf(out, "\n  %s <command> --help\n", strings.TrimSpace(program+" "+path))
 		}
-		fmt.Fprintln(out, "\n"+language.Text("help.example"))
-		fmt.Fprintln(out, "  "+page.Example)
+		_, _ = fmt.Fprintln(out, "\n"+language.Text("help.example"))
+		_, _ = fmt.Fprintln(out, "  "+page.Example)
 		return true
 	}
 	return false

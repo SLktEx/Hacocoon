@@ -138,7 +138,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		}
 	}
 	if err != nil {
-		fmt.Fprint(diagnostic, cliMessage("approval.outcome_failed", request.RequestID))
+		_, _ = fmt.Fprint(diagnostic, cliMessage("approval.outcome_failed", request.RequestID))
 		return 1
 	}
 	if result.RequestID != request.RequestID {

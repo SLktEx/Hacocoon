@@ -31,7 +31,7 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 	if !configEnvironmentName.MatchString(name) {
 		name = "<name>"
 	}
-	fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
+	_, _ = fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
 	if stage == "ssh_connection" && reason == "failed" {
 		fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
 	}

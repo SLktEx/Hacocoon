@@ -268,6 +268,12 @@ heading, command and create entry, compare usage with explicit help, and preserv
 exit-code/stdout/stderr checks. The corrected black-box CLI E2E passed in 5.16s.
 The matching installed-Incus assertion is updated, but no new native run is claimed.
 
+The candidate's quality run 34883913571 passed coverage but failed lint on nine
+unacknowledged output-write results. These are now explicitly acknowledged:
+already-failed diagnostics remain failures, and help path recognition cannot fall
+through into command execution when output closes. Existing return semantics are
+preserved. This is separate from the successful repository test workflow.
+
 Previous #583 head `0c79f820` passed repository, Ubuntu, Incus and Windows workflows
 ([Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)).
 That development result does not prove this main integration or fresh Japanese
