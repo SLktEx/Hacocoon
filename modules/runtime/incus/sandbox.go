@@ -18,8 +18,8 @@ type SandboxProvider struct {
 	*BaseProvider
 }
 
-func NewSandboxProvider(runtime *Runtime, options ...BaseProviderOption) (*SandboxProvider, error) {
-	base, err := NewBaseProvider(runtime, options...)
+func NewSandboxProvider(runtime *Runtime) (*SandboxProvider, error) {
+	base, err := NewBaseProvider(runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 			return cleanup(err)
 		}
 	}
-	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources, resolved.usesSeed); err != nil {
+	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources); err != nil {
 		return cleanup(err)
 	}
 	if resolved.built {

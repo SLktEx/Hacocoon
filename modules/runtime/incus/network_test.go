@@ -38,12 +38,6 @@ func managedRoutedFirewallResult() host.Result {
 
 func managedRoutedSourceGuardResult(table string) host.Result {
 	ref := "haco-demo"
-	for _, candidate := range []string{"haco-demo", "haco-harvest"} {
-		if routedSandboxGuardTable(candidate) == table {
-			ref = candidate
-			break
-		}
-	}
 	iface := environmentBridgeName(ref)
 	mac := environmentBridgeMAC(ref)
 	return host.Result{Stdout: "table inet " + table + " {\n\tchain prerouting {\n\t\ttype filter hook prerouting priority raw; policy accept;\n\t\tiifname \"" + iface + "\" ether saddr != " + mac + " drop\n\t\tiifname \"" + iface + "\" ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept\n\t\tiifname \"" + iface + "\" ip saddr != 10.240.0.0/24 drop\n\t}\n}"}

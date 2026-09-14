@@ -11,7 +11,7 @@ import (
 // configureSandboxEnvironment is the single post-creation security/materialization
 // path for new and restored Environments. The caller owns durable creation and
 // cleanup; restoration records its identity before invoking this fallible phase.
-func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec, resources core.ResourceBudget, nested bool) error {
+func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec, resources core.ResourceBudget) error {
 	// Environment networking is an authorization boundary. Each Environment
 	// receives its own point-to-point routed veth and never joins a shared L2.
 	// An exact inet/nft source guard is installed before start; rp_filter is
@@ -21,18 +21,12 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 	}
 
 	if err := p.setAndVerifyConfig(ctx, ref, managedEnvironmentMarkerKey, managedEnvironmentMarkerValue); err != nil {
-		return fmt.Errorf("mark managed Incus Environment for trusted Seed harvest: %w", err)
+		return fmt.Errorf("record managed Incus Environment ownership: %w", err)
 	}
 
 	// Incus must not restore a prior running state before volatile guards exist.
 	if err := p.setAndVerifyConfig(ctx, ref, "boot.autostart", "false"); err != nil {
 		return fmt.Errorf("disable automatic Environment startup: %w", err)
-	}
-
-	if nested {
-		if err := p.configureNestedOCIInstance(ctx, ref); err != nil {
-			return fmt.Errorf("configure nested OCI support for Seed environment: %w", err)
-		}
 	}
 
 	if err := p.applyResourceBudget(ctx, ref, resources); err != nil {

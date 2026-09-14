@@ -28,7 +28,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/recipes"
 	"github.com/SLktEx/Hacocoon/internal/review"
 	runapp "github.com/SLktEx/Hacocoon/internal/run"
-	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
@@ -71,7 +70,6 @@ type App struct {
 	Capabilities        *capabilityapp.Service
 	Git                 *gitcapapp.Broker
 	OCI                 *ociplugin.Service
-	Seeds               *seedbuildapp.Service
 	Runner              *runapp.Service
 	Events              *eventsapp.Service
 	Bases               *environmentapp.BaseRouter
@@ -106,25 +104,16 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	stateDir := filepath.Join(root, "state")
 
 	configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI"))
-	var (
-		ociDriver ociplugin.Driver
-		seedStore *seedbuildapp.Store
-	)
-	providerOptions := []incus.BaseProviderOption{}
+	var ociDriver ociplugin.Driver
 	if configuredDriver != "" {
 		driver, err := ociplugin.ParseDriver(configuredDriver)
 		if err != nil {
 			return nil, err
 		}
 		ociDriver = driver
-		seedStore = seedbuildapp.NewStore(filepath.Join(stateDir, "seeds.json"))
-		providerOptions = append(providerOptions, incus.WithSeedResolver(seedStore))
 	}
 
 	var runtimeRunner host.Runner = runner
-	if ociDriver == ociplugin.DriverNerdctl {
-		runtimeRunner = incus.WrapSeedHarvestRunner(runner)
-	}
 	// Environment bridge ownership is enforced at the production Incus command
 	// boundary so future call sites cannot silently adopt/delete a same-named
 	// unmanaged bridge even if they bypass a higher-level network helper.
@@ -144,7 +133,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		return nil, err
 	}
 
-	incusProvider, err := incus.NewSandboxProvider(incusRuntime, providerOptions...)
+	incusProvider, err := incus.NewSandboxProvider(incusRuntime)
 	if err != nil {
 		return nil, err
 	}
@@ -207,22 +196,13 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		return nil, err
 	}
 
-	var (
-		ociPlugin *ociplugin.Service
-		seeds     *seedbuildapp.Service
-	)
+	var ociPlugin *ociplugin.Service
 	if configuredDriver != "" {
 		ociPlugin, err = ociplugin.New(
 			runtime,
 			environmentStatePath,
-			ociplugin.NewStore(filepath.Join(stateDir, "oci-usage.json")),
 			ociDriver,
-			ociplugin.WithHostRunner(runner),
 		)
-		if err != nil {
-			return nil, err
-		}
-		seeds, err = seedbuildapp.New(incusProvider, ociPlugin, seedStore)
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +279,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Configuration: configuration,
 		Git:           gitcapapp.NewBroker(runner, store, capabilities),
 		OCI:           ociPlugin,
-		Seeds:         seeds,
 		Runner:        runs,
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,

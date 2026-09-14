@@ -1,6 +1,6 @@
 # Seed private-registry acceptance
 
-Status: accepted on a real GitHub-hosted Ubuntu runner for the Host-owned Basic-auth credential path.
+Status: **historical acceptance of the retired Seed path**. The Seed acquisition implementation, fixture and manual workflow job are removed. The earlier Host-owned Basic-auth result below is retained; it is not current persistent Store acceptance.
 
 ## What is proven
 
@@ -20,12 +20,13 @@ The successful reference run used Ubuntu 24.04, the runner-provided containerd s
 
 The acceptance registry is loopback HTTP because nerdctl treats loopback registries as local/insecure endpoints. This test proves the Host-owned authentication and immutable-identity boundary; it does **not** claim to validate a production registry's TLS PKI or custom CA configuration. Production registry transport trust remains an operator/containerd/nerdctl configuration concern.
 
-## Re-run
+## Historical replay and remaining scope
 
-Use the `incus-core-e2e` workflow through `workflow_dispatch`; the `authenticated-private-registry` job runs only for that manual trigger. It requires no repository secret because the registry and one-time credentials are generated inside the isolated runner.
+The removed fixture and manual job remain in Git history at `aaa4aa5760cd48aec5a4fc26cbdfd612119bdc82`.
+They are not current execution instructions. Normal PR runs skipped this manual-only
+scenario; removing the retired job does not turn those skips into passes.
 
-The Go acceptance test is additionally gated by `HACO_E2E_PRIVATE_REGISTRY=1` so normal unit/PR CI does not silently claim a real containerd acceptance run.
-
-## Remaining v0.17 acceptance
-
-This acceptance covers the Host-owned authenticated registry path only. Real Incus Seed end-to-end acceptance, physical Btrfs COW measurement, and real-host failure injection remain tracked separately.
+The original evidence covered Host-owned Basic-auth acquisition only. Complete
+Seed/CoW and failure-injection acceptance was never established by this fixture.
+Current persistent Store credential compatibility needs its own product-path
+acceptance; old-data evacuation/restore/comparison remains incomplete.

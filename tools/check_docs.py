@@ -112,7 +112,6 @@ required = [
     "docs/design/base-images-and-custom-environments.md",
     "docs/design/sandbox-resource-limits.md", "docs/design/sandbox-resource-limits.ja.md",
     "docs/design/managed-sandbox-network.md", "docs/design/managed-sandbox-network.ja.md",
-    "docs/design/oci-seed-recommendation.md", "docs/design/oci-seed-recommendation.ja.md",
     "docs/design/oci-image-deletion.md", "docs/design/oci-image-deletion.ja.md",
     "docs/design/oci-seed-and-cow.md", "docs/design/oci-seed-and-cow.ja.md",
     "docs/design/docker-compatibility-plugin.md", "docs/design/docker-compatibility-plugin.ja.md",
@@ -273,8 +272,8 @@ require_text("docs/design/plugin-architecture.md", [
     "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI", "haco base",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [
-    "OCI Seed Builder", "hacoq plugin oci seed build", "hacoq plugin oci seed current",
-    "/var/lib/containerd", "Btrfs/COW",
+    "OCI Seed retirement", "No legacy catalog reader", "seeds.json",
+    "No resource deletion is triggered", "historical evidence",
 ])
 require_text("docs/design/docker-compatibility-plugin.md", [
     "Docker Compatibility Plugin", "hacoq plugin oci docker status",

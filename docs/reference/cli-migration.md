@@ -17,24 +17,25 @@ its deletion. Product commands do not silently fall back to legacy composition.
 | `haco exec/shell` on a retained Env | Ordinary SSH; `haco run -- ...` for a new temporary Env |
 | Host-side Git worktree capability | Managed `repo clone` → `workspace create` → `env create` → `git connect` and ordinary guest Git |
 | `haco host ensure` / old bootstrap | `haco setup`; `hacoq host ensure` now refuses before composition |
-| Seed/Docker plugin commands, raw event export, resource-budget flags | Retained legacy surfaces below; no assumed product equivalent |
+| Seed and Seed image deletion/re-enable | Removed; current images use `haco plugin oci image ...` |
+| Docker plugin commands, raw event export, resource-budget flags | Temporary surfaces below; no assumed product equivalent |
 | `haco env switch-base`, old OCI distribution | Disabled/removed public behavior; preserve data with the [ordinary recreation lifecycle](../guides/data-lifetime.md) |
 
 <a id="host-entry"></a>
 
-## Temporary native Ubuntu Host entry
+## Native Ubuntu Host entry
 
 Windows interactive `wsl -d Hacocoon` enters trusted Host directly through the product
 login alias. Native Ubuntu leaves its login shell unchanged and currently uses this
-temporary command **on the Physical Host**:
+product command **on the Physical Host**:
 
 ```bash
-hacoq host shell
+haco host shell
 ```
 
 Once inside, use product `haco`. Fresh trusted Host provisioning contains product
 `haco` and client-only `haco-host`, not legacy guest `hacoq`.
-There is no product `haco host shell` command and no native Windows `haco.exe`.
+There is no native Windows `haco.exe`.
 
 ## Retained legacy operations
 
@@ -43,7 +44,6 @@ composition with its own required Policy/runtime configuration. Do not start a s
 legacy broker alongside an installed controller as a normal setup step.
 
 - `hacoq plugin git ...`: [legacy Git capability](legacy-git.md); separate from managed ordinary Git.
-- `hacoq plugin oci seed ...`: [Seed implementation](../design/oci-seed-and-cow.md) and [recommendation](../design/oci-seed-recommendation.md).
 - `hacoq plugin oci docker ...`: [Docker compatibility](../design/docker-compatibility-plugin.md).
 - `hacoq create/run --cpu/--memory/--pids/--root-size ...`: [resource-budget contract](../design/sandbox-resource-limits.md). These flags are absent from product create/run.
 - `hacoq events --json [--since-offset <offset>]`: audit-derived legacy event export below.
