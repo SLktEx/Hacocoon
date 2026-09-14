@@ -101,3 +101,7 @@ The existing v0.59 checkpoint receives a partial integration of #580/#583 daily
 CLI language/help work. This reuses a development result and does not consume a
 new checkpoint or publish a release. Windows presentation/GUI acceptance remains
 separate; see [language scope](../reference/cli-language.md).
+
+The next v0.59 M1 candidate reuses native failure grouping and BAT final results.
+Local regression/native component checks are scoped evidence; no checkpoint or
+release identity changes. See [acceptance](acceptance-evidence.md#main-notification-installer).

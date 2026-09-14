@@ -69,3 +69,12 @@ connection and Experimental VS Code behavior remain. Windows language handoff,
 full result translation and fresh installed acceptance are incomplete. See
 [language scope](reference/cli-language.md) and
 [validation](status/acceptance-evidence.md#main-cli-language).
+
+## Notification and installer integration candidate
+
+**Implemented candidate:** reuse #583's one-minute grouping for repeated native
+failures and the BAT final result/key wait. Approval/recovery events, audit/cursor
+integrity and original exit codes remain. Local notification regressions and
+Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
+remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
+and [installer results](design/installer.md#windows-final-result).

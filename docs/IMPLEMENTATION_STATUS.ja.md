@@ -66,3 +66,12 @@ Experimental VS Codeの既存動作を保持します。Windowsの言語引き�
 結果表示の全文翻訳、新しい導入済み環境での確認は未完了です。
 [言語対応範囲](reference/cli-language.ja.md)と
 [検証記録](status/acceptance-evidence.ja.md#main-cli-language)を参照してください。
+
+## 通知・インストーラの統合候補
+
+**実装済みの候補**：#583の同種失敗通知の1分間の集約と、BATの結果表示・キー待ちを
+再利用します。承認・回復要求の通知、監査・再開位置、元の終了コードを保持します。
+ローカルの通知回帰とWindows BAT・ConPTY確認は成功しました。新しい配布パッケージの
+Windows/SSH確認とExplorer操作は別の残件です。
+[通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
+[インストーラの結果](design/installer.md#windows-final-result)を参照してください。

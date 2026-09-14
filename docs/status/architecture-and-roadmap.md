@@ -144,3 +144,10 @@ remain active. Local regression checks are primary; continue independent work
 while required hosted checks run. Large-repository measurement and additional
 validation follow usable implementation and remain unverified until executed.
 Retained-data ownership and authority checks remain required throughout.
+
+
+The next M1 integration candidate includes repeated native failure grouping and
+BAT completion/failure/restart results with key wait. Local notification and native
+Windows BAT/ConPTY checks pass; the restricted PowerShell fixture wrapper and
+remaining installed/Explorer/SSH acceptance are explicitly recorded. Windows
+presentation-language transport is next; M2–M5 independent work continues.

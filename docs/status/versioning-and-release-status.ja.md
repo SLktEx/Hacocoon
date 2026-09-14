@@ -98,3 +98,7 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 開発成果の再利用であり、新しい段階やリリースの公開ではありません。
 Windowsの表示とGUI受け入れは別途確認します。
 [言語対応範囲](../reference/cli-language.ja.md)を参照してください。
+
+次のv0.59 M1候補は、同種失敗の通知集約とBATの最終結果表示を再利用します。
+ローカル回帰・実Windowsコンポーネント確認は限定した証跡であり、段階番号や
+リリース識別は変更しません。[確認範囲](acceptance-evidence.ja.md#main-notification-installer)を参照してください。

@@ -289,3 +289,23 @@ Ubuntu assertion uses the same vertical heading/command/create contract as the
 shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2 with
 all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
 pass. Native acceptance for this correction remains pending.
+
+<a id="main-notification-installer"></a>
+## Main notification and installer integration candidate
+
+The candidate reuses #583's failure grouping and BAT final-result implementation.
+Local Go 1.27.1 notification/catalog/event tests passed (1.22s), notification/event
+race tests passed (3.93s), maintained local test CI passed (13.11s), and docs/checker
+regressions passed (4.79s). Existing tests exercise 100 distinct failed requests,
+restart cursor preservation, independent targets and ungrouped approval/recovery.
+
+The PowerShell 5.1 fixture script could not start because that shell's policy is
+Restricted. This was an execution failure before tests, not a product failure or
+pass. No execution-policy setting was changed. A direct invocation reused the
+same native fixture source and the shipped BAT: 0/1/37/3010, missing PowerShell and
+missing adjacent script all passed. The existing pywinpty 3.0.2 ConPTY fixture
+passed final wait, explicit keypress and retained exit 37. It used an isolated
+local Python environment and generated native stand-in, not a WSL installation.
+The PowerShell wrapper's extra cleanup-sharing tests were not rerun by this route.
+Fresh Explorer interaction, full packaged installation and original SSH failure
+acceptance remain pending; previous native results do not establish this candidate.
