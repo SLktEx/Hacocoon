@@ -273,8 +273,8 @@ require_text("docs/design/plugin-architecture.md", [
     "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI", "haco base",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [
-    "OCI Seed Builder", "hacoq plugin oci seed build", "hacoq plugin oci seed current",
-    "/var/lib/containerd", "Btrfs/COW",
+    "OCI Seed retirement", "old-data migration remains partial", "seeds.json",
+    "Code removal does not rewrite catalogs", "historical evidence",
 ])
 require_text("docs/design/docker-compatibility-plugin.md", [
     "Docker Compatibility Plugin", "hacoq plugin oci docker status",

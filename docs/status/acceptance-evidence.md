@@ -1505,3 +1505,30 @@ Those failed logs are retained separately from the successful second attempt.
 Parent acceptance records the normal Env lifecycle and retained Workspace behavior;
 it is not a new native run of this candidate. Fresh Windows approval, giant-repo
 measurement and remaining Seed builder/data migration acceptance are still open.
+
+
+<a id="seed-builder-retirement"></a>
+## Legacy Seed builder and catalog retirement
+
+The follow-up to [PR #656](https://github.com/SLktEx/Hacocoon/pull/656),
+`aaa4aa5760cd48aec5a4fc26cbdfd612119bdc82`, removes the unused Seed builder,
+maintenance and catalog implementation and its tests. Reference inspection found
+no current caller outside that removed implementation. OCI-plugin image deletion,
+re-enabling, shared deletion/usage storage and sampling/recommendation remain;
+separating the latter is still required. No saved data is deleted or migrated.
+
+The manual private-registry job exercised only the removed Seed acquisition path,
+so that fixture/job is retired with it. Historical Basic-auth evidence and PR skips
+remain recorded; this is not current persistent Store registry acceptance.
+
+Focused Incus/OCI/composition tests, `bash tools/ci-local.sh test`, `docs` and
+`workflow-policy`, plus Incus/OCI race tests pass with Go 1.27.1. The documentation
+suite includes 19 negative regressions, including rejection of a missing retirement
+data boundary. All current Go files match the verified 1,490-file source archive.
+The initial documentation check still required the obsolete Seed Builder heading;
+it failed and its required contract was updated to retirement/data retention, with
+the focused negative regression. No product isolation or test deadline was relaxed.
+No new native run is claimed for removal of an unused path. Parent ordinary Env
+acceptance remains scoped to creation/resume/cleanup and retained Workspace data.
+Windows notification failure, fresh GUI answers, current registry compatibility,
+giant-repository measurements and whole-installation migration remain open.

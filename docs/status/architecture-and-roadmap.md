@@ -428,13 +428,16 @@ notification review route, separately from its successful ordinary entry/SSH tes
 
 Seed retirement now removes the ordinary composition/service, current-Seed Base
 resolver and legacy command family. Selected Bases no longer imply Seed nesting
-authority. Existing persisted identities/data are retained. Next remove remaining
-builder/telemetry internals after isolating any remaining shared helpers, and verify old
-data evacuation/restore/comparison; [ADR 0078](../adr/0078-seed-runtime-retirement.md)
+authority. The unused builder, maintenance and Seed catalog code is also
+removed. Existing persisted identities/data are retained. Next separate OCI
+sampling/recommendation from shared deletion state and verify old-data
+evacuation/restore/comparison; [ADR 0078](../adr/0078-seed-runtime-retirement.md)
 does not claim M5 or migration completion.
 
 The managed-Environment marker constants now live in the existing Environment
 identity code. Ordinary start, DNS, repository, snapshot, archive and maintenance
 retain the same values and ownership checks. The legacy harvest runner and its
-Seed-only tests are removed. Continue builder/telemetry retirement without treating
-retained Seed data as permission to clean it up.
+Seed-only tests are removed. The Seed-only private-registry test and manual job
+are retired with their production path; historical evidence is retained. Current
+Store credential acceptance remains separate. Retained Seed data is not permission
+to clean it up.

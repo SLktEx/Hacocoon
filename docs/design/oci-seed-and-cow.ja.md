@@ -1,22 +1,25 @@
-# OCI Seed Builder & Btrfs/COW Optimization
+# OCI Seedの撤去
 
-[English](oci-seed-and-cow.md) | **日本語**
+[English](oci-seed-and-cow.md) | 日本語
 
-状態: **partial、通常起動と旧CLIからの撤去を実装した候補**。
-新しいEnvは選択したBaseを使い、OCIプラグイン有効化を理由にSeedへ差し替えません。
-compositionのSeed store/resolver/serviceとharvest wrapper、旧 `hacoq plugin oci seed` 群を
-外しました。既存Envの固定Base・イメージ・カタログ・Workspace・OCIデータは変更しません。
-[ADR 0078](../adr/0078-seed-runtime-retirement.ja.md)に理由と不採用案を記録します。
+状態: **撤去の実装候補。以前のデータ移行はpartial**。
+通常Envは明示的に選んだBaseを解決します。Seedの組立・resolver・コマンド・harvest・builder・
+保守・Seedカタログのコードを撤去しました。現在のBase構築と永続OCI Storeは維持します。
+[ADR 0078](../adr/0078-seed-runtime-retirement.ja.md)に判断を記録しています。
 
-旧harvest runnerとSeed専用の試験は撤去しました。管理対象Envの種別マーカーは既存のinstance識別処理へ
-移し、通常起動・snapshot・DNS・保守の確認で同じ値を使い続けます。入力受け渡しの試験は現行の
-製品decoratorに揃え、管理操作の迂回を引き続き拒否します。
+固定済みBase参照、nativeイメージ、seeds.json、Host OCIデータ、Workspace、Storeは保持します。
+コードの撤去を、カタログ書換え・旧リソースの引受け・cleanupの許可とは扱いません。
+共通の管理対象種別マーカーはEnv識別処理が所有し、値と所有者確認を維持します。
+[Base構築](base-images-and-custom-environments.md)、[データ寿命](../guides/data-lifetime.ja.md)、
+[確認を伴う退避](../guides/data-evacuation.ja.md#retained-seed-data)を参照してください。
+全体の保存・復元・照合は未完了です。OCIプラグインの収集・推奨と削除記録の共有schemaは、
+既存のイメージ削除・再有効化を維持しながら切り離す残件です。
 
-残るbuilder・telemetryの内部実装と旧データの退避・復元・照合は未完了です。
-機能撤去を既存データの削除許可とは扱いません。`switch-base` は復活させません。
-通常利用は[Base構築](base-images-and-custom-environments.md)と[データ寿命](../guides/data-lifetime.ja.md)へ進んでください。
+Seed専用の非公開レジストリ試験と手動jobは製品経路とともに撤去しました。
+[過去の証拠](../status/seed-private-registry-acceptance.ja.md)を現行Storeの認証互換性の
+確認へ読み替えず、試験専用の取得実装で代替しません。
 
-**以下は残存内部実装と過去の設計の記録です。記載されたSeedコマンドは削除済みで、現在の操作手順ではありません。**
+**以下は過去の動作の記録で、現在利用できるコマンドや実装の説明ではありません。**
 
 ## Goal
 

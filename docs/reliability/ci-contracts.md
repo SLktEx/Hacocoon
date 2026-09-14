@@ -128,8 +128,10 @@ deleted before the later consumer runs. This data-retention assertion does not
 implicitly resolve a moving external default image again. Initial installation
 and default Base acquisition remain on the ordinary product path.
 
-Main retains repository/native validation; manual `real-git-push-e2e` and the
-authenticated private-registry scenario add credential/provider compatibility.
+Main retains repository/native validation; manual `real-git-push-e2e` adds
+credential/provider compatibility. The Seed-only private-registry manual job was
+retired with its production path. Its historical acceptance does not establish
+current persistent Store registry compatibility, which remains unverified.
 `windows-wsl-image-cache` prepares a verified download cache; it is not acceptance.
 Release publication/attestation and externally published artifact installation
 remain release concerns under #370. Broader compatibility/stress can extend these

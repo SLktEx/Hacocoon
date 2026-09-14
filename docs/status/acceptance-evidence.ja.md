@@ -1253,3 +1253,26 @@ Incusのrace、文書整合性・差分検査がPASSしました。現在の全G
 親候補の受入は通常EnvのlifecycleとWorkspace保持の証拠であり、この候補で実機試験を
 新たに実行したとは扱いません。新規Windows承認、巨大レポ実測、残るSeed builderと
 データ移行の受入は未完了です。
+
+
+<a id="seed-builder-retirement"></a>
+## 旧Seed builderとカタログの撤去
+
+[PR #656](https://github.com/SLktEx/Hacocoon/pull/656) の
+`aaa4aa5760cd48aec5a4fc26cbdfd612119bdc82` の後続で、未使用のSeed builder・保守・
+カタログ実装と専用試験を撤去しました。参照の確認で撤去対象外の現行呼出しはありません。
+OCIプラグインのイメージ削除・再有効化・共有する削除/使用記録と収集/推奨は維持し、
+後者の分離は引き続き残件です。保存済みデータの削除・移行はしていません。
+
+手動の非公開レジストリjobは撤去したSeed取得経路だけを試験していたため、製品経路とともに
+試験/jobを撤去しました。過去のBasic認証の証拠とPRのSKIPを保持し、現行の永続Storeの
+レジストリ受入とは扱いません。
+
+Go 1.27.1のIncus/OCI/composition集中試験、`bash tools/ci-local.sh test`・`docs`・
+`workflow-policy`、Incus/OCIのraceはPASS。文書の否定回帰は、撤去時のデータ保持境界が
+欠けた場合の拒否を含め19件PASSです。現在の全Goソースを1,490ファイルの検証archiveと
+比較して一致を確認しました。初回の文書検査は旧Seed Builder見出しを必須としてFAIL。
+撤去/データ保持の現行契約へ更新し、否定回帰を追加しました。製品の隔離や試験期限は緩めていません。
+未使用経路の撤去について新しい実機試験は主張せず、親の通常Env作成・再開・回収と
+Workspace保持の証拠を範囲を限定して引き継ぎます。Windows通知失敗、新規GUI回答、現行の
+レジストリ互換性、巨大レポ実測、全体移行は残件です。

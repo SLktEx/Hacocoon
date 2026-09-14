@@ -156,5 +156,5 @@ The current partial cache checkpoint includes the Standard Host target/scope/com
 The Seed runtime retirement candidate removes ordinary composition, implicit Base
 substitution, legacy Seed commands and the unused harvest adapter. Managed-kind
 markers belong to the existing Environment identity code. It preserves old data
-and leaves builder, telemetry and migration work open. This is development progress, not a
+and removes the remaining builder, maintenance and Seed catalog code; OCI sampling/recommendation, shared deletion-state separation and migration remain open. This is development progress, not a
 release or full M5 completion; see [retirement evidence](acceptance-evidence.md#seed-runtime-retirement).
