@@ -80,24 +80,47 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if err != nil {
 				return err
 			}
-			if !ValidOID(listed.OID) || !strings.HasPrefix(listed.Ref, "refs/heads/") || !ValidBranch(strings.TrimPrefix(listed.Ref, "refs/heads/")) {
+			heads, err := validateHeads(listed.Heads)
+			if err != nil || !ValidOID(listed.OID) || heads[listed.Ref] != listed.OID {
 				return fmt.Errorf("invalid remote ref listing")
 			}
-			fmt.Fprintf(output, "%s %s\n@%s HEAD\n\n", listed.OID, listed.Ref, listed.Ref)
+			for _, head := range listed.Heads {
+				_, _ = fmt.Fprintf(output, "%s %s\n", head.OID, head.Ref)
+			}
+			_, _ = fmt.Fprintf(output, "@%s HEAD\n\n", listed.Ref)
 		case strings.HasPrefix(line, "fetch "):
 			batch, err := helperBatch(scanner, line)
 			if err != nil {
 				return err
 			}
-			if len(batch) != 1 || batch[0] != "fetch "+listed.OID+" "+listed.Ref {
-				return fmt.Errorf("only the listed branch may be fetched")
-			}
-			response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Ref: listed.Ref, NewOID: listed.OID})
+			listedHeads, err := validateHeads(listed.Heads)
 			if err != nil {
 				return err
 			}
-			if _, err := helperGit(ctx, response.Pack, "index-pack", "--stdin", "--strict"); err != nil {
+			var requested []Head
+			for _, line := range batch {
+				fields := strings.SplitN(line, " ", 3)
+				if len(fields) != 3 || fields[0] != "fetch" || !ValidOID(fields[1]) || listedHeads[fields[2]] != fields[1] {
+					return fmt.Errorf("only listed branch commits may be fetched")
+				}
+				requested = append(requested, Head{Ref: fields[2], OID: fields[1]})
+			}
+			if _, err := validateHeads(requested); err != nil {
 				return err
+			}
+			total := 0
+			for _, head := range requested {
+				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}})
+				if err != nil {
+					return err
+				}
+				if len(response.Pack) == 0 || len(response.Pack) > MaxPack-total {
+					return fmt.Errorf("git batch exceeds supported pack size")
+				}
+				total += len(response.Pack)
+				if _, err := helperGit(ctx, response.Pack, "index-pack", "--stdin", "--strict"); err != nil {
+					return err
+				}
 			}
 			fmt.Fprintln(output)
 		case strings.HasPrefix(line, "push "):
@@ -110,15 +133,20 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			}
 			refspec := strings.TrimPrefix(line, "push ")
 			parts := strings.Split(refspec, ":")
-			if len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || parts[1] != listed.Ref || !ValidOID(listed.OID) {
-				return fmt.Errorf("only a normal push to the registered branch is supported")
+			listedHeads, err := validateHeads(listed.Heads)
+			if err != nil || len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || !validHeadRef(parts[1]) {
+				return fmt.Errorf("only a normal single-head creation or fast-forward push is supported")
+			}
+			oldOID := listedHeads[parts[1]]
+			if oldOID == "" {
+				oldOID = ZeroOID
 			}
 			value, err := helperGit(ctx, nil, "rev-parse", "--verify", "--end-of-options", parts[0]+"^{commit}")
 			if err != nil {
 				return err
 			}
 			oid := strings.TrimSpace(string(value))
-			if !ValidOID(oid) {
+			if !ValidOID(oid) || oid == ZeroOID {
 				return fmt.Errorf("invalid local commit")
 			}
 			pack, err := helperGit(ctx, []byte(oid+"\n"), "pack-objects", "--stdout", "--revs")
@@ -126,12 +154,12 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				return err
 			}
 			fmt.Fprintln(diagnostic, "Push awaits trusted Host Policy/approval. In another Host terminal, run: haco git pending")
-			_, err = exchange(ctx, Request{Operation: "push", Repository: repo, Ref: listed.Ref, OldOID: listed.OID, NewOID: oid, Pack: pack})
+			_, err = exchange(ctx, Request{Operation: "push", Repository: repo, Ref: parts[1], OldOID: oldOID, NewOID: oid, Pack: pack})
 			if err != nil {
 				fmt.Fprintf(diagnostic, "%s\n", err)
-				fmt.Fprintf(output, "error %s broker-failed\n\n", listed.Ref)
+				_, _ = fmt.Fprintf(output, "error %s broker-failed\n\n", parts[1])
 			} else {
-				fmt.Fprintf(output, "ok %s\n\n", listed.Ref)
+				_, _ = fmt.Fprintf(output, "ok %s\n\n", parts[1])
 			}
 		default:
 			return fmt.Errorf("unsupported Git helper command")
@@ -147,7 +175,7 @@ func helperBatch(scanner *bufio.Scanner, first string) ([]string, error) {
 			return batch, nil
 		}
 		batch = append(batch, scanner.Text())
-		if len(batch) > 16 {
+		if len(batch) > MaxHeads {
 			return nil, fmt.Errorf("Git batch exceeds PoC limit")
 		}
 	}
