@@ -148,3 +148,8 @@ Seed撤去候補で通常composition・暗黙のBase差替え・旧Seedコマン
 以前のデータを保持し、builder・保守・Seedカタログのコードも撤去しました。OCI収集/推奨・共有削除記録の分離と移行は残件です。
 開発上の進捗であり、配布やM5全体の完了ではありません。
 [撤去の記録](acceptance-evidence.ja.md#seed-runtime-retirement)を参照してください。
+
+
+現在のcheckpointで先行するGit/gh専用導入を撤去し、正規のHostストレージ/ツール準備へ
+統合しました。所有者・copy復旧・実行期限・準備失敗の拒否と再試行を維持します。
+導入済み受入は確認待ちで、[証拠](acceptance-evidence.ja.md#host-tool-setup)に以前の失敗を保持します。

@@ -1532,3 +1532,28 @@ No new native run is claimed for removal of an unused path. Parent ordinary Env
 acceptance remains scoped to creation/resume/cleanup and retained Workspace data.
 Windows notification failure, fresh GUI answers, current registry compatibility,
 giant-repository measurements and whole-installation migration remain open.
+
+
+<a id="host-tool-setup"></a>
+## Canonical Host tool setup candidate
+
+Parent [PR #655](https://github.com/SLktEx/Hacocoon/pull/655), `af070291`, failed
+Incus [run 34877403560](https://github.com/SLktEx/Hacocoon/actions/runs/34877403560),
+job 104087910761, at the shipped CLI's `host_tools` stage after successful egress
+and ordinary Workspace lifecycle tests. The job reports package preparation
+failure, but does not establish its underlying apt cause. Standalone and owned
+Btrfs jobs 104087911094/104087911201 pass, including the separate canonical Host
+tooling fixture. Private-registry is skipped. Keep these results distinct.
+
+The candidate based on #657 (`9ae0710a`) removes the preliminary Git/gh-only
+provisioner; the existing maintained storage/tooling callback already owns those
+packages after canonical source/ownership/nesting validation. No provider authority,
+execution deadline or package trust check is relaxed. The regression rejects any
+package mutation before that callback and verifies companion publication, failed
+preparation blocking notifications, explicit retry and idempotent reuse. Before
+removal, the regression fails on the preliminary apt invocation. Post-change focused Incus/hostsetup/composition tests, the maintained local test
+entry (all Go tests/vet, Python boundaries, 32 notification-client and two packaging
+tests), 19 documentation regressions, and Incus/hostsetup/composition race tests
+pass with Go 1.27.1. All current Go sources match the verified 1,488-file archive.
+Installed validation remains pending. This structural correction is not proof of
+the earlier native failure's root cause or current Windows approval acceptance.

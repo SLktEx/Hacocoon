@@ -344,6 +344,13 @@ process終了値がない状態です。controller crashでは出力なしのrun
 
 ## Host の標準ツール
 
+通常setupのパッケージ準備は、管理対象Hostのストレージ・所有者・nesting確認後に、
+保守対象の共通処理で一度だけ実行します。先行するGit/gh専用apt処理は撤去しました。
+host_packages・host_tooling・host_servicesの各段階は操作lockと実行期限を維持し、
+失敗後は通知の更新やユーザーのカスタマイズへ進みません。再試行は配置済みの
+補助プログラムと保持データを再利用します。
+
+
 通常の `haco setup` は、保存済みのユーザースクリプトを実行する前に Git、GitHub CLI、
 containerd、nerdctl、BuildKit を導入します。Windows/WSL インストーラーから呼ぶ共通の
 Ubuntu setup も同じ経路です。利用者ごとの導入スクリプトは不要です。ツールは所有権を

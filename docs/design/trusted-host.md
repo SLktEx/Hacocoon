@@ -364,7 +364,12 @@ runtime-specific acceptance.
 
 Ordinary `haco setup`, including the common Ubuntu setup called by the Windows/WSL
 installer, installs Git, GitHub CLI, containerd, nerdctl and BuildKit before replaying
-a saved user recipe. No per-user install script is required. The tools run rootfully
+a saved user recipe. The maintained composition performs package preparation once,
+after canonical Host storage and ownership/nesting checks. There is no preliminary
+Git/gh-only apt invocation. Shared `host_packages`, `host_tooling` and `host_services`
+stages retain operation locking and bounded execution; failure stops notification
+refresh and user customization. Retry reuses published companions and retained data.
+No per-user install script is required. The tools run rootfully
 inside the owned, unprivileged `haco-host`; they do not run on the Physical Host.
 
 | Component | Supported source/version |

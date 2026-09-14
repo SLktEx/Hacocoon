@@ -3,8 +3,9 @@ package incus
 import (
 	"context"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 	"path/filepath"
+
+	"github.com/SLktEx/Hacocoon/internal/hostsetup"
 )
 
 // SetupTrustedHost composes the existing owned-resource reconciler and client
@@ -29,9 +30,6 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return fmt.Errorf("prepare owned trusted host: %w", err)
 	}
-	if err := hostsetup.Step(ctx, "host_tools", func() error { return r.ensureTrustedHostTools(ctx) }); err != nil {
-		return err
-	}
 	if err := r.ensureTrustedHostClientMode(ctx); err != nil {
 		return err
 	}
@@ -45,6 +43,9 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 		return err
 	}
 	if r.trustedHostStorage != nil {
+		// The maintained composition prepares canonical Host storage and tools
+		// together. Package installation must not run before its ownership,
+		// copy-recovery and bounded-execution checks.
 		if err := hostsetup.Step(ctx, "host_storage", func() error { return r.trustedHostStorage(ctx) }); err != nil {
 			return err
 		}

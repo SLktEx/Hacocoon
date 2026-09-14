@@ -1276,3 +1276,24 @@ Go 1.27.1のIncus/OCI/composition集中試験、`bash tools/ci-local.sh test`・
 未使用経路の撤去について新しい実機試験は主張せず、親の通常Env作成・再開・回収と
 Workspace保持の証拠を範囲を限定して引き継ぎます。Windows通知失敗、新規GUI回答、現行の
 レジストリ互換性、巨大レポ実測、全体移行は残件です。
+
+
+<a id="host-tool-setup"></a>
+## 正規のHostツール準備への統合候補
+
+親[PR #655](https://github.com/SLktEx/Hacocoon/pull/655)のaf070291は、Incus
+[run34877403560](https://github.com/SLktEx/Hacocoon/actions/runs/34877403560)、
+job104087910761でegressと通常Workspace lifecycleに成功した後、製品CLIのhost_tools段階に
+FAILしました。パッケージ準備の失敗までは分かりますが、aptの原因はjob logで確定していません。
+standalone/owned Btrfsのjob104087911094/104087911201は、別の正規Host tooling試験を含めPASS。
+private-registryはSKIPです。これらを区別して保持します。
+
+#657（9ae0710a）に続く候補で、先行するGit/gh専用導入を撤去しました。既存の保守対象
+ストレージ/ツール準備が、正規source・所有者・nesting検査後に同じパッケージを導入します。
+provider権限・実行期限・パッケージの信頼確認は緩めていません。回帰は共通処理前の
+パッケージ変更を拒否し、補助プログラム配置、準備失敗後の通知停止、明示再試行と再利用を
+確認します。撤去前は先行apt呼出しで回帰がFAIL。修正後はGo 1.27.1のIncus/hostsetup/composition集中試験、標準ローカル検査
+（全Go試験/vet・Python境界・通知32試験・packaging2試験）、文書19回帰、
+Incus/hostsetup/composition raceがPASSしました。現在の全Goソースを1,488ファイルの
+検証archiveと照合済みです。導入済み検証は確認待ちです。
+この構造修正を、以前の実機失敗の原因証明やWindows承認の成功とは扱いません。
