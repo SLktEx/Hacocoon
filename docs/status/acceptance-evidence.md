@@ -336,3 +336,22 @@ query and component result, not fresh packaged login, complete Japanese text,
 notification response or human GUI acceptance. Those remain open with #577.
 
 After rebasing onto main `7e876bc1`, the immutable candidate passed the full local test entry (23.78s), shipped CLI E2E (4.54s) and documentation checks/regressions (5.17s). The Windows ordinary-entry observer now compares exactly one normalized Host language marker against an independent Windows UI-language query; all 13 observer tests passed locally. The first WSL launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; a later ordinary launch succeeded without restarting WSL. No product test was executed by the failed launch.
+
+<a id="main-seed-retirement"></a>
+## Seed retirement without version compatibility
+
+`85c4c621cd478e300f481d16eb7142a358ea34e3` reuses the #655–#657 Seed
+runtime/harvest/builder retirement on main `9e5f6f68`, then removes the remaining
+sampling/recommendation and old image deletion/re-enable state. The user excluded
+old-version compatibility/migration on 2026-09-15; no reader or conversion shim
+is retained. Current Docker and managed Base/OCI operations remain.
+
+The immutable local candidate passed focused CLI/composition/OCI/Incus tests
+(4.31s), all maintained local tests/vet/Python/client checks (12.49s), pinned
+changed-code golangci-lint 2.13.2 including new files (2.53s), workflow policy
+(1.04s), shipped CLI E2E (2.95s), and documentation/regressions (4.64s). Final
+status-only documentation changes passed the checker again. No native installation
+or performance run was added for this candidate. Prior #655's scoped real-Incus
+placement result is historical evidence for its SHA, not acceptance of this head.
+The removed private-registry job tested only retired Seed acquisition; other
+native jobs and historical failures remain. No user data or installation was deleted.
