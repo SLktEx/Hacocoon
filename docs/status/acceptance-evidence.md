@@ -385,3 +385,5 @@ was built and run on this Windows PC: all six modes passed in 5.84s (command
 7.67s), with start taking 3.68s. No WSL restart, reclamation, registration change
 or execution-policy relaxation was involved. The CI timeout remains unexplained
 and is not erased by local success. The candidate now includes main `119e3007`.
+
+After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` passed the full local test entry (19.51s), CLI E2E (10.60s), and docs/regressions (5.55s). Windows CI is rerun for the updated head; the earlier protocol timeout remains unresolved evidence.
