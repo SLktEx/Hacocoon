@@ -44,6 +44,9 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	name := "data-e2e-" + hex.EncodeToString(nonce[:])
 	root, err := os.MkdirTemp("/var/lib", "haco-data-placement-")
 	must(err)
+	// This private catalog must not share lock directories with another user's
+	// earlier CI fixture. Preserve the ordinary lock ownership checks.
+	t.Setenv("TMPDIR", root)
 	work := filepath.Join(root, "work")
 	must(os.Mkdir(work, 0755))
 	t.Logf("owned Env=%s catalog=%s; ambiguous cleanup retains ownership", name, filepath.Join(root, "state.json"))
