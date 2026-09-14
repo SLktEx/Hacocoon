@@ -35,9 +35,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.12 | Sandbox Resource Limits | implemented（現行の機能制約は実装状況を参照） |
 | v0.13 | Managed Sandbox Network | implemented（現行の機能制約は実装状況を参照） |
 | v0.14 | Git Fetch Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
-| v0.15 | OCI Seed Recommendation | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
-| v0.16 | OCI Image Deletion | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
-| v0.17 | OCI Seed Builder & Btrfs/COW | partial（実装・検証の残課題あり） |
+| v0.15 | OCI Seed Recommendation | historical（Seedの実装を撤去） |
+| v0.16 | OCI Image Deletion | historical（現行の管理対象イメージ削除へ置換） |
+| v0.17 | OCI Seed Builder & Btrfs/COW | historical（Seedの実装を撤去） |
 | v0.18 | Docker Compatibility Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
 | v0.19 | Domain-aware Egress Authorization | implemented（現行の機能制約は実装状況を参照） |
 | v0.20 | Managed Btrfs Rootfs Storage | implemented（現行の機能制約は実装状況を参照） |
@@ -106,3 +106,10 @@ Windowsの表示とGUI受け入れは別途確認します。
 同じv0.59の範囲で、Hostセッションへの日英表示の引き継ぎと、Windows表示言語の
 読み取りを統合します。インストーラはOSの言語設定を保持します。新しい節目や
 リリース番号は作成しません。
+
+## 現在の開発節目でのSeed撤去
+
+v0.59のM5候補で、Seedの実行経路とカタログ、収集・推奨、旧削除・再有効化の状態を
+撤去します。現行のBaseと永続OCIイメージ操作は維持します。2026-09-15のユーザーの
+範囲変更により、旧バージョンとの互換性・移行はM0〜M5の完了条件に含めません。
+現在の節目内の整理であり、タグやリリースは作成しません。

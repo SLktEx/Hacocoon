@@ -44,7 +44,7 @@ is never proof of implementation or acceptance.
 | G1 — managed Env transfer | Public stopped export/import and projected Windows file route exist; stopped containerd image/writable-data transfer has native acceptance. Authenticated imported Git, broader OCI/application consistency and native Windows/direct DrvFS publication remain incomplete. |
 | G2 — inventory and readable-data evacuation | Read-only native/catalog/file inventory and explicit tree archives exist. [Native image retention](../guides/data-evacuation.md#retain-ordinary-incus-images) is partial G2/G3, with two split-image transfers accepted. Classify all data, resolve incomplete/unprojected references, coordinate writers and capture required settings/manual/external data. Snapshot failure must not prevent readable-file evacuation. |
 | G3 — reconstruct and compare elsewhere | One managed cross-WSL fixture and two native split-image imports passed. Unified-image import and new-Env boot from those images remain unverified. Whole-installation restore, guest-visible ownership/link/ACL/xattr comparisons, credentials/settings and broader application/client acceptance remain. |
-| G4 — reviewed replacement | Planned. Retain the old WSL/data until required independent restore and comparison succeed. Inventory or one imported bundle never authorizes deletion. |
+| G4 — reviewed replacement | Deferred outside current M0–M5: old-version compatibility and migration are unnecessary during the current test phase. Code retirement does not delete data. |
 
 `switch-base` is disabled and on hold, with no return scheduled. It does not block
 A–C. If future evidence justifies a convenience operation, reconsider its necessity,
@@ -156,3 +156,18 @@ real Windows query returned Japanese. Full packaged language/GUI acceptance and
 remaining command translations stay open. M5 runtime/builder/sampling retirement
 is proceeding independently on current main. Per the user's 2026-09-15 scope
 correction, old-version compatibility and migration are outside M0–M5.
+
+## Current development scope
+
+The user confirmed on 2026-09-15 that the product is still under test and needs no
+old-version compatibility or migration layer. Those items are outside M0–M5;
+do not keep Seed catalog readers/converters or block current usability on old-data
+migration acceptance. Current-version Workspace/OCI retention, exact ownership and
+authorization remain product requirements. Performance and additional validation
+follow useful ordinary flows.
+
+The main-targeted M5 candidate reuses #655–#657's runtime/harvest/builder retirement,
+preserves current main's ordinary tooling and Base/OCI contracts, and removes
+remaining Seed sampling/recommendation and legacy deletion/re-enable state.
+No application data is removed. Local verification and PR/main status are recorded
+separately from implementation; M1 Windows integration and M2–M4 continue.

@@ -74,7 +74,7 @@ func (p *SandboxProvider) createEnvironmentFromImportedImage(ctx context.Context
 	if err := record(created); err != nil {
 		return created, err
 	}
-	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources, false); err != nil {
+	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources); err != nil {
 		return created, err
 	}
 	if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {

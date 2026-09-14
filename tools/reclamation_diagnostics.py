@@ -7,7 +7,6 @@ import tempfile
 def project(raw):
     tokens = {
         "base_resolution": "resolve Base ",
-        "seed_resolution": "resolve current Seed for Base ",
         "project": "ensure Incus project:",
         "root_storage": "resolve isolated root storage:",
         "routed_substrate": "ensure Hacocoon routed sandbox substrate:",

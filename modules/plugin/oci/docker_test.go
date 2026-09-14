@@ -42,7 +42,7 @@ func TestDockerStatusTreatsInactiveEngineAsReady(t *testing.T) {
 		"dev": {Name: "dev", RuntimeRef: "ref-dev"},
 	})
 	runtime := &dockerQueueExecutor{responses: []dockerExecResponse{{result: core.ExecutionResult{Stdout: dockerProbeFixture(true, false, false, false)}}}}
-	service, err := New(runtime, environmentPath, NewStore(dir+"/oci.json"), DriverDocker)
+	service, err := New(runtime, environmentPath, DriverDocker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestPrepareDockerEnablesOnlyHacocoonSocket(t *testing.T) {
 		{result: core.ExecutionResult{}},
 		{result: core.ExecutionResult{Stdout: dockerProbeFixture(true, false, false, false)}},
 	}}
-	service, err := New(runtime, environmentPath, NewStore(dir+"/oci.json"), DriverDocker)
+	service, err := New(runtime, environmentPath, DriverDocker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestPrepareDockerRefusesToStopActiveVendorDaemon(t *testing.T) {
 		"dev": {Name: "dev", RuntimeRef: "ref-dev"},
 	})
 	runtime := &dockerQueueExecutor{responses: []dockerExecResponse{{result: core.ExecutionResult{Stdout: dockerProbeFixture(false, false, true, true)}}}}
-	service, err := New(runtime, environmentPath, NewStore(dir+"/oci.json"), DriverDocker)
+	service, err := New(runtime, environmentPath, DriverDocker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestPrepareDockerFailsClosedOnUnitDrift(t *testing.T) {
 	output := dockerProbeFixture(false, false, false, false)
 	output = replaceDockerProbeValue(output, "service_unit_sha256", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 	runtime := &dockerQueueExecutor{responses: []dockerExecResponse{{result: core.ExecutionResult{Stdout: output}}}}
-	service, err := New(runtime, environmentPath, NewStore(dir+"/oci.json"), DriverDocker)
+	service, err := New(runtime, environmentPath, DriverDocker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestDockerCompatibilityRequiresDockerDriver(t *testing.T) {
 		"dev": {Name: "dev", RuntimeRef: "ref-dev"},
 	})
 	runtime := &dockerQueueExecutor{}
-	service, err := New(runtime, environmentPath, NewStore(dir+"/oci.json"), DriverNerdctl)
+	service, err := New(runtime, environmentPath, DriverNerdctl)
 	if err != nil {
 		t.Fatal(err)
 	}

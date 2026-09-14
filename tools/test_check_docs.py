@@ -86,6 +86,13 @@ class CheckDocsRegressionTest(unittest.TestCase):
             path.write_text(original, encoding="utf-8")
 
 
+    def test_requires_seed_retirement_data_boundary(self):
+        self.mutate_and_require_failure(
+            "docs/design/oci-seed-and-cow.md",
+            lambda text: text.replace("No resource deletion is triggered", "Retirement"),
+            "missing required text: No resource deletion is triggered",
+        )
+
     def test_rejects_legacy_top_level_command_in_getting_started(self):
         self.mutate_and_require_failure(
             "docs/guides/getting-started.md",

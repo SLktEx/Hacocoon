@@ -6,7 +6,7 @@ Status: **historical**. The 2026-08-31 proposal to make OCI application containe
 siblings under Incus is not the current default or a completed migration.
 Current B4 uses [persistent OCI Stores](persistent-oci-store.md) and the actual
 [Host-area copy boundary](../adr/0031-host-oci-area-copy.md).
-The retained [Seed implementation](oci-seed-and-cow.md) is a legacy optional path.
+The [Seed path is retired](oci-seed-and-cow.md); old-version compatibility and migration are outside the current scope.
 
 Seed addressed duplicated OCI data when every Env had an independent containerd
 runtime. Sharing writable `/var/lib/containerd` would break isolation and independent
