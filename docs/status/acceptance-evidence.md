@@ -355,3 +355,5 @@ or performance run was added for this candidate. Prior #655's scoped real-Incus
 placement result is historical evidence for its SHA, not acceptance of this head.
 The removed private-registry job tested only retired Seed acquisition; other
 native jobs and historical failures remain. No user data or installation was deleted.
+
+The candidate was rebased onto main `7e876bc1` without changing the Seed-retirement Go implementation. The first verification launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; the later ordinary WSL launch succeeded without restarting WSL. This startup failure is distinct from product validation. The main-based full local test entry passed (18.42s), as did the shipped CLI E2E (4.70s); documentation checks/regressions also passed (5.64s).
