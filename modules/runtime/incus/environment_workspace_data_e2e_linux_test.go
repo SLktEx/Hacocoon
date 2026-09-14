@@ -68,6 +68,9 @@ func TestRealIncusEnvironmentWorkspaceDataPlacementE2E(t *testing.T) {
 	name := "repo-data-" + random()[:16]
 	dir, err := os.MkdirTemp("/var/lib", "haco-repository-data-")
 	must(err)
+	// Keep the independent fixture's temporary locks with its private catalog.
+	// Never change ownership or permissions on a prior user's shared directory.
+	t.Setenv("TMPDIR", dir)
 	collection := gitrepo.Object{ID: name, Kind: "work", Owner: random(), State: "ready"}
 	for _, member := range []string{"one", "two"} {
 		id := name + "-" + member

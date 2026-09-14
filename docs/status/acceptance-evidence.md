@@ -1301,3 +1301,31 @@ reports `stage=notification_setup reason=failed`, then times out waiting for the
 exact terminal session. Steps 18–21 are skipped. Keep this distinct from earlier
 notification clear/activation failures; it does not establish fresh notification
 or VS Code approval answers. Original SSH/long-input and Japanese Windows gaps remain.
+
+
+### Isolated placement-test locks
+
+On `b84caa6c8a43fee248798816c337927f46e9dc8f`, Incus run
+[34802001614](https://github.com/SLktEx/Hacocoon/actions/runs/34802001614), job
+103846353549, fails both placement tests before placement because the root process
+finds `/tmp/hacocoon-environment-locks` owned by an earlier non-root test. The
+ownership check correctly refuses it. Rootfs fixture `data-e2e-5dcf0332ced1a54e`
+retains `/var/lib/haco-data-placement-2911263103/state.json`; repository fixture
+`repo-data-ca70b13bef493520` retains its catalog at
+`/var/lib/haco-repository-data-3862114127/state.json` and its owned Workspace volumes.
+Later storage-pool cleanup also fails because the pool is in use. A broader cleanup
+step passes, but that is not proof that these exact retained resources are absent.
+Core and standalone Incus jobs pass; private-registry and later storage steps skip.
+
+Each independent placement fixture now sets its temporary directory to its own
+private catalog directory, following the existing native-test isolation pattern.
+The production lock ownership check and prior users' directories remain intact.
+Focused Core, Environment, Workspace and Incus tests pass after this correction.
+The earlier failed run and supported-host repository acceptance remain unresolved
+until the corrected native workflow supplies specific evidence.
+
+The corrected rootfs fixture passes on existing WSL / Incus 6.0.5 in **113.20 seconds**,
+including creation, both resume routes, drift refusal, disposable cleanup and retained
+Workspace data. Its identity is `data-e2e-b1928dc7bc042e07`, with retained catalog
+`/var/lib/haco-data-placement-2728123676/state.json`. This is functional acceptance,
+not a performance benchmark or acceptance of repository-volume placement.
