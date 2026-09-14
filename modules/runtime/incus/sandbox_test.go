@@ -43,6 +43,13 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 					return host.Result{Stdout: string(data)}, nil
 				}
 				if args[0] == "init" {
+					wantSource := "images:" + sandboxTestFingerprint
+					if built {
+						wantSource = "local:" + sandboxTestFingerprint
+					}
+					if len(args) < 2 || args[1] != wantSource {
+						t.Fatalf("selected Base was substituted: %v", args)
+					}
 					if !strings.Contains(strings.Join(args, " "), "--config boot.autostart=false") {
 						t.Fatal("new Environment can autostart before Hacocoon guards")
 					}
@@ -120,6 +127,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 			seenIPGuard := false
 			for i, call := range runner.calls {
 				joined := strings.Join(call.args, " ")
+				if strings.Contains(joined, "security.nesting=true") {
+					t.Fatal("Base choice alone granted nesting authority", call)
+				}
 				if strings.Contains(joined, "haco-base-") {
 					t.Fatal("ordinary create retained a redundant Base instance")
 				}

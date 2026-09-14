@@ -204,6 +204,11 @@ Stream handshakeでは可能な検証を成功 acknowledgementより前に行い
 
 ### 対話端末の画面サイズ
 
+Host-shell要求は任意の`display_language`を受け付け、Host準備前に空・`en`・`ja`だけに
+限定します。クライアントで選んだ値を、そのHostセッションの`HACO_UI_LANGUAGE`へ渡します。
+任意の環境変数やOSのlocaleは転送せず、通常Envのshell要求に言語フィールドはありません。
+[ADR 0079](../adr/0079-host-presentation-language.md)を参照してください。
+
 状態: **implemented。インストール済み Incus/Windows/WSL での受入は pending**。
 
 Host と Environment の shell client は、開始時の端末の列数・行数を request で渡す。

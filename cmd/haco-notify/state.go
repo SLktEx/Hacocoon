@@ -95,6 +95,9 @@ func (s *notifyStore) load() (notifyState, error) {
 	if len(state.SeenEventIDs) > maxSeenEventIDs {
 		state.SeenEventIDs = state.SeenEventIDs[len(state.SeenEventIDs)-maxSeenEventIDs:]
 	}
+	if len(state.Failures) > maxFailureNotices {
+		state.Failures = state.Failures[len(state.Failures)-maxFailureNotices:]
+	}
 	return state, nil
 }
 

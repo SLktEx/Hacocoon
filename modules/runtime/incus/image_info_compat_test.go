@@ -32,7 +32,7 @@ func TestResolveParentBaseFallsBackToIncus6ImageList(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resolved, err := provider.resolveParentBase(context.Background(), defaultBaseName)
+	resolved, err := provider.resolveBase(context.Background(), defaultBaseName)
 	if err != nil {
 		t.Fatal(err)
 	}

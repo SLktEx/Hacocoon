@@ -74,7 +74,7 @@ type limitedNativeReply struct{ data []byte }
 // Drain all diagnostics, retaining only a bounded candidate for fixed stage
 // parsing. Overflow or unrelated output never becomes a product log field.
 type nativeProgress struct {
-	data []byte
+	data    []byte
 	invalid bool
 }
 

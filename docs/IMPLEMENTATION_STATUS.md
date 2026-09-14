@@ -35,7 +35,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Evacuation / replacement](guides/data-evacuation.md) | partial | Read-only inventory and explicit ordinary-tree archives exist, including isolated failed-snapshot fixtures. Native Incus export/import accepted two split images; unified images/new-Env boot are unverified. Whole-installation classification/capture/restored comparison and final replacement are not complete. |
 | [AWS S3](design/aws-operations.md) | partial | Approved bounded listing and verified object download, including source-bound guest requests. Repository and synthetic native tests exist; authenticated real AWS acceptance was skipped. This is not an EC2 Environment provider. |
 | [Notifications / client APIs](reference/interaction-events.md) | implemented | Minimized events and optional adapters. VS Code GUI and Windows notification pages complete explicit answers through common review/Policy; opening alone never answers. Fresh installed GUI/human answers and Linux activation remain unverified; native/component evidence is scoped separately. |
-| [Legacy OCI Seed / Docker](reference/cli-migration.md) | partial | Optional `HACO_PLUGIN_OCI=nerdctl` or `docker` integration remains on temporary `hacoq`. Seed build/publish/hardening exists; private-registry/COW/failure breadth remains. It is not the current persistent Store workflow. |
+| [Seed retirement](design/oci-seed-and-cow.md) | implemented candidate | Seed runtime/build/harvest/catalog/sampling/recommendation and its old image deletion/re-enable state are removed. Current Base, managed images and OCI Stores remain; optional Docker integration is independent. Old-version compatibility/migration is out of scope. |
 | [Cloud / registry / management UI](status/architecture-and-roadmap.md) | deferred | Concrete cloud Environment provider, mandatory local registry, management UI, simultaneous writable Store sharing and live migration are not current features. Provider seams and explicit future directions remain. |
 
 Canonical lifecycle finalization releases ownership only after complete provider
@@ -65,7 +65,18 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 **Partial:** daily English/Japanese CLI presentation and shared vertical help are
 reused from #580/#583 on current main. Current JSON opt-in, portless SSH, Git
-connection and Experimental VS Code behavior remain. Windows language handoff,
-full result translation and fresh installed acceptance are incomplete. See
+connection and Experimental VS Code behavior remain. Normal Windows entry and
+validated per-Host-session language handoff are implemented; the installer
+preserves OS locale. Full result translation and fresh installed acceptance
+remain incomplete. See
 [language scope](reference/cli-language.md) and
 [validation](status/acceptance-evidence.md#main-cli-language).
+
+## Notification and installer integration candidate
+
+**Implemented candidate:** reuse #583's one-minute grouping for repeated native
+failures and the BAT final result/key wait. Approval/recovery events, audit/cursor
+integrity and original exit codes remain. Local notification regressions and
+Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
+remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
+and [installer results](design/installer.md#windows-final-result).

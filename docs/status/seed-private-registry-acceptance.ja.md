@@ -1,6 +1,6 @@
 # Seed private registry acceptance
 
-Status: Host が所有する Basic 認証認証情報経路について、実際の GitHub-hosted Ubuntu runner で検証済みです。
+状態: **撤去したSeed経路の過去の受入**。Seed取得実装・試験・手動workflow jobを撤去しました。以下のHost所有Basic認証の過去の実績は保持し、現行の永続Storeの受入とは扱いません。
 
 ## 実証したこと
 
@@ -20,12 +20,12 @@ Status: Host が所有する Basic 認証認証情報経路について、実際
 
 検証 registry はループバック HTTP です。nerdctl はループバック registry を local/insecure 接続先として扱うためです。このテストが実証するのは Host 所有 authentication と不変の識別の境界であり、production registry の TLS PKI や custom CA 設定までは検証したとは主張しません。production registry の通信 trust は operator/containerd/nerdctl 側の設定事項です。
 
-## 再実行
+## 過去の再現と残る範囲
 
-`incus-core-e2e` workflow を `workflow_dispatch` から実行すると、`authenticated-private-registry` job が手動実行時だけ走ります。registry と一時認証情報は隔離された runner 内で生成されるため、リポジトリ secret は不要です。
+撤去した試験と手動jobはGit履歴の `aaa4aa5760cd48aec5a4fc26cbdfd612119bdc82` に残ります。
+現行の実行手順ではありません。通常PRで手動専用試験がSKIPだった記録を、job撤去でPASSへ
+変更しません。
 
-Go 検証テスト自体も `HACO_E2E_PRIVATE_REGISTRY=1` で gate されており、通常の unit/PR CI が実 containerd 検証を実行したかのように見せることはありません。
-
-## 残る v0.17 acceptance
-
-ここでカバーするのは Host 所有 authenticated registry 経路だけです。実 Incus を使う Seed end-to-end 検証、物理 Btrfs COW 測定、real-host 失敗 injection は別 Issue で追跡します。
+過去の実績はHost所有のBasic認証取得だけです。Seed/CoW全体や失敗注入の受入は、
+この試験では証明されていません。現行の永続Storeの認証互換性は製品経路で別途確認が必要で、
+旧データの退避・復元・照合も未完了です。

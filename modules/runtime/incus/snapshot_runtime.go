@@ -78,7 +78,7 @@ func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spe
 			return created, fmt.Errorf("remove restored device mask: %w", core.ErrRuntimeUnavailable)
 		}
 	}
-	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources, false); err != nil {
+	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources); err != nil {
 		return created, err
 	}
 	if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {

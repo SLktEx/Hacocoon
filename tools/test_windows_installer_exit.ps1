@@ -1,3 +1,4 @@
+param([string]$PausePython = "")
 # Run the shipped BAT against a disposable native PowerShell stand-in. This is
 # an exit-propagation component test, not Windows/WSL installation acceptance.
 $ErrorActionPreference = 'Stop'
@@ -40,7 +41,7 @@ class NativeExit {
     }
 }
 '@
-    foreach ($code in @(0, 1, 3010)) {
+    foreach ($code in @(0, 1, 37, 3010)) {
         [IO.File]::WriteAllText((Join-Path $fixtureRoot 'native-exit.txt'), [string]$code)
         $info = [Diagnostics.ProcessStartInfo]::new()
         $info.FileName = Join-Path ([Environment]::SystemDirectory) 'cmd.exe'
@@ -48,6 +49,7 @@ class NativeExit {
         $info.WorkingDirectory = $fixtureRoot
         $info.UseShellExecute = $false
         $info.CreateNoWindow = $true
+        $info.EnvironmentVariables['HACO_INSTALL_NO_PAUSE'] = '1'
         $info.RedirectStandardOutput = $info.RedirectStandardError = $true
         $process = [Diagnostics.Process]::Start($info)
         try {
@@ -58,8 +60,42 @@ class NativeExit {
             if ($process.ExitCode -ne $code) { throw "BAT lost native exit $code" }
             if (($output.Contains('Windows installation complete.')) -ne ($code -eq 0)) { throw "False BAT completion for $code" }
             if (($output.Contains('paused until Windows restarts')) -ne ($code -eq 3010)) { throw "Wrong BAT restart classification for $code" }
-            if (($output.Contains('installation failed')) -ne ($code -eq 1)) { throw "Wrong BAT failure classification for $code" }
+            if (($output.Contains('installation failed')) -ne ($code -notin @(0,3010))) { throw "Wrong BAT failure classification for $code" }
         } finally { $process.Dispose() }
+    }
+    # Early prerequisite failures share the same final result and no-pause path.
+    foreach ($missing in @('install-windows.ps1', 'powershell.exe')) {
+        $original = Join-Path $fixtureRoot $missing
+        $saved = Join-Path $fixtureRoot ($missing + '.saved')
+        [IO.File]::Move($original, $saved)
+        try {
+            $info = [Diagnostics.ProcessStartInfo]::new()
+            $info.FileName = Join-Path ([Environment]::SystemDirectory) 'cmd.exe'
+            $info.Arguments = '/d /c install-windows.bat'
+            $info.WorkingDirectory = $fixtureRoot
+            $info.UseShellExecute = $false
+            $info.CreateNoWindow = $true
+            $info.EnvironmentVariables['HACO_INSTALL_NO_PAUSE'] = '1'
+            $info.EnvironmentVariables['PATH'] = [Environment]::SystemDirectory
+            $info.RedirectStandardOutput = $info.RedirectStandardError = $true
+            $process = [Diagnostics.Process]::Start($info)
+            try {
+                $stdout = $process.StandardOutput.ReadToEndAsync()
+                $stderr = $process.StandardError.ReadToEndAsync()
+                if (-not $process.WaitForExit(10000)) { $process.Kill(); throw 'Early BAT failure paused' }
+                $output = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()
+                if ($process.ExitCode -ne 1 -or -not $output.Contains('installation failed with exit code 1') -or $output.Contains('Press any key')) { throw "Early failure result lost: $missing" }
+            } finally { $process.Dispose() }
+        } finally { [IO.File]::Move($saved, $original) }
+    }
+
+    # PAUSE reads the console; redirected pipes do not model a Windows terminal.
+    [IO.File]::WriteAllText((Join-Path $fixtureRoot 'native-exit.txt'), '37')
+    if ($PausePython) {
+        & $PausePython (Join-Path $PSScriptRoot 'test_windows_installer_pause.py') $fixtureRoot
+        if ($LASTEXITCODE -ne 0) { throw 'ConPTY installer final-wait test failed' }
+    } else {
+        Write-Host 'SKIP: final keypress requires -PausePython with pywinpty; exit and prerequisite checks still run.'
     }
     # A live native process holds this otherwise empty working directory. Its
     # eventual release must succeed, while unrelated deletion errors stay errors.

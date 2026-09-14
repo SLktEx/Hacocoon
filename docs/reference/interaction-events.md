@@ -183,3 +183,19 @@ A running old executable is not truncated. Cleanup removes only the exact owned
 staging file/directory and reports recovery-required if cleanup fails.
 
 Normal `haco setup` refreshes an already enabled notification service after companion publication. It preserves a disabled service and does not create one before Windows desktop registration.
+
+## Repeated native failure notifications
+
+Implemented on the development candidate: native notifications group repeated
+`operation-failed`, `policy-denied` and `approval-denied` events with the same
+Environment/capability/action/kind/code for one minute after successful delivery.
+Distinct request IDs still remain distinct audit events. The protected cursor
+state retains up to 64 hashed presentation keys across restarts; failed delivery
+does not commit a key or cursor. Clock rollback allows a new notification.
+
+Approval-required and recovery-required events are never grouped. Different
+targets, capabilities and codes remain independently visible. The notice routes
+inspection to `haco doctor`, `haco approve --list` and `haco config`; it neither
+guesses why SSH failed nor changes Policy. This is native presentation behavior,
+not a filter on the read-only event API, browser history or VS Code stream.
+Reported Windows SSH/toast acceptance is pending under #582.

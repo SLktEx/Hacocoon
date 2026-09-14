@@ -242,7 +242,7 @@ func TestNativeToastProcessFailureAndReaping(t *testing.T) {
 func TestNativeProgressBoundsAndPartialReads(t *testing.T) {
 	for _, tc := range []struct {
 		chunks []string
-		want string
+		want   string
 	}{
 		{[]string{"HACO_TOAST_STA", "GE:runtime\r\nHACO_TOAST_STAGE:history\n"}, "history"},
 		{[]string{"HACO_TOAST_STAGE:input\n"}, "input"},

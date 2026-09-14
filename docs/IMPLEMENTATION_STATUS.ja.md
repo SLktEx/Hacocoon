@@ -41,7 +41,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 読み取り専用の棚卸しと明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。環境全体の分類・取得・復元比較と最終置換は未完了。 |
 | [AWS S3](design/aws-operations.ja.md) | 部分実装 | 承認付きの制限ある一覧・検証済みobject取得、送信元を固定したゲスト要求を実装。リポジトリ・模擬native試験あり。認証を伴う実AWS検証はスキップ。EC2のEnv プロバイダーではない。 |
 | [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | 情報を絞ったeventと任意のadapter。VS Code GUIとWindows通知内のページで共通review/Policyを通して明示回答が完結。開くだけでは回答しない。新規の導入GUI・人の回答・Linux起動は未確認で、native/部品の証拠は別管理。 |
-| [旧OCI Seed・Docker](reference/cli-migration.md) | 部分実装 | 任意の`HACO_PLUGIN_OCI=nerdctl`または`docker`連携は移行用`hacoq`に残る。Seedのbuild/publish・保護を実装。非公開 registry・COW・失敗条件の広い確認は残る。現行の永続Store手順とは別。 |
+| [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済みの候補 | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
 | [クラウド・registry・管理UI](status/architecture-and-roadmap.md) | 延期 | 具体的なクラウドEnv プロバイダー、必須のlocal registry、管理UI、Storeの同時書込み共有、live 移行は現行機能ではない。プロバイダー境界と将来方針は保持。 |
 
 正規ライフサイクルは送信元保護を含む基盤の削除完了後だけ所有記録を解放します。
@@ -62,7 +62,17 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 **partial**：#580/#583の日常操作の日英表示と共通の縦型ヘルプを現在のmainへ
 再利用しています。明示的なJSON指定、ポート指定の不要なSSH、Git接続、
-Experimental VS Codeの既存動作を保持します。Windowsの言語引き継ぎ、
-結果表示の全文翻訳、新しい導入済み環境での確認は未完了です。
+Experimental VS Codeの既存動作を保持します。通常のWindows起動とHostセッションへの
+言語引き継ぎを実装し、インストーラはOS言語設定を保持します。結果表示の全文翻訳と
+新しい導入済み環境での確認は未完了です。
 [言語対応範囲](reference/cli-language.ja.md)と
 [検証記録](status/acceptance-evidence.ja.md#main-cli-language)を参照してください。
+
+## 通知・インストーラの統合候補
+
+**実装済みの候補**：#583の同種失敗通知の1分間の集約と、BATの結果表示・キー待ちを
+再利用します。承認・回復要求の通知、監査・再開位置、元の終了コードを保持します。
+ローカルの通知回帰とWindows BAT・ConPTY確認は成功しました。新しい配布パッケージの
+Windows/SSH確認とExplorer操作は別の残件です。
+[通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
+[インストーラの結果](design/installer.md#windows-final-result)を参照してください。

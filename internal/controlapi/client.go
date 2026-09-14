@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"golang.org/x/term"
@@ -115,7 +116,15 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environment string) erro
 }
 
 func (c *Client) OpenTrustedHostShell(ctx context.Context) (net.Conn, error) {
-	return c.wire.OpenSession(ctx, MethodHostShell, HostShellRequest{Terminal: currentTerminalMetadata()})
+	return c.OpenTrustedHostShellWithLanguage(ctx, cliui.Resolve(os.Getenv))
+}
+
+// OpenTrustedHostShellWithLanguage carries a presentation choice for one session.
+// The server validates the normalized value before any Host preparation.
+func (c *Client) OpenTrustedHostShellWithLanguage(ctx context.Context, language cliui.Language) (net.Conn, error) {
+	return c.wire.OpenSession(ctx, MethodHostShell, HostShellRequest{
+		Terminal: currentTerminalMetadata(), DisplayLanguage: string(language),
+	})
 }
 
 func currentTerminalMetadata() TerminalMetadata {

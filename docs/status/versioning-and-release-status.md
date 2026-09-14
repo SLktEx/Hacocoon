@@ -37,9 +37,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.12 | Sandbox Resource Limits | implemented — see current feature limits |
 | v0.13 | Managed Sandbox Network | implemented — see current feature limits |
 | v0.14 | Git Fetch Plugin | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
-| v0.15 | OCI Seed Recommendation | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
-| v0.16 | OCI Image Deletion | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
-| v0.17 | OCI Seed Builder & Btrfs/COW | partial — implementation and acceptance gaps remain |
+| v0.15 | OCI Seed Recommendation | historical — Seed implementation removed |
+| v0.16 | OCI Image Deletion | historical — current managed image deletion replaces Seed state |
+| v0.17 | OCI Seed Builder & Btrfs/COW | historical — Seed implementation removed |
 | v0.18 | Docker Compatibility Plugin | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
 | v0.19 | Domain-aware Egress Authorization | implemented — see current feature limits |
 | v0.20 | Managed Btrfs Rootfs Storage | implemented — see current feature limits |
@@ -101,3 +101,19 @@ The existing v0.59 checkpoint receives a partial integration of #580/#583 daily
 CLI language/help work. This reuses a development result and does not consume a
 new checkpoint or publish a release. Windows presentation/GUI acceptance remains
 separate; see [language scope](../reference/cli-language.md).
+
+The next v0.59 M1 candidate reuses native failure grouping and BAT final results.
+Local regression/native component checks are scoped evidence; no checkpoint or
+release identity changes. See [acceptance](acceptance-evidence.md#main-notification-installer).
+
+The same v0.59 checkpoint now includes the normalized Host-session language
+handoff and read-only Windows UI-language selection. The installer preserves OS
+locale; this integration consumes no new checkpoint or release identity.
+
+## Seed retirement in the current development checkpoint
+
+Within v0.59, the M5 candidate removes the executable Seed path and its catalog,
+sampling/recommendation and legacy deletion/re-enable state. Current Base and
+persistent OCI image operations remain. Old-version compatibility and migration
+are excluded by the user's 2026-09-15 scope correction; they do not block M0–M5.
+This is code cleanup within the current checkpoint, not a tag or release.
