@@ -334,8 +334,7 @@ prepare_ubuntu_host() {
   if ! command -v incus >/dev/null 2>&1 || ! $SUDO incus info >/dev/null 2>&1; then
     die "Incus daemon is not ready after systemd startup"
   fi
-  server_version="$($SUDO incus version | awk -F': ' '$1 == "Server version" {print $2}')"
-  sh "$BUNDLE_ROOT/incus-lts.sh" verify-version "$server_version"
+  $SUDO sh "$BUNDLE_ROOT/incus-lts.sh" verify-server
   configure_incus_boot_guard
 }
 

@@ -75,7 +75,7 @@ root_incus() {
 }
 
 setup_incus() {
-  local server_version apparmor_unconfined
+  local apparmor_unconfined
 
   require_github_hosted_runner
   install_incus
@@ -111,8 +111,7 @@ setup_incus() {
   incus remote add "$CI_REMOTE" https://127.0.0.1:8443 --accept-certificate
   incus remote switch "$CI_REMOTE"
 
-  server_version="$(incus version | awk -F': ' '$1 == "Server version" {print $2; exit}')"
-  sh "$INCUS_LTS_HELPER" verify-version "$server_version"
+  sh "$INCUS_LTS_HELPER" verify-server
   incus profile show default --project default >/dev/null
   record_environment
 }

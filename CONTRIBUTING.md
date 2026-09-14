@@ -94,6 +94,10 @@ At minimum consider:
 
 ## Definition of done
 
+For checks that can stop installation, setup or user operations, follow
+[blocking validation and external observations](docs/reliability/validation-and-probes.md)
+for the required rationale, observation contract and regression evidence.
+
 As applicable, add positive tests, negative/security tests, cleanup/retry tests, concurrency/race coverage, no-secret logging checks, and regression tests for retained behavior.
 
 Run the maintained local CI entry point:

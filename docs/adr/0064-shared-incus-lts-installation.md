@@ -29,7 +29,12 @@ automatically downgraded. This comparison excludes Debian packaging epochs:
 an unepoched distro 7.1 is still a newer Incus series than vendor `1:7.0`.
 Existing 6.0 compatibility paths remain, but `haco
 doctor` reports unsupported servers and skips dependent probes. The actual
-server version must also pass the shared installer/CI check. Unknown or malformed
+server version must also pass the shared installer/CI check. The helper owns
+retrieval through `incus query /1.0` and reads the JSON metadata field
+`environment.server_version`. It uses the caller's Incus connection context and
+the already-required Python 3 JSON parser, with a bounded query timeout. Query
+failure is checked before parsing, including when a failed command emits valid
+JSON. Unknown or malformed
 versions fail closed without printing raw backend text. Fresh native installation
 acceptance is separate from command-boundary and diagnostic regressions.
 The [acceptance record](../status/acceptance-evidence.md#incus-lts) distinguishes
@@ -38,6 +43,9 @@ the integrated development candidate from its main-targeted extraction.
 ## Rejected alternatives
 
 - Separate CI and product logic lets their trust/version contracts drift.
+- Parsing `incus version` display labels fails under Japanese locales. Forcing
+  an English locale still depends on human-readable formatting; the structured
+  API response is the version contract for automation.
 - A permanent patch pin prevents routine security/bugfix updates.
 - Following `stable`, or trusting only the first downloaded key, expands the
   selected series or signing authority without an explicit decision.

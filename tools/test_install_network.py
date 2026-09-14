@@ -13,7 +13,7 @@ CONNECTIVITY = re.search(r"^verify_trusted_host_connectivity\(\) \{\n.*?^\}", IN
 
 
 class InstallerNetworkTests(unittest.TestCase):
-    def prepare(self, ready, fail_dns_package=False):
+    def prepare(self, ready, fail_dns_package=False, server_supported=True):
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "commands"
             script = PREPARE + r'''
@@ -21,6 +21,7 @@ set -eu
 trace="$1"; ready="$2"; fail_dns_package="$3"
 SUDO=privileged; SKIP_INCUS=0; GRANT_INCUS_ADMIN=0; INSTALL_UID=1000
 BUNDLE_ROOT="$4"
+server_supported="$5"
 die() { printf '%s\n' "$*" >&2; exit 1; }
 assert_ubuntu() { :; }
 prepare_privilege() { :; }
@@ -28,7 +29,7 @@ ensure_gh_attestation_verify() { :; }
 configure_workspace_owner_idmap() { :; }
 ensure_bridge_netfilter() { :; }
 ensure_incus_userns_compatibility() { :; }
-configure_incus_boot_guard() { :; }
+configure_incus_boot_guard() { printf 'boot-guard\n' >> "$trace"; }
 sh() { :; } # Package/helper contract is exercised by test_incus_lts.py.
 ps() { printf 'systemd\n'; }
 incus() { :; }
@@ -40,22 +41,28 @@ privileged() {
         if [ "$arg" = dnsmasq-base ] && [ "$fail_dns_package" = 1 ]; then return 42; fi
       done ;;
     'incus info') [ "$ready" = 1 ] ;;
-    'incus version') printf 'Server version: 7.0.1\n' ;;
+    'sh '*'/incus-lts.sh verify-server') [ "$server_supported" = 1 ] ;;
     'incus storage '*|'incus admin '*) return 2 ;;
     *) return 0 ;;
   esac
 }
 prepare_ubuntu_host
 '''
-            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package)), str(ROOT / "scripts")],
+            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package)), str(ROOT / "scripts"), str(int(server_supported))],
                                     capture_output=True, text=True)
             return result, trace.read_text().splitlines()
 
     def test_ready_daemon_needs_no_storage_probe_or_minimal_initialization(self):
         result, commands = self.prepare(True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info", "incus version"])
+        self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info"])
+        self.assertEqual(commands[-2:], [f"sh {ROOT / 'scripts/incus-lts.sh'} verify-server", "boot-guard"])
         self.assertIn("apt-get install -y iptables nftables dnsmasq-base", commands)
+
+    def test_failed_server_version_check_stops_before_boot_guard(self):
+        result, commands = self.prepare(True, server_supported=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('boot-guard', commands)
 
     def test_bridge_dns_install_failure_stops_before_daemon_start(self):
         result, commands = self.prepare(True, fail_dns_package=True)
