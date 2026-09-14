@@ -133,3 +133,20 @@ incus image list --project RESTORE_PROJECT --format=json
 import前に、記録した説明と`features.images`を一覧で検証します。単一アーカイブなら、その実際のパスだけをimportに渡します。移送後の完全なfingerprintとイメージ種別が元と一致すること、保持したファイルが変わっていないことを確認してください。
 
 失敗時は結果と作成済みの正確なリソースを記録し、削除対象を推測したり既存projectを置き換えたりしません。元データと退避アーカイブは保持します。この操作はHacocoonのBase登録、alias復元、旧権限の引継ぎ、Env作成や起動確認を行いません。分割イメージ2件の移送結果と未確認範囲は[検証証拠](../status/acceptance-evidence.ja.md#transfer)に記録しています。
+
+
+<a id="retained-seed-data"></a>
+## 保持するSeedデータ
+
+Seedのコードを撤去しても、そのデータは削除しません。旧環境でSeedを使っていた場合は、
+状態ディレクトリのseeds.jsonと関連する方針・使用記録・lockファイル、nativeのtooling/Seed
+イメージとalias、作成途中のbuilder instance、Hostのhacocoon-seed containerd namespaceを
+確認対象へ含めます。完全なfingerprintと元のprojectを保持してください。
+ファイル名・alias・過去のマーカーだけで所有権や削除許可を判断しません。
+
+これらは過去のデータとして保持し、現行コードで旧Seedカタログを読んだり、リソースを
+自動的に引き受けたりしません。上記の通常ツリー保存は確認済みの停止中ファイルを、
+nativeイメージexportは確認済みイメージを保持できますが、全体のbackupや稼働中containerd
+領域の安全な転送を証明しません。OCIデータはwriterを停止し、実行基盤の整合性を確認して
+保持します。移行を完了したように見せるために旧GC/recoveryを実行しません。
+新しい保存先へ保持して内容を照合し、削除は別途許可された対象だけに限定します。

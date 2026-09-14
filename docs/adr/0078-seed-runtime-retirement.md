@@ -19,9 +19,14 @@ Retirement is not migration or deletion. Do not rewrite saved Env Base reference
 delete existing images/catalogs, recreate an installed Env, or infer permission to
 clean old Seed data. Existing resume and data-lifetime paths remain authoritative.
 The harvest adapter is removed; its shared managed-kind markers belong with the
-Environment identity contract and cannot replace pinned ownership checks. Legacy
-builder and telemetry internals still need separate removal after their shared
-helpers and historical recovery data have been accounted for.
+Environment identity contract and cannot replace pinned ownership checks. Legacy builder, maintenance and Seed catalog code is also removed after
+confirming that only the retired Seed path calls it. Its private-registry fixture
+and manual job are retired with that path; historical results remain evidence for
+that path only, not acceptance of the current persistent OCI Store. Existing
+`seeds.json`, native images and Host OCI content remain untouched and must be
+inventoried/captured through the reviewed evacuation workflow. OCI-plugin sampling,
+recommendation and the shared deletion-state schema remain a separate retirement
+slice so existing image deletion and re-enabling are preserved.
 
 ## Rejected alternatives
 

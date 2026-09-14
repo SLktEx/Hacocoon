@@ -49,7 +49,7 @@ export HACO_PLUGIN_OCI=nerdctl  # alternative: HACO_PLUGIN_OCI=docker
 
 Legacy plugin commands use `hacoq plugin oci ...`; the current product exposes explicit operations such as `haco plugin oci store ...`. These are separate composition surfaces; consult [CLI migration](../reference/cli-migration.md). Base inspection uses `haco base ...` and describes Environment starting points, not OCI workload images.
 
-[Persistent OCI Stores](persistent-oci-store.md) define current retained data. The [Seed implementation](oci-seed-and-cow.md) remains a legacy optional path pending retirement. Neither Docker compatibility nor Seed construction becomes mandatory because its maintained plugin exists.
+[Persistent OCI Stores](persistent-oci-store.md) define current retained data. The [Seed build/runtime path is retired](oci-seed-and-cow.md); OCI sampling/recommendation and shared deletion-state separation remain open. Neither Docker compatibility nor Seed construction becomes mandatory because its maintained plugin exists.
 
 ## Workspace and client ownership
 

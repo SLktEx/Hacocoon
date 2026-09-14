@@ -1,27 +1,31 @@
-# OCI Seed Builder & Btrfs/COW Optimization
+# OCI Seed retirement
 
 [日本語](oci-seed-and-cow.ja.md) | English
 
-Status: **partial retirement candidate; ordinary composition and legacy CLI
-entry points removed**. New Environments use the selected Base; enabling an OCI
-plugin cannot substitute a Seed. Composition no longer creates Seed
-store/resolver/service or installs the harvest wrapper, and the legacy
-`hacoq plugin oci seed` family is removed. Existing pinned Env Base references,
-images, catalogs, Workspace and OCI data are unchanged.
+Status: **implemented retirement candidate; old-data migration remains partial**.
+Ordinary Environments resolve their explicitly selected Base. Seed composition,
+resolver, commands, harvest, builder, maintenance and Seed catalog code have
+been removed. Current Base builds and persistent OCI Stores remain available.
 [ADR 0078](../adr/0078-seed-runtime-retirement.md) records the decision.
 
-The legacy harvest runner and its Seed-only tests are removed. Managed-Environment
-kind markers live with the existing instance-identity contract; ordinary startup,
-snapshot, DNS and maintenance checks retain the same marker values. Input-runner
-tests follow the current production decorator and still reject management bypasses.
+Existing pinned Base references, native images, `seeds.json`, Host OCI content,
+Workspaces and Stores are retained. Code removal does not rewrite catalogs,
+adopt old resources or authorize cleanup. Shared managed-kind markers belong to
+Environment identity and retain their existing values and ownership checks.
+Use [Base builds](base-images-and-custom-environments.md),
+[data lifetime](../guides/data-lifetime.md) and
+[reviewed evacuation](../guides/data-evacuation.md#retained-seed-data).
+Whole-installation capture/restoration/comparison remains unfinished. OCI-plugin
+sampling/recommendation and its shared deletion-state schema remain to be separated
+without changing existing image deletion/re-enabling.
 
-Builder/telemetry internals and old-data evacuation/restoration/comparison remain open. Retirement never authorizes deletion
-of existing data and does not revive `switch-base`. Use
-[Base builds](base-images-and-custom-environments.md) and
-[data lifetime](../guides/data-lifetime.md) for ordinary use.
+The Seed-only private-registry fixture/manual job is retired with its production
+path. Its [historical evidence](../status/seed-private-registry-acceptance.md)
+does not establish current Store credential compatibility. It is not replaced by
+a test-only acquisition implementation.
 
-**The remaining sections record retained internals and historical design.
-Their Seed commands have been removed and are not current operating instructions.**
+**The sections below describe historical behavior, not available commands or
+current implementation.**
 
 ## Goal
 

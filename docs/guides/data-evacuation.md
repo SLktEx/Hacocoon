@@ -140,3 +140,22 @@ incus image list --project RESTORE_PROJECT --format=json
 Verify the recorded project description and `features.images` before import. For a unified archive, supply only its actual archive path to `incus image import`. Require the imported full fingerprint and image type to match the source, then recheck the retained files. Record failures and exact resources already created; do not guess cleanup targets or replace an existing project. Keep the source and retained archives. Importing an image does not register a Hacocoon Base, restore aliases, adopt old authority, create an Env or prove it boots.
 
 See [scoped acceptance and limits](../status/acceptance-evidence.md#transfer).
+
+
+<a id="retained-seed-data"></a>
+## Retained Seed data
+
+Seed code retirement does not delete its data. If an old installation used Seed,
+include its state-directory `seeds.json` and companion policy/usage/lock records,
+native tooling/Seed images and aliases, unfinished builder instances and the
+Host's `hacocoon-seed` containerd namespace in the reviewed inventory. Preserve
+full image fingerprints and source projects. A filename, alias or historical
+marker alone does not establish ownership or permission to delete.
+
+Keep these records as opaque historical data; current code does not load the old
+Seed catalog or automatically adopt its resources. The ordinary-tree capture
+above can preserve reviewed stopped files, and native image export can retain
+reviewed images. Neither proves a whole-installation backup or transfers a live
+containerd root safely. Stop writers and review runtime-consistent retention before
+copying OCI data. Do not run old GC/recovery code to make migration appear complete.
+Use new destinations and compare contents before any separately approved deletion.

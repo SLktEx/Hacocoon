@@ -6,7 +6,7 @@
 別instanceにする」提案は、現在の既定動作でも移行完了事項でもありません。
 現行B4は[永続OCI Store](persistent-oci-store.md)と
 [Host領域コピーの境界](../adr/0031-host-oci-area-copy.md)を使います。
-残る[Seed実装](oci-seed-and-cow.ja.md)は旧方式の任意連携です。
+[Seed経路は撤去済み](oci-seed-and-cow.ja.md)で、保持データは確認を伴う移行の対象です。
 
 SeedはEnvごとに独立したcontainerdを持つ構成で、OCIデータの重複を減らすための仕組みでした。
 書込み可能な`/var/lib/containerd`の共有は隔離と独立削除を壊します。
