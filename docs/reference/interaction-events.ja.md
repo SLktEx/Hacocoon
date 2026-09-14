@@ -175,6 +175,10 @@ recovery-required として返します。
 
 通常の `haco setup` はバイナリの公開後に有効化済みの通知サービスを更新します。無効化したサービスを有効に戻さず、Windows のデスクトップ登録前にサービスを作成しません。
 
+更新失敗は、失敗したサービス操作を固定の理由として
+[setup診断](../design/trusted-host.ja.md#setupの進捗と失敗診断)へ伝えます。
+setupは失敗のままです。再開位置の消去、承認、Windows通知設定の修復は行わず、通知配送の受入成功とも扱いません。
+
 ## 同じ失敗によるnative通知の連発
 
 開発候補で実装済み: 同じEnvironment・capability・action・kind・codeの

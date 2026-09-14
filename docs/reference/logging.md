@@ -201,3 +201,8 @@ Native notification renderer failures also record numeric `exit_code` and
 failure before child startup. Context cancellation/deadline classification takes
 precedence over child output. The same review boundary owns the single ERROR;
 raw process errors, stdout and stderr are not logged.
+
+Host setup classifies notification-service failures using the closed operation
+reasons in [setup diagnostics](../design/trusted-host.md#setup-progress-and-failure-diagnostics).
+The existing setup boundary owns its ERROR and request correlation. Helper exit
+classification adds no raw output, command line, service environment or second ERROR.

@@ -458,6 +458,16 @@ recipe text are not diagnostic fields. WSL helper exit 42 specifically means
 guessed cause. Other reasons include timeout, canceled, incompatible_state,
 recovery_required, unavailable, denied, busy, not_found and unsupported.
 
+Notification service refresh uses `stage=notification_setup` with a fixed
+`notification_<operation>_failed` reason. Operations are `enable_state`,
+`activity`, `disable`, `reload`, `failure_state`, `reset`, `enable` and `restart`.
+They identify the failed service operation, not the underlying Windows cause.
+The installed helper carries these classifications as private exit codes 50–57;
+the adapter recognizes them only in notification refresh mode. Unknown exits
+remain failures and cancellation takes precedence. Raw helper output never
+becomes a reason. Existing unit ownership, disabled-service preservation,
+healthy-service reuse, startup checks and bounded restart rules are unchanged.
+
 Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
 an administrator can read `journalctl -u haco-controller.service --since
 '30 minutes ago' --no-pager` and locate the printed request ID. Journal retention

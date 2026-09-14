@@ -1101,3 +1101,29 @@ Core・standaloneのIncus jobはPASS、private-registryと後続storage stepはS
 fixtureは `data-e2e-b1928dc7bc042e07`、保持カタログは
 `/var/lib/haco-data-placement-2728123676/state.json` です。
 機能の受入であり、性能測定やレポvolume配置の受入とは扱いません。
+
+
+<a id="notification-setup-boundary"></a>
+## 通知設定失敗の診断
+
+候補 `5a6fb54c` は、通知サービスの失敗した操作を固定のsetup reasonで区別します。
+内部helperの終了コード対応は通知refreshに限定し、生の子プロセス出力の転送、失敗操作の
+再試行、承認の付与は行いません。正常サービスの再利用、無効状態の維持、unitの所有者検査、
+既存の期限・中断処理を維持します。同じreasonを通常のcontroller進捗と既存の一回のERROR記録へ
+伝えます。[信頼済みHostの契約](../design/trusted-host.ja.md)を参照してください。
+
+Windows run [34792505058](https://github.com/SLktEx/Hacocoon/actions/runs/34792505058)は
+`stage=notification_setup reason=failed` を記録した後、端末待ちが期限切れになりました。
+native・ストリーミング・tunnel・reclaimの入口試験で、既存の入口失敗検出を共用します。
+修正前の失敗後も待つ動作を部品試験で再現し、修正後のPASSを確認しました。
+試験が製品を修復する変更ではなく、導入済み通知設定の実機障害そのものは未解決です。
+
+WSLのinterop 25試験、native runner 6試験、user path 14試験と、Host setup・controller・
+Incus・製品CLIのGo集中試験はPASSです。race付き3回もPASSです。
+標準ローカルCIはGo 1.27.1 / shuffle615でPASSし、Go・vet、クライアント構文、通知32試験、
+packaging 2試験を含みます。Windows Pythonでもnative runner 6試験、streaming 2試験、
+reclaim 10試験がPASSです。文書・CI設定と各回帰試験もPASSしました。
+リポジトリ内の検証であり、新規のWindows通知配信や人のGUI承認回答の受入ではありません。
+最初の部品試験は終端エラーに詳細を期待してFAILし、既存の一般的な終端エラーと構造化進捗の
+契約に期待値を修正しました。POSIX所有者検査のWindows直接実行も当初FAILしました。
+所有者検査を緩めず、該当試験はWSLで確認しています。

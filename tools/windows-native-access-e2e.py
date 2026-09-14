@@ -65,6 +65,8 @@ def run_in_host_terminal(driver, checks):
 
     def drive(output, process):
         nonlocal stage, sent_at
+        if stage == 1:
+            driver.reject_failed_host_entry(output[sent_at:])
         if stage == 0 and driver.cmd_prompt_count(output):
             print('NATIVE ACCEPTANCE: entering ordinary Host terminal', flush=True)
             process.write('wsl -d Hacocoon\r\n')

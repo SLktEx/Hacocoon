@@ -134,3 +134,7 @@ review／events／unknown、`reason`はunavailable／timeout／canceledに限定
 native通知描画の失敗は数値`exit_code`と`duration_ms`も記録します。終了値-1は、子の起動前失敗など、
 移植可能な終了コードが得られない場合です。contextのキャンセル／期限切れを子出力より優先します。
 単一ERRORの所有者は同じreview境界のままで、生のprocessエラー・stdout・stderrはlogへ出しません。
+
+Host setupの通知サービス失敗は、[setup診断](../design/trusted-host.ja.md#setupの進捗と失敗診断)の
+固定された操作別の理由で分類します。既存のsetup境界がERRORと要求の対応を管理します。
+helper終了値の分類に生出力、コマンド引数、サービス環境や二重のERRORを追加しません。
