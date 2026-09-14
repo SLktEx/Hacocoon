@@ -1009,3 +1009,24 @@ Windows実行とは区別します。標準ローカルCI（Go 1.27.1、shuffle6
 模擬データの書き込みだけで実ツールの再取得削減や巨大レポ性能を完了扱いにしません。
 隔離・承認・試験期限は緩めていません。以前失敗した世代管理の実機fixtureも未解決です。
 [配置の契約](../design/cache-generations.ja.md#env本体への配置と再開)を参照してください。
+
+<a id="login-pty-fixture"></a>
+## ログインPTY試験の外部依存の除去
+
+候補 `230d6eeb6878bdd42f0bc2217053878f36b1e48c` は、ログイン振り分け試験の一時HOMEに
+Ubuntu標準の `.hushlogin` を置き、ログイン時案内を無効にします。
+実際のlogin Bash、login/init/login-helperの親判定、PTY入力、終了37と既存の期限を維持します。
+製品の振り分け、導入済みprofile、controller認可、Windows受入は変更せず、checkpointも進めません。
+
+WSL `hacocoon-second` / Go 1.27.1で、変更前の試験は最初に入力待ち期限で**7.16秒FAIL**しました。
+その後の変更前の比較試験と、診断出力だけを加えたローカルCIはPASSしており、再実行の成功だけを解決とはしません。
+待ち中の子プロセスを読み取ったところ、Bashから `update-motd`、`run-parts`、`landscape-sysinfo` の
+終了を待っていました。`.hushlogin` を置いた比較ではこの待ちが発生しませんでした。
+実際に観測した試験外の遅延要因を除きますが、過去のすべてのPTY失敗が同じ原因とは断定しません。
+
+修正後はGo 1.26.8の10回反復が各1.27〜1.35秒でPASSし、race付き3回もPASS（package全体7.475秒）。
+標準の `bash tools/ci-local.sh test` はGo 1.27.1 / shuffle615で最後までPASSし、全Go package、
+vet、クライアント構文、通知32試験、packaging 2試験を含みます。
+ローカルのリポジトリ検証であり、新規の導入済みWindows/PAM/SSH受入ではありません。
+以前のFAIL記録は保持し、元SSH障害・長入力・新規GUI回答には個別の証拠が必要です。
+[試験構成の理由](../adr/0066-wsl-login-bootstrap-routing.md#verification)を参照してください。

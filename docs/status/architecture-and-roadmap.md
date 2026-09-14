@@ -409,3 +409,8 @@ selector remains disabled. Snapshot/copy/transfer of extra areas must preserve t
 complete data contract before enabling those areas for ordinary configured use.
 The rootfs placement fixture exercises ordinary Env creation and cleanup; it does
 not establish collection, cross-Base cache reuse or large-repository performance.
+
+The login-routing PTY fixture now excludes unrelated Ubuntu login announcements
+in its temporary HOME; local test CI and repeated routing checks pass. Keep this
+[fixture evidence](acceptance-evidence.md#login-pty-fixture) separate from the
+remaining installed SSH, long-input, Japanese Windows and GUI acceptance above.
