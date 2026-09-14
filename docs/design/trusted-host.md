@@ -428,9 +428,19 @@ Failure retains its printed ownership identities for inspection. See
 
 ## Host entry language
 
-Implemented: the trusted Host entry notice follows the Physical Host login process's first nonempty `LC_ALL`, `LC_MESSAGES`, then `LANG`. Japanese locales select Japanese; other locales retain English. The notice still identifies Host authority and directs ordinary development into an Environment. Interactive stderr uses yellow unless `NO_COLOR` is nonempty; redirected output stays plain.
+Implemented candidate: normal interactive Windows/WSL entry reads the Windows UI
+language once and carries only `en`/`ja` to the trusted Host session. An explicit
+`HACO_UI_LANGUAGE` wins; explicit `LC_ALL` or `LC_MESSAGES` also prevents Windows
+autodetection. Other invocations and unavailable interop use POSIX locale selection.
+The entry notice and Host CLI use the same choice. The notice identifies Host
+authority and directs ordinary development into an Environment. Interactive stderr
+uses yellow unless `NO_COLOR` is nonempty; redirected output stays plain.
 
-A fresh Windows installation maps Japanese Windows UI language to `ja_JP.UTF-8` through Ubuntu's locale tools before login-user setup. Existing distributions keep their locale, and other Windows languages keep Ubuntu defaults. A locale setup failure stops installation. This changes presentation only, not Host/Env authority, controller readiness, or credential forwarding. Fresh Japanese-Windows installation acceptance remains unverified.
+The installer preserves OS/WSL locale for new and existing distributions. Display
+selection does not change toolchain locale, forward arbitrary environment values or
+configure ordinary Env shells. See [language selection](../reference/cli-language.md)
+and [ADR 0079](../adr/0079-host-presentation-language.md). Packaged Japanese-Windows
+entry acceptance remains separate from the read-only language query.
 
 ## Setup progress and failure diagnostics
 

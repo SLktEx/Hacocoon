@@ -65,8 +65,10 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 **Partial:** daily English/Japanese CLI presentation and shared vertical help are
 reused from #580/#583 on current main. Current JSON opt-in, portless SSH, Git
-connection and Experimental VS Code behavior remain. Windows language handoff,
-full result translation and fresh installed acceptance are incomplete. See
+connection and Experimental VS Code behavior remain. Normal Windows entry and
+validated per-Host-session language handoff are implemented; the installer
+preserves OS locale. Full result translation and fresh installed acceptance
+remain incomplete. See
 [language scope](reference/cli-language.md) and
 [validation](status/acceptance-evidence.md#main-cli-language).
 

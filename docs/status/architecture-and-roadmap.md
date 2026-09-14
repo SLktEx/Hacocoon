@@ -149,5 +149,9 @@ Retained-data ownership and authority checks remain required throughout.
 The next M1 integration candidate includes repeated native failure grouping and
 BAT completion/failure/restart results with key wait. Local notification and native
 Windows BAT/ConPTY checks pass; the restricted PowerShell fixture wrapper and
-remaining installed/Explorer/SSH acceptance are explicitly recorded. Windows
-presentation-language transport is next; M2–M5 independent work continues.
+remaining installed/Explorer/SSH acceptance are explicitly recorded. The next candidate also integrates
+normalized Host-session language transport and read-only Windows UI-language
+selection. Its local regression/race and Windows installer components pass; the
+real Windows query returned Japanese. Full packaged language/GUI acceptance and
+remaining command translations stay open. M5 runtime/builder/sampling retirement
+is proceeding independently on current main; retained old-data migration is separate.

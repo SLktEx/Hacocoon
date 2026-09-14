@@ -62,8 +62,9 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 **partial**：#580/#583の日常操作の日英表示と共通の縦型ヘルプを現在のmainへ
 再利用しています。明示的なJSON指定、ポート指定の不要なSSH、Git接続、
-Experimental VS Codeの既存動作を保持します。Windowsの言語引き継ぎ、
-結果表示の全文翻訳、新しい導入済み環境での確認は未完了です。
+Experimental VS Codeの既存動作を保持します。通常のWindows起動とHostセッションへの
+言語引き継ぎを実装し、インストーラはOS言語設定を保持します。結果表示の全文翻訳と
+新しい導入済み環境での確認は未完了です。
 [言語対応範囲](reference/cli-language.ja.md)と
 [検証記録](status/acceptance-evidence.ja.md#main-cli-language)を参照してください。
 

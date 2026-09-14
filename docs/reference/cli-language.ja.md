@@ -2,28 +2,39 @@
 
 日本語 | [English](cli-language.md)
 
-状態: **一部実装（partial）**。共通の言語判定と下記の画面を実装しています。出荷対象CLI全体の翻訳やWindowsからの言語引き継ぎは完了していません。Issue #577は未完了です。
+状態: **一部実装（partial）**。共通の言語判定・下記の画面・Windows／WSL通常入場の自動選択を実装しています。CLI全体の翻訳と配布物での言語受入は未完了です。Issue #577は未完了です。
 
 ## 言語を選ぶ
+
+明示的な`LC_ALL`または`LC_MESSAGES`がある場合は、Windows表示言語の自動取得より
+その指定を優先します。非空の`HACO_UI_LANGUAGE`は、さらにその指定より優先します。
+
+`HACO_UI_LANGUAGE=en`または`HACO_UI_LANGUAGE=ja`で、OS localeを変えずに
+Hacocoonの表示を選べます。空でない未対応値は英語になります。空ならWindows／WSLの通常の
+対話入場時だけWindows表示言語を読み取り、日本語は`ja`、それ以外は`en`にします。
+`/mnt/c/Windows`のsystem PowerShellを時間・出力量を制限して使い、interop不足・別system配置・
+失敗時は下記のPOSIX判定へ戻ります。それ以外のCLI実行はPOSIX設定を直接使います。
+Host入場時には判定済みの`en`／`ja`だけをそのshell sessionへ渡し、
+通常Envのshellへは転送しません。[ADR 0079](../adr/0079-host-presentation-language.md)を参照してください。
 
 製品CLIは `LC_ALL` → `LC_MESSAGES` → `LANG` の順に、最初の空でない値を使います。`ja`、`ja_JP.UTF-8`、`ja-JP` などの日本語ロケールでは日本語になります。英語、`C`、`C.UTF-8`、`POSIX`、未対応・不正な値、すべて未設定の場合は英語になります。上位に未対応の値がある場合、下位の日本語設定には進みません。空文字は飛ばしますが、空白文字だけの値は空文字ではありません。
 
 表示言語の判定にOSのロケール導入は不要です。Linux/WSLで上位の指定を解除し、1回だけ日本語にする例:
 
 ```bash
-env LC_ALL= LC_MESSAGES= LANG=ja_JP.UTF-8 haco help
+HACO_UI_LANGUAGE=ja haco help
 ```
 
 1回だけ英語に固定する例:
 
 ```bash
-LC_ALL=C haco help
+HACO_UI_LANGUAGE=en haco help
 ```
 
 今回の実装では、Windowsで `$env:LANG` を設定するだけでは自動的に引き継がれません。Linux側のCLIに明示的に指定する例:
 
 ```powershell
-wsl -d Hacocoon --exec env LC_ALL=ja_JP.UTF-8 haco help
+wsl -d Hacocoon --exec env HACO_UI_LANGUAGE=ja haco host shell
 ```
 
 ディストリビューション名が異なる場合は `Hacocoon` を実際の名前に置き換えます。これは設定例であり、Windows実機での動作確認結果ではありません。言語判定は環境変数を設定せず、OS・WSL・Environment・子プロセスのロケールを永続的に変更しません。[Host入場時の言語](../design/trusted-host.md#host-entry-language)で説明する既存のインストーラーの動作は変更しません。
@@ -51,13 +62,17 @@ Environmentの状態・アクセス方式、診断項目名・状態のトーク
 
 承認の入力は従来の `y`/`yes`、`N`、番号を使います。空欄や不明な入力では許可しません。「毎回確認する」ルールを保存しても、今回の実行は別途回答が必要です。端末向けのエスケープを維持し、表示に失敗した場合は許可しません。承認画面には言語を値として渡し、追加の確認でも同じ言語を使います。従来のコンストラクターを使う別の呼び出し元は英語のままです。
 
-共通辞書は信頼されたメッセージIDの文章を選び、その後で値を埋め込みます。出力全体を変換する仕組みではありません。プロセス全体やコントローラーに可変の表示言語を持たせず、通信のフィールド追加・環境変数の転送・ゲストの設定変更も行いません。
+共通辞書は信頼されたメッセージIDの文章を選び、その後で値を埋め込みます。出力全体を変換する
+仕組みではなく、コントローラーに可変の表示言語を持たせません。Host-shell要求に検証済みの
+表示用の値を追加し、そのsessionだけに適用します。任意の環境変数の転送やゲスト設定の永続変更は行いません。
 
 ## 残っている範囲
 
 ほかのコマンド群やEnvironmentの下位処理の案内は、辞書への移行が残っています。標準ライブラリの引数解析エラー、Git/SSH/OSの元のエラー、構造化ログ、コントローラーの診断詳細・対処内容はそのままです。これらの詳細に日本語の説明を添える追加対応は今後の作業です。
 
-WindowsからWSL/Hostへの自動的な言語引き継ぎは未実装です。Windows/WSLとIncusの実機受け入れ、全コマンドの対応、この部分実装でIssue #577を完了扱いにしません。
+WSLからHostへの正規化済み表示言語の引き継ぎと、Windows通常入場時の自動選択は実装済みです。
+配布物での言語受入と全コマンド対応は残っています。
+この部分実装でIssue #577を完了扱いにしません。
 
 ## 検証
 
@@ -76,7 +91,7 @@ controllerの準備前に階層別ヘルプをローカル表示します。通�
 `haco doctor <environment>`です。
 
 ヘルプは現行のオプションを案内し、廃止済みのSSHポート指定を表示しません。
-状態不明の環境は確認を案内し、起動を勧めません。インストーラ、OSのlocale、
-Hostへの言語転送は変更しません。Windowsからの言語転送と結果表示の全文翻訳は
-別の残件です。[受け入れ証跡](../status/acceptance-evidence.ja.md#main-cli-language)に
+状態不明の環境は確認を案内し、起動を勧めません。通常のWindows/WSL起動で表示言語を
+選び、信頼されたHostへ引き継ぎます。インストーラはOSのlocaleを保持します。
+結果表示の全文翻訳と配布パッケージの言語確認は残件です。[受け入れ証跡](../status/acceptance-evidence.ja.md#main-cli-language)に
 確認範囲を記録します。

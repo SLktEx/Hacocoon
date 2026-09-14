@@ -2,28 +2,39 @@
 
 [日本語](cli-language.ja.md) | English
 
-Status: **partial**. The shared selector and the surfaces listed below are implemented. This is not complete localization of the shipped CLI or Windows language propagation. Issue #577 remains open.
+Status: **partial**. The shared selector and listed surfaces are implemented, including automatic presentation selection at normal Windows/WSL entry. Full CLI localization and packaged language acceptance remain incomplete. Issue #577 remains open.
 
 ## Select a language
+
+`HACO_UI_LANGUAGE=en` or `HACO_UI_LANGUAGE=ja` selects Hacocoon presentation
+without changing OS locale. A nonempty unsupported value selects English. When
+this override and explicit `LC_ALL` / `LC_MESSAGES` are empty, normal interactive
+Windows/WSL login reads the Windows
+display language (Japanese selects `ja`, other languages `en`). This bounded
+read uses the system PowerShell at `/mnt/c/Windows`; missing interop, other system
+paths or failure fall back to the POSIX selection below. Other CLI invocations
+use POSIX selection directly. Host entry forwards
+only the resolved `en`/`ja` for that shell session; ordinary Environment shells
+receive no such forwarding. See [ADR 0079](../adr/0079-host-presentation-language.md).
 
 The product CLI selects the first nonempty `LC_ALL`, `LC_MESSAGES`, or `LANG`, in that order. Japanese locales such as `ja`, `ja_JP.UTF-8`, and `ja-JP` select Japanese. English, `C`, `C.UTF-8`, `POSIX`, unsupported or malformed values, and an entirely unset locale select English. An unsupported higher-priority value does not fall through to a lower-priority Japanese value. Empty strings are skipped; whitespace is not an empty string.
 
 No installed OS locale is required for message selection. To select Japanese for one Linux/WSL invocation, clearing higher-priority overrides:
 
 ```bash
-env LC_ALL= LC_MESSAGES= LANG=ja_JP.UTF-8 haco help
+HACO_UI_LANGUAGE=ja haco help
 ```
 
 To force English for one invocation:
 
 ```bash
-LC_ALL=C haco help
+HACO_UI_LANGUAGE=en haco help
 ```
 
 On Windows, setting `$env:LANG` alone does **not** establish automatic forwarding in this slice. An explicit invocation can set the locale for the Linux CLI instead:
 
 ```powershell
-wsl -d Hacocoon --exec env LC_ALL=ja_JP.UTF-8 haco help
+wsl -d Hacocoon --exec env HACO_UI_LANGUAGE=ja haco host shell
 ```
 
 Use the actual distribution name in place of `Hacocoon` when different. This command is a configuration example, not evidence of native Windows acceptance. The selector does not set environment variables or persist OS, WSL, Environment, or child-process locale changes. The separate installer behavior described in [trusted Host entry](../design/trusted-host.md#host-entry-language) is unchanged.
@@ -51,13 +62,18 @@ Locale selection does not alter command success/failure or approval exit codes. 
 
 Approval decisions still use the same `y`/`yes`, `N`, and numbered choices. Empty or unknown input does not authorize an operation. Saving an ask-every-time Policy still requires a separate one-shot answer. Rendering preserves existing terminal escaping; display failure cannot grant authority. The stdio approval adapter receives a language value explicitly and retains it for nested prompts. Its existing constructor remains English for other callers.
 
-The shared catalogs translate trusted message IDs before substituting values. They are not output-filtering writers. No mutable process-wide language, controller language state, transport field, environment forwarding, or guest configuration is introduced.
+The shared catalogs translate trusted message IDs before substituting values.
+They are not output-filtering writers. Language is not mutable controller state.
+The Host-shell request carries a validated presentation hint for that session;
+arbitrary environment forwarding and persisted guest configuration are excluded.
 
 ## Remaining scope
 
 Other command families and lower-level Environment diagnostics still need catalog migration. Standard-library flag parse-error details, original Git/SSH/OS errors, structured logs, and controller diagnostic summary/action text remain unchanged; further localized explanations around those details are follow-up work.
 
-Automatic Windows-to-WSL/Host language handoff is not implemented. Native Windows/WSL and Incus acceptance and full command coverage remain pending. This partial implementation must not close Issue #577.
+WSL-to-Host normalized presentation handoff and automatic normal Windows entry
+selection are implemented. Packaged language acceptance and full command coverage
+remain pending. This partial implementation must not close Issue #577.
 
 ## Validation
 
@@ -77,7 +93,7 @@ Ordinary diagnostic guidance is `haco doctor <environment>`.
 
 Help describes the current flags; removed SSH port options are not advertised.
 Uncertain Environment state keeps its inspection guidance and never recommends
-starting an unknown runtime. No installer, OS locale or Host language forwarding
-behavior changes here. Windows language forwarding and full result translation
-remain independent follow-ups. Validation is recorded in
+starting an unknown runtime. Normal Windows/WSL entry now selects the display
+language and forwards it to the trusted Host; the installer preserves OS locale.
+Full result translation and packaged language acceptance remain. Validation is recorded in
 [acceptance evidence](../status/acceptance-evidence.md#main-cli-language).
