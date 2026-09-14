@@ -80,3 +80,10 @@ integrity and original exit codes remain. Local notification regressions and
 Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
 remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
 and [installer results](design/installer.md#windows-final-result).
+
+## Interactive temporary execution candidate
+
+**Implemented candidate:** `haco run -i/-it` uses bounded process streams with the
+canonical run lifecycle. Exact creation identities fence cleanup and same-name
+recreation; current split ownership and cleanup-outcome handling remain. Old-version
+migration/fallback cleanup is excluded. New local and native acceptance are separate.

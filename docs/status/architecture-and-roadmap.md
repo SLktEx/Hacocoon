@@ -186,3 +186,11 @@ Main now includes #660 (`7e876bc1`), #661 (`44211fd2`) and Seed retirement #662
 authorized main merges after successful CI; tags/releases remain separate.
 PR #663 rebases the M2 Git slice on that main. GUI and M3 streaming continue;
 current data retention, DNS, cache/Packer and remaining M5 cleanup are still open.
+
+## Temporary execution on main
+
+The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY
+streams in main's split lifecycle files. It preserves shared cleanup outcomes
+and requires current run identity rather than adding legacy migration. DNS modes
+and client-side forwarding remain independent work. Local regression and new
+native acceptance are recorded separately; large-repository performance remains deferred.

@@ -76,3 +76,9 @@ Experimental VS Codeの既存動作を保持します。通常のWindows起動�
 Windows/SSH確認とExplorer操作は別の残件です。
 [通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
 [インストーラの結果](design/installer.md#windows-final-result)を参照してください。
+
+## 対話一時実行の候補
+
+**実装済み候補:** `haco run -i/-it`を上限付きの双方向転送と共通runライフサイクルへ接続します。
+生成時の識別子を使い、同じ名前で作り直した別Envを片付けません。分割済みの責務と共通cleanup結果処理を維持します。
+旧版の移行・代替cleanupは対象外です。新しいローカル試験と実機受入は区別します。

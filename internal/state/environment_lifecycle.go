@@ -60,6 +60,14 @@ func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease c
 	if _, ok := data.Leases[lease.EnvironmentID]; ok {
 		return fmt.Errorf("workspace lease for environment %q already exists: %w", lease.EnvironmentID, core.ErrAlreadyExists)
 	}
+	run, held := data.EphemeralRuns[lease.EnvironmentID]
+	if lease.Ephemeral {
+		if !held || run.State != core.EphemeralRunCreating || run.InstanceID != lease.InstanceID || !core.ValidEnvironmentInstanceID(run.InstanceID) {
+			return fmt.Errorf("ephemeral creation reservation changed: %w", core.ErrIncompatibleState)
+		}
+	} else if held {
+		return fmt.Errorf("environment name is reserved by an unfinished run: %w", core.ErrRecoveryRequired)
+	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) {
 		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
 		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceReservation(data, lease)) {
@@ -247,6 +255,9 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 }
 
 func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
+	if lease.Ephemeral && !core.ValidEnvironmentInstanceID(lease.InstanceID) {
+		return core.ErrInvalidArgument
+	}
 	if lease.InstanceID != "" && !core.ValidEnvironmentInstanceID(lease.InstanceID) {
 		return core.ErrInvalidArgument
 	}
@@ -266,6 +277,8 @@ func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
 
 func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 	if err := validateEnvironmentCreateReservation(core.WorkspaceLease{
+		Ephemeral:          lease.Ephemeral,
+		InstanceID:         lease.InstanceID,
 		PersistentResource: lease.PersistentResource,
 		WorkspaceID:        lease.WorkspaceID,
 		SourcePath:         lease.SourcePath,
@@ -308,7 +321,7 @@ func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
 	if existing.PersistentResource != next.PersistentResource {
 		return core.ErrIncompatibleState
 	}
-	if existing.InstanceID != next.InstanceID || existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
+	if existing.Ephemeral != next.Ephemeral || existing.InstanceID != next.InstanceID || existing.EnvironmentID != next.EnvironmentID || existing.WorkspaceID != next.WorkspaceID || existing.SourcePath != next.SourcePath || existing.AccessMode != next.AccessMode || existing.Owner != next.Owner || !existing.AcquiredAt.Equal(next.AcquiredAt) {
 		return fmt.Errorf("workspace lease reservation for environment %q changed identity during lifecycle transition: %w", next.EnvironmentID, core.ErrIncompatibleState)
 	}
 	return nil

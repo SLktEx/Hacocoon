@@ -38,6 +38,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if err != nil {
 		return core.Environment{}, err
 	}
+	if spec.EphemeralInstance != "" && !core.ValidEnvironmentInstanceID(spec.EphemeralInstance) {
+		return core.Environment{}, core.ErrInvalidArgument
+	}
 	unlockEnvironment, err := lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.Environment{}, err
@@ -123,7 +126,11 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if identityErr != nil {
 		return core.Environment{}, identityErr
 	}
+	if spec.EphemeralInstance != "" {
+		instanceID = spec.EphemeralInstance
+	}
 	lease := core.WorkspaceLease{
+		Ephemeral:          spec.EphemeralInstance != "",
 		InstanceID:         instanceID,
 		PersistentResource: persistent.Ref(),
 		WorkspaceID:        workspace.ID,
