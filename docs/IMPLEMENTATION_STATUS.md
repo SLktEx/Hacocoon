@@ -10,6 +10,7 @@ This page describes current code reality on main. Start with the [getting starte
 
 | Feature | State | Available scope, limits and remaining work |
 |---|---|---|
+| [Experimental VS Code](reference/experimental-vscode.md) | implemented | Shared YAML subtree editor/file/JSON commands, Env Remote settings and age/pre-release/exact-version extension resolution, including dependencies. Stable desktop, default server paths and Linux x64/arm64 only; live Marketplace/editor and Windows/WSL acceptance pending. |
 | [Standard Host tools](design/trusted-host.md#standard-host-tools) | implemented | Normal local setup supplies Git/gh and pinned containerd/nerdctl/BuildKit before user recipes, using managed OCI data and Host-local sockets. Repeat setup preserves data. Released Windows installer, arm64 runtime and custom existing-installation acceptance remain separate. |
 | [Daily entry / setup diagnostics](reference/daily-workflow.md) | implemented | Bounded setup stages and correlation IDs on stderr, final-frame validation and exclusion through disconnect; noninteractive confirmations do not wait. Dedicated Linux acceptance does not establish Windows default-entry/IDE acceptance. |
 | [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |

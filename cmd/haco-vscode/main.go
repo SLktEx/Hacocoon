@@ -98,15 +98,13 @@ func runAdapter(ctx context.Context, args []string) error {
 	if *noLaunch {
 		return nil
 	}
-	editor, err := sshclient.Editor(ctx, desktop)
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command(editor, "--folder-uri", "vscode-remote://ssh-remote+"+alias+"/workspace")
-	if err = cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Process.Release()
+	return sshclient.OpenVSCode(ctx, desktop, alias, func(editor string) error {
+		cmd := exec.Command(editor, "--folder-uri", "vscode-remote://ssh-remote+"+alias+"/workspace")
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		return cmd.Process.Release()
+	})
 }
 
 var nonNameCharacter = regexp.MustCompile(`[^a-z0-9]+`)

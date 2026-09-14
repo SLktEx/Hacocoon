@@ -93,6 +93,8 @@ func run(args []string) int {
 		return runSetup(args[1:])
 	case "config":
 		return runConfiguration(args[1:])
+	case "experimental":
+		return runExperimental(args[1:])
 	case "network":
 		return runNetwork(args[1:])
 	case "aws":
@@ -165,6 +167,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  network    Connect approved TCP/UDP services and inspect connection authority")
 	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
 	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
+	fmt.Fprintln(out, "  experimental edit vscode  Edit Experimental VS Code settings and extensions")
 	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  reclaim    Reclaim unused managed WSL disk space or inspect its result")

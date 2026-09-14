@@ -92,13 +92,18 @@ func ensureRemoteSSH(ctx context.Context, windows bool, executable string) error
 
 // Encode the selected path as data, never as PowerShell source or shell arguments.
 func windowsEditorCommand(ctx context.Context, nativeCLI string, install bool) *exec.Cmd {
-	encoded := base64.StdEncoding.EncodeToString([]byte(nativeCLI))
-	script := "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); $p = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('" + encoded + "')); & $p "
+	args := []string{"--list-extensions"}
 	if install {
-		script += "--install-extension ms-vscode-remote.remote-ssh"
-	} else {
-		script += "--list-extensions"
+		args = []string{"--install-extension", "ms-vscode-remote.remote-ssh"}
 	}
+	return windowsEditorArgs(ctx, nativeCLI, args)
+}
+
+func windowsEditorArgs(ctx context.Context, nativeCLI string, args []string) *exec.Cmd {
+	encoded := base64.StdEncoding.EncodeToString([]byte(nativeCLI))
+	data, _ := json.Marshal(args)
+	encodedArgs := base64.StdEncoding.EncodeToString(data)
+	script := "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); $p = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('" + encoded + "')); $a = ConvertFrom-Json ([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('" + encodedArgs + "'))); & $p @a"
 	return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script+"; exit $LASTEXITCODE")
 }
 func projectedWindowsPath(path string) (string, error) {

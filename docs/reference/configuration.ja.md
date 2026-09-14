@@ -1,5 +1,7 @@
 # 承認方針の設定
 
+エディタ設定とExtensionは[Experimental VS Code設定](experimental-vscode.ja.md)を参照してください。
+
 状態: **実装済み。導入済み環境の設定往復は 2584ec6 で成功しました。**
 
 信頼された Linux／WSL Host で実行します。

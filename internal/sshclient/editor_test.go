@@ -46,7 +46,7 @@ func TestProjectedEditorPathAndCommandData(t *testing.T) {
 	script := command.Args[len(command.Args)-1]
 	encoded := base64.StdEncoding.EncodeToString([]byte(native))
 	if strings.Contains(script, native) || !strings.Contains(script, "FromBase64String('"+encoded+"')") ||
-		!strings.Contains(script, "& $p --list-extensions") || strings.Contains(script, "Get-Command") {
+		!strings.Contains(script, "& $p @a") || !strings.Contains(script, base64.StdEncoding.EncodeToString([]byte(`["--list-extensions"]`))) || strings.Contains(script, "Get-Command") {
 		t.Fatal("selected editor path was not passed as data")
 	}
 }

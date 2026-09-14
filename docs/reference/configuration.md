@@ -1,5 +1,8 @@
 # Approval configuration
 
+For optional editor settings and extensions, see
+[Experimental VS Code configuration](experimental-vscode.md).
+
 Status: **implemented; configuration round-trip passed installed GHA at 2584ec6**.
 
 Run these commands in the trusted Linux/WSL Host:
