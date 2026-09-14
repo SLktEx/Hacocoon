@@ -309,3 +309,22 @@ local Python environment and generated native stand-in, not a WSL installation.
 The PowerShell wrapper's extra cleanup-sharing tests were not rerun by this route.
 Fresh Explorer interaction, full packaged installation and original SSH failure
 acceptance remain pending; previous native results do not establish this candidate.
+
+<a id="main-host-language"></a>
+## Windows presentation handoff on main
+
+The implementation at `45b53f98bb3b24942011ddd7b0ff73474a8b65f5` reuses
+#583's `3b8eefce`, `0c79f820` and `8c07e126` on the current M1 candidate,
+with explicit `LC_ALL`/`LC_MESSAGES` kept ahead of Windows autodetection.
+Local focused product/Host/catalog/control/Incus tests passed (15.05s), the full
+maintained local test entry passed (14.38s), and catalog/control race tests passed
+(7.57s). Initial changed-code lint failed on an unchecked test connection close;
+the corrected control test passed (2.79s), and pinned golangci-lint 2.13.2 passed
+with new files included (15.27s). Documentation checks/regressions passed (6.21s).
+
+On this same PC, `TestNativeWindowsLanguageReadOnly` in `hacocoon-second` returned
+`ja` through the actual system PowerShell query (0.26s test, 0.95s command).
+Windows installer component tests passed under PowerShell 7.6.6. Neither test
+changed OS/WSL locale or installed candidate binaries. This is a native read-only
+query and component result, not fresh packaged login, complete Japanese text,
+notification response or human GUI acceptance. Those remain open with #577.
