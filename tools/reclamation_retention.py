@@ -111,7 +111,7 @@ def verify_installed(record, registration):
                 observed = run([*prefix[:-2], "python3", "-c", script], timeout=30)
                 data = json.loads(observed)
                 # Re-project even the diagnostic process output as untrusted.
-                allowed = {"base_resolution", "seed_resolution", "project", "root_storage",
+                allowed = {"base_resolution", "project", "root_storage",
                            "routed_substrate", "sandbox_proxy", "instance_init", "runtime_unavailable",
                            "cleanup_incomplete", "stale_identity", "workspace_busy", "storage_busy"}
                 labels = data.get("observations", []) if isinstance(data, dict) else []
