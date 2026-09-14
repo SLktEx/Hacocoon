@@ -329,3 +329,11 @@ installed notification-to-controller journey. Earlier development candidates'
 8-second notification clear timeouts remain unexplained failures; a successful
 isolated current-component run does not erase them. Fresh installed VS Code
 answers and authenticated Git also remain unverified.
+
+PR #664 head `8c1cc435` passed repository, quality, Ubuntu and Incus workflows.
+Windows run 34894187686 failed at installed native notification review (job
+104143946090): stage=clear, reason=timeout, child exit=1, duration=8023 ms,
+no native HRESULT. Installation, strict SSH and both reclamation stages passed
+before it. The root cause remains unknown; component success does not erase it.
+The follow-up adds bounded fixed progress observations without extending deadlines
+or bypassing notification history. Fresh validation is recorded below.

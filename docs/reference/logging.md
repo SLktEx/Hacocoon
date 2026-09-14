@@ -201,3 +201,9 @@ Native notification renderer failures also record numeric `exit_code` and
 failure before child startup. Context cancellation/deadline classification takes
 precedence over child output. The same review boundary owns the single ERROR;
 raw process errors, stdout and stderr are not logged.
+
+Renderer failures also include `native_progress`, the last complete fixed stage
+observed from at most 512 bytes: runtime, input, decode, winrt, xml, create,
+identity, show, history or complete. Missing, partial, oversized or unrelated
+diagnostics become unobserved. This observation cannot confirm rendering,
+execution or approval, and never overrides a timeout or cancellation.

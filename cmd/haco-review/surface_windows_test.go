@@ -180,7 +180,8 @@ func TestNativeToastProcessFixture(t *testing.T) {
 		time.Sleep(30 * time.Second)
 		os.Exit(0)
 	case "failure":
-		os.Stdout.WriteString("HACO_TOAST_FAILURE:history:-2146233087")
+		_, _ = os.Stderr.WriteString("HACO_TOAST_STAGE:runtime\r\nHACO_TOAST_STAGE:history\r\n")
+		_, _ = os.Stdout.WriteString("HACO_TOAST_FAILURE:history:-2146233087")
 		os.Exit(7)
 	case "private":
 		os.Stdout.WriteString("private-page-token")
@@ -222,7 +223,7 @@ func TestNativeToastProcessFailureAndReaping(t *testing.T) {
 			}
 			if kind == "failure" {
 				var native *nativeDisplayFailure
-				if process.exitCode != 7 || !errors.As(err, &native) || native.stage != "history" {
+				if process.exitCode != 7 || !errors.As(err, &native) || native.stage != "history" || process.progress != "history" {
 					t.Fatal("native failure lost", err)
 				}
 			}
@@ -235,5 +236,29 @@ func TestNativeToastProcessFailureAndReaping(t *testing.T) {
 				t.Fatal("unsafe or missing process observations", output.String())
 			}
 		})
+	}
+}
+
+func TestNativeProgressBoundsAndPartialReads(t *testing.T) {
+	for _, tc := range []struct {
+		chunks []string
+		want string
+	}{
+		{[]string{"HACO_TOAST_STA", "GE:runtime\r\nHACO_TOAST_STAGE:history\n"}, "history"},
+		{[]string{"HACO_TOAST_STAGE:input\n"}, "input"},
+		{[]string{"HACO_TOAST_STAGE:input"}, "unobserved"},
+		{[]string{"HACO_TOAST_STAGE:private-token\n"}, "unobserved"},
+		{[]string{"private-output\nHACO_TOAST_STAGE:history\n"}, "unobserved"},
+		{[]string{strings.Repeat("x", 513), "HACO_TOAST_STAGE:history\n"}, "unobserved"},
+	} {
+		var progress nativeProgress
+		for _, chunk := range tc.chunks {
+			if n, err := progress.Write([]byte(chunk)); err != nil || n != len(chunk) {
+				t.Fatal("diagnostic draining blocked")
+			}
+		}
+		if len(progress.data) > 512 || progress.stage() != tc.want {
+			t.Fatal("unsafe progress classification")
+		}
 	}
 }

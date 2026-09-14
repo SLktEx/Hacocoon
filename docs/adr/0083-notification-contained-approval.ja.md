@@ -50,3 +50,7 @@ Windows上に古い通知が残っても、nonceの無効化は取り消しま�
 ネイティブ契約はMicrosoftの
 [受信インターフェース](https://learn.microsoft.com/en-us/windows/win32/api/notificationactivationcallback/nf-notificationactivationcallback-inotificationactivationcallback-activate)と
 [非パッケージ型の登録実装](https://github.com/microsoft/WindowsAppSDK/blob/main/dev/AppNotifications/AppNotificationUtility.cpp)に従います。
+
+描画処理は固定した段階だけを上限付きで記録し、起動、入力・復号、WinRT読込、
+履歴・表示の停止を区別します。診断を完了証拠には使わず、既存の期限切れ・
+キャンセルの結果も変更しません。

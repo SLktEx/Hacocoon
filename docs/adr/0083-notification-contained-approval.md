@@ -59,3 +59,7 @@ gaps explicit in [acceptance evidence](../status/acceptance-evidence.md).
 The native contract follows Microsoft's
 [activation interface](https://learn.microsoft.com/en-us/windows/win32/api/notificationactivationcallback/nf-notificationactivationcallback-inotificationactivationcallback-activate)
 and [unpackaged registration implementation](https://github.com/microsoft/WindowsAppSDK/blob/main/dev/AppNotifications/AppNotificationUtility.cpp).
+
+The renderer reports bounded fixed progress stages to distinguish process startup,
+stdin/decode, WinRT loading and history/display stalls. These diagnostics never
+act as a receipt. Existing timeout and cancellation outcomes remain unchanged.

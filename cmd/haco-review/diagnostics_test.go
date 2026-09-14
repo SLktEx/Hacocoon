@@ -82,3 +82,22 @@ func TestNativeProcessDiagnosticsPreserveReasonAndRedactCause(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeProgressLogAcceptsOnlyFixedStages(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, value := range []string{"input", "history", "complete", "private-token", ""} {
+		var output bytes.Buffer
+		reportReviewFailure(&output, &nativeToastProcessFailure{cause: context.DeadlineExceeded, progress: value})
+		var entry map[string]any
+		if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+			t.Fatal(err)
+		}
+		want := value
+		if value == "" || value == "private-token" {
+			want = "unobserved"
+		}
+		if entry["native_progress"] != want || entry["reason"] != "timeout" || strings.Contains(output.String(), "private") {
+			t.Fatal("untrusted progress escaped or changed the outcome")
+		}
+	}
+}
