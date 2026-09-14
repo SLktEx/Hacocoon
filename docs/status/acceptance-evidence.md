@@ -1224,3 +1224,28 @@ snapshot/copy/transfer remain open. Synthetic writes prove neither real tool-cac
 reduction nor large-repository performance. No isolation, approval rule or timeout
 was relaxed. The older failed native generation fixture remains unresolved.
 See the [placement contract](../design/cache-generations.md#rootfs-placement-and-resume).
+
+<a id="login-pty-fixture"></a>
+## Login PTY fixture isolation
+
+Candidate `230d6eeb6878bdd42f0bc2217053878f36b1e48c` removes Ubuntu login
+announcements from the routing fixture's temporary HOME through `.hushlogin`.
+It preserves real login Bash, the login/init/login-helper parent checks, PTY
+input, exit 37 and all existing deadlines. Product routing, installed profiles,
+controller authorization and Windows acceptance are unchanged; no checkpoint advances.
+
+On WSL `hacocoon-second`, the unmodified parent test first failed its prompt
+deadline in **7.16 seconds** with Go 1.27.1. Later unmodified comparisons and a
+diagnostic-only local CI run passed, so a rerun alone is not a resolution.
+Read-only process observation during prompt waits found Bash waiting through
+`update-motd`, `run-parts` and `landscape-sysinfo`; a comparison with `.hushlogin`
+did not enter that wait. This removes a demonstrated unrelated source of delay,
+without claiming that every earlier PTY failure had the same cause.
+
+The changed fixture passes ten Go 1.26.8 repetitions (1.27–1.35 seconds each)
+and three race repetitions (package total 7.475 seconds). The maintained
+`bash tools/ci-local.sh test` passes with Go 1.27.1 and shuffle 615, including
+all Go packages, vet, client syntax, 32 notification tests and two packaging tests.
+These are local repository results, not new installed Windows/PAM/SSH acceptance.
+Earlier failed runs remain recorded; original SSH, long-input and fresh GUI
+acceptance still need their own evidence. See [fixture rationale](../adr/0066-wsl-login-bootstrap-routing.md#verification).
