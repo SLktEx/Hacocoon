@@ -42,3 +42,10 @@ requires Bash completion without any controller. Separate parent identities
 exercise ordinary entry selection. This does not emulate PAM or establish native
 WSL acceptance. The unchanged packaged Windows terminate/ordinary-entry journey
 must verify the fix; its earlier failure remains recorded.
+
+The fixture's temporary HOME contains `.hushlogin`, the distribution's normal
+per-user opt-out from login announcements. Ubuntu otherwise runs `update-motd`
+and system inventory before the fixture profile, making this routing regression
+depend on unrelated inventory/update latency. The real login Bash, PTY input,
+exit-status assertion and existing deadlines remain in use. This is fixture
+isolation, not a product switch or a change to installed users' login settings.

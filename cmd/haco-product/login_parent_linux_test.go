@@ -50,6 +50,10 @@ for name, expected in ((b"login", 42), (b"init", 43), (b"login-helper", 43)):
 assert libc.prctl(15, b"login", 0, 0, 0) == 0
 # The fixture owns its login profile. Wait for the actual Bash input prompt:
 # writing into the PTY before shell/readline startup can lose type-ahead input.
+# Ubuntu's global profile otherwise runs update-motd for each fresh HOME,
+# including unrelated system inventory and update checks before this profile.
+# Use the normal per-user opt-out; keep the real login shell and its deadline.
+Path(sys.argv[2], ".hushlogin").touch()
 Path(sys.argv[2], ".bash_profile").write_text("PS1='__HACO_LOGIN_READY__ '\n")
 master, slave = pty.openpty()
 process = subprocess.Popen([sys.argv[1], "-test.run=^TestLoginBootstrapHelperProcess$"], stdin=slave, stdout=slave, stderr=slave, env=env)
