@@ -167,7 +167,7 @@ func writeHelp(out *os.File) {
 	fmt.Fprintln(out, "  network    Connect approved TCP/UDP services and inspect connection authority")
 	fmt.Fprintln(out, "  aws        Use approved AWS operations with trusted Host authentication")
 	fmt.Fprintln(out, "  config     Inspect or edit approval policy configuration")
-	fmt.Fprintln(out, "  experimental edit vscode  Edit Experimental VS Code settings and extensions")
+	_, _ = fmt.Fprintln(out, "  experimental edit vscode  Edit Experimental VS Code settings and extensions")
 	fmt.Fprintln(out, "  approve    Review a pending request and optionally save its Policy")
 	fmt.Fprintln(out, "  doctor     Diagnose the Physical Host through its controller")
 	fmt.Fprintln(out, "  reclaim    Reclaim unused managed WSL disk space or inspect its result")
