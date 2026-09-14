@@ -21,6 +21,28 @@ verify_version() {
   printf 'Incus %s: supported 7.0 LTS server\n' "$1"
 }
 
+verify_server() {
+  # Query the API metadata, never translated CLI labels. Keep backend data out
+  # of argv and diagnostics, and reject command failures even with valid JSON.
+  server_version="$(python3 -I -c '
+import json
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(["incus", "query", "/1.0"], check=True, timeout=30,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    version = json.loads(result.stdout)["environment"]["server_version"]
+    # Validate the alphabet before shell substitution can strip trailing LF.
+    if not isinstance(version, str) or any(c not in "0123456789." for c in version):
+        raise ValueError("invalid release version")
+except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, RecursionError):
+    sys.exit(1)
+print(version)
+')" || fail 'cannot query or decode the Incus server version'
+  verify_version "$server_version"
+}
+
 install_lts() (
   [ "$(id -u)" = 0 ] || fail 'package installation requires root'
   . /etc/os-release
@@ -100,5 +122,6 @@ EOF
 case "${1:-}" in
   install) [ "$#" = 1 ] || fail 'unexpected install arguments'; install_lts ;;
   verify-version) [ "$#" = 2 ] || fail 'one server version is required'; verify_version "$2" ;;
-  *) fail 'usage: incus-lts.sh install | verify-version <server-version>' ;;
+  verify-server) [ "$#" = 1 ] || fail 'unexpected verify-server arguments'; verify_server ;;
+  *) fail 'usage: incus-lts.sh install | verify-server | verify-version <server-version>' ;;
 esac

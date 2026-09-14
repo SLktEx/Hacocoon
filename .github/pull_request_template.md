@@ -26,6 +26,8 @@ If **Release / packaging only** is selected:
 
 ## Validation
 
+<!-- If adding or changing a check that blocks installation, setup or a user operation, include the refusal rationale, observation-contract source, and regressions accepting supported inputs. See docs/reliability/validation-and-probes.md. -->
+
 - [ ] `go test ./...`
 - [ ] `go vet ./...`
 - [ ] `python3 tools/check_docs.py`
