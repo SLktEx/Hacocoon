@@ -24,7 +24,7 @@ func runExperimental(args []string) int {
 	defer stop()
 	s, err := experimental.DefaultStore()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: cannot locate configuration")
+		_, _ = fmt.Fprintln(os.Stderr, "haco: cannot locate configuration")
 		return 1
 	}
 	return experimentalCommand(ctx, s, args, os.Stdin, os.Stdout, os.Stderr, editVSCode)
@@ -60,7 +60,7 @@ func experimentalCommand(ctx context.Context, s experimental.Store, args []strin
 	}
 	snap, err := s.Read(ctx)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
 	}
 	if *jsonMode && !stdin {
@@ -95,19 +95,19 @@ func experimentalCommand(ctx context.Context, s experimental.Store, args []strin
 		err = s.Replace(ctx, snap.Revision, object)
 	}
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: experimental configuration was not acknowledged; inspect YAML before retrying:", err)
+		_, _ = fmt.Fprintln(diagnostic, "haco: experimental configuration was not acknowledged; inspect YAML before retrying:", err)
 		if retained != "" {
-			fmt.Fprintln(diagnostic, "Edited subtree retained:", retained)
+			_, _ = fmt.Fprintln(diagnostic, "Edited subtree retained:", retained)
 		}
 		return 1
 	}
 	if retained != "" {
 		if removeConfigurationEdit(retained) != nil {
-			fmt.Fprintln(diagnostic, "Editor files retained:", filepath.Dir(retained))
+			_, _ = fmt.Fprintln(diagnostic, "Editor files retained:", filepath.Dir(retained))
 		}
 	}
 	// JSON apply has no stdout, so pipelines carry subtree data only.
-	fmt.Fprintln(diagnostic, "Saved experimental.vscode:", s.Path)
+	_, _ = fmt.Fprintln(diagnostic, "Saved experimental.vscode:", s.Path)
 	return 0
 }
 
