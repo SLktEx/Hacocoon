@@ -290,6 +290,12 @@ shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2
 all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
 pass. Native acceptance for this correction remains pending.
 
+At final PR #660 head `24cd508369ca5937495b378f69cec4414b9e8cfd`, repository,
+quality, Ubuntu, Incus and Windows workflows all passed (runs 34886106686,
+34886106919, 34886106764, 34886106700 and 34886106868). It was merged into main
+as `7e876bc1e5e92432971427d3c778a4f5a07cb72e`. Earlier failed heads remain recorded.
+This does not establish the later Windows-language handoff or human GUI answers.
+
 <a id="main-notification-installer"></a>
 ## Main notification and installer integration candidate
 
@@ -328,3 +334,5 @@ Windows installer component tests passed under PowerShell 7.6.6. Neither test
 changed OS/WSL locale or installed candidate binaries. This is a native read-only
 query and component result, not fresh packaged login, complete Japanese text,
 notification response or human GUI acceptance. Those remain open with #577.
+
+After rebasing onto main `7e876bc1`, the immutable candidate passed the full local test entry (23.78s), shipped CLI E2E (4.54s) and documentation checks/regressions (5.17s). The Windows ordinary-entry observer now compares exactly one normalized Host language marker against an independent Windows UI-language query; all 13 observer tests passed locally. The first WSL launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; a later ordinary launch succeeded without restarting WSL. No product test was executed by the failed launch.
