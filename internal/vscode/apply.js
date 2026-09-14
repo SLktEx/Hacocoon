@@ -92,7 +92,7 @@ function lockedApply(input) {
     lock = fs.openSync(`/proc/self/fd/${dir}/.haco-apply.lock`, C.O_RDWR | C.O_CREAT | C.O_NOFOLLOW | C.O_NONBLOCK, 0o600);
     const st = fs.fstatSync(lock);
     if (!st.isFile() || st.nlink !== 1) throw Error('unsafe lock');
-    const r = cp.spawnSync('/usr/bin/flock', ['-x', '-w', '120', '3', process.execPath, '-e', process._eval, 'locked'], {
+    const r = cp.spawnSync('/usr/bin/flock', ['-x', '-w', '120', '/proc/self/fd/3', process.execPath, '-e', process._eval, 'locked'], {
       input, encoding: 'utf8', timeout: 14 * 60 * 1000, maxBuffer: 8192,
       stdio: ['pipe', 'pipe', 'pipe', lock]
     });

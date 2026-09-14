@@ -38,4 +38,4 @@ serverの配置はRemote-SSHが担当します。デスクトップと同じ安�
 `.vscode/settings.json`、`.code-workspace`は生成しません。credentialはSSH Agent・
 Credential Storeや既存の信頼された所有者に分離します。将来のUIが扱うのは状態と
 参照であり、credential本体ではありません。
-不採用の選択肢は[ADR 0066](../adr/0066-experimental-vscode-ownership.md)を参照してください。
+不採用の選択肢は[ADR 0078](../adr/0078-experimental-vscode-ownership.md)を参照してください。

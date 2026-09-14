@@ -43,4 +43,4 @@ All configurations are common Remote settings for the Env/Workspace. No reposito
 Folder Settings, `.vscode/settings.json` or `.code-workspace` file is generated.
 Credentials remain with SSH Agent/Credential Store and existing trusted credential
 owners. Future UI may expose state and references, not credential material.
-See [ADR 0066](../adr/0066-experimental-vscode-ownership.md) for rejected alternatives.
+See [ADR 0078](../adr/0078-experimental-vscode-ownership.md) for rejected alternatives.

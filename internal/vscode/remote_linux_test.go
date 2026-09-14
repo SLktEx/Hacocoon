@@ -43,6 +43,8 @@ func TestGuestApplicationPreservesSettingsAndPinsExtensions(t *testing.T) {
 	// A faithful CLI boundary fixture checks exact version and suppressed implicit
 	// dependency resolution; all subprocess state stays in this disposable home.
 	cli := `const fs=require('fs'), p=require('path').join(require('os').homedir(),'installed.json');
+const lock=require('path').join(require('os').homedir(),'.vscode-server','.haco-apply.lock');
+if(require('child_process').spawnSync('/usr/bin/flock',['-n',lock,'true']).status!==1)process.exit(5);
 let installed={}; try {installed=JSON.parse(fs.readFileSync(p,'utf8'))}catch(e){if(e.code!=='ENOENT')throw e}
 const a=process.argv.slice(2);
 if(a.includes('--install-extension')) {
@@ -64,6 +66,7 @@ else process.exit(4);`
 		}
 		b, _ := json.Marshal(map[string]any{"settings": settings, "install": install})
 		c := exec.Command(node, "-e", script)
+		c.Dir = home
 		c.Env = append(os.Environ(), "HOME="+home)
 		c.Stdin = bytes.NewReader(b)
 		out, err := c.Output()
