@@ -198,21 +198,18 @@ func setupDesktopSSH(args []string, launch string) int {
 		}
 		return 0
 	}
-	executable, err := sshclient.Editor(ctx, desktop)
+	err = sshclient.OpenVSCode(ctx, desktop, alias, func(executable string) error {
+		// The desktop outlives this CLI without retaining its command streams.
+		command := exec.Command(executable, "--folder-uri", "vscode-remote://ssh-remote+"+alias+"/workspace")
+		fmt.Fprintln(os.Stderr, "[running] editor_launch")
+		if err := command.Start(); err != nil {
+			return err
+		}
+		return command.Process.Release()
+	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "[failed] operation=open stage=editor_launch reason=unavailable\nSSH preparation completed; the Env and connection remain. Use haco open --client ssh <name>, or install/configure the desktop editor.")
-		return 1
-	}
-	// A desktop process outlives this CLI. Its stdio must not retain the
-	// controller/Incus command streams and prevent the invoking shell returning.
-	command := exec.Command(executable, "--folder-uri", "vscode-remote://ssh-remote+"+alias+"/workspace")
-	fmt.Fprintln(os.Stderr, "[running] editor_launch")
-	if err = command.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, "[failed] operation=open stage=editor_launch reason=failed; SSH remains prepared")
-		return 1
-	}
-	if err = command.Process.Release(); err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
+		fmt.Fprintln(os.Stderr, "SSH preparation remains available; inspect the Env before retrying haco open.")
 		return 1
 	}
 	fmt.Fprintln(os.Stderr, "Editor process launched; connection/edit/build/test readiness is not yet confirmed.")

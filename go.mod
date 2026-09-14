@@ -3,6 +3,7 @@ module github.com/SLktEx/Hacocoon
 go 1.26.7
 
 require (
+	github.com/blang/semver/v4 v4.0.0
 	github.com/lxc/incus/v6 v6.0.5
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.47.0
@@ -13,7 +14,6 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/apex/log v1.9.0 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect

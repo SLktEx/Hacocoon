@@ -16,6 +16,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
+| [Experimental VS Code](reference/experimental-vscode.ja.md) | 実装済み | 共通YAMLサブツリーをエディタ・ファイル・JSONから編集。EnvのRemote settingsと、依存先を含む日数・pre-release・固定版によるExtension選択。安定版・既定serverパス・Linux x64/arm64が対象。実Marketplace・エディタ・Windows/WSLでの受け入れ確認は未実施。 |
 | [Host の標準ツール](design/trusted-host.ja.md#host-の標準ツール) | 実装済み | 通常のローカル setup がユーザースクリプトの前に Git/gh と固定版 containerd/nerdctl/BuildKit を導入。管理対象 OCI データと Host 内のソケットを利用し、再 setup はデータを保持。公開版 Windows インストーラー、arm64 実機、独自の既存導入環境の確認は別途必要。 |
 | [日常操作・setup診断](reference/daily-workflow.ja.md) | 実装済み | 制限付きの進捗・相関IDをstderrへ出力し、最終応答を検証。切断後も処理終了まで排他を保持し、非対話の確認は入力待ちしない。専用Linuxでの検証とWindows既定エントリー・IDEの確認は別。 |
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |

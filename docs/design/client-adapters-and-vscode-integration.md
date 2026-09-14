@@ -5,6 +5,10 @@ The [client adapter contract](../reference/client-adapter.md) owns reusable APIs
 [this access design](client-and-interactive-access.md) owns connection authority.
 IDE UX and orchestration remain outside Core.
 
+Optional settings and managed extensions now use the
+[Experimental VS Code contract](experimental-vscode.md) and
+[YAML/CLI reference](../reference/experimental-vscode.md).
+
 ## Retained standalone adapter
 
 `haco-vscode open <workspace>` and `haco-vscode delete <workspace>` are separate
