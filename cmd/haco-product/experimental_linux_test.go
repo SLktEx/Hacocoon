@@ -22,7 +22,7 @@ func TestExperimentalStalledJSONInputCanBeCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	r, w := io.Pipe()
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 	done := make(chan int, 1)
 	go func() {
 		var out, diag bytes.Buffer

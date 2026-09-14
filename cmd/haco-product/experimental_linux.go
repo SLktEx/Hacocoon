@@ -33,18 +33,20 @@ func runExperimental(args []string) int {
 func experimentalCommand(ctx context.Context, s experimental.Store, args []string, in io.Reader, out, diagnostic io.Writer, edit func(context.Context, []byte) ([]byte, string, error)) int {
 	usage := "Usage: haco experimental edit vscode [--file <subtree.yaml> | --json [ - ]]\nExperimental: configuration compatibility is not guaranteed."
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(out, usage)
+		if _, err := fmt.Fprintln(out, usage); err != nil {
+			return 1
+		}
 		return 0
 	}
 	if len(args) < 2 || args[0] != "edit" || args[1] != "vscode" {
-		fmt.Fprintln(diagnostic, usage)
+		_, _ = fmt.Fprintln(diagnostic, usage)
 		return 2
 	}
 	f := flag.NewFlagSet("haco experimental edit vscode", flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	file := f.String("file", "", "replace experimental.vscode with a YAML subtree file")
 	jsonMode := f.Bool("json", false, "print JSON; with -, replace from JSON stdin")
-	f.Usage = func() { fmt.Fprintln(diagnostic, usage); f.PrintDefaults() }
+	f.Usage = func() { _, _ = fmt.Fprintln(diagnostic, usage); f.PrintDefaults() }
 	if err := f.Parse(args[2:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -53,7 +55,7 @@ func experimentalCommand(ctx context.Context, s experimental.Store, args []strin
 	}
 	stdin := f.NArg() == 1 && f.Arg(0) == "-" && *jsonMode
 	if f.NArg() != 0 && !stdin || *file != "" && *jsonMode {
-		fmt.Fprintln(diagnostic, usage)
+		_, _ = fmt.Fprintln(diagnostic, usage)
 		return 2
 	}
 	snap, err := s.Read(ctx)

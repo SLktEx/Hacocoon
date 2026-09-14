@@ -59,7 +59,7 @@ func (s Store) open(create bool) (*os.Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if !safeFile(f, true) {
 		return nil, fmt.Errorf("unsafe configuration directory")
 	}
@@ -75,7 +75,7 @@ func read(root *os.Root, name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if !safeFile(f, false) {
 		return nil, fmt.Errorf("unsafe configuration file")
 	}
@@ -130,7 +130,7 @@ func (s Store) Read(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	b, err := read(r, filepath.Base(s.Path))
 	if err != nil {
 		return Snapshot{}, err
@@ -148,12 +148,12 @@ func (s Store) Replace(ctx context.Context, revision string, object map[string]a
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	lock, err := r.OpenFile(".config.lock", os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0600)
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	if !safeFile(lock, false) {
 		return fmt.Errorf("unsafe configuration lock")
 	}
@@ -211,7 +211,7 @@ func (s Store) Replace(ctx context.Context, revision string, object map[string]a
 	if err != nil {
 		return err
 	}
-	defer r.Remove(temp)
+	defer func() { _ = r.Remove(temp) }()
 	_, err = f.Write(b)
 	if err == nil {
 		err = f.Sync()
@@ -233,6 +233,6 @@ func (s Store) Replace(ctx context.Context, revision string, object map[string]a
 	if err != nil {
 		return err
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	return d.Sync()
 }

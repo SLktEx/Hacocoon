@@ -133,7 +133,7 @@ func (g Gallery) Releases(ctx context.Context, id string) ([]Release, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension gallery request failed")
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("extension gallery returned HTTP %d", response.StatusCode)
 	}
