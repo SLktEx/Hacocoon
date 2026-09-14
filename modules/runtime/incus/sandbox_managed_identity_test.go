@@ -9,7 +9,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
-func TestSandboxProviderMarksEnvironmentForSeedHarvestBeforeStart(t *testing.T) {
+func TestSandboxProviderMarksManagedEnvironmentBeforeStart(t *testing.T) {
 	values := map[string]string{}
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
@@ -35,7 +35,7 @@ func TestSandboxProviderMarksEnvironmentForSeedHarvestBeforeStart(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "harvest", WorkspacePath: "/tmp/work"}); err != nil {
+	if _, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work"}); err != nil {
 		t.Fatal(err)
 	}
 	if values[managedEnvironmentMarkerKey] != managedEnvironmentMarkerValue {

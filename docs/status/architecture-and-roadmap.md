@@ -429,12 +429,12 @@ notification review route, separately from its successful ordinary entry/SSH tes
 Seed retirement now removes the ordinary composition/service, current-Seed Base
 resolver and legacy command family. Selected Bases no longer imply Seed nesting
 authority. Existing persisted identities/data are retained. Next remove remaining
-builder/harvest/telemetry internals after isolating shared helpers, and verify old
+builder/telemetry internals after isolating any remaining shared helpers, and verify old
 data evacuation/restore/comparison; [ADR 0078](../adr/0078-seed-runtime-retirement.md)
 does not claim M5 or migration completion.
 
-The managed-Environment marker constants still live in the legacy harvest file
-but are used by ordinary start, DNS, repository, snapshot, archive and maintenance
-paths. Move those shared identity constants to the owning Environment code before
-deleting harvest internals. Do not remove current ownership checks with the old
-Seed code or treat retained Seed data as permission to clean it up.
+The managed-Environment marker constants now live in the existing Environment
+identity code. Ordinary start, DNS, repository, snapshot, archive and maintenance
+retain the same values and ownership checks. The legacy harvest runner and its
+Seed-only tests are removed. Continue builder/telemetry retirement without treating
+retained Seed data as permission to clean it up.

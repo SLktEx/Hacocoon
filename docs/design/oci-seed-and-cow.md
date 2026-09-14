@@ -10,8 +10,12 @@ store/resolver/service or installs the harvest wrapper, and the legacy
 images, catalogs, Workspace and OCI data are unchanged.
 [ADR 0078](../adr/0078-seed-runtime-retirement.md) records the decision.
 
-Builder/harvest/telemetry internals, shared-helper separation and old-data
-evacuation/restoration/comparison remain open. Retirement never authorizes deletion
+The legacy harvest runner and its Seed-only tests are removed. Managed-Environment
+kind markers live with the existing instance-identity contract; ordinary startup,
+snapshot, DNS and maintenance checks retain the same marker values. Input-runner
+tests follow the current production decorator and still reject management bypasses.
+
+Builder/telemetry internals and old-data evacuation/restoration/comparison remain open. Retirement never authorizes deletion
 of existing data and does not revive `switch-base`. Use
 [Base builds](base-images-and-custom-environments.md) and
 [data lifetime](../guides/data-lifetime.md) for ordinary use.

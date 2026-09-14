@@ -8,7 +8,11 @@ compositionのSeed store/resolver/serviceとharvest wrapper、旧 `hacoq plugin 
 外しました。既存Envの固定Base・イメージ・カタログ・Workspace・OCIデータは変更しません。
 [ADR 0078](../adr/0078-seed-runtime-retirement.ja.md)に理由と不採用案を記録します。
 
-残るbuilder・harvest・telemetryの内部実装と共有helperの分離、旧データの退避・復元・照合は未完了です。
+旧harvest runnerとSeed専用の試験は撤去しました。管理対象Envの種別マーカーは既存のinstance識別処理へ
+移し、通常起動・snapshot・DNS・保守の確認で同じ値を使い続けます。入力受け渡しの試験は現行の
+製品decoratorに揃え、管理操作の迂回を引き続き拒否します。
+
+残るbuilder・telemetryの内部実装と旧データの退避・復元・照合は未完了です。
 機能撤去を既存データの削除許可とは扱いません。`switch-base` は復活させません。
 通常利用は[Base構築](base-images-and-custom-environments.md)と[データ寿命](../guides/data-lifetime.ja.md)へ進んでください。
 

@@ -7,7 +7,13 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentInstanceKey = "user.hacocoon.instance-id"
+// The kind marker classifies managed Environment resources. It does not replace
+// the pinned instance identity, lifecycle ownership or network source checks.
+const (
+	environmentInstanceKey        = "user.hacocoon.instance-id"
+	managedEnvironmentMarkerKey   = "user.hacocoon.kind"
+	managedEnvironmentMarkerValue = "environment"
+)
 
 // Direct stateless provider callers may omit the identity. Such instances cannot
 // be adopted as snapshot sources. Stateful creation always supplies its lease ID.

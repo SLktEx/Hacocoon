@@ -143,7 +143,8 @@ v0.67は通常WSL／trusted HostコマンドからWindows転送を自動起動�
 
 現在のpartialなキャッシュcheckpointには、StandardのHost対象・共有範囲・互換条件の選択処理を含みます。設定からの一連の利用手順が揃うまで製品へ未登録です。初回のストレージ入出力障害後、#652の対応Incus CIと、Seed撤去候補の標準ローカル試験・集中race・実機のEnv本体配置はPASSしました。[復旧と確認範囲の記録](acceptance-evidence.ja.md#seed-runtime-retirement)を参照してください。公開収集・完全なキャッシュデータ操作・巨大レポ受入は未完了で、配布ではありません。
 
-Seed撤去候補で通常composition・暗黙のBase差替え・旧Seedコマンドを外しました。
-以前のデータを保持し、builder・harvest・telemetry・移行の作業は残っています。
+Seed撤去候補で通常composition・暗黙のBase差替え・旧Seedコマンド・不要なharvest adapterを外しました。
+管理対象の種別マーカーは既存のEnv識別処理へ移しました。
+以前のデータを保持し、builder・telemetry・移行の作業は残っています。
 開発上の進捗であり、配布やM5全体の完了ではありません。
 [撤去の記録](acceptance-evidence.ja.md#seed-runtime-retirement)を参照してください。
