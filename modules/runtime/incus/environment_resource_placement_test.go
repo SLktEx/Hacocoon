@@ -25,7 +25,7 @@ func TestEnvironmentDataBindingsRejectInvalidPlacementAndOwnership(t *testing.T)
 	if err != nil || len(digest) != 64 {
 		t.Fatal(digest, err)
 	}
-	for _, target := range []string{"/", "/root", "/home/user", "/workspace/repo/cache", "/etc/test", "/proc/cache", "/root/.ssh/cache", "/root/.cache/../.ssh", "/root/.config/cache", "/root/.cache\\foo", "/root/.cache\nfoo"} {
+	for _, target := range []string{"/", "/root", "/home/user", "/workspace", "/workspace/repo/.git/cache", "/etc/test", "/proc/cache", "/root/.ssh/cache", "/root/.cache/../.ssh", "/root/.config/cache", "/root/.cache\\foo", "/root/.cache\nfoo"} {
 		t.Run(target, func(t *testing.T) {
 			_, areas := environmentPlacementFixture()
 			areas[0].Attachment.Target = target
@@ -91,7 +91,7 @@ func TestEnvironmentDataDevicesRequireCompleteExactBinding(t *testing.T) {
 			if scenario == "reference-only" {
 				boundAreas, boundInstance, boundDigest = nil, "", ""
 			}
-			err := verifyEnvironmentDataDevices(config, boundInstance, boundDigest, boundAreas, scenario != "before-attach")
+			err := verifyEnvironmentDataDevices(config, boundInstance, boundDigest, boundAreas, nil, scenario != "before-attach")
 			if (err == nil) != (scenario == "valid") {
 				t.Fatal(scenario, err)
 			}
@@ -140,7 +140,7 @@ func TestEnvironmentDataNativeParentAndExclusiveUse(t *testing.T) {
 				data, _ := json.Marshal(value)
 				return host.Result{Stdout: string(data)}, nil
 			}}))
-			err := p.verifyEnvironmentResources(context.Background(), "haco-demo", instance, areas, core.EnvironmentRunning)
+			err := p.verifyEnvironmentResources(context.Background(), "haco-demo", core.EnvironmentResourceBinding{InstanceID: instance, Attachments: areas}, core.EnvironmentRunning)
 			if (err == nil) != (scenario == "valid") {
 				t.Fatal(err)
 			}

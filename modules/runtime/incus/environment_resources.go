@@ -28,9 +28,8 @@ func environmentDataUsedBy(raw, project, ref string) bool {
 	return err == nil && len(values) == 1 && len(values["project"]) == 1 && values.Get("project") == project
 }
 
-// Rootfs placement is deliberately separate from mounting below an external or
-// managed Workspace. Stopped Incus file access sees the rootfs, not custom disks;
-// treating it as observation of a Workspace would validate the wrong directory.
+// Rootfs and managed-Workspace paths share syntax/protected-path checks. Their
+// backing data must still be inspected through the corresponding native API.
 func validEnvironmentDataTarget(target string) bool {
 	if target == "" || !utf8.ValidString(target) || path.Clean(target) != target || len(target) > 1024 || strings.Contains(target, "\\") || strings.ContainsFunc(target, unicode.IsControl) {
 		return false
@@ -41,6 +40,7 @@ func validEnvironmentDataTarget(target string) bool {
 	}
 	switch parts[0] {
 	case "root":
+	case "workspace":
 	case "home":
 		if len(parts) < 3 {
 			return false
@@ -82,7 +82,7 @@ func environmentDataBinding(instance string, areas []core.EnvironmentRuntimeAtta
 	for _, area := range areas {
 		a, r := area.Attachment, area.Resource
 		if !validEnvironmentDataTarget(a.Target) {
-			return "", fmt.Errorf("cache placement %q is not a supported rootfs data directory: %w", a.Target, core.ErrUnsupported)
+			return "", fmt.Errorf("cache placement %q is not a supported data directory: %w", a.Target, core.ErrUnsupported)
 		}
 		if a.Resource != r.Ref() || r.Kind != CacheResourceKind || a.Origin.Kind != r.Kind || r.State != "ready" || r.SourceOnly || r.EnvironmentInstance != instance || r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted {
 			return "", core.ErrIncompatibleState
@@ -108,8 +108,9 @@ func environmentDataBinding(instance string, areas []core.EnvironmentRuntimeAtta
 }
 
 type environmentDataConfiguration struct {
-	Config  map[string]string            `json:"config"`
-	Devices map[string]map[string]string `json:"devices"`
+	Config          map[string]string            `json:"config"`
+	Devices         map[string]map[string]string `json:"devices"`
+	ExplicitDevices map[string]map[string]string
 }
 
 func (r *Runtime) environmentDataConfiguration(ctx context.Context, ref string) (environmentDataConfiguration, error) {
@@ -146,6 +147,7 @@ func (r *Runtime) environmentDataConfiguration(ctx context.Context, ref string) 
 		}
 	}
 	config.Config, config.Devices = observed.ExpandedConfig, observed.ExpandedDevices
+	config.ExplicitDevices = observed.Devices
 	return config, nil
 }
 
@@ -154,12 +156,17 @@ func environmentDataDevice(area core.EnvironmentRuntimeAttachment) map[string]st
 	return map[string]string{"type": "disk", "pool": pool, "source": volume, "path": area.Attachment.Target}
 }
 
-func verifyEnvironmentDataDevices(config environmentDataConfiguration, instance, binding string, areas []core.EnvironmentRuntimeAttachment, attached bool) error {
+func verifyEnvironmentDataDevices(config environmentDataConfiguration, instance, binding string, areas []core.EnvironmentRuntimeAttachment, mounts []WorkspaceAttachment, attached bool) error {
 	if config.Config[environmentDataKey] != binding {
 		return core.ErrCapabilityStale
 	}
 	if len(areas) != 0 && config.Config[environmentInstanceKey] != instance {
 		return core.ErrCapabilityStale
+	}
+	for _, m := range mounts {
+		if !matchesEnvironmentWorkspaceDevice(config, m.Device, config.Devices[m.Device], mounts) {
+			return core.ErrIncompatibleState
+		}
 	}
 	expected := map[string]map[string]string{}
 	for _, area := range areas {
@@ -179,6 +186,9 @@ func verifyEnvironmentDataDevices(config environmentDataConfiguration, instance,
 		}
 		for _, area := range areas {
 			target, mount := area.Attachment.Target, device["path"]
+			if strings.HasPrefix(target, mount+"/") && matchesEnvironmentWorkspaceDevice(config, name, device, mounts) {
+				continue
+			}
 			if mount == "" || path.Clean(mount) != mount || !strings.HasPrefix(mount, "/") || mount == target || strings.HasPrefix(target, mount+"/") || strings.HasPrefix(mount, target+"/") {
 				return core.ErrUnsupported
 			}
@@ -190,11 +200,12 @@ func verifyEnvironmentDataDevices(config environmentDataConfiguration, instance,
 	return nil
 }
 
-func (p *SandboxProvider) attachEnvironmentResources(ctx context.Context, ref, instance string, areas []core.EnvironmentRuntimeAttachment) error {
+func (p *SandboxProvider) attachEnvironmentResources(ctx context.Context, ref string, request core.EnvironmentResourceBinding) error {
+	instance, areas := request.InstanceID, request.Attachments
 	if len(areas) == 0 {
 		return nil
 	}
-	binding, err := environmentDataBinding(instance, areas)
+	binding, mounts, err := p.environmentPlacementBinding(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -202,7 +213,7 @@ func (p *SandboxProvider) attachEnvironmentResources(ctx context.Context, ref, i
 	if err != nil {
 		return err
 	}
-	if err := verifyEnvironmentDataDevices(config, instance, binding, areas, false); err != nil {
+	if err := verifyEnvironmentDataDevices(config, instance, binding, areas, mounts, false); err != nil {
 		return err
 	}
 	status, err := p.InspectEnvironment(ctx, ref)
@@ -220,7 +231,10 @@ func (p *SandboxProvider) attachEnvironmentResources(ctx context.Context, ref, i
 			return err
 		}
 	}
-	if err := p.verifyEnvironmentDataPaths(ctx, ref, areas); err != nil {
+	if err := p.verifyEnvironmentWorkspaceData(ctx, ref, mounts); err != nil {
+		return err
+	}
+	if err := p.verifyEnvironmentDataPaths(ctx, ref, areas, mounts); err != nil {
 		return err
 	}
 	for _, area := range areas {
@@ -230,11 +244,12 @@ func (p *SandboxProvider) attachEnvironmentResources(ctx context.Context, ref, i
 			return core.ErrRecoveryRequired
 		}
 	}
-	return p.verifyEnvironmentResources(ctx, ref, instance, areas, core.EnvironmentStopped)
+	return p.verifyEnvironmentResources(ctx, ref, request, core.EnvironmentStopped)
 }
 
-func (p *SandboxProvider) verifyEnvironmentResources(ctx context.Context, ref, instance string, areas []core.EnvironmentRuntimeAttachment, state core.EnvironmentState) error {
-	binding, err := environmentDataBinding(instance, areas)
+func (p *SandboxProvider) verifyEnvironmentResources(ctx context.Context, ref string, request core.EnvironmentResourceBinding, state core.EnvironmentState) error {
+	instance, areas := request.InstanceID, request.Attachments
+	binding, mounts, err := p.environmentPlacementBinding(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -242,7 +257,7 @@ func (p *SandboxProvider) verifyEnvironmentResources(ctx context.Context, ref, i
 	if err != nil {
 		return err
 	}
-	if err := verifyEnvironmentDataDevices(config, instance, binding, areas, true); err != nil {
+	if err := verifyEnvironmentDataDevices(config, instance, binding, areas, mounts, true); err != nil {
 		return err
 	}
 	backend := &PersistentResourceBackend{Runtime: p.Runtime}
@@ -258,8 +273,11 @@ func (p *SandboxProvider) verifyEnvironmentResources(ctx context.Context, ref, i
 			return core.ErrStorageBusy
 		}
 	}
+	if err := p.verifyEnvironmentWorkspaceData(ctx, ref, mounts); err != nil {
+		return err
+	}
 	if len(areas) != 0 && state == core.EnvironmentStopped {
-		return p.verifyEnvironmentDataPaths(ctx, ref, areas)
+		return p.verifyEnvironmentDataPaths(ctx, ref, areas, mounts)
 	}
 	return nil
 }

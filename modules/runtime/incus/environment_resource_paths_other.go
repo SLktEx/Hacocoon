@@ -8,6 +8,6 @@ import (
 )
 
 func (*SandboxProvider) SupportsEnvironmentResources() bool { return false }
-func (*SandboxProvider) verifyEnvironmentDataPaths(context.Context, string, []core.EnvironmentRuntimeAttachment) error {
+func (*SandboxProvider) verifyEnvironmentDataPaths(context.Context, string, []core.EnvironmentRuntimeAttachment, []WorkspaceAttachment) error {
 	return core.ErrUnsupported
 }

@@ -23,8 +23,8 @@ import (
 // This exercises ordinary Env creation, two rootfs cache placements and canonical
 // resume/delete. It does not claim selected-path collection or large-repo speed.
 func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
-	if os.Getenv("HACO_E2E_INCUS") != "1" {
-		t.Skip("set HACO_E2E_INCUS=1 on an Incus host")
+	if os.Getenv("HACO_E2E_INCUS_RESUME") != "1" {
+		t.Skip("set HACO_E2E_INCUS_RESUME=1 on an Incus host")
 	}
 	pool, image := os.Getenv("HACO_E2E_INCUS_RESUME_POOL"), os.Getenv("HACO_E2E_INCUS_RESUME_IMAGE")
 	if !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {

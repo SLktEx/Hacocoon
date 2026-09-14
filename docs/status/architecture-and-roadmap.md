@@ -401,9 +401,11 @@ Keep Workspace/OCI retention and fail-closed ownership through every step. Exist
 installation replacement or user-data deletion needs a concrete reviewed target;
 main merge, tags and releases remain outside this candidate's authorization.
 
-Canonical disposable-data lifecycle, Linux rootfs placement and exact manual/client
-resume are implemented candidates. Next: trustworthy repository-relative placement
-and Host path/compatibility selection, stopped-Env collection, history/clearing,
+Canonical disposable-data lifecycle, Linux rootfs/managed-repository placement and
+exact manual/client resume are implemented candidates. Repository placement binds
+leased native ownership and requires the custom-volume file API; its native
+acceptance remains separate. Next: Host path/compatibility selection,
+stopped-Env collection, history/clearing,
 unknown-creation recovery and real large-repository measurements. The production
 selector remains disabled. Snapshot/copy/transfer of extra areas must preserve the
 complete data contract before enabling those areas for ordinary configured use.

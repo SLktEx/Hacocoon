@@ -14,14 +14,17 @@ type dataResumeRuntime struct {
 	*dataEnvironmentRuntime
 	ref, instance string
 	areas         []core.EnvironmentRuntimeAttachment
+	workspacePath string
+	readOnly      bool
 	err           error
 }
 
 func (r *dataResumeRuntime) StartEnvironment(context.Context, string) error {
 	return errors.New("reference-only resume must not be used")
 }
-func (r *dataResumeRuntime) StartEnvironmentWithResources(_ context.Context, ref, instance string, areas []core.EnvironmentRuntimeAttachment) error {
-	r.ref, r.instance, r.areas = ref, instance, areas
+func (r *dataResumeRuntime) StartEnvironmentWithResources(_ context.Context, ref string, binding core.EnvironmentResourceBinding) error {
+	r.ref, r.instance, r.areas = ref, binding.InstanceID, binding.Attachments
+	r.workspacePath, r.readOnly = binding.WorkspacePath, binding.ReadOnly
 	return r.err
 }
 
@@ -39,10 +42,13 @@ func (s *dataResumeCatalog) GetPersistentResource(ctx context.Context, id string
 }
 
 func TestEnvironmentDataResumeSuppliesExactCatalogResources(t *testing.T) {
-	for _, scenario := range []string{"ready", "wrong-parent", "provider-error", "unsupported"} {
+	for _, scenario := range []string{"ready", "read-only", "wrong-parent", "provider-error", "unsupported"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			s, catalog, _, spec, _ := dataEnvironmentService(t, "")
+			if scenario == "read-only" {
+				spec.AccessMode = core.WorkspaceReadOnly
+			}
 			env, err := s.Create(ctx, spec)
 			if err != nil {
 				t.Fatal(err)
@@ -58,7 +64,7 @@ func TestEnvironmentDataResumeSuppliesExactCatalogResources(t *testing.T) {
 			}
 			err = s.Start(ctx, spec.Name)
 			startErr := err
-			if (err == nil) != (scenario == "ready") {
+			if (err == nil) != (scenario == "ready" || scenario == "read-only") {
 				t.Fatal(err)
 			}
 			if scenario == "wrong-parent" || scenario == "unsupported" {
@@ -71,7 +77,7 @@ func TestEnvironmentDataResumeSuppliesExactCatalogResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if runtime.ref != env.RuntimeRef || runtime.instance != lease.InstanceID || len(runtime.areas) != len(lease.Attachments) {
+			if runtime.ref != env.RuntimeRef || runtime.instance != lease.InstanceID || len(runtime.areas) != len(lease.Attachments) || runtime.workspacePath != lease.SourcePath || runtime.readOnly != (lease.AccessMode == core.WorkspaceReadOnly) {
 				t.Fatal("incomplete resume binding")
 			}
 			for i, a := range runtime.areas {

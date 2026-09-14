@@ -46,7 +46,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 	if len(spec.Attachments) != 0 && (record == nil || p == nil || !p.SupportsEnvironmentResources() || spec.ResourceMaintenance || spec.TemporaryWorkspace) {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported
 	}
-	dataBinding, err := environmentDataBinding(spec.InstanceID, spec.Attachments)
+	dataBinding, _, err := p.environmentPlacementBinding(ctx, spec.ResourceBinding())
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}

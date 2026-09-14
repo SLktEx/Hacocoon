@@ -94,3 +94,78 @@ func TestEnvironmentDataPathCancellationReachesDaemon(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEnvironmentWorkspacePathsObserveTheVolumeRatherThanRootfs(t *testing.T) {
+	for _, scenario := range []string{"empty", "missing", "link-parent", "link-target", "nonempty", "unsupported", "cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			_, _, mount := environmentWorkspaceFixture(t)
+			mount.Device, mount.Path = "workspace-repo-a", "/workspace/repo-a"
+			var paths []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/1.0/storage-pools/pool/volumes/custom/haco-work-work-a/files" || r.URL.Query().Get("project") != "hacocoon" || len(r.URL.Query()) != 2 {
+					t.Error("wrong storage observation", r.URL)
+					w.WriteHeader(500)
+					return
+				}
+				p := r.URL.Query().Get("path")
+				paths = append(paths, p)
+				if strings.Contains(p, "workspace") {
+					t.Error("did not resolve relative volume path")
+				}
+				if scenario == "unsupported" {
+					w.WriteHeader(405)
+					return
+				}
+				if scenario == "missing" && p == "/build" {
+					w.WriteHeader(404)
+					return
+				}
+				kind := "directory"
+				if (scenario == "link-parent" && p == "/build") || (scenario == "link-target" && p == "/build/cache") {
+					kind = "symlink"
+				}
+				w.Header().Set("X-Incus-type", kind)
+				if r.Method == http.MethodGet {
+					if p != "/build/cache" {
+						t.Error("listed ancestor")
+					}
+					if scenario == "nonempty" {
+						io.WriteString(w, `{"type":"sync","status_code":200,"metadata":["keep"]}`)
+					} else {
+						io.WriteString(w, `{"type":"sync","status_code":200,"metadata":[]}`)
+					}
+				}
+			}))
+			defer server.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if scenario == "cancelled" {
+				cancel()
+			}
+			err := verifyWorkspaceDataPath(ctx, server.URL, "hacocoon", mount, "/workspace/repo-a/build/cache", server.Client().Do)
+			if (err == nil) != (scenario == "empty" || scenario == "missing") {
+				t.Fatal(scenario, err)
+			}
+			if (scenario == "link-parent" || scenario == "missing") && len(paths) != 1 {
+				t.Fatal("followed unsafe ancestor", paths)
+			}
+			if scenario == "cancelled" && !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestEnvironmentWorkspacePathsRefuseWrongMountAndRootfsFallback(t *testing.T) {
+	_, _, mount := environmentWorkspaceFixture(t)
+	mount.Device, mount.Path = "workspace-repo-a", "/workspace/repo-a"
+	do := func(*http.Request) (*http.Response, error) { t.Fatal("invalid target reached daemon"); return nil, nil }
+	for _, target := range []string{"/workspace/repo-a", "/workspace/repo-b/cache", "/workspace/repo-a/../repo-b/cache", "/workspace/repo-a/.git/objects"} {
+		if err := verifyWorkspaceDataPath(context.Background(), "http://unix.socket", "hacocoon", mount, target, do); err == nil {
+			t.Fatal("unsafe target accepted", target)
+		}
+	}
+	if err := verifyRootfsDataPath(context.Background(), "http://unix.socket", "hacocoon", "haco-demo", "/workspace/repo-a/cache", do); err == nil {
+		t.Fatal("used rootfs for Workspace")
+	}
+}

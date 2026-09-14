@@ -5,8 +5,8 @@
 Status: **partial**. Atomic selection of complete managed sources and detached
 Incus cache-volume copying are implemented on this development candidate.
 Env-owned disposable resource reservation, materialization and cleanup now share
-canonical lifecycle transitions. Linux Incus rootfs placement and bound resume
-are implemented candidates. Host configuration is not enabled. Selected-path collection, existing-Env enrollment, repository placement, history, clearing and real
+canonical lifecycle transitions. Linux Incus rootfs and managed-repository placement
+with bound resume are implemented candidates. Host configuration is not enabled. Selected-path collection, existing-Env enrollment, history, clearing and real
 cache-workflow acceptance remain planned. There is no public cache command yet.
 See [remaining work](../status/architecture-and-roadmap.md).
 
@@ -20,9 +20,9 @@ independent CoW copy. It never shares a writable common cache with other Envs.
 Host does not build the cache or execute guest-origin data as trusted tooling.
 
 Unconfigured files, source code, irreplaceable outputs and credentials are outside
-the selection. HOME, repository-relative and multi-repository resolution must
-reject escapes through links and preserve unconfigured data. These collection
-and placement boundaries are not implemented by the generation foundation.
+the selection. Placement supports explicit HOME and managed-repository targets,
+including individual collection members, and rejects links or existing content.
+Public selection and collection boundaries remain incomplete.
 
 ## Atomic publication contract
 
@@ -55,7 +55,7 @@ OCI data or snapshot references, and is not proof of physical space reclamation.
 
 ## Env-owned disposable data
 
-Status: **implemented lifecycle and Linux rootfs-placement slices**. A trusted
+Status: **implemented lifecycle and Linux placement slices**. A trusted
 Host selector supplies named areas and exact origin generations. The common Env
 transaction reserves the Workspace, retained OCI reference, all fresh child
 identities and any source-copy reservations before a provider request. Ordinary
@@ -83,7 +83,7 @@ sibling fails. Retained Workspace and OCI data are never included in child clean
 A retry after the durable runtime-absence receipt does not delete that runtime name
 again. A missing runtime reference alone is not evidence of absence.
 
-Incus creation with a durable receipt can place these areas in the rootfs.
+Incus creation with a durable receipt can place these areas in the rootfs or a managed Workspace.
 Restore/archive and snapshot planning still refuse them; snapshot refusal precedes
 quiescing so an unsupported capture does not stop the producer. Existing Envs
 without added areas keep their snapshot/copy/transfer paths. The Standard selector
@@ -106,10 +106,9 @@ reproducible or compatible; that remains trusted Host/Standard selection.
 Stopped-instance Incus file metadata checks every ancestor without following
 links. A destination must be absent or an empty directory. Existing content is
 neither hidden nor adopted. Metadata reads are bounded and cancellable; no guest
-program attests to safety and no guessed daemon storage path is opened. Another
-disk overlapping the destination is refused, because the stopped file API sees
-the rootfs rather than the custom disk. Repository-relative placement and external
-Workspace enrollment therefore remain required work, not accepted paths.
+program attests to safety and no guessed daemon storage path is opened. Rootfs
+placement refuses overlapping disks. Managed-repository placement uses the
+separate volume observation below; external Workspace enrollment remains unsupported.
 
 Manual and client-triggered resume share the canonical lease-based dispatch.
 The current catalog supplies the complete resources under the Env lifecycle lock.
@@ -117,6 +116,30 @@ Incus verifies creation identity, binding, exact devices and exclusive native us
 stopped resume repeats the path checks. Reference-only resume refuses a data-bound
 Env. Added/missing devices, owner drift or path drift never trigger automatic
 repair, deletion or a fallback start. See [ADR 0077](../adr/0077-environment-owned-disposable-data.md).
+
+## Managed-repository placement
+
+The current lease supplies the managed Workspace path and access mode to the same
+provider boundary for creation and manual/client resume. The trusted repository
+catalog resolves exact owned Workspace volumes, including collection members.
+A cache destination must be strictly inside exactly one writable member; covering
+a member root, using an external Workspace or inheriting its device is refused.
+The binding includes selected native volumes and owners. Ordinary Git branch or
+remote changes do not change that storage identity.
+
+Incus must provide `file_storage_volume`, present in the supported 7.0.1 API.
+The rootfs file API checks only mountpoint ancestry; the custom-volume file API
+checks actual Workspace ancestors and the absent/empty destination. Missing API,
+links, non-directories, existing content and uncertain metadata fail closed.
+Exact explicit and expanded devices plus exclusive native use are rechecked;
+other overlapping mounts, source substitutions and shifted/read-only parents
+are refused. No guest helper or Host storage-path guess replaces these checks.
+
+Canonical deletion removes only Env-owned disposable children and retains the
+Workspace volumes and unconfigured data. Native acceptance for this new placement
+slice is separate from the earlier rootfs fixture. The required Incus test covers
+two owned members, resume, parent substitution, deletion/reuse and a guest-created
+link. It does not establish Host configuration, collection or large-repo performance.
 
 ## Provider and persistence boundaries
 
@@ -138,8 +161,8 @@ controller merely to run these tests.
 
 ## Completion still required
 
-The foundation does not yet define the public Host configuration format, securely
-resolve repository-relative paths, enroll pre-existing Envs,
+The foundation does not yet define the public Host configuration format, map
+user-facing repository selections to targets, enroll pre-existing Envs,
 collect stopped writers, expose origin/history or clear selected/all Env copies.
 Those changes must extend canonical lifecycle ownership rather than assemble
 independent resource/lease operations in orchestration code. Env-local cache copies

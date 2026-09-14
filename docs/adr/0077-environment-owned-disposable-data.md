@@ -20,7 +20,7 @@ Do not resend runtime deletion after its durable absence receipt.
 
 Origin receipts do not pin an old source forever. In-flight copy reservations do.
 An unsupported runtime or snapshot aggregate must refuse extra data explicitly
-until it can preserve the complete contract. Linux rootfs placement and bound
+until it can preserve the complete contract. Linux rootfs/managed-repository placement and bound
 resume are implemented candidates; the Standard selector remains disabled.
 
 ## Rejected alternatives
@@ -34,7 +34,7 @@ replaying deletion of a previously absent runtime name can destroy unrelated dat
 Dropping unknown attachments from snapshot/copy/transfer would silently lose data.
 
 This decision implements the ownership part of [cache generations](../design/cache-generations.md).
-Host configuration, repository-relative placement and stopped-Env collection remain open.
+Host configuration and stopped-Env collection remain open.
 
 ## Native placement decision
 
@@ -50,5 +50,13 @@ custom disk. Incus 6.0.5's `FileSFTPConn` mounts only the stopped rootfs, so tre
 its response as observation of attached Workspace contents would check the wrong
 data. Do not execute guest tools to attest to path safety, guess daemon mount paths,
 enable privileged/shifted mounts, silently hide existing content or weaken checks
-to accommodate WSL mount namespaces. Repository-relative placement needs its own
-faithful observation within this provider boundary.
+to accommodate WSL mount namespaces.
+
+Managed-repository placement therefore requires Incus's `file_storage_volume`
+extension and observes the actual custom volume. The canonical lease supplies
+Workspace identity/access; the existing trusted repository catalog supplies native
+ownership. Bind the selected parent volumes and exact explicit/expanded devices,
+require exclusive native use and inspect both rootfs mount ancestry and volume
+destination ancestry. Refuse unsupported APIs rather than falling back to rootfs
+observations. Keep Git branch/remote presentation out of storage identity. This
+extends the shared provider boundary, not Core's knowledge of Incus or guest authority.
