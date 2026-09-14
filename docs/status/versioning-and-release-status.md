@@ -154,6 +154,7 @@ M3 completion, main integration or a release.
 The current partial cache checkpoint includes the Standard Host target/scope/compatibility selector. It remains unregistered pending the complete configured cache workflow. After the initial storage I/O failures, #652 passed supported-Incus CI and the Seed-retirement candidate passed local test CI, focused race and native rootfs placement. See [scoped recovery and acceptance evidence](acceptance-evidence.md#seed-runtime-retirement). Public collection, complete cache data workflows and large-repository acceptance remain incomplete; this is not a release.
 
 The Seed runtime retirement candidate removes ordinary composition, implicit Base
-substitution and legacy Seed commands. It preserves old data and leaves builder,
-harvest, telemetry and migration work open. This is development progress, not a
+substitution, legacy Seed commands and the unused harvest adapter. Managed-kind
+markers belong to the existing Environment identity code. It preserves old data
+and leaves builder, telemetry and migration work open. This is development progress, not a
 release or full M5 completion; see [retirement evidence](acceptance-evidence.md#seed-runtime-retirement).

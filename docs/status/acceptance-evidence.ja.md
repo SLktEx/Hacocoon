@@ -1230,3 +1230,26 @@ Windowsの読取り専用子プロセス検査は、通常の実行環境で入�
 4.985秒でPASSしました。以前の制限環境の言語モードによる失敗とは区別し、通知履歴・clear・表示や
 人の承認操作の成功とは扱いません。差分検査の初回指定ではcheckoutのCRLF変換を無効にしたため、
 未変更の行を誤って差分として報告しました。ソースの改行を変更せず、通常の差分検査はPASSしています。
+
+
+<a id="seed-harvest-retirement"></a>
+## 旧Seed harvest adapterの撤去候補
+
+[PR #655](https://github.com/SLktEx/Hacocoon/pull/655) の `af070291` の後続として、未使用のharvest adapterとSeed専用試験を撤去しました。
+共用していた管理対象の種別定数は、値を変えず既存のEnv識別ファイルへ移しました。
+起動前のマーカー設定と、入力受け渡し・管理操作拒否の試験は維持し、名称と構成を現行製品に揃えました。
+旧builder・保守・telemetryの内部実装は残り、保存済みカタログ・イメージ・Workspace・OCIデータを
+移行・削除していません。
+
+Go 1.27.1でマーカー・識別・入力の集中試験、標準 `bash tools/ci-local.sh test`
+（全Go試験/vet、Python境界検査、通知クライアント32試験、packaging 2試験）、
+Incusのrace、文書整合性・差分検査がPASSしました。現在の全Goソースを、照合済みの
+1,502ファイルの検証archiveと比較して一致を確認しました。
+
+初回の集中・標準・raceは、名称変更した試験がmanagedを選び、共通の偽ネットワークがdemoを
+返したためFAILしました。製品のsource guardは識別不一致を正しく拒否しています。
+既存のdemo fixtureを再利用し、不要なharvest専用の偽応答分岐を削除しました。
+製品の検査は緩めず、初回FAILのログと二回目PASSのログを別々に保持しています。
+親候補の受入は通常EnvのlifecycleとWorkspace保持の証拠であり、この候補で実機試験を
+新たに実行したとは扱いません。新規Windows承認、巨大レポ実測、残るSeed builderと
+データ移行の受入は未完了です。

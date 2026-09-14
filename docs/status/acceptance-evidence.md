@@ -1480,3 +1480,28 @@ probe's language-mode failure remains separate; this does not verify notificatio
 history, clear, display or human approval. An initial diff-check invocation disabled
 the checkout's CRLF conversion and falsely reported untouched baseline lines;
 the normal repository diff check passes without changing source line endings.
+
+
+<a id="seed-harvest-retirement"></a>
+## Legacy Seed harvest adapter retirement candidate
+
+The follow-up to [PR #655](https://github.com/SLktEx/Hacocoon/pull/655), `af070291` removes the unused harvest adapter and
+its Seed-only tests. The shared managed-kind constants move into the existing
+Environment identity file with identical values. Ordinary marker-before-start and
+stdin/management-guard coverage remain, with names and composition matching the
+current product. Builder, maintenance and telemetry internals remain; no saved
+catalog, image, Workspace or OCI data is migrated or deleted.
+
+Focused marker/identity/stdin tests, the maintained `bash tools/ci-local.sh test`
+entry (all Go tests/vet, Python boundaries, 32 notification-client tests and two
+packaging tests), Incus race tests and documentation/diff checks pass with Go
+1.27.1. All current Go sources match the verified 1,502-file source archive.
+
+The first focused, standard and race runs failed because the renamed test selected
+`managed`, while the shared fake network substrate described `demo`. The production
+source guard correctly refused mismatched identity. Reuse the existing `demo`
+fixture and remove the obsolete harvest-only fake branch; do not weaken the guard.
+Those failed logs are retained separately from the successful second attempt.
+Parent acceptance records the normal Env lifecycle and retained Workspace behavior;
+it is not a new native run of this candidate. Fresh Windows approval, giant-repo
+measurement and remaining Seed builder/data migration acceptance are still open.

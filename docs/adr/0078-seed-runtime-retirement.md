@@ -18,8 +18,10 @@ managed persistent OCI data and their existing scoped attachment checks.
 Retirement is not migration or deletion. Do not rewrite saved Env Base references,
 delete existing images/catalogs, recreate an installed Env, or infer permission to
 clean old Seed data. Existing resume and data-lifetime paths remain authoritative.
-Legacy builder/harvest and telemetry internals still need separate removal after
-their shared helpers and historical recovery data have been accounted for.
+The harvest adapter is removed; its shared managed-kind markers belong with the
+Environment identity contract and cannot replace pinned ownership checks. Legacy
+builder and telemetry internals still need separate removal after their shared
+helpers and historical recovery data have been accounted for.
 
 ## Rejected alternatives
 
