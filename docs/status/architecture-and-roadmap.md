@@ -418,4 +418,23 @@ in its temporary HOME; local test CI and repeated routing checks pass. Keep this
 [fixture evidence](acceptance-evidence.md#login-pty-fixture) separate from the
 remaining installed SSH, long-input, Japanese Windows and GUI acceptance above.
 
-The managed-repository placement candidate is recorded in [acceptance evidence](acceptance-evidence.md#managed-repository-cache-placement). The existing Incus lacks its required API; supported-host acceptance is pending. Parent #648 also leaves a Windows notification-setup/terminal-entry failure to investigate. Keep these separate from prior successful rootfs/SSH checks.
+The managed-repository placement candidate now has supported-Incus acceptance in
+#649 and #652, recorded in [acceptance evidence](acceptance-evidence.md#seed-runtime-retirement).
+The local Incus 6.0 failure lacked the required API and remains historical evidence;
+it does not negate the later supported-host result. Public cache collection and
+large-repository measurements remain incomplete. #652 still fails the Windows
+notification review route, separately from its successful ordinary entry/SSH tests.
+
+
+Seed retirement now removes the ordinary composition/service, current-Seed Base
+resolver and legacy command family. Selected Bases no longer imply Seed nesting
+authority. Existing persisted identities/data are retained. Next remove remaining
+builder/harvest/telemetry internals after isolating shared helpers, and verify old
+data evacuation/restore/comparison; [ADR 0078](../adr/0078-seed-runtime-retirement.md)
+does not claim M5 or migration completion.
+
+The managed-Environment marker constants still live in the legacy harvest file
+but are used by ordinary start, DNS, repository, snapshot, archive and maintenance
+paths. Move those shared identity constants to the owning Environment code before
+deleting harvest internals. Do not remove current ownership checks with the old
+Seed code or treat retained Seed data as permission to clean it up.

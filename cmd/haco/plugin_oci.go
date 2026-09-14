@@ -5,20 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	seedbuildapp "github.com/SLktEx/Hacocoon/internal/seedbuild"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
 )
 
 func ociPluginCommand(ctx context.Context, app *composition.App, args []string) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "status", "image", "docker":
+		default:
+			return fmt.Errorf("unknown OCI plugin command %q: %w", args[0], core.ErrInvalidArgument)
+		}
+	}
 	if app == nil || app.OCI == nil {
 		return fmt.Errorf("OCI plugin is disabled; set HACO_PLUGIN_OCI=nerdctl or HACO_PLUGIN_OCI=docker: %w", core.ErrRuntimeUnavailable)
 	}
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci <status|image|seed|docker> ...: %w", core.ErrInvalidArgument)
+		return fmt.Errorf("usage: haco plugin oci <status|image|docker> ...: %w", core.ErrInvalidArgument)
 	}
 	switch args[0] {
 	case "status":
@@ -29,8 +34,6 @@ func ociPluginCommand(ctx context.Context, app *composition.App, args []string) 
 		return nil
 	case "image":
 		return ociImageCommand(ctx, app, args[1:])
-	case "seed":
-		return ociSeedCommand(ctx, app, args[1:])
 	case "docker":
 		return ociDockerCommand(ctx, app, args[1:])
 	default:
@@ -94,9 +97,6 @@ func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
 	if report.HostCache != "" {
 		fmt.Printf("host-cache: %s\n", report.HostCache)
 	}
-	if report.SeedRebuildRequired {
-		fmt.Println("seed: rebuild-required")
-	}
 	for _, environment := range report.RemovedEnvironments {
 		fmt.Printf("environment: %s\tremoved\n", environment)
 	}
@@ -106,196 +106,6 @@ func printOCIImageDeleteReport(report ociplugin.DeleteReport) {
 	for environment, reason := range report.Failures {
 		fmt.Fprintf(os.Stderr, "environment: %s\tfailed\t%s\n", environment, reason)
 	}
-}
-
-func ociSeedCommand(ctx context.Context, app *composition.App, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: haco plugin oci seed <sample|recommend|build|current|pin|unpin|pins|gc|recover> ...: %w", core.ErrInvalidArgument)
-	}
-
-	switch args[0] {
-	case "sample":
-		jsonOutput, err := parseOCISeedJSONOnly(args[1:])
-		if err != nil {
-			return err
-		}
-		report, err := app.OCI.SampleAll(ctx, 0)
-		if err != nil {
-			return err
-		}
-		if jsonOutput {
-			return json.NewEncoder(os.Stdout).Encode(report)
-		}
-		printOCISampleReport(report)
-		return nil
-	case "recommend":
-		jsonOutput, err := parseOCISeedJSONOnly(args[1:])
-		if err != nil {
-			return err
-		}
-		report, err := app.OCI.SampleAll(ctx, ociplugin.DefaultSampleMaxAge)
-		if err != nil {
-			return err
-		}
-		if !jsonOutput {
-			printOCISampleWarnings(report)
-		}
-		recommendations, err := app.OCI.Recommend(ctx, ociplugin.DefaultRecommendationWindow)
-		if err != nil {
-			return err
-		}
-		if jsonOutput {
-			return json.NewEncoder(os.Stdout).Encode(struct {
-				Sampling        ociplugin.SampleReport      `json:"sampling"`
-				Recommendations []ociplugin.Recommendation `json:"recommendations"`
-			}{Sampling: report, Recommendations: recommendations})
-		}
-		for _, recommendation := range recommendations {
-			promotion := "recommend"
-			if recommendation.AutoPromote {
-				promotion = "auto"
-			}
-			fmt.Printf("%s\t%s@%s\t%d envs\t%.1f%%\tlast=%s\n",
-				promotion,
-				recommendation.Reference,
-				recommendation.Digest,
-				recommendation.Environments,
-				recommendation.Percent,
-				recommendation.LastSeen.UTC().Format("2006-01-02T15:04:05Z"),
-			)
-		}
-		return nil
-	case "build":
-		if app.Seeds == nil {
-			return fmt.Errorf("OCI Seed builder is unavailable for the configured plugin: %w", core.ErrRuntimeUnavailable)
-		}
-		base, jsonOutput, err := parseOCISeedBaseOptions(args[1:])
-		if err != nil {
-			return err
-		}
-		report, err := app.Seeds.Build(ctx, base)
-		if err != nil {
-			return err
-		}
-		if jsonOutput {
-			return json.NewEncoder(os.Stdout).Encode(report)
-		}
-		printOCISampleWarnings(report.Sampling)
-		printOCISeedBuildReport(report)
-		return nil
-	case "current":
-		if app.Seeds == nil {
-			return fmt.Errorf("OCI Seed builder is unavailable for the configured plugin: %w", core.ErrRuntimeUnavailable)
-		}
-		base, jsonOutput, err := parseOCISeedBaseOptions(args[1:])
-		if err != nil {
-			return err
-		}
-		manifest, err := app.Seeds.Current(ctx, base)
-		if err != nil {
-			return err
-		}
-		if jsonOutput {
-			return json.NewEncoder(os.Stdout).Encode(manifest)
-		}
-		printOCISeedManifest(manifest)
-		return nil
-	case "pin":
-		return ociSeedPinCommand(ctx, app, args[1:], false)
-	case "unpin":
-		return ociSeedPinCommand(ctx, app, args[1:], true)
-	case "pins":
-		return ociSeedPinsCommand(ctx, app, args[1:])
-	case "gc":
-		return ociSeedMaintenanceCommand(ctx, app, args[1:], false)
-	case "recover":
-		return ociSeedMaintenanceCommand(ctx, app, args[1:], true)
-	default:
-		return fmt.Errorf("unknown OCI seed command %q: %w", args[0], core.ErrInvalidArgument)
-	}
-}
-
-func parseOCISeedJSONOnly(args []string) (bool, error) {
-	if len(args) == 0 {
-		return false, nil
-	}
-	if len(args) == 1 && args[0] == "--json" {
-		return true, nil
-	}
-	return false, fmt.Errorf("OCI seed command accepts only [--json]: %w", core.ErrInvalidArgument)
-}
-
-func parseOCISeedBaseOptions(args []string) (core.BaseName, bool, error) {
-	var base core.BaseName
-	jsonOutput := false
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json":
-			if jsonOutput {
-				return "", false, fmt.Errorf("duplicate --json: %w", core.ErrInvalidArgument)
-			}
-			jsonOutput = true
-		case "--base":
-			if base != "" || i+1 >= len(args) {
-				return "", false, fmt.Errorf("--base requires one value: %w", core.ErrInvalidArgument)
-			}
-			i++
-			value := strings.TrimSpace(args[i])
-			if !validOCISeedBaseName(value) || value != args[i] {
-				return "", false, fmt.Errorf("invalid --base value %q: %w", args[i], core.ErrInvalidArgument)
-			}
-			base = core.BaseName(value)
-		default:
-			return "", false, fmt.Errorf("unknown OCI seed option %q: %w", args[i], core.ErrInvalidArgument)
-		}
-	}
-	return base, jsonOutput, nil
-}
-
-func validOCISeedBaseName(value string) bool {
-	if value == "" || len(value) > 128 || strings.HasPrefix(value, "/") || strings.HasSuffix(value, "/") || strings.HasPrefix(value, "-") {
-		return false
-	}
-	for _, segment := range strings.Split(value, "/") {
-		if segment == "" || segment == "." || segment == ".." {
-			return false
-		}
-		for _, r := range segment {
-			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.') {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func printOCISeedBuildReport(report seedbuildapp.BuildReport) {
-	fmt.Printf("base: %s@%s\n", report.Parent.Name, report.Parent.Revision)
-	toolingState := "built"
-	if report.ReusedToolingBase {
-		toolingState = "reused"
-	}
-	fmt.Printf("tooling: %s (%s)\n", report.ToolingRevision, toolingState)
-	fmt.Printf("seed: %s\n", report.SeedRevision)
-	fmt.Printf("images: %d\n", len(report.Images))
-	for _, image := range report.Images {
-		fmt.Printf("  %s\n", image.String())
-	}
-	fmt.Printf("built-at: %s\n", report.BuiltAt.UTC().Format("2006-01-02T15:04:05Z"))
-}
-
-func printOCISeedManifest(manifest seedbuildapp.Manifest) {
-	fmt.Printf("base: %s@%s\n", manifest.Parent.Name, manifest.Parent.Revision)
-	fmt.Printf("tooling: %s\n", manifest.ToolingRevision)
-	fmt.Printf("seed: %s\n", manifest.SeedRevision)
-	if manifest.SeedAlias != "" {
-		fmt.Printf("seed-alias: %s\n", manifest.SeedAlias)
-	}
-	fmt.Printf("images: %d\n", len(manifest.Images))
-	for _, image := range manifest.Images {
-		fmt.Printf("  %s\n", image.String())
-	}
-	fmt.Printf("built-at: %s\n", manifest.BuiltAt.UTC().Format("2006-01-02T15:04:05Z"))
 }
 
 func ociDockerCommand(ctx context.Context, app *composition.App, args []string) error {
@@ -347,15 +157,4 @@ func printOCIDockerStatus(status ociplugin.DockerCompatibilityStatus) {
 	fmt.Printf("engine: active=%t (on-demand is expected)\n", status.EngineActive)
 	fmt.Printf("vendor-docker: enabled=%t active=%t\n", status.VendorDockerEnabled, status.VendorDockerActive)
 	fmt.Printf("ready: %t\n", status.Ready)
-}
-
-func printOCISampleReport(report ociplugin.SampleReport) {
-	fmt.Printf("sampled: %d\nfresh: %d\nfailed: %d\n", report.Sampled, report.Fresh, report.Failed)
-	printOCISampleWarnings(report)
-}
-
-func printOCISampleWarnings(report ociplugin.SampleReport) {
-	for environment, reason := range report.Failures {
-		fmt.Fprintf(os.Stderr, "OCI plugin telemetry: %s: %s\n", environment, reason)
-	}
 }

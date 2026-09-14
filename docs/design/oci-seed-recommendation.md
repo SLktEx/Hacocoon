@@ -1,10 +1,9 @@
 # OCI Seed Recommendation
 
-> Legacy optional integration. Commands below use temporary `hacoq` on the Physical Host. See the [current CLI](../reference/cli.md) and [migration boundary](../reference/cli-migration.md) for ordinary product use.
-
-Status: **implemented on `main`; physical Seed build/publish remains v0.17.**
-
-v0.15 makes future OCI Seed selection evidence-based while keeping OCI/containerd/nerdctl-specific operations outside Core under the optional OCI plugin namespace.
+Status: **historical**. Legacy Seed sample/recommend commands are removed.
+The following describes retained telemetry internals and past design, not a current
+CLI workflow. Internal removal remains pending shared-helper and historical-data
+review. See [Seed retirement](oci-seed-and-cow.md).
 
 ## CLI
 

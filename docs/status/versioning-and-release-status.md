@@ -152,3 +152,8 @@ Installed Windows/WSL/Incus acceptance remains pending; this checkpoint is not
 M3 completion, main integration or a release.
 
 The current partial cache checkpoint now includes a Standard Host target/scope/compatibility selector candidate. It remains unregistered pending the complete configured cache workflow; final local validation is blocked by Host storage I/O errors. See [selection evidence](acceptance-evidence.md#host-cache-selection). This does not advance release or acceptance status.
+
+The Seed runtime retirement candidate removes ordinary composition, implicit Base
+substitution and legacy Seed commands. It preserves old data and leaves builder,
+harvest, telemetry and migration work open. This is development progress, not a
+release or full M5 completion; see [retirement evidence](acceptance-evidence.md#seed-runtime-retirement).

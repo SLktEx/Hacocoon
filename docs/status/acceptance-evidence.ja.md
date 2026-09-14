@@ -1156,3 +1156,77 @@ Env由来リンクの拒否とデータ保持を確認しています。fixture�
 （`/var/lib/haco-repository-data-2889433042/state.json`）です。Core・standalone・集約Incus jobはPASS、
 private registryはSKIPです。同候補の必須レポ配置受入を確認できましたが、以前の失敗fixtureの回収、
 公開キャッシュ手順や今回の新しい選択処理を完了とはしません。FAILしたrun34802001614の記録は保持します。
+
+
+<a id="seed-runtime-retirement"></a>
+## 通常経路からのSeed撤去候補
+
+`codex/seed-runtime-retirement` 候補で、compositionのSeed store・resolver・service・
+harvest wrapper、Baseの任意Seed解決、Seedを理由にした入れ子権限、旧Seedコマンド群を撤去します。
+通常作成・snapshot復元・archive復元は同じ構成経路を使います。
+保存済みBase参照・イメージ・カタログ・Workspace・OCIデータは移行・削除していません。
+旧builder・harvest・telemetry内部とデータ移行は残件です。
+
+Cドライブの空きが0になったため、親
+`2b3a5b562bcd370b749379a96fe903138cdc7f42` からメモリ上の検証コピーとGitHubのGit APIを使って
+変更を準備し、ローカル作業ツリーを維持しました。Goの構文・書式検査はPASSです。
+準備時点のローカルGo試験・race・実Incus/Windows受入は、記録済みのWSL入出力障害で未確認でした。
+その後のローカル復旧は後述します。
+撤去したresolver/CLIの旧動作を検証する試験は廃止し、現行sandbox試験で選択イメージと
+暗黙の入れ子権限がないことを検査し、旧CLI試験で全Seed操作の拒否を検査します。
+この撤去候補の全体CI受入は確認待ちです。
+
+親 #652 の同commitは
+[test run34806040703](https://github.com/SLktEx/Hacocoon/actions/runs/34806040703)で
+Go1.26/1.27、race、二基盤build、CI規則、文書、E2EがPASSしました。
+[Incus run34806040730](https://github.com/SLktEx/Hacocoon/actions/runs/34806040730)、
+job103858009946で新しいStandard選択処理を使うEnv本体配置が**10.53秒PASS**、
+既存の管理対象レポ配置が**16.64秒PASS**です。
+Env本体fixtureは `data-e2e-2cf46ebcc46afd7d`、カタログは
+`/var/lib/haco-data-placement-3593730171/state.json`。
+レポfixtureは `repo-data-041cc436e3a8af94`、保持カタログは
+`/var/lib/haco-repository-data-2260748824/state.json` です。
+対象の選択・配置を確認した証拠であり、公開設定、停止後収集、実データを伴う別Base再利用、
+巨大レポ性能の完了を示しません。private registryはSKIPで、以前のローカルFAILも保持します。
+
+親 #651 / `c68645b1` のWindows
+[run34804381013](https://github.com/SLktEx/Hacocoon/actions/runs/34804381013)、
+job103853227342は通常入口・直接SSH・自動tunnel・一時対話端末・公開reclaimがPASSです。
+製品step21の通知clearは `reason=timeout`、`native=unrecorded`、`child_exit=1`、
+`duration_ms=8025` でFAILしました。新規の人の通知/VS Code承認回答の成功や、
+以前のsetup・clear・activation失敗すべての解決とは扱いません。
+
+この候補のローカル文書検査は完了していません。メモリ上の検査コマンドは診断なしで終了コード1となり、後続のWSL起動は `Wsl/Service/E_ACCESSDENIED` で拒否されました。文書検査のPASSではありません。外部ロードマップの更新は、保存先ドライブの容量不足により保留です。
+
+親 #652 のWindows [run34806040711](https://github.com/SLktEx/Hacocoon/actions/runs/34806040711)、job103858009557も、導入済み通知承認経路のstep21がFAILで終了しました。製品step13と15〜20はPASSです。job結果だけで #651 と同じ原因とは判断しません。
+
+ユーザーによる容量確保後、Cドライブの空きは60,753,186,816 byteでした。
+候補26ファイルと削除3件の記録をWindows側に保存し、準備済みの内容と照合しました。
+同じ親commitから作った独立checkoutで `tools/check_docs.py` と `git diff --check` はPASSです。
+文書検査とローカルへの保存は解消しましたが、コンパイルや実機受入の成功ではありません。
+Go集中試験はWSLのGoキャッシュ読取りで入出力エラーとなり、準備段階でFAILしました。
+2026-09-15にユーザーが `hacocoon-second` だけの再起動を許可しました。停止は成功し、
+最初の起動は `Wsl/Service/CreateInstance/E_FAIL` でFAILしましたが、通常起動の再確認は成功しました。
+ファイルシステム使用量、Go 1.27.1、Python 3.14.4、証明書ファイル全182,140 byteの読取りが復旧しました。
+Windows側に残る仮想ディスクは
+26,251,100,160 byteで、存在だけでは内部データの正常性を証明しません。
+同じ親commitとWindows側の最新候補から、1,504ファイルの検証archiveを作成しました。
+
+再起動後、CLI・composition・IncusのGo集中試験はPASSしました。その後、標準試験の起動前に
+メモリ上の検証コピーがなくなり、作業ディレクトリ不在でFAILしました。製品のassertion失敗ではありません。
+ソースを再照合した `/var/tmp/haco-seed-retirement-jquprj3s` へ移し、WSL停止後もビルドキャッシュを保持します。
+Go 1.27.1、shuffle615、並列ビルド4の `bash tools/ci-local.sh test` はPASSしました。
+全Go試験・vet、Pythonの境界検査、通知クライアント32試験、packaging 2試験を含みます。
+現在のGoファイル1,095件は検証ソースと一致しています。CLI・composition・Incusの集中race検査も
+各1.668秒・1.815秒・35.958秒でPASSしました。既存WSL/Incusで
+`TestRealIncusEnvironmentDataPlacementE2E` も102.71秒でPASSしました。通常作成、二つのEnv本体領域、
+正確な通常/クライアント再開、native配置変更の拒否、使い捨て領域回収、Workspace保持を確認しました。
+所有fixtureは `data-e2e-f71c883340100df3`、保持カタログは
+`/var/lib/haco-data-placement-695033909/state.json` です。既存Btrfsプール `haco-local-default` と
+以前から保持していた固定Ubuntuイメージを使用しました。対象のlifecycle受入であり、
+巨大レポ性能、OCI Store受入、新規Windows承認受入の証拠ではありません。
+
+Windowsの読取り専用子プロセス検査は、通常の実行環境で入力解析とWinRTの型読込みまで
+4.985秒でPASSしました。以前の制限環境の言語モードによる失敗とは区別し、通知履歴・clear・表示や
+人の承認操作の成功とは扱いません。差分検査の初回指定ではcheckoutのCRLF変換を無効にしたため、
+未変更の行を誤って差分として報告しました。ソースの改行を変更せず、通常の差分検査はPASSしています。

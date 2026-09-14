@@ -1,18 +1,25 @@
 # OCI Seed Builder & Btrfs/COW Optimization
 
-> Legacy optional integration. Commands below use temporary `hacoq` on the Physical Host. See the [current CLI](../reference/cli.md) and [migration boundary](../reference/cli-migration.md) for ordinary product use.
+[日本語](oci-seed-and-cow.ja.md) | English
 
-Status: **repository build/publish, operations-hardening, and credential-free managed-Environment harvest slices implemented / partial. v0.15 recommendation and v0.16 deletion policy are implemented prerequisites. Real-host, authenticated/private-registry combination, and physical COW acceptance remain pending.**
+Status: **partial retirement candidate; ordinary composition and legacy CLI
+entry points removed**. New Environments use the selected Base; enabling an OCI
+plugin cannot substitute a Seed. Composition no longer creates Seed
+store/resolver/service or installs the harvest wrapper, and the legacy
+`hacoq plugin oci seed` family is removed. Existing pinned Env Base references,
+images, catalogs, Workspace and OCI data are unchanged.
+[ADR 0078](../adr/0078-seed-runtime-retirement.md) records the decision.
 
-v0.17 owns the physical OCI Seed pipeline: trusted Host-side image acquisition/cache, offline Seed construction, immutable publication, revision pinning, storage-driver COW benefits, and conservative lifecycle maintenance.
+Builder/harvest/telemetry internals, shared-helper separation and old-data
+evacuation/restoration/comparison remain open. Retirement never authorizes deletion
+of existing data and does not revive `switch-base`. Use
+[Base builds](base-images-and-custom-environments.md) and
+[data lifetime](../guides/data-lifetime.md) for ordinary use.
 
-A Local Registry is not required.
+**The remaining sections record retained internals and historical design.
+Their Seed commands have been removed and are not current operating instructions.**
 
 ## Goal
-
-Current direction (2026-09-05): Seed retirement is **planned**, not implemented. Do not add new Seed dependencies. The remaining sections describe the retained implementation and historical acceptance scope.
-
-`internal/composition` creates the Seed store/resolver only when the OCI Plugin is enabled. `modules/runtime/incus/base.go` resolves the parent Base independently, then optionally selects a current Seed revision. Removal must first separate that optional resolution, preserve existing pinned Base revisions and data, then remove Seed commands, builders, recommendation/harvest and their tests/docs. Base selection/change and optional Plugin contracts remain. Independent Workspace repo clones are a separate storage contract, not a replacement Seed pipeline.
 
 Preload common OCI images into an immutable Incus-derived Seed so future Environments can reuse unchanged filesystem blocks through normal Incus/storage-driver clone semantics while keeping each Environment's writable containerd state independent.
 

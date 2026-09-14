@@ -17,7 +17,8 @@ its deletion. Product commands do not silently fall back to legacy composition.
 | `haco exec/shell` on a retained Env | Ordinary SSH; `haco run -- ...` for a new temporary Env |
 | Host-side Git worktree capability | Managed `repo clone` → `workspace create` → `env create` → `git connect` and ordinary guest Git |
 | `haco host ensure` / old bootstrap | `haco setup`; `hacoq host ensure` now refuses before composition |
-| Seed/Docker plugin commands, raw event export, resource-budget flags | Retained legacy surfaces below; no assumed product equivalent |
+| Docker plugin commands, raw event export, resource-budget flags | Retained legacy surfaces below; no assumed product equivalent |
+| Seed plugin commands | Removed; use current Base builds and persistent OCI Stores. Existing Seed data is retained. |
 | `haco env switch-base`, old OCI distribution | Disabled/removed public behavior; preserve data with the [ordinary recreation lifecycle](../guides/data-lifetime.md) |
 
 <a id="host-entry"></a>
@@ -43,7 +44,6 @@ composition with its own required Policy/runtime configuration. Do not start a s
 legacy broker alongside an installed controller as a normal setup step.
 
 - `hacoq plugin git ...`: [legacy Git capability](legacy-git.md); separate from managed ordinary Git.
-- `hacoq plugin oci seed ...`: [Seed implementation](../design/oci-seed-and-cow.md) and [recommendation](../design/oci-seed-recommendation.md).
 - `hacoq plugin oci docker ...`: [Docker compatibility](../design/docker-compatibility-plugin.md).
 - `hacoq create/run --cpu/--memory/--pids/--root-size ...`: [resource-budget contract](../design/sandbox-resource-limits.md). These flags are absent from product create/run.
 - `hacoq events --json [--since-offset <offset>]`: audit-derived legacy event export below.
@@ -51,7 +51,10 @@ legacy broker alongside an installed controller as a normal setup step.
 
 Optional legacy OCI selection is `HACO_PLUGIN_OCI=nerdctl` or `docker`; unset leaves
 Core usable without these tools. Persistent OCI Stores use the current product
-workflow and are not synonymous with Seed construction.
+workflow. Enabling the legacy OCI plugin no longer constructs Seed services or
+substitutes Seed revisions for selected Bases. Removed Seed operations have no
+fallback; existing catalogs/images are retained for separately reviewed migration.
+See [retirement scope](../design/oci-seed-and-cow.md).
 
 ## Legacy event cursor
 

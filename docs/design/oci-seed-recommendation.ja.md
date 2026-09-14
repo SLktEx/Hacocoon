@@ -1,10 +1,9 @@
 # OCI Seed Recommendation
 
-> 旧CLIの任意連携です。以下のコマンドはPhysical Hostの移行用 `hacoq` で使います。現行の通常操作は[CLI参照](../reference/cli.ja.md)と[移行情報](../reference/cli-migration.md)を参照してください。
-
-Status: **`main` に実装済み。physical Seed build/publishはv0.17。**
-
-v0.15は将来のOCI Seed選択をusageベースにします。OCI/containerd/nerdctl固有操作はCoreへ入れず、任意 OCI プラグイン名前空間に置きます。
+状態: **historical**。旧Seedのsample・recommendコマンドは撤去済みです。
+以下は残存するtelemetry内部実装の過去の設計であり、現在のCLI手順ではありません。
+共有helperと履歴データを確認した上で内部実装を撤去する作業は残っています。
+[Seed撤去](oci-seed-and-cow.ja.md)を参照してください。
 
 ## CLI
 

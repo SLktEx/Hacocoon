@@ -142,3 +142,8 @@ v0.67は通常WSL／trusted HostコマンドからWindows転送を自動起動�
 導入済みWindows/WSL/Incusの確認は残件で、M3完了・main反映・releaseではありません。
 
 現在のpartialなキャッシュcheckpointに、StandardのHost対象・共有範囲・互換条件の選択候補を追加しました。設定からの一連の利用手順が揃うまで製品へ未登録で、Hostストレージの入出力エラーにより最終ローカル検証は中断しています。[選択処理の記録](acceptance-evidence.ja.md#host-cache-selection)を参照してください。配布や受入の完了状態は進めません。
+
+Seed撤去候補で通常composition・暗黙のBase差替え・旧Seedコマンドを外しました。
+以前のデータを保持し、builder・harvest・telemetry・移行の作業は残っています。
+開発上の進捗であり、配布やM5全体の完了ではありません。
+[撤去の記録](acceptance-evidence.ja.md#seed-runtime-retirement)を参照してください。
