@@ -22,7 +22,7 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	flags := flag.NewFlagSet("haco env import", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, language.Format("usage", "haco env import [--json] <file.haco> [new-env]"))
+		_, _ = fmt.Fprintln(diagnostic, language.Format("usage", "haco env import [--json] <file.haco> [new-env]"))
 	}
 	jsonOutput := flags.Bool("json", false, language.Text("flag.json"))
 	if err := flags.Parse(args); err != nil {
@@ -46,7 +46,7 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, language.Text("error.controller"))
+		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	result, err := loadEnvironmentImport(ctx, client, pos[0], name)
@@ -56,15 +56,15 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 		}
 	}
 	if err != nil {
-		fmt.Fprint(diagnostic, language.Format("env.import.failed", err))
+		_, _ = fmt.Fprint(diagnostic, language.Format("env.import.failed", err))
 		if result.Environment != "" {
-			fmt.Fprint(diagnostic, language.Format("env.import.destination", displayCell(result.Environment), displayCell(string(result.State))))
+			_, _ = fmt.Fprint(diagnostic, language.Format("env.import.destination", displayCell(result.Environment), displayCell(string(result.State))))
 		}
 		if result.Workspace != "" {
-			fmt.Fprint(diagnostic, language.Format("env.import.retained_workspace", displayCell(string(result.Workspace))))
+			_, _ = fmt.Fprint(diagnostic, language.Format("env.import.retained_workspace", displayCell(string(result.Workspace))))
 		}
 		if result.OCI != "" {
-			fmt.Fprint(diagnostic, language.Format("env.import.retained_oci", displayCell(string(result.OCI))))
+			_, _ = fmt.Fprint(diagnostic, language.Format("env.import.retained_oci", displayCell(string(result.OCI))))
 		}
 		return 1
 	}

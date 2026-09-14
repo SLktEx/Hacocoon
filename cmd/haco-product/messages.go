@@ -20,12 +20,12 @@ func cliMessage(id string, args ...any) string {
 }
 
 func writeLocalizedHelp(out io.Writer, language cliui.Language) {
-	fmt.Fprintln(out, "Hacocoon")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, language.Text("help.usage"))
-	fmt.Fprintln(out, "  haco <command>")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, language.Text("help.commands"))
+	_, _ = fmt.Fprintln(out, "Hacocoon")
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, language.Text("help.usage"))
+	_, _ = fmt.Fprintln(out, "  haco <command>")
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, language.Text("help.commands"))
 	for _, command := range [...]struct{ name, message string }{
 		{"setup", "help.setup"},
 		{"network", "command.network"},
@@ -49,20 +49,20 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"help", "help.help"},
 		{"version", "help.version"},
 	} {
-		fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s", command.name), language.Text(command.message), 60))
+		_, _ = fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s", command.name), language.Text(command.message), 60))
 	}
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, language.Text("help.daily"))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, language.Text("help.daily"))
 	for _, step := range []struct{ command, message string }{
 		{"haco env list", "help.daily.list"}, {"haco env status <name>", "help.daily.status"},
 		{"haco env start <name>", "help.daily.start"}, {"haco open <name>", "help.daily.open"},
 		{"haco env stop <name>", "help.daily.stop"}, {"haco env delete <name>", "help.daily.delete"},
 	} {
-		fmt.Fprintln(out, "  "+step.command)
-		fmt.Fprint(out, cliui.HelpLines("    ", language.Text(step.message), 60))
+		_, _ = fmt.Fprintln(out, "  "+step.command)
+		_, _ = fmt.Fprint(out, cliui.HelpLines("    ", language.Text(step.message), 60))
 	}
-	fmt.Fprintln(out, "  haco env create --workspace <controller-path|managed:name> <name>")
-	fmt.Fprint(out, cliui.HelpLines("", language.Text("help.daily.footer"), 60))
+	_, _ = fmt.Fprintln(out, "  haco env create --workspace <controller-path|managed:name> <name>")
+	_, _ = fmt.Fprint(out, cliui.HelpLines("", language.Text("help.daily.footer"), 60))
 }
 
 // Keep flag names, accepted values and parse errors untouched. Only the
@@ -71,7 +71,7 @@ func configureCLIFlags(flags *flag.FlagSet, diagnostic io.Writer) {
 	flags.SetOutput(diagnostic)
 	language := cliLanguage()
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, language.Format("flags.usage", flags.Name()))
+		_, _ = fmt.Fprintln(diagnostic, language.Format("flags.usage", flags.Name()))
 		flags.PrintDefaults()
 	}
 }

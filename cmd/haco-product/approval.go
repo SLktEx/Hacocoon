@@ -29,7 +29,7 @@ func runApproval(args []string) int {
 	defer stop()
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, cliMessage("approval.host_required"))
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("approval.host_required"))
 		return 1
 	}
 	return approvalCommand(ctx, client, args, os.Stdin, os.Stdout, os.Stderr)
@@ -47,12 +47,12 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		return 2
 	}
 	if flags.NArg() > 1 || (*list && flags.NArg() != 0) {
-		fmt.Fprintln(diagnostic, cliMessage("usage", "haco approve [--json] [request-id] | haco approve --list [--json]"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("usage", "haco approve [--json] [request-id] | haco approve --list [--json]"))
 		return 2
 	}
 	requests, err := client.PendingApprovals(ctx)
 	if err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("approval.read_failed"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.read_failed"))
 		return 1
 	}
 	if *list {
@@ -64,13 +64,13 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 	}
 	if len(requests) == 0 {
 		if flags.NArg() != 0 {
-			fmt.Fprintln(diagnostic, cliMessage("approval.no_longer_pending"))
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.no_longer_pending"))
 			return 1
 		}
 		if *jsonResult {
 			fmt.Fprintln(out, "null")
 		} else {
-			fmt.Fprintln(out, cliMessage("approval.none"))
+			_, _ = fmt.Fprintln(out, cliMessage("approval.none"))
 		}
 		return 0
 	}
@@ -117,17 +117,17 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		selected = choice - 1
 	}
 	if selected < 0 {
-		fmt.Fprintln(diagnostic, cliMessage("approval.no_longer_pending"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.no_longer_pending"))
 		return 1
 	}
 	request := requests[selected]
 	if request.RequestID == "" {
-		fmt.Fprintln(diagnostic, cliMessage("approval.invalid_request"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.invalid_request"))
 		return 1
 	}
 	decision, err := capability.NewLocalizedStdioApproval(reader, diagnostic, cliLanguage()).Decide(ctx, request)
 	if err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("approval.not_submitted"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.not_submitted"))
 		return 1
 	}
 	result, err := client.DecideApproval(ctx, request.RequestID, decision)
@@ -142,7 +142,7 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		return 1
 	}
 	if result.RequestID != request.RequestID {
-		fmt.Fprintln(diagnostic, cliMessage("approval.receipt_mismatch"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.receipt_mismatch"))
 		return 1
 	}
 	return 0

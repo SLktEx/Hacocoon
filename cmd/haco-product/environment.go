@@ -50,7 +50,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		return copyEnvironment(ctx, args[1:], out, diagnostic)
 	}
 	if args[0] == "switch-base" {
-		fmt.Fprintln(diagnostic, cliMessage("env.switch_base_disabled"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("env.switch_base_disabled"))
 		return 2
 	}
 	if args[0] == "--help" || args[0] == "-h" {
@@ -106,7 +106,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("error.controller"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	mutating := args[0] == "create" || args[0] == "start" || args[0] == "stop" || args[0] == "delete" || args[0] == "ssh" || args[0] == "disconnect"
@@ -138,7 +138,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		environments, err = client.ListEnvironments(ctx)
 		if err == nil && !jsonOutput {
 			if err := writeEnvironmentList(out, environments); err != nil {
-				fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
+				_, _ = fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 				return 1
 			}
 			return 0
@@ -194,16 +194,16 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		if configEnvironmentName.MatchString(pos[0]) {
 			switch args[0] {
 			case "create", "start":
-				fmt.Fprintf(diagnostic, cliLanguage().Text("daily.next_open"), pos[0], pos[0])
+				_, _ = fmt.Fprintf(diagnostic, cliLanguage().Text("daily.next_open"), pos[0], pos[0])
 			case "stop":
-				fmt.Fprintf(diagnostic, cliLanguage().Text("daily.resume"), pos[0], pos[0])
+				_, _ = fmt.Fprintf(diagnostic, cliLanguage().Text("daily.resume"), pos[0], pos[0])
 			case "delete":
-				fmt.Fprintln(diagnostic, cliLanguage().Text("daily.retained"))
+				_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("daily.retained"))
 			}
 		}
 	}
 	if err := writeCLIResult(out, result, jsonOutput); err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}
 	return 0

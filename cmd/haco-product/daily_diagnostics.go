@@ -27,15 +27,15 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 		reason = "canceled"
 	}
 	fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
-	fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
+	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
 	if !configEnvironmentName.MatchString(name) {
 		name = "<name>"
 	}
 	_, _ = fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
 	if stage == "ssh_connection" && reason == "failed" {
-		fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
 	}
-	fmt.Fprintln(out, cliLanguage().Text("daily.journal"))
+	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.journal"))
 	return 1
 }
 
@@ -43,7 +43,7 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 // for a destructive confirmation. In-memory readers support component callers.
 func requireInteractiveConfirmation(in io.Reader, diagnostic io.Writer) bool {
 	if !interactiveInput(in) {
-		fmt.Fprintln(diagnostic, cliLanguage().Text("daily.confirmation"))
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("daily.confirmation"))
 		return false
 	}
 	return true

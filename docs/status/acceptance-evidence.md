@@ -279,3 +279,13 @@ Previous #583 head `0c79f820` passed repository, Ubuntu, Incus and Windows workf
 That development result does not prove this main integration or fresh Japanese
 Windows, human GUI decisions, long-input/resize or the original SSH-failure route.
 Performance measurement and M2–M5 acceptance remain separate.
+
+At `2eb2e2f5`, repository checks passed, but quality run 34885076668 found
+additional unchecked localized diagnostic writes; Ubuntu run 34885076467 completed
+installation and failed the old horizontal-help assertion before later acceptance
+steps ran. Those failures remain distinct from skipped downstream checks. The
+remaining changed writes now explicitly preserve their existing outcomes, and the
+Ubuntu assertion uses the same vertical heading/command/create contract as the
+shipped CLI E2E. Local focused tests (2.58s), the CI-pinned golangci-lint 2.13.2 with
+all changed-code findings shown (6.62s), workflow policy (1.05s) and CLI E2E (3.06s)
+pass. Native acceptance for this correction remains pending.

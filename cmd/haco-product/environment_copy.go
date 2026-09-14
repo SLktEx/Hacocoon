@@ -16,7 +16,7 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 	flags.SetOutput(diagnostic)
 	machine := flags.Bool("json", false, language.Text("flag.json"))
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, language.Format("usage", "haco env copy [--json] <stopped-env> [new-env]"))
+		_, _ = fmt.Fprintln(diagnostic, language.Format("usage", "haco env copy [--json] <stopped-env> [new-env]"))
 	}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -35,7 +35,7 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, language.Text("error.controller"))
+		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	response, err := client.CopyEnvironment(ctx, req)
@@ -55,11 +55,11 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 		}
 	}
 	if outputErr != nil {
-		fmt.Fprintln(diagnostic, language.Text("error.write_result"))
+		_, _ = fmt.Fprintln(diagnostic, language.Text("error.write_result"))
 		return 1
 	}
 	if err != nil {
-		fmt.Fprint(diagnostic, language.Format("env.copy.failed", err))
+		_, _ = fmt.Fprint(diagnostic, language.Format("env.copy.failed", err))
 		return 1
 	}
 	return 0

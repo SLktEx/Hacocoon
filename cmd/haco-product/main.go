@@ -78,14 +78,14 @@ func run(args []string) int {
 	switch args[0] {
 	case "--help", "-h", "help":
 		if len(args) != 1 {
-			fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco help"))
+			_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco help"))
 			return 2
 		}
 		writeHelp(os.Stdout)
 		return 0
 	case "--version":
 		if len(args) != 1 {
-			fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco --version"))
+			_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco --version"))
 			return 2
 		}
 		writeShortVersion()
@@ -129,7 +129,7 @@ func run(args []string) int {
 	case "repo", "workspace", "git":
 		return runRepository(args[0], args[1:])
 	default:
-		fmt.Fprint(os.Stderr, cliMessage("error.unknown_command", args[0]))
+		_, _ = fmt.Fprint(os.Stderr, cliMessage("error.unknown_command", args[0]))
 		return 2
 	}
 }
@@ -149,7 +149,7 @@ func runVersion(args []string) int {
 		}
 		return 0
 	}
-	fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco version [--json]"))
+	_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.usage", "haco version [--json]"))
 	return 2
 }
 

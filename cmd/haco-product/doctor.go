@@ -27,7 +27,7 @@ func runDoctor(args []string) int {
 
 func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [environment]"))
+		_, _ = fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [environment]"))
 		return 0
 	}
 	jsonOutput := false
@@ -36,7 +36,7 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		args = args[1:]
 	}
 	if len(args) > 1 || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
-		fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [environment]"))
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [environment]"))
 		return 2
 	}
 	target := ""

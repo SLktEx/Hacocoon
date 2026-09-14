@@ -20,7 +20,7 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	flags := flag.NewFlagSet("haco env export", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, language.Format("usage", "haco env export [--json] <stopped-env> [file.haco]"))
+		_, _ = fmt.Fprintln(diagnostic, language.Format("usage", "haco env export [--json] <stopped-env> [file.haco]"))
 	}
 	jsonOutput := flags.Bool("json", false, language.Text("flag.json"))
 	if err := flags.Parse(args); err != nil {
@@ -44,14 +44,14 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, language.Text("error.controller"))
+		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	result, err := saveEnvironmentExport(ctx, client, pos[0], destination)
 	if err != nil {
-		fmt.Fprint(diagnostic, language.Format("env.export.failed", err))
+		_, _ = fmt.Fprint(diagnostic, language.Format("env.export.failed", err))
 		if result.TemporarySnapshot != "" {
-			fmt.Fprint(diagnostic, language.Format("env.export.retained_snapshot", displayCell(string(result.TemporarySnapshot))))
+			_, _ = fmt.Fprint(diagnostic, language.Format("env.export.retained_snapshot", displayCell(string(result.TemporarySnapshot))))
 		}
 		return 1
 	}
