@@ -393,3 +393,33 @@ those results are not substituted for this updated head. Seed #662 final head
 `50e692d6` passed all five workflows, including Windows 34894991920 and the
 same-commit evidence job 104155046690. No earlier failure or human acceptance gap
 is erased by either result.
+
+<a id="main-interactive-run"></a>
+## Interactive temporary execution on main
+
+The M3 candidate reuses #590/#591 on main's split lifecycle implementation.
+At `acd61022`, focused tests (5.37s), changed-code lint (4.28s), all maintained
+local tests (11.55s), related race checks (10.71s), CLI E2E (6.47s), docs (5.58s)
+and workflow policy (1.17s) passed. Real local PTY and binary pipe fixtures are
+component evidence, not installed Windows/Incus acceptance.
+
+The first WSL launch failed before testing with `0x800705b4`. Later ordinary
+launches worked without restarting WSL. Initial focused tests found missing
+creation IDs and a hard-coded old schema in test data; the current schema tests
+were corrected, not given migration behavior. A draft reference to a nonexistent
+Environment field failed compilation and was removed: the canonical creation ID
+is owned by the Workspace lease. Initial changed-code lint found unchecked
+writes/closes, corrected before the successful run. All failures remain distinct.
+
+The candidate is now based on PR #663's Git work (`ddb03e85`) over main
+`119e3007`, with checkpoint v0.61 for interactive temporary execution. Main's
+existing foreground-readiness PTY resize regression supersedes #594's older
+approach; that patch failed applicability checking and was not applied. New
+combined verification and installed acceptance remain separate from the tests
+above. No old-version migration or fallback cleanup was introduced.
+
+On the combined `8b4d00a2` source plus canonical v0.61 metadata, focused tests
+(4.37s), uncapped changed-code lint (2.53s), full local tests (10.68s), race checks
+(8.51s), CLI E2E (2.95s), docs/regressions (4.95s) and workflow policy (1.02s)
+all passed. Both the Git and run changes were included. Fresh real Incus and
+Windows streamed-run acceptance still require their ordinary environment checks.
