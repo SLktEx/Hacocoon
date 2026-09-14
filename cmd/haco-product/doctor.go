@@ -27,7 +27,7 @@ func runDoctor(args []string) int {
 
 func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, "Usage: haco doctor [--json] [environment]")
+		fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [environment]"))
 		return 0
 	}
 	jsonOutput := false
@@ -36,7 +36,7 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		args = args[1:]
 	}
 	if len(args) > 1 || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
-		fmt.Fprintln(stderr, "haco: usage: haco doctor [--json] [environment]")
+		fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [environment]"))
 		return 2
 	}
 	target := ""
@@ -80,14 +80,14 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if jsonOutput {
 		err = json.NewEncoder(stdout).Encode(response)
 	} else {
-		_, err = fmt.Fprintf(stdout, "Hacocoon Host diagnostics\ncontroller: %q (commit %q, protocol %d)\n", response.Controller.Version, response.Controller.Commit, response.ProtocolVersion)
+		_, err = fmt.Fprint(stdout, cliMessage("doctor.header", response.Controller.Version, response.Controller.Commit, response.ProtocolVersion))
 		for _, check := range response.Checks {
 			if err != nil {
 				break
 			}
 			_, err = fmt.Fprintf(stdout, "%s: %s - %s\n", check.Name, check.Status, check.Summary)
 			if err == nil && check.Action != "" {
-				_, err = fmt.Fprintf(stdout, "  Next: %s\n", check.Action)
+				_, err = fmt.Fprint(stdout, cliMessage("doctor.next", check.Action))
 			}
 		}
 	}

@@ -6,8 +6,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"io"
+
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
 )
 
 type environmentExportClient interface {
@@ -15,10 +16,13 @@ type environmentExportClient interface {
 }
 
 func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	language := cliLanguage()
 	flags := flag.NewFlagSet("haco env export", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	flags.Usage = func() { fmt.Fprintln(diagnostic, "Usage: haco env export [--json] <stopped-env> [file.haco]") }
-	jsonOutput := flags.Bool("json", false, "machine-readable result")
+	flags.Usage = func() {
+		fmt.Fprintln(diagnostic, language.Format("usage", "haco env export [--json] <stopped-env> [file.haco]"))
+	}
+	jsonOutput := flags.Bool("json", false, language.Text("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -27,7 +31,7 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	}
 	pos := flags.Args()
 	if len(pos) < 1 || len(pos) > 2 {
-		fmt.Fprintln(diagnostic, "Usage: haco env export [--json] <stopped-env> [file.haco]")
+		flags.Usage()
 		return 2
 	}
 	if err := (controlapi.EnvironmentExportRequest{Source: pos[0]}).Validate(); err != nil {
@@ -40,14 +44,14 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		fmt.Fprintln(diagnostic, language.Text("error.controller"))
 		return 1
 	}
 	result, err := saveEnvironmentExport(ctx, client, pos[0], destination)
 	if err != nil {
-		fmt.Fprintf(diagnostic, "haco: export failed: %v\n", err)
+		fmt.Fprint(diagnostic, language.Format("env.export.failed", err))
 		if result.TemporarySnapshot != "" {
-			fmt.Fprintf(diagnostic, "Temporary snapshot retained: %s\n", result.TemporarySnapshot)
+			fmt.Fprint(diagnostic, language.Format("env.export.retained_snapshot", displayCell(string(result.TemporarySnapshot))))
 		}
 		return 1
 	}
@@ -57,7 +61,7 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 			Result controlapi.EnvironmentExportResult `json:"result"`
 		}{destination, result})
 	} else {
-		_, err = fmt.Fprintf(out, "Exported %s to %s\n", pos[0], destination)
+		_, err = fmt.Fprint(out, language.Format("env.export.completed", displayCell(pos[0]), displayCell(destination)))
 	}
 	if err != nil {
 		return 1

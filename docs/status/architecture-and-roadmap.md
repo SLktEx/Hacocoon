@@ -128,3 +128,19 @@ Use [failed-run and acceptance evidence](acceptance-evidence.md) when prioritizi
 follow-ups. Do not erase unexplained failures because a later run passed, or turn
 a skipped external prerequisite into an implemented support claim. Old progress
 diaries and superseded numbering remain in Git history.
+
+## Current main integration order
+
+The user-authorized M0–M5 work now targets `main`. Reuse development-branch work
+in bounded, reviewed PRs without replacing current main improvements. Existing
+worktrees and unfinished changes remain separate; no main merge or distribution
+is implied by development-branch completion.
+
+Prioritize ordinary installation, help, SSH and approval use. The first candidate
+integrates #580/#583's daily bilingual presentation and vertical help; Windows
+language transport, notification grouping and installer final-screen integration
+follow. M2 Git/GUI, M3 transport/DNS, M4 cache/Packer and M5 Seed/data migration
+remain active. Local regression checks are primary; continue independent work
+while required hosted checks run. Large-repository measurement and additional
+validation follow usable implementation and remain unverified until executed.
+Retained-data ownership and authority checks remain required throughout.

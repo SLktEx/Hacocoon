@@ -94,3 +94,10 @@ refactoring, daily setup diagnostics, explicit TCP/UDP connections and path-base
 Workspace reopen/data forks. The imported v0.58 checkpoint remains the numbering
 authority; integration creates no release or tag. See [current scope](../IMPLEMENTATION_STATUS.md)
 and [scoped evidence](acceptance-evidence.md#development-branch-integration).
+
+## Main language integration
+
+The existing v0.59 checkpoint receives a partial integration of #580/#583 daily
+CLI language/help work. This reuses a development result and does not consume a
+new checkpoint or publish a release. Windows presentation/GUI acceptance remains
+separate; see [language scope](../reference/cli-language.md).

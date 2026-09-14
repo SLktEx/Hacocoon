@@ -34,6 +34,9 @@ func (e commandExitError) Error() string { return fmt.Sprintf("command exited %d
 func (e commandExitError) ExitCode() int { return e.code }
 
 func main() {
+	if requestedHostHelp(os.Args[1:], os.Stdout) {
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -47,6 +50,9 @@ func main() {
 }
 
 func dispatch(ctx context.Context, client controllerClient, args []string) error {
+	if requestedHostHelp(args, os.Stdout) {
+		return nil
+	}
 	if client == nil || len(args) == 0 {
 		usage()
 		return core.ErrInvalidArgument
@@ -64,7 +70,8 @@ func dispatch(ctx context.Context, client controllerClient, args []string) error
 
 func envCommand(ctx context.Context, client controllerClient, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: haco-host env <list|create|status|exec|shell|delete> ...: %w", core.ErrInvalidArgument)
+		writeHostHelp(os.Stderr, "env")
+		return core.ErrInvalidArgument
 	}
 	switch args[0] {
 	case "list":
@@ -241,7 +248,7 @@ func doctorCommand(ctx context.Context, client controllerClient, args []string) 
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco-host <env|doctor>")
+	writeHostHelp(os.Stderr, "")
 }
 
 func fail(err error) {

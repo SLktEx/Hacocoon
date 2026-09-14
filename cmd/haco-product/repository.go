@@ -23,11 +23,14 @@ func runRepository(namespace string, args []string) int {
 	return repositoryCommand(ctx, namespace, args, os.Stdout, os.Stderr)
 }
 func repositoryCommand(ctx context.Context, namespace string, args []string, out, diagnostic io.Writer) int {
+	if requestedCommandHelp(append([]string{namespace}, args...), out) {
+		return 0
+	}
 	if namespace == "workspace" && len(args) > 0 && (args[0] == "prepare" || args[0] == "fork") {
 		return workflowCommand(ctx, args, out, diagnostic)
 	}
 	usage := func() int {
-		fmt.Fprintln(diagnostic, "Usage: haco repo clone --branch <branch> [--json] <id> <URL> | haco repo list [--json] | haco repo delete [--yes] <id> | haco workspace create --repo <id> [--json] <workspace> | haco workspace list [--json] | haco workspace delete [--yes] <workspace> | haco git connect [--json] <environment> | haco git pending [--json] | haco git approve [--save env|all|ask-env|ask-all] [--json] <id> | haco git deny [--save env|all|ask-env|ask-all] [--json] <id>")
+		commandHelp(diagnostic, namespace, cliLanguage())
 		return 2
 	}
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {

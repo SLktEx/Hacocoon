@@ -60,3 +60,12 @@ Use the [CLI reference](reference/cli.md) for commands/defaults and [configurati
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.
 
 Old development diaries remain in Git history. Decision-relevant unique evidence and unresolved failures are consolidated in [acceptance evidence](status/acceptance-evidence.md).
+
+## Main CLI language integration candidate
+
+**Partial:** daily English/Japanese CLI presentation and shared vertical help are
+reused from #580/#583 on current main. Current JSON opt-in, portless SSH, Git
+connection and Experimental VS Code behavior remain. Windows language handoff,
+full result translation and fresh installed acceptance are incomplete. See
+[language scope](reference/cli-language.md) and
+[validation](status/acceptance-evidence.md#main-cli-language).

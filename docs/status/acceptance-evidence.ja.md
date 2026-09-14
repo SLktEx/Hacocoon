@@ -233,3 +233,22 @@ hosted の初回実行 4 件（[test](https://github.com/SLktEx/Hacocoon/actions
 同じ `def11e9` 候補の [Windows user-path job](https://github.com/SLktEx/Hacocoon/actions/runs/34749383429/job/103703363209) は、維持している native journey 全体が成功した。packaged install、通常入室、terminate/restart、reinstall、installed egress、厳密な Windows SSH／VS Code interop、設定と承認、transfer、public reclamation、通知、cleanup を含む。今回の調査で初めての Windows 製品 job 全体の成功であり、失敗 SHA の rerun ではない。workflow evidence gate も成功した。後続の CI helper 修正は、この製品受入記録と区別する。
 
 `d1c7480bd69157fb65974e9e2f2673e2ffffe4b6` では、repository、Ubuntu、Incus の全必須 job と evidence gate が成功した。[Windows job](https://github.com/SLktEx/Hacocoon/actions/runs/34750642440/job/103706445008) は public reclamation と Host 復帰の成功後、保持済み Workspace／OCI を再接続する `haco env create` が非ゼロ終了して失敗した。snapshot の復元と保持内容の確認は成功済みだった。fixture が stderr を破棄していたため原因は未解決であり、前の候補の成功でこの失敗を解決済みにはしない。通知は未到達。retention の診断は、数値の終了コード、許可リスト内の CLI reason、上限付きの読み取り専用 controller 観測を残し、raw output や元の操作の再実行は行わない。これらの観測は調査の境界を示すもので、原因を確定するものではない。
+
+<a id="main-cli-language"></a>
+## main向け日常操作の言語対応候補
+
+`codex/main-daily-ux`はmain `ed3ad1a5`に#580/#583の日英表示・ヘルプを再利用します。
+最初のローカル限定検証では、承認一覧を`--json`なしでJSON解析する旧テストと、
+Openヘルプを新しいstdout経路ではなくstderrから読む旧テストが失敗しました。
+テストを現行の公開仕様へ合わせ、製品の出力・承認動作は後退させていません。
+修正後の固定したローカルソースで、製品CLI・Host・辞書・承認の限定テスト（2.60秒）、
+維持している`bash tools/ci-local.sh test`（全Go test/vetとPython/client検査、13.28秒）、
+関連raceテスト（9.93秒）、文書チェックとその回帰（4.73秒）が成功しました。
+現行の全Goソースは検証済みアーカイブと一致しています。この候補のCI・導入済み環境での
+確認は実行待ちであり、実装とローカル検証の記録です。配布済みとは扱いません。
+
+先行する#583の`0c79f820`では通常・Ubuntu・Incus・WindowsのCIが成功しています
+（[Windows実行](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)）。
+この開発ブランチの実績は今回のmain統合、日本語Windows、人によるGUI回答、
+長文入力・サイズ変更、元のSSH失敗経路の成功証拠ではありません。
+性能測定とM2〜M5の受け入れは別の残件です。
