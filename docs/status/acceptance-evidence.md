@@ -1329,3 +1329,34 @@ including creation, both resume routes, drift refusal, disposable cleanup and re
 Workspace data. Its identity is `data-e2e-b1928dc7bc042e07`, with retained catalog
 `/var/lib/haco-data-placement-2728123676/state.json`. This is functional acceptance,
 not a performance benchmark or acceptance of repository-volume placement.
+
+
+<a id="notification-setup-boundary"></a>
+## Notification setup failure diagnostics
+
+Candidate `5a6fb54c` classifies failed notification-service operations through fixed
+setup reasons. The private helper exit-code mapping applies only to notification
+refresh. It never forwards raw subprocess output, retries a failed operation or
+grants approval. Healthy reuse, disabled-service preservation, unit ownership and
+existing timeout/cancellation behavior remain unchanged. The ordinary controller
+progress stream and existing single error journal entry carry the same reason.
+See the [trusted Host contract](../design/trusted-host.md).
+
+Windows run [34792505058](https://github.com/SLktEx/Hacocoon/actions/runs/34792505058)
+reported `stage=notification_setup reason=failed` before its terminal wait timed out.
+The native, streaming, tunnel and reclamation entry runners now reuse the existing
+failed-entry guard. A component regression reproduces the old wait-after-failure
+behavior and passes after the correction; the test does not repair the product.
+The underlying installed notification-setup failure remains unresolved.
+
+On WSL, 25 interop, six native-runner and 14 user-path tests plus the focused
+Host setup/controller/Incus/product Go packages pass. Three race repetitions pass.
+The maintained local test CI passes with Go 1.27.1/shuffle 615, including Go/vet,
+client syntax, 32 notification and two packaging tests. Six native-runner, two
+streaming and ten reclamation regressions also pass under Windows Python.
+Documentation, workflow policy and their regressions pass. These are repository
+checks, not fresh Windows notification delivery or human GUI approval acceptance.
+An initial component assertion wrongly expected a detailed final stream error;
+that assertion was corrected to the existing generic final error and structured
+progress contract. Initial direct Windows execution of POSIX ownership tests failed;
+those tests run on WSL without weakening the ownership checks.
