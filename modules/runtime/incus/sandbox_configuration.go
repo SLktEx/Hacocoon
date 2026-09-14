@@ -47,7 +47,7 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 			return err
 		}
 	}
-	if err := p.attachEnvironmentResources(ctx, ref, spec.InstanceID, spec.Attachments); err != nil {
+	if err := p.attachEnvironmentResources(ctx, ref, spec.ResourceBinding()); err != nil {
 		return fmt.Errorf("place Environment data: %w", err)
 	}
 	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {

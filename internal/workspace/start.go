@@ -55,7 +55,7 @@ func (s *Service) start(ctx context.Context, name string, expected core.Workspac
 func (s *Service) startRuntimeWithLease(ctx context.Context, environment core.Environment, lease core.WorkspaceLease) error {
 	if len(lease.Attachments) != 0 {
 		starter, ok := s.runtime.(interface {
-			StartEnvironmentWithResources(context.Context, string, string, []core.EnvironmentRuntimeAttachment) error
+			StartEnvironmentWithResources(context.Context, string, core.EnvironmentResourceBinding) error
 		})
 		if !ok {
 			return core.ErrUnsupported
@@ -64,7 +64,10 @@ func (s *Service) startRuntimeWithLease(ctx context.Context, environment core.En
 		if err != nil {
 			return err
 		}
-		return starter.StartEnvironmentWithResources(ctx, environment.RuntimeRef, lease.InstanceID, areas)
+		return starter.StartEnvironmentWithResources(ctx, environment.RuntimeRef, core.EnvironmentResourceBinding{
+			InstanceID: lease.InstanceID, WorkspacePath: lease.SourcePath,
+			ReadOnly: lease.AccessMode == core.WorkspaceReadOnly, Attachments: areas,
+		})
 	}
 	runtime, ok := s.runtime.(interface {
 		StartEnvironment(context.Context, string) error

@@ -112,7 +112,8 @@
       "Base",
       "snapshots",
       "transfer",
-      "retained OCI Store"
+      "retained OCI Store",
+      "disposable cache placement"
     ],
     "steps": {
       "incus-standalone": [
@@ -142,6 +143,7 @@
         "[infrastructure] Prepare pinned OCI runtime transfer assets",
         "[product] Verify standard Host tools and offline Store image reuse",
         "[product] Verify retained Bases, aggregate snapshots and component COW",
+        "[product] Verify disposable cache placement and Workspace retention",
         "[product] Verify owned native volume import",
         "[product] Verify definition-driven Base build and immutable revisions",
         "[product] Verify independent persistent Store COW with real Btrfs",

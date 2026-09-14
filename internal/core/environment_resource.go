@@ -43,6 +43,20 @@ type EnvironmentRuntimeAttachment struct {
 	Resource   PersistentResource
 }
 
+// EnvironmentResourceBinding accompanies placement and resume under the same
+// canonical Workspace lease. Providers resolve its storage identity; callers
+// never reconstruct that identity from guest or native device descriptions.
+type EnvironmentResourceBinding struct {
+	InstanceID    string
+	WorkspacePath string
+	ReadOnly      bool
+	Attachments   []EnvironmentRuntimeAttachment
+}
+
+func (s EnvironmentRuntimeSpec) ResourceBinding() EnvironmentResourceBinding {
+	return EnvironmentResourceBinding{InstanceID: s.InstanceID, WorkspacePath: s.WorkspacePath, ReadOnly: s.ReadOnly, Attachments: s.Attachments}
+}
+
 func ValidEnvironmentAttachments(attachments []EnvironmentAttachment) bool {
 	if len(attachments) > MaxEnvironmentAttachments {
 		return false

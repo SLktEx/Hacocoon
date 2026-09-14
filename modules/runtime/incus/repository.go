@@ -103,29 +103,37 @@ func (b *RepositoryBackend) InspectVolume(ctx context.Context, object gitrepo.Ob
 }
 
 func (b *RepositoryBackend) inspectVolumeConfig(ctx context.Context, object gitrepo.Object) (map[string]string, error) {
+	observed, err := b.observeVolume(ctx, object)
+	return observed.Config, err
+}
+
+type repositoryVolumeObservation struct {
+	Name        string            `json:"name"`
+	Type        string            `json:"type"`
+	ContentType string            `json:"content_type"`
+	Config      map[string]string `json:"config"`
+	UsedBy      []string          `json:"used_by"`
+}
+
+func (b *RepositoryBackend) observeVolume(ctx context.Context, object gitrepo.Object) (repositoryVolumeObservation, error) {
+	var observed repositoryVolumeObservation
 	pool, volume, err := volumeRef(object)
 	if err != nil {
-		return nil, err
+		return observed, err
 	}
 	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom/"+volume+"?project="+b.Runtime.project)
-	if err != nil || result.StdoutTruncated {
-		return nil, fmt.Errorf("owned volume unavailable: %w", core.ErrIncompatibleState)
-	}
-	var observed struct {
-		Name        string            `json:"name"`
-		Type        string            `json:"type"`
-		ContentType string            `json:"content_type"`
-		Config      map[string]string `json:"config"`
+	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+		return observed, fmt.Errorf("owned volume unavailable: %w", core.ErrIncompatibleState)
 	}
 	if json.Unmarshal([]byte(result.Stdout), &observed) != nil || observed.Name != volume || observed.Type != "custom" || observed.ContentType != "filesystem" {
-		return nil, core.ErrIncompatibleState
+		return observed, core.ErrIncompatibleState
 	}
 	for key, value := range volumeConfig(object) {
 		if observed.Config[key] != value {
-			return nil, fmt.Errorf("volume ownership mismatch: %w", core.ErrIncompatibleState)
+			return observed, fmt.Errorf("volume ownership mismatch: %w", core.ErrIncompatibleState)
 		}
 	}
-	return observed.Config, nil
+	return observed, nil
 }
 
 func (b *RepositoryBackend) Populate(ctx context.Context, object gitrepo.Object) error {

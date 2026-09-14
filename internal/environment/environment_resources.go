@@ -17,16 +17,16 @@ func (r *Router) SupportsEnvironmentResources() bool {
 	return ok && support.SupportsEnvironmentResources()
 }
 
-func (r *Router) StartEnvironmentWithResources(ctx context.Context, rawRef, instance string, areas []core.EnvironmentRuntimeAttachment) error {
+func (r *Router) StartEnvironmentWithResources(ctx context.Context, rawRef string, binding core.EnvironmentResourceBinding) error {
 	provider, ref, err := r.resolve(rawRef)
 	if err != nil {
 		return err
 	}
 	starter, ok := provider.(interface {
-		StartEnvironmentWithResources(context.Context, string, string, []core.EnvironmentRuntimeAttachment) error
+		StartEnvironmentWithResources(context.Context, string, core.EnvironmentResourceBinding) error
 	})
 	if !ok {
 		return core.ErrUnsupported
 	}
-	return starter.StartEnvironmentWithResources(ctx, ref, instance, areas)
+	return starter.StartEnvironmentWithResources(ctx, ref, binding)
 }

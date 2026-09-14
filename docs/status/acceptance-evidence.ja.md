@@ -1030,3 +1030,74 @@ vet、クライアント構文、通知32試験、packaging 2試験を含みま�
 ローカルのリポジトリ検証であり、新規の導入済みWindows/PAM/SSH受入ではありません。
 以前のFAIL記録は保持し、元SSH障害・長入力・新規GUI回答には個別の証拠が必要です。
 [試験構成の理由](../adr/0066-wsl-login-bootstrap-routing.md#verification)を参照してください。
+
+<a id="managed-repository-cache-placement"></a>
+## 管理対象レポ内のキャッシュ配置候補
+
+候補 `3a6e2bbc3cf6203ed412f45c14a03a7cfa5c9d02` は、leaseの所有関係とIncusの
+custom volumeファイルAPIを使う管理対象Workspace内の配置を追加します。v0.72はpartialです。
+公開するHost対象選択、停止済みEnvからの収集、別Baseでの再利用、履歴・クリア・復旧、
+追加領域のsnapshot・copy・transferは未完了です。対応パスと失敗時の動作は
+[配置の契約](../design/cache-generations.ja.md#管理対象レポ内への配置)を参照してください。
+
+Go 1.26.8のCore・Environment・Workspace・Incus集中試験はPASSです。
+読み取り専用leaseの伝達、所有者・deviceの完全一致、別メンバー・リンク・非空パスの拒否、
+情報取得の上限と中断を含みます。race付き3回もPASSです。
+標準ローカルCIはGo 1.27.1 / shuffle615で全段階PASSし、全Go package、vet、
+クライアント構文、通知32試験、packaging 2試験を含みます。実機試験の起動指定と生成される
+checkpointを最終調整した後も、集中試験とEnv本体の実機受入がPASSしました。
+文書・CI設定とそれぞれの標準回帰試験もPASSです。
+
+最終実機試験の前に、実装archiveの**1,497ファイル**とLinuxの検証コピーのbyte一致を確認しました。
+WSL `hacocoon-second` / Incus 6.0.5の `TestRealIncusEnvironmentDataPlacementE2E` は
+**9.50秒PASS**です。通常作成での二つのEnv本体領域、手動・クライアント経由再開、配置変更の拒否、
+共通削除による使い捨て領域回収、外部Workspaceのデータ保持を確認しました。
+fixtureは `data-e2e-1c3224709e1570e1`、保持カタログは
+`/var/lib/haco-data-placement-4136726670/state.json` です。
+レポ領域、新規OCI、実ツールのキャッシュ、巨大レポの受入ではありません。
+
+同じ既存Incusで `TestRealIncusEnvironmentWorkspaceDataPlacementE2E` は
+`file_storage_volume` がなく、fixture領域を作る前に**0.02秒FAIL**しました。
+SKIPや配置の受入成功とは扱いません。対応対象Incus 7.0.1には必要APIが定義されています。
+必須CIで二メンバーの配置・再利用・Env由来リンクの試験を実行し、未実行・SKIPを拒否します。
+対応実機での受入は確認待ちです。既存Incus・controller・利用者データは置き換えておらず、
+以前失敗した世代管理fixtureも未解決です。
+
+最初のCI設定は、広い `HACO_E2E_INCUS` 指定を理由にリポジトリの設定検査で拒否されました。
+二つの配置試験を既存の `HACO_E2E_INCUS_RESUME` 指定へ揃え、製品の動作や規則は緩めていません。
+Windows形式のパスを使うcheckpointロック起動も変更前に失敗し、Windowsで同じ正規ロックを保持して
+公式ツールを実行し直しました。どちらも自動承認審査の拒否や製品の実機受入ではありません。
+
+親 #648 / `102a6e5a` のtest・Ubuntu・Incus CIはPASSですが、Windows run
+[34792505058](https://github.com/SLktEx/Hacocoon/actions/runs/34792505058)、job
+103819246698はstep17がFAILです。その中の通常SSH、停止後の再接続、VS Codeの編集・端末、
+保持作業のtransferはPASSを記録しました。その後のHost入口が
+`stage=notification_setup reason=failed` となり、正確な端末セッションの待機が期限切れになりました。
+step18〜21はSKIPです。以前の通知clear・activation失敗と区別し、新規の通知・VS Code承認回答の
+成功とは扱いません。元SSH障害・長入力・日本語Windowsの残件も保持します。
+
+
+### 配置試験の一時ロック領域を分離
+
+`b84caa6c8a43fee248798816c337927f46e9dc8f` のIncus run
+[34802001614](https://github.com/SLktEx/Hacocoon/actions/runs/34802001614)、job
+103846353549では、先行する一般ユーザーの試験が所有する
+`/tmp/hacocoon-environment-locks` をrootの試験が使おうとし、両配置試験が配置前にFAILしました。
+所有者検査は正しく拒否しています。Env本体のfixture `data-e2e-5dcf0332ced1a54e` は
+`/var/lib/haco-data-placement-2911263103/state.json` を保持します。
+レポfixture `repo-data-ca70b13bef493520` は
+`/var/lib/haco-repository-data-3862114127/state.json` と所有するWorkspace volumeを保持します。
+後続のstorage pool回収も使用中を理由にFAILしました。広い対象のcleanup stepはPASSしましたが、
+その成功だけでこの二つのfixtureの保持領域が存在しないとは判定しません。
+Core・standaloneのIncus jobはPASS、private-registryと後続storage stepはSKIPです。
+
+各配置試験の一時領域を、それぞれが所有する専用カタログのディレクトリへ揃えました。
+既存の実機試験と同じ分離方法であり、製品の所有者検査や先行ユーザーの領域は変更しません。
+修正後のCore・Environment・Workspace・Incus集中試験はPASSです。
+以前のFAILを保持し、修正後の実機CIで個別の証拠を得るまで対応実機でのレポ配置は確認待ちです。
+
+修正後のEnv本体の試験は、既存WSL / Incus 6.0.5で**113.20秒PASS**しました。
+作成、二経路の再開、配置変更の拒否、使い捨て領域の回収とWorkspace保持を含みます。
+fixtureは `data-e2e-b1928dc7bc042e07`、保持カタログは
+`/var/lib/haco-data-placement-2728123676/state.json` です。
+機能の受入であり、性能測定やレポvolume配置の受入とは扱いません。

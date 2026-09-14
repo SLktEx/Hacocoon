@@ -9,9 +9,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -21,7 +24,7 @@ func (*SandboxProvider) SupportsEnvironmentResources() bool { return true }
 // Incus performs Lstat through its own stopped-instance file service. Never ask
 // guest-provided executables to attest to path safety, or open guessed daemon
 // storage paths in the controller's potentially different mount namespace.
-func (p *SandboxProvider) verifyEnvironmentDataPaths(ctx context.Context, ref string, areas []core.EnvironmentRuntimeAttachment) error {
+func (p *SandboxProvider) verifyEnvironmentDataPaths(ctx context.Context, ref string, areas []core.EnvironmentRuntimeAttachment, mounts []WorkspaceAttachment) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	connect, err := localDaemonConnect(p.project)
@@ -40,8 +43,35 @@ func (p *SandboxProvider) verifyEnvironmentDataPaths(ctx context.Context, ref st
 	if connection.Project != p.project || !filepath.IsAbs(connection.SocketPath) {
 		return core.ErrUnsupported
 	}
+	if len(mounts) != 0 && !server.HasExtension("file_storage_volume") {
+		return fmt.Errorf("repository cache placement requires the Incus file_storage_volume API: %w", core.ErrUnsupported)
+	}
+	for _, m := range mounts {
+		// The rootfs API checks only the mountpoint's ancestors. Its contents
+		// are not evidence about the Workspace volume mounted at that point.
+		if err := verifyNativeDataDirectory(ctx, connection.URL, "/1.0/instances/"+ref+"/files", p.project, m.Path, false, server.DoHTTP); err != nil {
+			return err
+		}
+	}
 	for _, area := range areas {
-		if err := verifyRootfsDataPath(ctx, connection.URL, p.project, ref, area.Attachment.Target, server.DoHTTP); err != nil {
+		target := area.Attachment.Target
+		if repositoryDataTarget(target) {
+			found := false
+			for _, m := range mounts {
+				if !strings.HasPrefix(target, m.Path+"/") {
+					continue
+				}
+				found = true
+				if err := verifyWorkspaceDataPath(ctx, connection.URL, p.project, m, target, server.DoHTTP); err != nil {
+					return err
+				}
+			}
+			if !found {
+				return core.ErrIncompatibleState
+			}
+			continue
+		}
+		if err := verifyRootfsDataPath(ctx, connection.URL, p.project, ref, target, server.DoHTTP); err != nil {
 			return err
 		}
 	}
@@ -51,14 +81,32 @@ func (p *SandboxProvider) verifyEnvironmentDataPaths(ctx context.Context, ref st
 type environmentDataHTTP func(*http.Request) (*http.Response, error)
 
 func verifyRootfsDataPath(ctx context.Context, endpoint, project, ref, target string, do environmentDataHTTP) error {
-	if !validEnvironmentDataTarget(target) || validateManagedInstanceRef(ref) != nil || !safeIncusRef(project) {
+	if !validEnvironmentDataTarget(target) || repositoryDataTarget(target) || validateManagedInstanceRef(ref) != nil {
+		return core.ErrInvalidArgument
+	}
+	return verifyNativeDataDirectory(ctx, endpoint, "/1.0/instances/"+ref+"/files", project, target, true, do)
+}
+
+func verifyWorkspaceDataPath(ctx context.Context, endpoint, project string, mount WorkspaceAttachment, target string, do environmentDataHTTP) error {
+	if _, err := environmentWorkspaceObject(mount); err != nil {
+		return err
+	}
+	if !validEnvironmentDataTarget(target) || !strings.HasPrefix(target, mount.Path+"/") {
+		return core.ErrInvalidArgument
+	}
+	apiPath := "/1.0/storage-pools/" + mount.Pool + "/volumes/custom/" + mount.Volume + "/files"
+	return verifyNativeDataDirectory(ctx, endpoint, apiPath, project, strings.TrimPrefix(target, mount.Path), true, do)
+}
+
+func verifyNativeDataDirectory(ctx context.Context, endpoint, apiPath, project, target string, empty bool, do environmentDataHTTP) error {
+	if !safeIncusRef(project) || !utf8.ValidString(target) || len(target) > 1024 || !strings.HasPrefix(target, "/") || target == "/" || path.Clean(target) != target || strings.Contains(target, "\\") || strings.ContainsFunc(target, unicode.IsControl) {
 		return core.ErrInvalidArgument
 	}
 	base, err := url.Parse(endpoint)
 	if err != nil || base.Host == "" || base.User != nil || (base.Scheme != "http" && base.Scheme != "https") {
 		return core.ErrInvalidArgument
 	}
-	base.Path, base.RawPath, base.Fragment = "/1.0/instances/"+ref+"/files", "", ""
+	base.Path, base.RawPath, base.Fragment = apiPath, "", ""
 	request := func(method, path string) (*http.Response, error) {
 		u := *base
 		u.RawQuery = url.Values{"project": {project}, "path": {path}}.Encode()
@@ -90,8 +138,11 @@ func verifyRootfsDataPath(ctx context.Context, endpoint, project, ref, target st
 			return fmt.Errorf("cache placement %q crosses a link or non-directory: %w", current, core.ErrIncompatibleState)
 		}
 	}
-	// Only an empty existing rootfs directory may be covered. In particular a
-	// Base's existing cache is not silently hidden, erased or adopted as a source.
+	if !empty {
+		return nil
+	}
+	// Cover only an empty directory. Neither Base nor Workspace content may be
+	// silently hidden, erased or adopted as cache data.
 	response, err := request(http.MethodGet, target)
 	if err != nil {
 		return err
