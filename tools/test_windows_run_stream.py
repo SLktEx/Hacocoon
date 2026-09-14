@@ -49,7 +49,8 @@ class SequenceTest(unittest.TestCase):
                 raise RuntimeError('missing actual observation')
 
         driver = SimpleNamespace(TerminalProcess=Terminal, inspect_root=inspect,
-                                 cmd_prompt_count=lambda text: text.count('C:\\>'), require_output=require)
+                                 cmd_prompt_count=lambda text: text.count('C:\\>'), require_output=require,
+                                 reject_failed_host_entry=lambda _: None)
         with contextlib.redirect_stdout(io.StringIO()):
             gate.run_sequence(driver)
         return writes, sizes

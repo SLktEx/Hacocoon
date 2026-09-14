@@ -31,6 +31,8 @@ def run_sequence(driver):
     def drive(output, process):
         nonlocal stage, sent_at, native
         fresh = output[sent_at:]
+        if stage == 1:
+            driver.reject_failed_host_entry(fresh)
         if stage == 0 and driver.cmd_prompt_count(output):
             process.write('wsl -d Hacocoon\r\n')
             stage, sent_at = 1, len(output)

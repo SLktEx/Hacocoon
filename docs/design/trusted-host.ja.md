@@ -421,6 +421,14 @@ Windows表示言語を読み取り、失敗時はPOSIX判定へ戻ります。�
 
 controllerは共有構造化loggerに固定stage/state/reason、所要時間、生成した`request_id`を記録します。CLIも上限付きの固定語彙を再検証します。providerの任意エラー、helperの生出力、秘密、recipe本文は診断欄に含めません。WSL helperの終了値42だけを`native_binfmt_incompatible`と分類し、原因未確定は`failed`のままにします。timeout、canceled、incompatible_state、recovery_required、unavailable、denied、busy、not_found、unsupported等も区別します。
 
+通知サービス更新は`stage=notification_setup`と固定の`notification_<operation>_failed`を使います。
+操作は`enable_state`（有効化状態の確認）、`activity`（稼働確認）、`disable`（無効化）、
+`reload`（定義の再読込）、`failure_state`（失敗状態の確認）、`reset`（失敗状態の解除）、
+`enable`（有効化）、`restart`（再起動）です。失敗したサービス操作を示し、Windows側の原因を断定しません。
+導入済みhelperの内部終了値50〜57を通知更新モードだけで分類します。未知の終了値も失敗とし、
+中断は優先して扱います。生出力を理由へ取り込みません。unit所有確認、無効化の維持、
+正常サービスの再利用、起動確認、回数制限付き再起動は変更しません。
+
 現在の状態は`haco doctor`で確認します。WSL/Linuxの**Physical Host**で管理者が`journalctl -u haco-controller.service --since '30 minutes ago' --no-pager`を実行し、表示されたrequest IDを探せます。保存・ローテーションはsystemd-journaldが管理します。既存の`HACO_LOG_LEVEL=debug`と`HACO_LOG_FORMAT=json`を利用できますが、client側設定でcontrollerのDEBUGを遠隔有効化はしません。DEBUGでもredactionを維持します。
 
 Host setupには承認操作はありません。busyは別setupの実行中を表し、承認待ちとは異なります。Capability承認は`haco approve`で別に扱います。Ctrl+Cは観測を終了し、既存lifecycle RPC同様controllerの時間制限付き処理は接続断後も続く可能性があります。排他は実際の処理終了まで保持します。通信断、最終応答欠落、古いcontrollerとの不一致から変更処理を再送したり成功表示したりしません。

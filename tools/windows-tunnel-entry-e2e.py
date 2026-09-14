@@ -82,6 +82,8 @@ def main():
         def drive(output, process):
             nonlocal stage, sent_at, port
             fresh = output[sent_at:]
+            if stage == 1:
+                driver.reject_failed_host_entry(fresh)
             if stage == 0 and driver.cmd_prompt_count(output):
                 process.write("wsl -d " + args.distro + "\r\n")
                 stage, sent_at = 1, len(output)
