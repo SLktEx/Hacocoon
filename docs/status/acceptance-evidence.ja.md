@@ -247,6 +247,11 @@ Openヘルプを新しいstdout経路ではなくstderrから読む旧テスト�
 現行の全Goソースは検証済みアーカイブと一致しています。この候補のCI・導入済み環境での
 確認は実行待ちであり、実装とローカル検証の記録です。配布済みとは扱いません。
 
+実際のCLIを起動するE2Eは、旧形式の1行のEnvironment usageを期待して初回失敗しました。
+#583の既存修正`195172f4`を再利用し、縦型の見出し・コマンド・create項目、明示helpとの
+一致、終了コードとstdout/stderrを検証します。修正後のCLI E2Eは5.16秒で成功しました。
+導入済みIncus側の同じ確認も更新しましたが、新たな実Incus実行の成功は主張しません。
+
 先行する#583の`0c79f820`では通常・Ubuntu・Incus・WindowsのCIが成功しています
 （[Windows実行](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)）。
 この開発ブランチの実績は今回のmain統合、日本語Windows、人によるGUI回答、

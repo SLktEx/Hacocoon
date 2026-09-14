@@ -262,6 +262,12 @@ related race tests (9.93s) and docs/checker regressions (4.73s). All current Go
 sources match the tested archive. Hosted/installed checks for this candidate remain
 pending; this is implementation and local verification, not distribution.
 
+The shipped CLI E2E initially failed its historical one-line Environment usage
+expectation. Reuse #583's existing `195172f4` fixture correction: assert the vertical
+heading, command and create entry, compare usage with explicit help, and preserve
+exit-code/stdout/stderr checks. The corrected black-box CLI E2E passed in 5.16s.
+The matching installed-Incus assertion is updated, but no new native run is claimed.
+
 Previous #583 head `0c79f820` passed repository, Ubuntu, Incus and Windows workflows
 ([Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/34724986361)).
 That development result does not prove this main integration or fresh Japanese

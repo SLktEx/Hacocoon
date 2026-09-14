@@ -89,7 +89,7 @@ set -e
   echo "product haco argument rejection unexpectedly produced stdout" >&2
   exit 1
 }
-grep -Fq 'Usage: haco env create' "$product_unknown_stderr" || {
+grep -Fxq '  haco env <command>' "$product_unknown_stderr" || {
   echo "product haco did not show Environment usage" >&2
   cat "$product_unknown_stderr" >&2 || true
   exit 1
@@ -197,7 +197,7 @@ set -e
   echo "trusted-host product haco accepted env without a subcommand" >&2
   exit 1
 }
-grep -Fq 'Usage: haco env create' "$trusted_product_stderr" || {
+grep -Fxq '  haco env <command>' "$trusted_product_stderr" || {
   echo "trusted-host product haco did not show Environment usage" >&2
   cat "$trusted_product_stderr" >&2 || true
   exit 1
