@@ -66,7 +66,7 @@ func (p *SandboxProvider) ResolveParentBase(ctx context.Context, name core.BaseN
 	if p == nil || p.BaseProvider == nil {
 		return core.BaseRef{}, core.ErrRuntimeUnavailable
 	}
-	resolved, err := p.resolveParentBase(ctx, name)
+	resolved, err := p.resolveBase(ctx, name)
 	if err != nil {
 		return core.BaseRef{}, err
 	}
@@ -77,7 +77,7 @@ func (p *SandboxProvider) BuildToolingBase(ctx context.Context, parent core.Base
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil {
 		return seedbuild.BuildResult{}, core.ErrRuntimeUnavailable
 	}
-	resolved, err := p.resolveParentBase(ctx, parent.Name)
+	resolved, err := p.resolveBase(ctx, parent.Name)
 	if err != nil {
 		return seedbuild.BuildResult{}, err
 	}
@@ -237,7 +237,7 @@ func (p *SandboxProvider) BuildSeed(ctx context.Context, plan seedbuild.BuildPla
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || plan.Parent.Name == "" || plan.ToolingRevision == "" {
 		return seedbuild.BuildResult{}, core.ErrInvalidArgument
 	}
-	parent, err := p.resolveParentBase(ctx, plan.Parent.Name)
+	parent, err := p.resolveBase(ctx, plan.Parent.Name)
 	if err != nil {
 		return seedbuild.BuildResult{}, err
 	}

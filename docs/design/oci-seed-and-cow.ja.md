@@ -1,18 +1,18 @@
 # OCI Seed Builder & Btrfs/COW Optimization
 
-> 旧CLIの任意連携です。以下のコマンドはPhysical Hostの移行用 `hacoq` で使います。現行の通常操作は[CLI参照](../reference/cli.ja.md)と[移行情報](../reference/cli-migration.md)を参照してください。
-
 [English](oci-seed-and-cow.md) | **日本語**
 
-Status: **リポジトリのbuild/publish、operations-hardening、credential-free managed-Environment 回収 sliceを実装済み / 部分実装。v0.15 推奨とv0.16 deletion 方針は実装済みprerequisiteです。real-host、authenticated/private-registry combination、physical COW 検証が残っています。**
+状態: **partial、通常起動と旧CLIからの撤去を実装した候補**。
+新しいEnvは選択したBaseを使い、OCIプラグイン有効化を理由にSeedへ差し替えません。
+compositionのSeed store/resolver/serviceとharvest wrapper、旧 `hacoq plugin oci seed` 群を
+外しました。既存Envの固定Base・イメージ・カタログ・Workspace・OCIデータは変更しません。
+[ADR 0078](../adr/0078-seed-runtime-retirement.ja.md)に理由と不採用案を記録します。
 
-v0.17はphysical OCI Seed pipelineを担当します。信頼された Host 側イメージ acquisition/cache、offline Seed construction、不変の公開、revision pinning、storage-driver COW benefit、保守的なライフサイクル maintenanceを一つのfeature gateとして扱います。
+残るbuilder・harvest・telemetryの内部実装と共有helperの分離、旧データの退避・復元・照合は未完了です。
+機能撤去を既存データの削除許可とは扱いません。`switch-base` は復活させません。
+通常利用は[Base構築](base-images-and-custom-environments.md)と[データ寿命](../guides/data-lifetime.ja.md)へ進んでください。
 
-Local Registryは必須ではありません。
-
-2026-09-05の方針: Seed撤去は **未実装の計画** であり、削除済みではない。新しいSeed依存は追加しない。以降は残存実装と過去の受入範囲の説明として扱う。
-
-`internal/composition` はOCI Plugin有効時のみSeed store/resolverを構成する。`modules/runtime/incus/base.go` は親Baseを独立解決してから任意の現在の Seed revisionを選ぶ。まずこの任意解決を分離して既存の固定Base revisionとデータを保持し、次にSeed コマンド・ビルダー・recommendation/harvest・関連test/docsを撤去する。Base選択・変更と任意Plugin契約は維持する。独立Workspace repo cloneは別のストレージ契約であり、Seed pipelineの後継にはしない。
+**以下は残存内部実装と過去の設計の記録です。記載されたSeedコマンドは削除済みで、現在の操作手順ではありません。**
 
 ## Goal
 

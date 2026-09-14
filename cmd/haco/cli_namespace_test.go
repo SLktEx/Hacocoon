@@ -29,9 +29,11 @@ func TestOCIImageDeleteRoutesThroughPluginNamespace(t *testing.T) {
 	}
 }
 
-func TestOCISeedRoutesThroughPluginNamespace(t *testing.T) {
-	err := dispatch(context.Background(), nil, []string{"plugin", "oci", "seed", "recommend"})
-	if !errors.Is(err, core.ErrRuntimeUnavailable) {
-		t.Fatalf("err=%v", err)
+func TestLegacySeedCommandsAreRemoved(t *testing.T) {
+	for _, action := range []string{"sample", "recommend", "build", "current", "pin", "unpin", "pins", "gc", "recover"} {
+		err := dispatch(context.Background(), nil, []string{"plugin", "oci", "seed", action})
+		if !errors.Is(err, core.ErrInvalidArgument) {
+			t.Fatalf("%s: err=%v", action, err)
+		}
 	}
 }

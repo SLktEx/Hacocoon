@@ -1396,3 +1396,87 @@ and `repo-data-85c827faafbffc91` /
 Incus jobs pass; private registry skips. This resolves that candidate's required
 repository-placement acceptance, not the earlier failed fixture cleanup, public
 cache workflow, or this new selector. The failed run 34802001614 remains recorded.
+
+
+<a id="seed-runtime-retirement"></a>
+## Ordinary Seed runtime retirement candidate
+
+The `codex/seed-runtime-retirement` candidate removes composition's Seed store,
+resolver, service and harvest wrapper, the optional Base resolver, implicit
+Seed-based nesting and the legacy Seed command family. New, snapshot-restored and
+archive-restored Environments use one configuration path. Existing saved Base
+references, images, catalogs, Workspace and OCI data are not migrated or deleted.
+Legacy builder/harvest/telemetry internals and data migration remain incomplete.
+
+C-drive free space reached zero. Changes were prepared from parent
+`2b3a5b562bcd370b749379a96fe903138cdc7f42` using memory-backed sources and the GitHub
+Git-data API, leaving local worktrees intact. Go syntax/format checks pass. Local
+Go tests, race and native Incus/Windows acceptance were initially blocked by the
+recorded WSL filesystem I/O failures; later local recovery is recorded below.
+Tests of removed resolver/CLI behavior are retired;
+the maintained sandbox test now asserts the selected image and absence of implicit
+nesting, and legacy dispatch tests reject every removed Seed action. Full CI
+acceptance for this retirement candidate remains pending.
+
+Parent #652 at that exact commit passes Go 1.26/1.27 tests, race, both builds,
+workflow policy, documentation and E2E in
+[test run 34806040703](https://github.com/SLktEx/Hacocoon/actions/runs/34806040703).
+[Incus run 34806040730](https://github.com/SLktEx/Hacocoon/actions/runs/34806040730),
+job 103858009946, passes the rootfs placement using the new Standard selector in
+**10.53 seconds** and the existing managed-repository fixture in **16.64 seconds**.
+The rootfs fixture is `data-e2e-2cf46ebcc46afd7d`, with catalog
+`/var/lib/haco-data-placement-3593730171/state.json`; repository fixture
+`repo-data-041cc436e3a8af94` retains
+`/var/lib/haco-repository-data-2260748824/state.json`. These prove the stated
+selection/placement slices, not public settings, stopped-writer collection,
+data-bearing cross-Base reuse or giant-repository performance. Private registry
+skips; earlier local failures remain recorded.
+
+Parent #651 / `c68645b1` Windows
+[run 34804381013](https://github.com/SLktEx/Hacocoon/actions/runs/34804381013),
+job 103853227342, passes normal entry, direct SSH, automatic tunnel, interactive
+temporary terminal and public reclamation. Product step 21 still fails notification
+clear with `reason=timeout`, `native=unrecorded`, `child_exit=1` and
+`duration_ms=8025`. This is not fresh human notification/VS Code approval acceptance
+or resolution of every earlier setup/clear/activation failure.
+
+Local documentation verification for this candidate did not complete: the memory-tree command exited 1 without diagnostics; a subsequent WSL invocation was refused with `Wsl/Service/E_ACCESSDENIED`. This is not a documentation PASS. The external roadmap update remains pending because its drive is full.
+
+Parent #652 Windows [run 34806040711](https://github.com/SLktEx/Hacocoon/actions/runs/34806040711), job 103858009557, has now failed step 21 (installed native notification review route). Product steps 13 and 15–20 pass. The job result alone does not establish that its cause is identical to #651.
+
+After the user reclaimed disk space, C had 60,753,186,816 bytes free. All 26 candidate
+files and the three deletion records were saved to Windows and compared with the
+prepared contents. An isolated checkout from the exact parent now passes
+`tools/check_docs.py` and `git diff --check`. This resolves documentation checking
+and durable local preservation, not compilation or runtime acceptance. Focused Go
+tests failed during setup with WSL Go-cache input/output errors. On 2026-09-15,
+the user authorized restarting only `hacocoon-second`. Termination succeeded;
+the first startup failed with `Wsl/Service/CreateInstance/E_FAIL`, while a second
+normal startup completed successfully. Filesystem usage, Go 1.27.1, Python 3.14.4
+and the full 182,140-byte CA bundle became readable. The retained Windows disk file is 26,251,100,160 bytes;
+its existence is not proof of guest data integrity. A fresh 1,504-file test archive
+was prepared from the exact parent and the current Windows candidate.
+
+Focused CLI/composition/Incus Go tests pass after restart. The initial memory-backed
+tree then disappeared before the standard test runner could start; that invocation
+failed with a missing working directory, not a failed product assertion. A new
+verified tree at `/var/tmp/haco-seed-retirement-jquprj3s` retains the build cache
+across WSL stops. `bash tools/ci-local.sh test` passes with Go 1.27.1, shuffle 615
+and four parallel build jobs: all Go tests/vet, Python boundary checks, 32 notification
+client tests and two packaging tests. All 1,095 current Go files match the tested
+source. Focused race verification passes for CLI/composition/Incus (1.668, 1.815
+and 35.958 seconds). `TestRealIncusEnvironmentDataPlacementE2E` passes on the
+existing WSL/Incus host in 102.71 seconds: ordinary creation, two writable rootfs
+areas, exact normal/client resume, native target-drift refusal, disposable cleanup
+and Workspace retention. The owned fixture is `data-e2e-f71c883340100df3`, with
+retained catalog `/var/lib/haco-data-placement-695033909/state.json`. It uses the
+existing `haco-local-default` Btrfs pool and the previously cached fixed Ubuntu
+image. This is scoped lifecycle acceptance, not giant-repository performance,
+OCI-store acceptance or fresh Windows approval acceptance.
+
+A read-only Windows child-process probe passed input parsing and WinRT type loading
+in 4.985 seconds under the ordinary execution environment. The earlier restricted
+probe's language-mode failure remains separate; this does not verify notification
+history, clear, display or human approval. An initial diff-check invocation disabled
+the checkout's CRLF conversion and falsely reported untouched baseline lines;
+the normal repository diff check passes without changing source line endings.
