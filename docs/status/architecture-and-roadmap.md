@@ -180,3 +180,9 @@ implemented in the main integration candidate. Keep main push approval independe
 from clone/fetch. Complete GUI answers and explicit unknown-result observation next.
 Authenticated installed use, 32 MiB transport replacement and large-repository
 measurements remain separate; ordinary local Git tests do not prove them.
+
+Main now includes #660 (`7e876bc1`), #661 (`44211fd2`) and Seed retirement #662
+(`119e3007`). Each final head passed all five CI workflows. The user explicitly
+authorized main merges after successful CI; tags/releases remain separate.
+PR #663 rebases the M2 Git slice on that main. GUI and M3 streaming continue;
+current data retention, DNS, cache/Packer and remaining M5 cleanup are still open.

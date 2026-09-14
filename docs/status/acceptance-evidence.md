@@ -384,3 +384,12 @@ findings are not presented as new-code findings. With the correct diff, lint
 found two capitalized error strings and one switch simplification in the reused
 code. They were corrected, then all final checks above passed. The earlier
 invocation/lint failures remain recorded separately.
+
+After Seed retirement merged as main `119e3007bc55333841a076f53d774be22ea5b711`,
+PR #663 was rebased without changing its Git implementation. Combined local tests
+(15.80s), CLI E2E (3.59s) and documentation/regressions (5.16s) passed. The old
+head `6b436e4d` passed all five CI workflows, including Windows 34892114103;
+those results are not substituted for this updated head. Seed #662 final head
+`50e692d6` passed all five workflows, including Windows 34894991920 and the
+same-commit evidence job 104155046690. No earlier failure or human acceptance gap
+is erased by either result.
