@@ -357,3 +357,5 @@ The removed private-registry job tested only retired Seed acquisition; other
 native jobs and historical failures remain. No user data or installation was deleted.
 
 The candidate was rebased onto main `7e876bc1` without changing the Seed-retirement Go implementation. The first verification launch failed before tests with `HCS_E_CONNECTION_TIMEOUT`; the later ordinary WSL launch succeeded without restarting WSL. This startup failure is distinct from product validation. The main-based full local test entry passed (18.42s), as did the shipped CLI E2E (4.70s); documentation checks/regressions also passed (5.64s).
+
+After PR #661 merged as main `44211fd2`, this Seed candidate was rebased while preserving both evidence sets. The verified combined source passed the full local test entry (13.96s), CLI E2E (3.41s) and documentation/regressions (4.96s). PR #661 final head passed all five workflows, including Windows run 34890523779. Seed head `8eda58ee` likewise passed all five workflows, including Windows run 34890531022; these remain results for their exact heads, not the rebased candidate.
