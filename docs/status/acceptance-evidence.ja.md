@@ -448,3 +448,6 @@ main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒�
 
 
 #667 head `61aeff8f`のWindows34916801756 / job104216088784は導入・HTTPS・Windows相互運用・Base作成・初回の厳密SSHと通常aliasまでPASSし、fixture WSL終了後の並列cold reconnectでexit255、ssh_progress=stream_deniedによりFAIL。後続reclaimと通知はSKIPです。原因は未解明で、Packerの実ビルド完走の証拠にはしません。他の4workflowはPASSしました。
+
+
+main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを含む全ローカル13.24秒、CLI E2E3.18秒、文書と回帰4.79秒がPASS。最後の整形はヘルプ2ファイルの空白だけです。`61aeff8f`の並列cold SSH拒否は原因未解明として保持し、新CIの成功で消しません。

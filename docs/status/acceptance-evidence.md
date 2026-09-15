@@ -491,3 +491,6 @@ Integrating main `ef443132` as `a0352044` initially failed the full local entry 
 
 
 At #667 head `61aeff8f`, Windows 34916801756 / job104216088784 passed installation, HTTPS, Windows interop, Base creation and initial strict SSH/desktop alias, then failed parallel cold reconnect after fixture WSL termination: exit255, ssh_progress=stream_denied. Reclamation and notification steps were skipped. The root cause remains unresolved; no actual Packer build is established by this run. Other four workflows passed.
+
+
+After integrating main `5e89597a` as `075fc746`, Packer and current detailed help passed full local tests (13.24s), CLI E2E (3.18s) and docs/regressions (4.79s). Final formatting changes only whitespace in the two help files. The parallel cold SSH refusal at `61aeff8f` remains unresolved; new CI cannot retroactively establish its cause.

@@ -8,7 +8,7 @@ type translation struct {
 }
 
 var catalog = map[string]translation{
- "base.packer_context": {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
+	"base.packer_context":            {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
 	"base.packer_name":               {"Name of the Base to publish.", "作成するひな形の名前。"},
 	"base.packer_from":               {"Starting Base; omit to use the default.", "元にするひな形。省略時は既定値。"},
 	"base.packer_output":             {"Include private failed-build output; it may contain script data.", "失敗したbuildの非公開出力を表示します。スクリプト内の情報を含み得ます。"},
