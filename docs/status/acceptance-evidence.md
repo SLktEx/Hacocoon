@@ -1105,3 +1105,31 @@ corrected read-only probe observed the discrepancy. A proposed maintenance WSL
 restart was NOT performed because its guard found an unrelated running
 `Ubuntu-24.04`. No global shutdown, binding overwrite or data deletion occurred.
 The cause of this execution-context difference is still unestablished.
+
+
+<a id="reclamation-language"></a>
+## Reclamation language
+
+Implementation `99522ebd893e7fbdc0752e3db3d6f84595f10fb6` translates ordinary
+reclamation status, capacities, failure guidance and reviewed interruption through
+the shared catalog. Focused tests9.45s, changed-code lint19.86s, maintained local
+tests43.65s, race14.50s, CLI E2E4.05s, docs13.30s, workflow1.78s and native-build1.85s
+passed. Japanese tests preserve exact operation/target/state consent and raw
+protocol values. Public-journey presentation recognizes both languages; completion
+still requires the original machine receipt. Native installed language acceptance
+is recorded separately. The first formatting attempt refused a concurrently edited
+source by hash check; a fresh archive was formatted before these tests.
+
+Parent #688 passed all five exact-head workflows at `4e0a483e` and was squash-merged
+to main `ee8bf7fb`. This does not resolve the dedicated local enrollment observation
+failure or prove fresh human GUI answers.
+
+The exact implementation was packaged through the normal installer tooling51.68s
+and installed60.72s with matching Linux/Windows binaries; all doctor checks passed.
+Ordinary Windows→WSL→Host Japanese help and read-only saved-result display passed
+45.28s with status exit0 (no saved operation). An initial private observer expected
+the internal fallback help instead of the shared vertical help and failed its
+assertion despite successful product output; corrected before the second run.
+WSL reported a managed-user systemd-session warning while Host entry completed;
+its cause remains uninvestigated. This read-only success does not establish a new
+reclamation start/compaction or fresh human GUI answers.
