@@ -95,3 +95,7 @@ Development follow-up: `snapshot restore --latest <source-env> [new-env]` select
 by persisted capture time and reuses canonical restore. Unknown/tied times need an
 explicit ID; failed restoration never selects a different save. Local and native
 acceptance remain separately recorded.
+
+Development follow-up: reclamation now closes an attached virtual-disk observation
+handle before waiting to reopen the same pinned path. File/parent ownership pins
+remain held; installed acceptance is pending. See [the lifetime decision](adr/0103-virtual-disk-observation-lifetime.md).

@@ -125,8 +125,12 @@ file length are distinct from virtual disk capacity. The dynamic, detached VHDX
 is opened through its held volume-GUID path without parent disks. File pins remain
 held during compaction; do not drop them to work around native open errors.
 
-Sharing violations at OpenVirtualDisk have a 90-second wait budget. Other errors
-fail immediately; compaction itself is not retried. Individual synchronous native
+Native open sharing violations and confirmed attachment share a 90-second budget.
+An attached virtual-disk observation handle is closed before waiting and reopening
+the same pinned volume path; keeping it open can prevent Windows from detaching.
+File/parent pins stay held. Failed close or unknown observations fail immediately;
+a detached handle is retained for one compaction, which is never retried. See
+[observation lifetime](../adr/0103-virtual-disk-observation-lifetime.md). Individual synchronous native
 calls can outlast the budget. Capacity and virtual identity are rechecked afterward.
 
 ## Durable worker sequence
