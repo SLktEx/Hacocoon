@@ -70,18 +70,24 @@ func TestCreateEnvironmentPinsResolvedFingerprintAndPersistsBase(t *testing.T) {
 		if len(args) >= 2 && args[0] == "profile" && args[1] == "show" {
 			return rootProfileResult(), nil
 		}
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
 		return host.Result{}, nil
 	}}
-	provider, err := NewBaseProvider(New(runner))
+	provider, err := NewSandboxProvider(New(runner))
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
+	recordFailure := errors.New("stop after recording exact Base")
+	var recorded core.EnvironmentRuntime
+	created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{
 		Name:          "demo",
 		WorkspacePath: "/tmp/workspace",
 		Base:          "my-dev",
-	})
-	if err != nil {
+		InstanceID:    testEnvironmentInstance,
+	}, func(value core.EnvironmentRuntime) error { recorded = value; return recordFailure })
+	if !errors.Is(err, recordFailure) || !reflect.DeepEqual(created, recorded) {
 		t.Fatal(err)
 	}
 	if created.Base == nil || created.Base.Name != "my-dev" || created.Base.Revision != core.BaseRevision("sha256:"+testFingerprintA) {

@@ -82,7 +82,7 @@ func TestResourceMaintenanceCreationRefusesBeforeNativeAccess(t *testing.T) {
 	}
 	spec := core.EnvironmentRuntimeSpec{ResourceMaintenance: true}
 	for name, create := range map[string]func(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error){
-		"runtime": runtime.CreateEnvironment, "base": sandbox.BaseProvider.CreateEnvironment, "sandbox": sandbox.CreateEnvironment,
+		"sandbox": sandbox.CreateEnvironment,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := create(context.Background(), spec); !errors.Is(err, core.ErrUnsupported) {

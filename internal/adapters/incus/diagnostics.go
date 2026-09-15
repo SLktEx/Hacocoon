@@ -87,7 +87,7 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 				Status string            `json:"status"`
 				Config map[string]string `json:"config"`
 			}
-			if storage.Name == "" || storage.MountOptions == "" || !readJSON(ctx, &pools, "storage", "list", "--project", sandboxResourceProject, "--format", "json") {
+			if storage.Name == "" || storage.MountOptions == "" || !readJSON(ctx, &pools, "storage", "list", "--project", defaultResourceProject, "--format", "json") {
 				return false
 			}
 			matches, valid := 0, false
@@ -129,7 +129,7 @@ func (r *Runtime) DiagnoseHost(ctx context.Context, storage BtrfsLoopPoolSpec) (
 		"Cannot verify trusted-bridge ownership or its DNS, DHCP, NAT and firewall configuration",
 		"Inspect the owned bridge and current installer diagnostics; do not disable Environment firewall rules", func(ctx context.Context) bool {
 			var networks []trustedNetwork
-			if !readJSON(ctx, &networks, "network", "list", "--project", sandboxResourceProject, "--format", "json") {
+			if !readJSON(ctx, &networks, "network", "list", "--project", defaultResourceProject, "--format", "json") {
 				return false
 			}
 			matches, valid := 0, false

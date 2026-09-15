@@ -26,6 +26,9 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 			values := map[string]string{}
 			guardCreated := false
 			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				if !built && strings.Contains(strings.Join(args, " "), "haco-base-") {
+					t.Fatal("ordinary image creation materialized redundant retained Base storage", args)
+				}
 				if initialized && !recorded {
 					t.Fatal("provider call before durable ownership receipt", args)
 				}
@@ -139,7 +142,7 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 				if len(call.args) > 0 && call.args[0] == "start" {
 					start = i
 				}
-				if strings.Contains(joined, "--profile "+sandboxProfile) {
+				if strings.Contains(joined, "--profile ") {
 					t.Fatalf("sandbox Environment still depends on inherited profile: %#v", call)
 				}
 				if strings.Contains(joined, "--no-profiles") {

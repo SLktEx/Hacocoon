@@ -34,7 +34,7 @@ func (r *Runtime) readReclaimPool(ctx context.Context, spec BtrfsLoopPoolSpec) (
 	// The installed local Incus layout is explicit. Do not let backend output
 	// select a different Host directory or silently follow a custom layout.
 	expected := "/var/lib/incus/disks/" + spec.Name + ".img"
-	result, err := r.runner.Run(ctx, "incus", "storage", "list", "--project", sandboxResourceProject, "--format", "json")
+	result, err := r.runner.Run(ctx, "incus", "storage", "list", "--project", defaultResourceProject, "--format", "json")
 	if err != nil {
 		return "", fmt.Errorf("inspect configured reclaim pool: %w", err)
 	}

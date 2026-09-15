@@ -47,7 +47,7 @@ type trustedNetwork struct {
 func (r *Runtime) ensureTrustedHostNetwork(ctx context.Context) (err error) {
 	defer hostsetup.Track(ctx, "trusted_host_network")(&err)
 	inspect := func() (*trustedNetwork, error) {
-		result, err := r.runner.Run(ctx, "incus", "network", "list", "--project", sandboxResourceProject, "--format", "json")
+		result, err := r.runner.Run(ctx, "incus", "network", "list", "--project", defaultResourceProject, "--format", "json")
 		if err != nil {
 			return nil, fmt.Errorf("inspect trusted-host networks: %w", err)
 		}
@@ -74,7 +74,7 @@ func (r *Runtime) ensureTrustedHostNetwork(ctx context.Context) (err error) {
 		_, createErr := r.runner.Run(ctx, "incus", "network", "create", trustedHostNetwork,
 			"--type", "bridge", "ipv4.address=auto", "ipv4.nat=true", "ipv4.firewall=true",
 			"ipv4.routing=true", "ipv4.dhcp=true", "ipv6.address=none", "dns.mode=managed",
-			environmentNetworkOwnerKey+"="+trustedHostNetworkOwner, "--project", sandboxResourceProject)
+			environmentNetworkOwnerKey+"="+trustedHostNetworkOwner, "--project", defaultResourceProject)
 		// Ownership is recorded by the create itself. Never delete a persistent
 		// bridge after a failed readback; retry must verify the exact owned object.
 		network, err = inspect()

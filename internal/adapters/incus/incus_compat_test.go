@@ -13,20 +13,20 @@ func TestShowProfileJSONFallsBackToRawQuery(t *testing.T) {
 	unsupportedFormat := errors.New("unknown flag: --format")
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		switch {
-		case reflect.DeepEqual(args, []string{"profile", "show", sandboxProfile, "--project", sandboxResourceProject, "--format", "json"}):
+		case reflect.DeepEqual(args, []string{"profile", "show", "default", "--project", defaultResourceProject, "--format", "json"}):
 			return host.Result{ExitCode: 1, Stderr: "Error: unknown flag: --format"}, unsupportedFormat
-		case reflect.DeepEqual(args, []string{"query", "/1.0/profiles/haco-sandbox?project=default"}):
-			return sandboxProfileResult(), nil
+		case reflect.DeepEqual(args, []string{"query", "/1.0/profiles/default?project=default"}):
+			return rootProfileResult(), nil
 		default:
 			return host.Result{}, errors.New("unexpected Incus call")
 		}
 	}}
 
-	result, err := New(runner).showProfileJSON(context.Background(), sandboxProfile, sandboxResourceProject)
+	result, err := New(runner).showProfileJSON(context.Background(), "default", defaultResourceProject)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Stdout != sandboxProfileResult().Stdout {
+	if result.Stdout != rootProfileResult().Stdout {
 		t.Fatalf("profile JSON = %q", result.Stdout)
 	}
 	if len(runner.calls) != 2 {

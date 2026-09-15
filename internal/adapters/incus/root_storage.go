@@ -27,17 +27,8 @@ func (r *Runtime) ConfigureStorageProvider(provider func(context.Context) (map[s
 	return nil
 }
 
-func (r *Runtime) setRootPool(pool string) {
-	if r.storage == nil {
-		r.storage = &runtimeStorageState{}
-	}
-	r.storage.mu.Lock()
-	defer r.storage.mu.Unlock()
-	r.storage.rootPool = pool
-}
-
-// defaultRootPool prefers the Hacocoon-managed pool selected by Prepare or by
-// the lazy storage provider configured by the local composition. The Incus
+// defaultRootPool prefers the Hacocoon-managed pool selected by the lazy
+// storage provider configured by the local composition. The Incus
 // default-profile lookup is retained only for low-level callers that bypass the
 // normal Hacocoon local composition.
 func (r *Runtime) defaultRootPool(ctx context.Context) (string, error) {

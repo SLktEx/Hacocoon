@@ -32,6 +32,15 @@ also removed. Environment observation keeps its exact-identity checks. Interacti
 execution returns the original process error directly; the extra result conversion
 was ignored by every caller. Exit status remains available through that error.
 
+Incus Environment creation also has one implementation: SandboxProvider, which
+pins the Base and records ownership before configuring the isolated network and
+starting the guest. Runtime/BaseProvider creation, Runtime Prepare and the old
+shared bridge/ACL/profile provisioning are removed. E2E fixtures select their
+storage through the existing lazy storage provider. The current dedicated bridge,
+source guards, saved-resource readers and exact-owner cleanup remain. Tests for
+reserved names, Base selection, read-only mounts and bounded failure cleanup use
+the current implementation. A Base catalog must not become another creation path.
+
 The Agent Host helper also uses one explicit command dispatch. Its `init`-time
 interceptor, duplicate prepare parser, stdout capture and legacy-output adapter
 are removed. Prepare and lookup render the same typed session descriptor directly;

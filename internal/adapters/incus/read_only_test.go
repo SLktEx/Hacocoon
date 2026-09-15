@@ -2,24 +2,21 @@ package incus
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func TestCreateEnvironmentMarksReadOnlyWorkspace(t *testing.T) {
+func TestSandboxReadOnlyWorkspaceNeverRequestsWritableMount(t *testing.T) {
 	runner := &fakeRunner{}
-	runtime := New(runner)
-	_, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/workspace", ReadOnly: true})
+	provider := testSandboxProvider(t, New(runner))
+	err := provider.addWorkspaceDevice(context.Background(), "haco-demo", core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work space", ReadOnly: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, call := range runner.calls {
-		for _, arg := range call.args {
-			if arg == "readonly=true" {
-				return
-			}
-		}
+	if len(runner.calls) != 1 || strings.Contains(strings.Join(runner.calls[0].args, " "), "shift=true") {
+		t.Fatal("read-only mount changed identity mapping or started extra operations", runner.calls)
 	}
-	t.Fatalf("readonly=true missing from calls: %#v", runner.calls)
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "workspace", "disk", "source=/tmp/work space", "path=/workspace", "readonly=true", "--project", defaultProject)
 }

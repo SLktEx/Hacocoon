@@ -33,7 +33,7 @@ func TestReclaimSelectionRejectsUntrustedPoolObservations(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
-				if name != "incus" || !reflect.DeepEqual(args, []string{"storage", "list", "--project", sandboxResourceProject, "--format", "json"}) {
+				if name != "incus" || !reflect.DeepEqual(args, []string{"storage", "list", "--project", defaultResourceProject, "--format", "json"}) {
 					t.Fatalf("unexpected mutation/probe: %s %v", name, args)
 				}
 				return host.Result{Stdout: tc.body, ExitCode: tc.exit, StdoutTruncated: tc.truncated}, nil

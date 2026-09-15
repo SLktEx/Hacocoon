@@ -13,7 +13,7 @@ import (
 // cleanup; restoration records its identity before invoking this fallible phase.
 func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref string, spec core.EnvironmentRuntimeSpec, resources core.ResourceBudget) error {
 	// Environment networking is an authorization boundary. Each Environment
-	// receives its own point-to-point routed veth and never joins a shared L2.
+	// receives its own managed bridge and never joins a shared Environment L2.
 	// An exact inet/nft source guard is installed before start; rp_filter is
 	// retained as defense-in-depth and verified after start.
 	if err := p.addSandboxNIC(ctx, ref); err != nil {

@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
@@ -16,6 +15,32 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 )
+
+// This test provider owns the shell fixture's files as its native resources.
+// Workspace supplies the real catalog and lifecycle transitions; Incus Runtime
+// supplies the real child-process execution path. No network acceptance is
+// implied by the fixture's creation commands.
+type processFixtureProvider struct{ *incus.Runtime }
+
+func (*processFixtureProvider) CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	return core.EnvironmentRuntime{}, core.ErrUnsupported
+}
+
+func (*processFixtureProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	runner := host.ExecRunner{}
+	created := core.EnvironmentRuntime{Ref: "haco-" + spec.Name}
+	if _, err := runner.Run(ctx, "incus", "init", "fixture-image", created.Ref); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	if err := record(created); err != nil {
+		return created, err
+	}
+	if _, err := runner.Run(ctx, "incus", "config", "device", "add", created.Ref, "workspace", "disk", "source="+spec.WorkspacePath); err != nil {
+		return created, err
+	}
+	_, err := runner.Run(ctx, "incus", "start", created.Ref)
+	return created, err
+}
 
 func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -43,7 +68,7 @@ func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runtimeAdapter := incus.New(host.ExecRunner{})
+	runtimeAdapter := &processFixtureProvider{Runtime: incus.New(host.ExecRunner{})}
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "haco", "environments.json"))
 	service := workspaceapp.New(runtimeAdapter, store)
 	ctx := context.Background()
@@ -135,25 +160,6 @@ command_name="${1:-}"
 [ "$#" -gt 0 ] && shift
 
 case "$command_name" in
-  version)
-    echo "6.12-fake"
-    ;;
-  project)
-    action="${1:-}"; project="${2:-}"
-    case "$action" in
-      show)
-        [ -f "$state/project-$project" ]
-        ;;
-      create)
-        : > "$state/project-$project"
-        ;;
-      *) exit 2 ;;
-    esac
-    ;;
-  profile)
-    [ "${1:-}" = "show" ] || exit 2
-    printf '%s\n' '{"devices":{"root":{"type":"disk","path":"/","pool":"default"}}}'
-    ;;
   init)
     image="${1:-}"; instance="${2:-}"
     [ -n "$image" ] && [ -n "$instance" ] || exit 2
@@ -164,10 +170,6 @@ case "$command_name" in
     action="${2:-}"
     instance="${3:-}"
     case "$action" in
-      override)
-        [ "${4:-}" = "eth0" ] || exit 2
-        [ -f "$state/instance-$instance" ] || exit 1
-        ;;
       add)
         shift 5
         source_path=""
@@ -234,11 +236,3 @@ case "$command_name" in
     ;;
 esac
 `
-
-func TestFakeIncusScriptDoesNotMentionCredentialMounts(t *testing.T) {
-	for _, forbidden := range []string{"/.ssh", "/.aws", "/.config/gh", "unix.socket"} {
-		if strings.Contains(fakeIncusWorkspaceScript, forbidden) {
-			t.Fatalf("fake integration accidentally models credential mount %q", forbidden)
-		}
-	}
-}

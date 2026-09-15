@@ -66,6 +66,13 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || spec.Name == "" || spec.WorkspacePath == "" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
+	ref := "haco-" + spec.Name
+	if ref == trustedHostName {
+		return core.EnvironmentRuntime{}, fmt.Errorf("environment name %q is reserved for trusted Hacocoon infrastructure: %w", spec.Name, core.ErrInvalidArgument)
+	}
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	p.baseMu.RLock()
 	defer p.baseMu.RUnlock()
 	identityArgs, err := environmentIdentityArgs(spec.InstanceID)
@@ -94,8 +101,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 		return core.EnvironmentRuntime{}, fmt.Errorf("ensure Hacocoon routed sandbox substrate: %w", err)
 	}
 
-	ref := "haco-" + spec.Name
-	profileConfig, err := p.sandboxProfileConfig(ctx)
+	profileConfig, err := p.sandboxProxyConfig(ctx)
 	if err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve Hacocoon sandbox proxy configuration: %w", err)
 	}

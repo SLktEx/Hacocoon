@@ -5,77 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 )
 
-func TestPrepareEnsuresSandboxNetworkByDefault(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-
-	if err := New(runner).Prepare(context.Background(), core.RuntimePrepareSpec{}); err != nil {
-		t.Fatal(err)
-	}
-
-	seenProfile := false
-	seenACL := false
-	for _, call := range runner.calls {
-		joined := strings.Join(call.args, " ")
-		if strings.Contains(joined, "profile show "+sandboxProfile) {
-			seenProfile = true
-		}
-		if strings.Contains(joined, "network acl show "+sandboxEgressACL) {
-			seenACL = true
-		}
-	}
-	if !seenProfile || !seenACL {
-		t.Fatalf("Prepare did not verify sandbox defaults: %#v", runner.calls)
-	}
-}
-
-func TestPreparedEnvironmentUsesManagedRootPool(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-	runtime := New(runner)
-	if err := runtime.Prepare(context.Background(), core.RuntimePrepareSpec{StorageAttachment: map[string]string{
-		"incus_pool": "haco-test-pool",
-	}}); err != nil {
-		t.Fatal(err)
-	}
-
-	runner.calls = nil
-	if _, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
-		Name:          "demo",
-		WorkspacePath: "/tmp/workspace",
-		ReadOnly:      true,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	seenManagedPool := false
-	for _, call := range runner.calls {
-		joined := strings.Join(call.args, " ")
-		if strings.Contains(joined, "profile show default --project default") {
-			t.Fatalf("prepared Environment fell back to Incus default profile: %#v", runner.calls)
-		}
-		if len(call.args) > 0 && call.args[0] == "init" && strings.Contains(joined, "--storage haco-test-pool") {
-			seenManagedPool = true
-		}
-	}
-	if !seenManagedPool {
-		t.Fatalf("managed root pool missing from Environment init: %#v", runner.calls)
-	}
-}
-
-func TestConfiguredStorageProviderIsLazyAndUsedForEnvironment(t *testing.T) {
+func TestConfiguredStorageProviderResolvesOnceAndPinsOwnedPool(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if result, ok := sandboxNetworkResult(args); ok {
 			return result, nil
@@ -96,28 +29,19 @@ func TestConfiguredStorageProviderIsLazyAndUsedForEnvironment(t *testing.T) {
 		t.Fatalf("storage provider called during configuration: %d", providerCalls)
 	}
 
-	if _, err := runtime.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
-		Name:          "lazy",
-		WorkspacePath: "/tmp/workspace",
-		ReadOnly:      true,
-	}); err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if pool, err := runtime.defaultRootPool(context.Background()); err != nil || pool != "haco-lazy-pool" {
+			t.Fatal("root storage selection changed", pool, err)
+		}
 	}
 	if providerCalls != 1 {
 		t.Fatalf("storage provider calls = %d, want 1", providerCalls)
 	}
 
-	seenManagedPool := false
 	for _, call := range runner.calls {
 		joined := strings.Join(call.args, " ")
 		if strings.Contains(joined, "profile show default --project default") {
 			t.Fatalf("lazy Environment fell back to Incus default profile: %#v", runner.calls)
 		}
-		if len(call.args) > 0 && call.args[0] == "init" && strings.Contains(joined, "--storage haco-lazy-pool") {
-			seenManagedPool = true
-		}
-	}
-	if !seenManagedPool {
-		t.Fatalf("lazy managed root pool missing from Environment init: %#v", runner.calls)
 	}
 }

@@ -109,35 +109,6 @@ func hasControlString(value string) bool {
 	return false
 }
 
-func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
-	if spec.DNSMode.Effective() != core.DNSHost {
-		return core.EnvironmentRuntime{}, core.ErrUnsupported
-	}
-	if len(spec.Attachments) != 0 {
-		return core.EnvironmentRuntime{}, core.ErrUnsupported
-	}
-	// Retained Store startup is not wired yet. Never fall through to ordinary
-	// creation, which may start daemons before maintenance preparation.
-	if spec.ResourceMaintenance {
-		return core.EnvironmentRuntime{}, core.ErrUnsupported
-	}
-	p.baseMu.RLock()
-	defer p.baseMu.RUnlock()
-	resolved, err := p.resolveBase(ctx, spec.Base)
-	if err != nil {
-		return core.EnvironmentRuntime{}, err
-	}
-	clone := *p.Runtime
-	clone.image = resolved.pinnedSource
-	created, err := clone.CreateEnvironment(ctx, spec)
-	if err != nil {
-		return core.EnvironmentRuntime{}, err
-	}
-	base := resolved.ref
-	created.Base = &base
-	return created, nil
-}
-
 func (p *BaseProvider) ListBases(ctx context.Context) ([]core.BaseInfo, error) {
 	if p == nil {
 		return nil, core.ErrRuntimeUnavailable

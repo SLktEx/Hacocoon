@@ -60,25 +60,13 @@ func TestProviderSnapshotIdentityRejectsReplacementWithoutRepair(t *testing.T) {
 	}
 }
 func TestInvalidCreationIdentityFailsBeforeProviderMutation(t *testing.T) {
-	for _, sandbox := range []bool{false, true} {
-		t.Run(map[bool]string{false: "runtime", true: "sandbox"}[sandbox], func(t *testing.T) {
-			runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
-				t.Fatal("provider called for invalid creation ID")
-				return host.Result{}, nil
-			}}
-			runtime := New(runner)
-			var create func(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) = runtime.CreateEnvironment
-			if sandbox {
-				provider, err := NewSandboxProvider(runtime)
-				if err != nil {
-					t.Fatal(err)
-				}
-				create = provider.CreateEnvironment
-			}
-			_, err := create(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/work", InstanceID: "bad"})
-			if !errors.Is(err, core.ErrInvalidArgument) {
-				t.Fatal(err)
-			}
-		})
+	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		t.Fatal("provider called for invalid creation ID")
+		return host.Result{}, nil
+	}}
+	provider := testSandboxProvider(t, New(runner))
+	_, err := provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/work", InstanceID: "bad"})
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal(err)
 	}
 }

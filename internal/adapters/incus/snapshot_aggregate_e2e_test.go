@@ -171,7 +171,9 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	env := core.Environment{Name: name, RuntimeRef: native, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, AccessMode: lease.AccessMode, Base: &core.BaseRef{Name: "fixture/base", Revision: core.BaseRevision("sha256:" + image)}, PersistentResource: resource.Ref(), CreatedAt: lease.AcquiredAt}
 	lease.State = core.WorkspaceLeaseActive
 	must(store.CommitEnvironmentCreate(ctx, env, lease))
-	router, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, r))
+	provider, err := NewSandboxProvider(r)
+	must(err)
+	router, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, provider))
 	must(err)
 	runtime := router
 	service := workspace.New(runtime, store)

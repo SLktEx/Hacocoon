@@ -66,7 +66,7 @@ func TestManagedIncusRefAllowsExpectedNames(t *testing.T) {
 
 func TestCreateEnvironmentRejectsInvalidNameBeforeIncus(t *testing.T) {
 	runner := &fakeRunner{}
-	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "--force", WorkspacePath: "/tmp/workspace"})
+	_, err := testSandboxProvider(t, New(runner)).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "--force", WorkspacePath: "/tmp/workspace"})
 	if !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatalf("err=%v", err)
 	}

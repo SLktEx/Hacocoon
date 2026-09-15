@@ -43,6 +43,13 @@ CLIの既存の拒否は保持し、代わりの操作や保存データの自�
 Env観測の正確な識別情報の検査は保持する。対話実行は元のprocessエラーを直接返す。
 追加の結果変換は全呼び出し元が捨てていたもので、終了状態は元のエラーから取得できる。
 
+IncusのEnv作成もSandboxProviderに一本化する。Baseを固定し、所有権を記録してから
+専用ネットワークを設定してguestを起動する。Runtime/BaseProviderの作成処理、Runtimeの
+Prepare、旧共有bridge・ACL・profileの準備処理は削除する。E2Eのstorage選択は既存の
+遅延storage providerを使う。現行の専用bridge、source guard、保存データの読み取りと
+正確な所有者に基づく清掃は保持する。予約名の拒否、Base選択、読み取り専用mount、
+期限付きの失敗清掃のテストは現行実装を対象にする。Base catalogに別のEnv作成経路を設けない。
+
 保存する経路の形式は`haco-runtime-v1:<provider>:<base64url-native-ref>`とする。
 解析時に`:`を所有providerの区切りとして使うため、この文字を含むprovider IDは
 登録時に拒否する。受け入れると、作成後に解決できない所有記録が生じる。

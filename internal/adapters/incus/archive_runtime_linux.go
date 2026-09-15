@@ -49,7 +49,7 @@ func (p *SandboxProvider) createEnvironmentFromImportedImage(ctx context.Context
 	if err := p.ensureRoutedSandboxHost(ctx); err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
-	config, err := p.sandboxProfileConfig(ctx)
+	config, err := p.sandboxProxyConfig(ctx)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}

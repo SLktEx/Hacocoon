@@ -80,7 +80,7 @@ Windows の導入手順が成功した後、同じ導入済みコントローラ
 
 検証用 Policy は対象 Environment の github.com:443 だけを許可します。既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接 TCP 拒否、管理ソケットの非公開を確認します。
 
-このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
+このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、専用bridgeとsource guardの設定の食い違い、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
 
 ## 通信元観測の責任者
 

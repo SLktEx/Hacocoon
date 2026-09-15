@@ -10,7 +10,7 @@ import (
 
 func TestCreateEnvironmentRejectsTrustedHostNameCollision(t *testing.T) {
 	runner := &fakeRunner{}
-	_, err := New(runner).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
+	_, err := testSandboxProvider(t, New(runner)).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
 		Name:          "host",
 		WorkspacePath: "/tmp/workspace",
 	})

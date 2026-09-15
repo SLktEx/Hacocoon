@@ -15,6 +15,22 @@ import (
 
 const sandboxEgressProxyPort = egressproxy.DefaultPort
 
+func (r *Runtime) sandboxProxyConfig(ctx context.Context) (map[string]string, error) {
+	proxyURL, err := r.sandboxProxyURL(ctx)
+	if err != nil {
+		return nil, err
+	}
+	const noProxy = "localhost,127.0.0.1,::1"
+	return map[string]string{
+		"environment.HTTP_PROXY":  proxyURL,
+		"environment.HTTPS_PROXY": proxyURL,
+		"environment.NO_PROXY":    noProxy,
+		"environment.http_proxy":  proxyURL,
+		"environment.https_proxy": proxyURL,
+		"environment.no_proxy":    noProxy,
+	}, nil
+}
+
 func (r *Runtime) sandboxGateway(ctx context.Context) (netip.Addr, error) {
 	if r == nil || r.runner == nil {
 		return netip.Addr{}, core.ErrInvalidArgument
