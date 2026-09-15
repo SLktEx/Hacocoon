@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func namedDataSnapshot() (core.Snapshot, []SnapshotArchive) {
+func namedDataSnapshot() (core.Snapshot, []snapshotArchive) {
 	saved, archives := snapshotFixture(2, true)
 	for i, key := range []string{"compiler", "packages"} {
 		a := core.EnvironmentAttachment{Key: key, Target: "/root/.cache/" + key, Resource: core.PersistentResourceRef{ID: "env-data:" + strings.Repeat(string(rune('a'+i)), 32), Owner: strings.Repeat(string(rune('c'+i)), 32)}, Origin: core.ResourceGeneration{Name: "source-" + key, Kind: "build-cache", Compatibility: strings.Repeat("a", 64), Epoch: strings.Repeat("e", 32)}}
@@ -19,7 +19,7 @@ func namedDataSnapshot() (core.Snapshot, []SnapshotArchive) {
 		saved.Components = append(saved.Components, c)
 		payload := []byte("uncollected " + key)
 		sum := sha256.Sum256(payload)
-		archives = append(archives, SnapshotArchive{Component: c, Bytes: int64(len(payload)), SHA256: hex.EncodeToString(sum[:]), Data: bytes.NewReader(payload)})
+		archives = append(archives, snapshotArchive{Component: c, Bytes: int64(len(payload)), SHA256: hex.EncodeToString(sum[:]), Data: bytes.NewReader(payload)})
 	}
 	return saved, archives
 }
@@ -27,7 +27,7 @@ func namedDataSnapshot() (core.Snapshot, []SnapshotArchive) {
 func TestNamedDataEnvelopeRetainsBytesWithoutSourceAuthority(t *testing.T) {
 	saved, archives := namedDataSnapshot()
 	var output bytes.Buffer
-	if err := WriteSnapshot(&output, saved, archives, 1<<20); err != nil {
+	if err := writeSnapshot(&output, saved, archives, 1<<20, snapshotWorkspaces(2)); err != nil {
 		t.Fatal(err)
 	}
 	m, err := Inspect(bytes.NewReader(output.Bytes()), 1<<20)
@@ -55,7 +55,7 @@ func TestNamedDataEnvelopeRetainsBytesWithoutSourceAuthority(t *testing.T) {
 				s.Source.Environment.Attachments[1].Origin.Kind = "host-tools"
 			}
 			var rejected bytes.Buffer
-			if err := WriteSnapshot(&rejected, s, a, 1<<20); !errors.Is(err, ErrInvalidBundle) || rejected.Len() != 0 {
+			if err := writeSnapshot(&rejected, s, a, 1<<20, snapshotWorkspaces(2)); !errors.Is(err, ErrInvalidBundle) || rejected.Len() != 0 {
 				t.Fatal("incomplete data exported", err)
 			}
 		})

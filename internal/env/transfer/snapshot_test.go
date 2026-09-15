@@ -14,7 +14,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func snapshotFixture(count int, oci bool) (core.Snapshot, []SnapshotArchive) {
+func snapshotFixture(count int, oci bool) (core.Snapshot, []snapshotArchive) {
 	s := core.Snapshot{ID: "snap-" + strings.Repeat("a", 32), State: "ready", Source: core.SnapshotSource{InstanceID: "env-" + strings.Repeat("b", 32), Environment: core.Environment{Name: "dev"}}}
 	roles := []string{"rootfs"}
 	for i := 0; i < count; i++ {
@@ -24,16 +24,25 @@ func snapshotFixture(count int, oci bool) (core.Snapshot, []SnapshotArchive) {
 		roles = append(roles, "oci")
 		s.Source.Environment.PersistentResource = core.PersistentResourceRef{ID: "oci:dev", Owner: strings.Repeat("c", 32)}
 	}
-	var archives []SnapshotArchive
+	var archives []snapshotArchive
 	for _, role := range roles {
 		c := core.SnapshotComponent{Role: role, Binding: "binding-" + role, NativeRef: "native-" + role, Owner: "owner-" + role, State: "verified"}
 		s.Components = append(s.Components, c)
 		payload := []byte("archive " + role)
 		h := sha256.Sum256(payload)
-		archives = append(archives, SnapshotArchive{Component: c, Bytes: int64(len(payload)), SHA256: hex.EncodeToString(h[:]), Data: bytes.NewReader(payload)})
+		archives = append(archives, snapshotArchive{Component: c, Bytes: int64(len(payload)), SHA256: hex.EncodeToString(h[:]), Data: bytes.NewReader(payload)})
 	}
 	return s, archives
 }
+
+func snapshotWorkspaces(count int) []Workspace {
+	workspaces := make([]Workspace, count)
+	for i := range workspaces {
+		workspaces[i] = Workspace{Role: workspaceRole(i), Name: fmt.Sprintf("repo-%03d", i)}
+	}
+	return workspaces
+}
+
 func TestWriteSnapshotPreservesEveryWorkspace(t *testing.T) {
 	for _, count := range []int{1, 2, maxWorkspaces} {
 		for _, oci := range []bool{false, true} {
@@ -45,11 +54,11 @@ func TestWriteSnapshotPreservesEveryWorkspace(t *testing.T) {
 					saved.Components[i], saved.Components[j] = saved.Components[j], saved.Components[i]
 				}
 				var out bytes.Buffer
-				if err := WriteSnapshot(&out, saved, archives, 1<<20); err != nil {
+				if err := writeSnapshot(&out, saved, archives, 1<<20, snapshotWorkspaces(count)); err != nil {
 					t.Fatal(err)
 				}
 				m, err := Inspect(bytes.NewReader(out.Bytes()), 1<<20)
-				if err != nil || len(m.Components) != len(archives) {
+				if err != nil || m.Version != 2 || len(m.Components) != len(archives) || !reflect.DeepEqual(m.Workspaces, snapshotWorkspaces(count)) {
 					t.Fatal(m, err)
 				}
 				for i := 0; i < count; i++ {
@@ -94,7 +103,7 @@ func TestWriteSnapshotRejectsInventoryMismatchBeforeWriting(t *testing.T) {
 				s, a = snapshotFixture(maxWorkspaces+1, true)
 			}
 			var out bytes.Buffer
-			if err := WriteSnapshot(&out, s, a, 1<<20); !errors.Is(err, ErrInvalidBundle) {
+			if err := writeSnapshot(&out, s, a, 1<<20, snapshotWorkspaces(2)); !errors.Is(err, ErrInvalidBundle) {
 				t.Fatal(err)
 			}
 			if out.Len() != 0 {
@@ -108,7 +117,7 @@ func TestWriteSnapshotDoesNotRequireLegacyBaseFilesystem(t *testing.T) {
 	s.Components = append(s.Components, core.SnapshotComponent{Role: "base", Binding: "legacy-base-binding", NativeRef: "legacy-base-native", Owner: "legacy-base-owner", State: "verified"})
 	before := append([]core.SnapshotComponent(nil), s.Components...)
 	var out bytes.Buffer
-	if err := WriteSnapshot(&out, s, a, 1024); err != nil {
+	if err := writeSnapshot(&out, s, a, 1024, snapshotWorkspaces(1)); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(s.Components, before) {
@@ -127,7 +136,7 @@ func TestWriteSnapshotDoesNotRequireLegacyBaseFilesystem(t *testing.T) {
 func TestWriteSnapshotPropagatesComponentReadFailure(t *testing.T) {
 	s, a := snapshotFixture(2, true)
 	a[2].Data = bytes.NewReader(nil)
-	if err := WriteSnapshot(io.Discard, s, a, 1<<20); err == nil {
+	if err := writeSnapshot(io.Discard, s, a, 1<<20, snapshotWorkspaces(2)); err == nil {
 		t.Fatal("incomplete native archive succeeded")
 	}
 }

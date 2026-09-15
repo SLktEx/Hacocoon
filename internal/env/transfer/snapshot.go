@@ -8,25 +8,21 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-// SnapshotArchive pairs exported bytes with the exact protected source component.
+// snapshotArchive pairs exported bytes with the exact protected source component.
 // It is not an ownership receipt. Callers must hold canonical source reservations
 // and verify native ownership while producing archives; guest claims are not input.
-type SnapshotArchive struct {
+type snapshotArchive struct {
 	Component core.SnapshotComponent
 	Bytes     int64
 	SHA256    string
 	Data      io.Reader
 }
 
-// WriteSnapshot matches every archive against the complete protected inventory
+// writeSnapshot matches every archive against the complete protected inventory
 // before emitting bytes. It neither opens provider paths nor reserves snapshots.
 // Legacy Base components stay in their catalog but are not part of rootfs transport.
 // A failed return must never publish the output, including underlying write errors.
-func WriteSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchive, limit int64) error {
-	return writeSnapshot(dst, saved, archives, limit, nil)
-}
-
-func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchive, limit int64, workspaces []Workspace) error {
+func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []snapshotArchive, limit int64, workspaces []Workspace) error {
 	ordered, err := snapshotComponents(saved)
 	if err != nil {
 		return err
@@ -34,20 +30,16 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 	if len(archives) != len(ordered) {
 		return ErrInvalidBundle
 	}
-	bySource := make(map[core.SnapshotComponent]SnapshotArchive, len(archives))
+	bySource := make(map[core.SnapshotComponent]snapshotArchive, len(archives))
 	for _, a := range archives {
 		if _, duplicate := bySource[a.Component]; duplicate {
 			return ErrInvalidBundle
 		}
 		bySource[a.Component] = a
 	}
-	m := Manifest{DNSMode: saved.Source.Environment.DNSMode, Version: 1, Source: saved.Source.Environment.Name, HasOCI: saved.Source.Environment.PersistentResource.ID != ""}
+	m := Manifest{DNSMode: saved.Source.Environment.DNSMode, Version: 2, Source: saved.Source.Environment.Name, HasOCI: saved.Source.Environment.PersistentResource.ID != "", Workspaces: append([]Workspace(nil), workspaces...)}
 	for _, a := range saved.Source.Environment.Attachments {
 		m.Data = append(m.Data, Data{Key: a.Key, Target: a.Target, Kind: a.Origin.Kind})
-	}
-	if workspaces != nil {
-		m.Version = 2
-		m.Workspaces = append([]Workspace(nil), workspaces...)
 	}
 	readers := make([]io.Reader, 0, len(ordered))
 	dataIndex := 0

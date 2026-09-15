@@ -82,7 +82,7 @@ func exportFixture(t *testing.T, count int, oci bool) (*Exporter, *exportSnapsho
 	t.Helper()
 	saved, inputs := snapshotFixture(count, oci)
 	snapshots := &exportSnapshotsStub{saved: saved}
-	byRole := map[string]SnapshotArchive{}
+	byRole := map[string]snapshotArchive{}
 	for _, a := range inputs {
 		byRole[a.Component.Role] = a
 	}
@@ -92,6 +92,12 @@ func exportFixture(t *testing.T, count int, oci bool) (*Exporter, *exportSnapsho
 		t.Fatal(err)
 	}
 	e := &Exporter{Snapshots: snapshots, Root: root}
+	e.Workspaces = func(_ context.Context, current core.Snapshot) ([]Workspace, error) {
+		if !snapshots.locked || current.ID != saved.ID {
+			t.Fatal("metadata outside protected source")
+		}
+		return snapshotWorkspaces(count), nil
+	}
 	e.Component = func(ctx context.Context, c core.SnapshotComponent, dir string, limit int64) (Archive, error) {
 		if !snapshots.locked || dir != root {
 			t.Fatal("producer outside protected source/private output")
@@ -146,7 +152,7 @@ func TestExportStoppedCompletePrivateBundle(t *testing.T) {
 				if oci {
 					want++
 				}
-				if err != nil || len(m.Components) != want || m.HasOCI != oci {
+				if err != nil || m.Version != 2 || len(m.Components) != want || m.HasOCI != oci || !reflect.DeepEqual(m.Workspaces, snapshotWorkspaces(count)) {
 					t.Fatal(m, err)
 				}
 				files, err := os.ReadDir(e.Root)
@@ -265,7 +271,7 @@ func TestExportStoppedBudgetIsAggregate(t *testing.T) {
 	assertExportClosed(t, *opened)
 }
 func TestExportStoppedRejectsBeforeCapture(t *testing.T) {
-	for _, which := range []string{"name", "budget", "directory", "cancel"} {
+	for _, which := range []string{"name", "budget", "directory", "cancel", "missing-workspace-reader"} {
 		t.Run(which, func(t *testing.T) {
 			e, s, _ := exportFixture(t, 1, false)
 			name := "dev"
@@ -281,6 +287,8 @@ func TestExportStoppedRejectsBeforeCapture(t *testing.T) {
 				e.Root = "relative"
 			case "cancel":
 				cancel()
+			case "missing-workspace-reader":
+				e.Workspaces = nil
 			}
 			r, err := e.ExportStopped(ctx, name, limit)
 			if err == nil || r.Bundle != nil || s.captures != 0 || s.deletes != 0 {
@@ -296,7 +304,7 @@ func TestStageProducedRejectsLateFailure(t *testing.T) {
 	os.Chmod(root, 0700)
 	failure := errors.New("cleanup failed after complete bytes")
 	result, err := stageProduced(context.Background(), root, 1<<20, func(w io.Writer) error {
-		if err := WriteSnapshot(w, saved, archives, 1<<20); err != nil {
+		if err := writeSnapshot(w, saved, archives, 1<<20, snapshotWorkspaces(1)); err != nil {
 			return err
 		}
 		return failure

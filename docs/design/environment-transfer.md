@@ -84,7 +84,9 @@ Entries are `manifest.json`, `rootfs.tar`, `workspace.tar`, consecutive
 Metadata is at most 64 KiB; envelope overhead at most 512 KiB; the public aggregate
 payload budget is 64 GiB. This budget is validation, not a disk quota while Incus writes.
 
-Version 2 exports preserve repository names and GitHub routing descriptors.
+Exports use version 2 and preserve repository names and GitHub routing descriptors.
+The protected Workspace metadata reader is required before capture starts; missing
+configuration cannot silently produce an archive without repository mappings.
 Version 1 remains readable and imports offline. Older readers reject version 2.
 Source local-file routes import offline; missing routing cannot grant destination
 Host access. Current aggregate import supports at most **eight** Workspace members;

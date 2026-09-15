@@ -79,6 +79,12 @@ session IDを返さない旧peerを受け入れる互換処理は削除する。
 pre-1.0のclientとcontrollerは一緒に更新する。現行APIが独自に結果やイベントの
 形式を定める生のストリームは保持し、管理セッションの代替としては使わない。
 
+Envのexportは必ず保護されたWorkspaceの対応表を取得し、現行のversion 2で出力する。
+未使用のversion 1生成経路と公開writerラッパーを削除する。対応表の欠落は保存情報を
+失わせるため、読取り処理が未設定なら取得前に拒否する。保存済みアーカイブに必要な
+version 1のreaderとオフラインimportは、[ADR 0052](0052-transfer-routing-metadata.md)の
+契約に従って保持する。
+
 Baseのビルド、保存asset、確認付きimage削除は別パッケージとする。
 Envの経路選択・コピー・移送は、snapshot復元および正規のWorkspace lifecycleと区別する。
 保存snapshotは稼働中のEnvに従属しない。SSH設定と公開鍵検証は利用者が異なり、

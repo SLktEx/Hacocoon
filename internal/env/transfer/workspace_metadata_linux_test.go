@@ -15,49 +15,42 @@ import (
 func metadataFixture() []Workspace {
 	return []Workspace{{Role: "workspace", Name: "repo-000", Remote: "https://github.com/SLktEx/Hacocoon-test.git", Branch: "main"}, {Role: "workspace-002", Name: "repo-001", Remote: "file:///source-only/repo.git", Branch: "dev"}}
 }
-func TestWorkspaceMetadataVersionedRoundTripAndIsolation(t *testing.T) {
-	for _, version := range []int{1, 2} {
-		e, s, _ := exportFixture(t, 2, true)
-		if version == 2 {
-			e.Workspaces = func(_ context.Context, saved core.Snapshot) ([]Workspace, error) {
-				if !s.locked || saved.ID != s.saved.ID {
-					t.Fatal("metadata outside protected source")
-				}
-				return metadataFixture(), nil
-			}
+func TestWorkspaceMetadataRoundTripAndIsolation(t *testing.T) {
+	e, s, _ := exportFixture(t, 2, true)
+	e.Workspaces = func(_ context.Context, saved core.Snapshot) ([]Workspace, error) {
+		if !s.locked || saved.ID != s.saved.ID {
+			t.Fatal("metadata outside protected source")
 		}
-		result, err := e.ExportStopped(context.Background(), "dev", 1<<20)
-		if err != nil {
-			t.Fatal(err)
+		return metadataFixture(), nil
+	}
+	result, err := e.ExportStopped(context.Background(), "dev", 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := result.Bundle.Close(); err != nil {
+			t.Error(err)
 		}
-		defer result.Bundle.Close()
-		m := result.Bundle.Manifest()
-		if m.Version != version {
-			t.Fatal(m)
-		}
-		if version == 2 {
-			if !reflect.DeepEqual(m.Workspaces, metadataFixture()) {
-				t.Fatal(m)
-			}
-			m.Workspaces[0].Remote = "https://github.com/other/other.git"
-			if !reflect.DeepEqual(result.Bundle.Manifest().Workspaces, metadataFixture()) {
-				t.Fatal("mutable routing exposed")
-			}
-		} else if len(m.Workspaces) != 0 {
-			t.Fatal("legacy metadata invented")
-		}
-		r, err := result.Bundle.ComponentReader("workspace-002")
-		if err != nil {
-			t.Fatal(err)
-		}
-		data, err := io.ReadAll(r)
-		if err != nil || string(data) != "archive workspace:repo-001" {
-			t.Fatal("component mapping changed", err)
-		}
-		inspected, err := Inspect(result.Bundle.Reader(), 1<<20)
-		if err != nil || !reflect.DeepEqual(inspected, result.Bundle.Manifest()) {
-			t.Fatal(inspected, err)
-		}
+	}()
+	m := result.Bundle.Manifest()
+	if m.Version != 2 || !reflect.DeepEqual(m.Workspaces, metadataFixture()) {
+		t.Fatal(m)
+	}
+	m.Workspaces[0].Remote = "https://github.com/other/other.git"
+	if !reflect.DeepEqual(result.Bundle.Manifest().Workspaces, metadataFixture()) {
+		t.Fatal("mutable routing exposed")
+	}
+	r, err := result.Bundle.ComponentReader("workspace-002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(r)
+	if err != nil || string(data) != "archive workspace:repo-001" {
+		t.Fatal("component mapping changed", err)
+	}
+	inspected, err := Inspect(result.Bundle.Reader(), 1<<20)
+	if err != nil || !reflect.DeepEqual(inspected, result.Bundle.Manifest()) {
+		t.Fatal(inspected, err)
 	}
 }
 func TestWorkspaceMetadataRejectsInvalidRoutingBeforeNativeExport(t *testing.T) {

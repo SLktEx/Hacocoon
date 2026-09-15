@@ -37,7 +37,6 @@ type Exporter struct {
 	// Root and the byte budget are controller configuration, never guest input.
 	Component func(context.Context, core.SnapshotComponent, string, int64) (Archive, error)
 	// Workspaces reads protected catalog bindings, never guest Git configuration.
-	// A nil callback is the legacy version-1 producer used by existing callers.
 	Workspaces func(context.Context, core.Snapshot) ([]Workspace, error)
 	Root       string
 }
@@ -52,7 +51,7 @@ type ExportResult struct {
 // while reserved, and removes only that temporary copy before returning bytes.
 // The source Env is never stopped, deleted or restored by this operation.
 func (e *Exporter) ExportStopped(ctx context.Context, source string, limit int64) (result ExportResult, err error) {
-	if !sourceName.MatchString(source) || !validLimit(limit) || e.Snapshots == nil || e.Component == nil {
+	if !sourceName.MatchString(source) || !validLimit(limit) || e.Snapshots == nil || e.Component == nil || e.Workspaces == nil {
 		return result, core.ErrInvalidArgument
 	}
 	result.Bundle, err = stageProduced(ctx, e.Root, limit, func(dst io.Writer) (err error) {
@@ -83,19 +82,16 @@ func (e *Exporter) ExportStopped(ctx context.Context, source string, limit int64
 			if err != nil {
 				return err
 			}
-			var workspaces []Workspace
-			if e.Workspaces != nil {
-				workspaces, err = e.Workspaces(ctx, current)
-				if err != nil {
-					return err
-				}
-				count := len(components) - 1 - len(current.Source.Environment.Attachments)
-				if current.Source.Environment.PersistentResource.ID != "" {
-					count--
-				}
-				if err := (Manifest{Version: 2, Workspaces: workspaces}).validateWorkspaces(count); err != nil {
-					return err
-				}
+			workspaces, err := e.Workspaces(ctx, current)
+			if err != nil {
+				return err
+			}
+			count := len(components) - 1 - len(current.Source.Environment.Attachments)
+			if current.Source.Environment.PersistentResource.ID != "" {
+				count--
+			}
+			if err := (Manifest{Version: 2, Workspaces: workspaces}).validateWorkspaces(count); err != nil {
+				return err
 			}
 			var opened []Archive
 			defer func() {
@@ -104,7 +100,7 @@ func (e *Exporter) ExportStopped(ctx context.Context, source string, limit int64
 				}
 			}()
 			remaining := limit
-			archives := make([]SnapshotArchive, 0, len(components))
+			archives := make([]snapshotArchive, 0, len(components))
 			for _, c := range components {
 				if err := ctx.Err(); err != nil {
 					return err
@@ -127,7 +123,7 @@ func (e *Exporter) ExportStopped(ctx context.Context, source string, limit int64
 					return ErrInvalidBundle
 				}
 				remaining -= size
-				archives = append(archives, SnapshotArchive{Component: c, Bytes: size, SHA256: digest, Data: &contextReader{ctx, reader}})
+				archives = append(archives, snapshotArchive{Component: c, Bytes: size, SHA256: digest, Data: &contextReader{ctx, reader}})
 			}
 			return writeSnapshot(dst, current, archives, limit, workspaces)
 		})

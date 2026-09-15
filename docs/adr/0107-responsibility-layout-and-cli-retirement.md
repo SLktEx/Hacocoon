@@ -89,6 +89,13 @@ control. Pre-1.0 clients and controllers must be updated together. Raw streams
 remain for current methods whose application protocol owns its own result or
 event framing; they are not a substitute for a negotiated managed session.
 
+Environment export always obtains protected Workspace mappings and writes the
+current version-2 envelope. The unused version-1 producer and its exported writer
+wrapper are removed. A missing metadata reader must fail before capture, because
+silently omitting repository mappings loses retained data. Version-1 bundle readers
+and offline import remain necessary for existing archives, as required by
+[ADR 0052](0052-transfer-routing-metadata.md).
+
 Base build, asset retention and reviewed image cleanup remain separate packages.
 Env routing, copy and transfer remain distinct from snapshot restore and the
 canonical Workspace lifecycle. A saved snapshot is not owned by a live Env.
