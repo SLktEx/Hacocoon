@@ -33,7 +33,13 @@ later success does not rewrite those receipts. No release was published.
 [#700](https://github.com/SLktEx/Hacocoon/pull/700) is the next main-targeted
 slice: Host/project setup outcomes and next actions use shared English/Japanese
 presentation and vertical help. Local full checks and normal installer-package
-generation passed. Its final-head CI and main integration remain next.
+generation passed. Four exact-head workflows passed; the first Windows attempt
+failed at public reclamation with an attached disk, without starting compaction.
+One failed-jobs rerun is pending; retain the failure separately from main #699's
+success. [#701](https://github.com/SLktEx/Hacocoon/pull/701) adds network result
+guidance and corrects stale cache-maintenance scope descriptions, with local
+checks and normal package generation passed. Both remain development work until
+their respective main integration.
 
 ## M0–M5 remaining work
 

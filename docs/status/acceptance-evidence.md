@@ -1477,6 +1477,22 @@ The setup-language follow-up was rebased without a tree difference from
 Linux/Windows package built from `724adc2d` in 45.49s, without installation,
 WSL termination or publication. These scopes do not claim a new release.
 
+## Setup candidate Windows reclamation failure
+
+At #700 head `5e2ee17bcdc6e2ee36766f00ed2877485777e2c8`, quality
+`34993511402`, test `34993511349`, Ubuntu `34993511337` and Incus
+`34993511396` passed. Windows `34993511328`, first-attempt job
+`104463877953`, failed public reclamation: both Linux stages completed and the
+Windows stop request succeeded, but 359 observations exhausted the existing
+90-second detached-disk wait. `compact_attached` prevented compaction; the same
+WSL resumed. Native notification acceptance was skipped. Ordinary installation,
+SSH/editor/forwarding and the preceding installed Linux reclamation passed.
+
+The cause is unproven. The setup change does not modify shutdown or compaction.
+One failed-jobs rerun was requested for this exact head to check reproducibility;
+it cannot erase the first attempt. No timeout, disk-attachment check or WSL-wide
+setting was relaxed. Person-dependent acceptance remains post-release.
+
 ## Network command language
 
 `0387258d` adds shared English/Japanese network result and next-action messages.
@@ -1491,3 +1507,6 @@ opened, canceled and rebound at their exact emitted addresses without opening
 an upstream connection. This is local CLI/relay evidence, not installed network,
 external-service, VPN or human UI acceptance. Catalog selection does not change
 structured log fields or the underlying Policy implementation.
+The ordinary ten-binary Linux/Windows package built from #701 head
+`f354464337f84e876a97628ded69249fa84f13f6` in 45.28s. No installation or
+release was performed. #701 is a development-branch follow-up to #700.
