@@ -604,3 +604,5 @@ dca688f6のWindows34926634572/job104245971260も最初のclearでtimeout、child
 復旧3ac51f91のquality34924782288はcache_maintenance.go:41のQF1003で失敗しました。test34924782199、Ubuntu34924782166、Incus34924782231は成功しました。分岐を同じ挙動のswitchへ整理しています。この失敗は先の変更差分lint成功と区別します。
 
 分岐修正後、control/cache/workspaceの集中テスト11.23秒、現在mainに対する件数上限なしlint18.59秒、文書・回帰8.48秒が通りました。確認済み親1ee2962bと全ファイル一致するmain4cd0c7dcへ載せ替え、内容は変更していません。
+
+main df22a1a5を2f07fa3dへ統合後、全ローカル95.04秒、CLI8.56秒、文書・回帰10.27秒がPASS。通知の実装は上記の実Windows確認から変更していません。
