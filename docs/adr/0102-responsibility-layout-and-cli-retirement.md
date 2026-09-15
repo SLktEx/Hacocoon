@@ -20,6 +20,13 @@ OCI Store/image operations, controller APIs, notifications and client adapters
 remain separate supported implementations. Generic capability/event APIs remain
 because current client and notification consumers use them.
 
+The retired Session manager, its private JSON store, unused runtime/storage
+contracts and Incus Session create/exec entry points are removed with their
+obsolete tests. Current Environment state and lifecycle ownership have separate
+catalogs and canonical transitions; they do not read that Session store. The
+unregistered `switch-base` implementation is also removed. Its existing CLI
+refusal remains, with no replacement operation or automatic data migration.
+
 The Agent Host helper also uses one explicit command dispatch. Its `init`-time
 interceptor, duplicate prepare parser, stdout capture and legacy-output adapter
 are removed. Prepare and lookup render the same typed session descriptor directly;

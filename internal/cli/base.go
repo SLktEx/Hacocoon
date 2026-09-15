@@ -4,49 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
-
-type baseSwitchClient interface {
-	EnvironmentStatus(context.Context, string) (core.EnvironmentStatus, error)
-	InspectBase(context.Context, core.BaseName) (core.BaseInfo, error)
-	StopEnvironment(context.Context, string) error
-	DeleteEnvironment(context.Context, string) error
-	CreateEnvironment(context.Context, controlapi.EnvironmentCreateRequest) (core.Environment, error)
-}
-
-// Historical asset, not registered by the product CLI. Stage D+ must revisit
-// semantics (including persistent resource attachment) before reusing this UX.
-// Only canonical lifecycle operations mutate Environment ownership. Each API
-// fails closed; a failed replacement leaves the managed Workspace available.
-func switchBase(ctx context.Context, c baseSwitchClient, name string, base core.BaseName) (core.Environment, error) {
-	status, err := c.EnvironmentStatus(ctx, name)
-	if err != nil {
-		return core.Environment{}, err
-	}
-	old := status.Environment
-	if !strings.HasPrefix(old.Workspace.Path, "managed:") {
-		return core.Environment{}, fmt.Errorf("Base switching requires a managed Workspace: %w", core.ErrInvalidArgument)
-	}
-	if _, err := c.InspectBase(ctx, base); err != nil {
-		return core.Environment{}, err
-	}
-	if err := c.StopEnvironment(ctx, name); err != nil {
-		return core.Environment{}, err
-	}
-	if err := c.DeleteEnvironment(ctx, name); err != nil {
-		return core.Environment{}, err
-	}
-	result, err := c.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: name, WorkspacePath: old.Workspace.Path, AccessMode: old.AccessMode, Base: base, Resources: old.Resources})
-	if err != nil {
-		return core.Environment{}, fmt.Errorf("Workspace %s retained; inspect 'haco env list', then recreate with 'haco env create --workspace %s --base %s %s': %w", old.Workspace.Path, old.Workspace.Path, base, name, err)
-	}
-	return result, nil
-}
 
 func runBase(args []string) int {
 	if len(args) > 0 && args[0] == "delete" {

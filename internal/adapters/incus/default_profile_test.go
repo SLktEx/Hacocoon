@@ -121,28 +121,3 @@ func TestConfiguredStorageProviderIsLazyAndUsedForEnvironment(t *testing.T) {
 		t.Fatalf("lazy managed root pool missing from Environment init: %#v", runner.calls)
 	}
 }
-
-func TestCreateSessionUsesSandboxProfileByDefault(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
-		if result, ok := sandboxNetworkResult(args); ok {
-			return result, nil
-		}
-		return host.Result{}, nil
-	}}
-
-	created, err := New(runner).Create(context.Background(), core.RuntimeSessionSpec{ID: core.SessionID("abc123")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created.Ref != "haco-abc123" {
-		t.Fatalf("ref = %q", created.Ref)
-	}
-
-	for _, call := range runner.calls {
-		if len(call.args) > 0 && call.args[0] == "launch" {
-			assertRunnerCall(t, call, "incus", "launch", defaultImage, "haco-abc123", "--project", defaultProject, "--profile", sandboxProfile, "--config", "boot.autostart=false")
-			return
-		}
-	}
-	t.Fatalf("launch call missing: %#v", runner.calls)
-}

@@ -46,21 +46,6 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
 	return err
 }
 
-func (r *Runtime) Exec(ctx context.Context, ref string, req core.ExecRequest) (core.ExecResult, error) {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return core.ExecResult{}, err
-	}
-	if len(req.Argv) == 0 {
-		return core.ExecResult{}, core.ErrInvalidArgument
-	}
-	if req.Interactive {
-		return r.execInteractive(ctx, ref, req.Argv)
-	}
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, req.Argv...)
-	result, err := r.runner.Run(ctx, "incus", args...)
-	return core.ExecResult{ExitCode: result.ExitCode, Stdout: result.Stdout, Stderr: result.Stderr}, err
-}
-
 func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
 	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)

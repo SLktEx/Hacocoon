@@ -76,31 +76,6 @@ func (r *Runtime) Prepare(ctx context.Context, spec core.RuntimePrepareSpec) err
 	return nil
 }
 
-func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (core.RuntimeSession, error) {
-	if err := r.ensureProject(ctx); err != nil {
-		return core.RuntimeSession{}, err
-	}
-	if err := r.ensureSandboxNetwork(ctx); err != nil {
-		return core.RuntimeSession{}, fmt.Errorf("ensure Hacocoon sandbox network: %w", err)
-	}
-	pool, err := r.ensureStoragePool(ctx, spec.StorageAttachment)
-	if err != nil {
-		return core.RuntimeSession{}, err
-	}
-	name := "haco-" + string(spec.ID)
-	if err := validateManagedInstanceRef(name); err != nil {
-		return core.RuntimeSession{}, err
-	}
-	args := []string{"launch", r.image, name, "--project", r.project, "--profile", sandboxProfile, "--config", "boot.autostart=false"}
-	if pool != "" {
-		args = append(args, "--storage", pool)
-	}
-	if _, err := r.runner.Run(ctx, "incus", args...); err != nil {
-		return core.RuntimeSession{}, err
-	}
-	return core.RuntimeSession{Ref: name}, nil
-}
-
 func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
 	if spec.DNSMode.Effective() != core.DNSHost {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported

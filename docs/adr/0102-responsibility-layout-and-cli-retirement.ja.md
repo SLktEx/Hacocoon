@@ -33,6 +33,12 @@ providerラッパーと、provider側の旧`PrepareSSH`別名も削除する。
 現行clientは`PrepareSSHAccess`と対応する失効契約を使う。公開client-adapter APIと、
 保持中の所有対象を安全に削除するための読み取り処理は維持する。
 
+旧Sessionのmanager、専用JSONストア、未使用のruntime/storage契約、Incusの
+Session作成・実行入口は、それらだけを対象とする旧テストとともに削除する。
+現行Envの状態と所有権は別のcatalogと正規のlifecycle遷移で管理し、このSession
+ストアを参照しない。登録されていない`switch-base`の実装も削除する。
+CLIの既存の拒否は保持し、代わりの操作や保存データの自動移行は追加しない。
+
 保存する経路の形式は`haco-runtime-v1:<provider>:<base64url-native-ref>`とする。
 解析時に`:`を所有providerの区切りとして使うため、この文字を含むprovider IDは
 登録時に拒否する。受け入れると、作成後に解決できない所有記録が生じる。
