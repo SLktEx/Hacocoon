@@ -45,7 +45,9 @@ Workspaceの利用権、Environmentの作成世代を再確認します。Envか
 cloneからのpush許可、保存済み対象の暗黙拡大、暗黙または全体へのlease、一覧外OIDの取得、
 終了コードだけでの成功判断、EnvのGit設定の転送は採用しません。
 
-初期transportは一回1024head、pack合計32 MiBまでです。headごとの転送で履歴が重複する場合があり、
+初期transportのpack合計32 MiB制限を、現在は各headのpackを32 MiBまでとして順番に取得・
+取り込む方式に修正しました。一回1024headと個別の認可、メッセージ・pack単位の上限は維持し、
+batchの合計は32 MiBを超えられます。headごとの転送で履歴が重複する場合があり、
 巨大レポ向けtransportと実測は別作業として残します。force push・削除・複数ref・LFS・submoduleは
 延期します。実Gitを使った部品試験を、認証GitHub・導入済みEnv・GUI・巨大レポの受入とは扱いません。
 旧版移行は最新のユーザー指定により今回の対象外です。

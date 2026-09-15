@@ -108,7 +108,6 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if _, err := validateHeads(requested); err != nil {
 				return err
 			}
-			total := 0
 			for _, head := range requested {
 				haves, err := helperHaves(ctx)
 				if err != nil {
@@ -118,10 +117,11 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				if err != nil {
 					return err
 				}
-				if len(response.Pack) == 0 || len(response.Pack) > MaxPack-total {
-					return fmt.Errorf("git batch exceeds supported pack size")
+				// Each independently authorized response is indexed before the next
+				// request. Bound that pack, not the cumulative sequential transfer.
+				if len(response.Pack) == 0 || len(response.Pack) > MaxPack {
+					return fmt.Errorf("git response exceeds supported pack size")
 				}
-				total += len(response.Pack)
 				if _, err := helperGit(ctx, response.Pack, "index-pack", "--stdin", "--strict"); err != nil {
 					return err
 				}
