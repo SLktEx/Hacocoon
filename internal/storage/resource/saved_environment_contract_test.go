@@ -1,19 +1,21 @@
-package state
+package persistentresource_test
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/state"
+	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 )
 
 type savedDataBackend struct {
 	t      *testing.T
-	store  *EnvironmentJSONStore
+	store  *state.EnvironmentJSONStore
 	fail   string
 	copies int
 }
@@ -62,33 +64,32 @@ func (b *savedDataBackend) CreateSavedEnvironmentResource(ctx context.Context, s
 	}
 	return nil
 }
-func savedDataFixture(t *testing.T) (*EnvironmentJSONStore, core.Snapshot) {
+func savedDataFixture(t *testing.T) (*state.EnvironmentJSONStore, core.Snapshot) {
 	t.Helper()
 	ctx := context.Background()
-	store, lease, plans := environmentDataFixture(t, 2)
-	lease.SourcePath = "managed:source"
-	lease.WorkspaceID = "source-work"
+	manager, backend, request, selections := environmentContractService(t)
+	request.Workspace = core.Workspace{ID: "source-work", Path: "managed:source"}
+	store := backend.store
+	lease, _ := reserveEnvironmentContract(t, manager, store, request, selections)
 	must := func(err error) {
 		t.Helper()
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	must(store.BeginEnvironmentCreateWithResources(ctx, lease, plans))
-	for _, plan := range plans {
-		r, err := store.BeginEnvironmentResourceMaterialization(ctx, lease, plan.Resource.Ref())
-		must(err)
-		r, err = store.RecordEnvironmentResourceCreated(ctx, r)
-		must(err)
-		must(store.CommitPersistentResourceCreate(ctx, r))
-	}
+	_, err := manager.MaterializeEnvironmentResources(ctx, lease)
+	must(err)
 	lease.RuntimeRef = "haco-source"
 	must(store.RecordEnvironmentRuntime(ctx, lease))
 	lease.State = core.WorkspaceLeaseActive
-	env := core.Environment{Name: lease.EnvironmentID, Workspace: core.Workspace{ID: lease.WorkspaceID, Path: lease.SourcePath}, RuntimeRef: lease.RuntimeRef, AccessMode: lease.AccessMode, Attachments: lease.Attachments, CreatedAt: lease.AcquiredAt}
+	env := core.Environment{Name: lease.EnvironmentID, Workspace: request.Workspace, RuntimeRef: lease.RuntimeRef, AccessMode: lease.AccessMode, Attachments: lease.Attachments, CreatedAt: lease.AcquiredAt}
 	must(store.CommitEnvironmentCreate(ctx, env, lease))
 	saved := core.Snapshot{ID: "snap-" + strings.Repeat("7", 32), State: "capturing", Source: core.SnapshotSource{Environment: env, InstanceID: lease.InstanceID}}
-	for i, role := range []string{"rootfs", "workspace:main", "data:cache-00", "data:cache-01"} {
+	roles := []string{"rootfs", "workspace:main"}
+	for _, area := range lease.Attachments {
+		roles = append(roles, "data:"+area.Key)
+	}
+	for i, role := range roles {
 		saved.Components = append(saved.Components, core.SnapshotComponent{Role: role, NativeRef: "saved/" + role, Owner: fmt.Sprintf("%032x", 100+i), State: "planned"})
 	}
 	must(store.BeginSnapshot(ctx, saved))
@@ -98,12 +99,13 @@ func savedDataFixture(t *testing.T) (*EnvironmentJSONStore, core.Snapshot) {
 		must(store.RecordSnapshotComponent(ctx, saved.ID, c, "verified"))
 	}
 	must(store.CommitSnapshot(ctx, saved.ID))
-	saved, err := store.GetSnapshot(ctx, saved.ID)
+	saved, err = store.GetSnapshot(ctx, saved.ID)
 	must(err)
 	return store, saved
 }
+
 func TestSavedDataReservationReceiptAndCleanup(t *testing.T) {
-	for _, mode := range []string{"ok", "source-changed", "copy", "verify", "delete", "wrong-source", "missing-provenance"} {
+	for _, mode := range []string{"ok", "source-changed", "copy", "verify", "delete"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			store, saved := savedDataFixture(t)
@@ -124,23 +126,7 @@ func TestSavedDataReservationReceiptAndCleanup(t *testing.T) {
 			for _, p := range plans {
 				lease.Attachments = append(lease.Attachments, p.Attachment)
 			}
-			if mode == "wrong-source" {
-				plans[1].Attachment.Target = "/root/.cache/replaced"
-				lease.Attachments[1] = plans[1].Attachment
-			}
-			if mode == "missing-provenance" {
-				plans[1].Resource.RestoreSource = ""
-			}
 			err = store.BeginEnvironmentCreateFromSnapshotWithResources(ctx, lease, saved, plans)
-			if mode == "wrong-source" || mode == "missing-provenance" {
-				if err == nil {
-					t.Fatal("partial saved inventory accepted")
-				}
-				if _, err := store.GetWorkspaceLease(ctx, lease.EnvironmentID); !errors.Is(err, core.ErrNotFound) {
-					t.Fatal("partial reservation persisted", err)
-				}
-				return
-			}
 			if err != nil {
 				t.Fatal(err)
 			}

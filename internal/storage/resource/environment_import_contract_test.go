@@ -1,11 +1,13 @@
-package state
+package persistentresource_test
 
 import (
 	"context"
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +35,7 @@ func TestImportedDataRequiresBytesAndPositiveCompletion(t *testing.T) {
 	for _, mode := range []string{"ok", "wrong-mode", "unknown", "verify", "delete"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
-			store, _, _ := environmentDataFixture(t, 1)
+			store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 			backend := &importedDataBackend{&savedDataBackend{t: t, store: store, fail: mode}}
 			manager := &persistentresource.Service{Store: store, Backend: backend}
 			lease := core.WorkspaceLease{EnvironmentID: "imported", Owner: "imported", InstanceID: "env-" + strings.Repeat("d", 32), WorkspaceID: "imported-work", SourcePath: "managed:imported", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
