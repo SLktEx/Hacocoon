@@ -131,3 +131,8 @@ Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Host�
 実装済み候補: `workspace import`でLinux/WSLのcheckoutまたはlinked worktreeを独立した管理Workspaceへコピーし、未コミット変更・選択HEAD/index・objectsを保持します。
 HostのGit config/hooksと別worktreeの管理情報は持ち込みません。既存の所有権・アップロード処理を共用し、結果不明時はローカル参照と復旧記録を残します。
 [入力契約](design/workspace-input.ja.md)を参照してください。sparse/partial clone、submodule、Windows直接入力、巨大レポ性能はこの範囲に含めません。
+
+
+キャッシュ台帳の整理は実装済み候補です。history/recover/clearの--allで、生成元Env削除後の再利用元も扱います。
+既存の確認/CAS/cleanupを使い、Env・Workspace・OCIの独立データと保護参照を残します。
+既存Envへの後付け登録と結果不明コピーの取り消しは未完です。

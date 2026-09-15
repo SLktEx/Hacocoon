@@ -23,6 +23,11 @@ func (w *Workflow) Recover(ctx context.Context, name, key string) (RecoveryResul
 	if err != nil {
 		return result, err
 	}
+	return w.recoverReviewed(ctx, history, candidates)
+}
+
+func (w *Workflow) recoverReviewed(ctx context.Context, history History, candidates []core.PersistentResource) (RecoveryResult, error) {
+	result := RecoveryResult{Entries: []HistoryEntry{}}
 	var failures []error
 	for i, r := range candidates {
 		entry := history.Entries[i]

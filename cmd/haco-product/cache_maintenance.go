@@ -23,10 +23,17 @@ func runCacheMaintenance(args []string, client cacheMaintenanceClient, in io.Rea
 	flags.SetOutput(diagnostic)
 	asJSON := flags.Bool("json", false, cliMessage("flag.json"))
 	yes := flags.Bool("yes", false, cliMessage("cache.clear_yes"))
+	all := flags.Bool("all", false, cliMessage("cache.all"))
 	if err := flags.Parse(args[1:]); err != nil {
 		return 2
 	}
 	rest := flags.Args()
+	if *all {
+		if len(rest) != 0 || args[0] != "clear" && *yes {
+			return 2
+		}
+		return runCacheCatalog(args[0], client, *asJSON, *yes, in, out, diagnostic)
+	}
 	if len(rest) != 2 || args[0] != "clear" && *yes {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("cache.maintenance_usage"))
 		return 2

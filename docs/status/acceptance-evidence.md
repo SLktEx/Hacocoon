@@ -833,3 +833,29 @@ The product implementation was the candidate overlay, not unchanged2e8d905c;
 the dedicated test binary was used, not the installed CLI. No Policy relaxation
 or guest management authority was added. Authenticated Git, human GUI answers,
 installed input and giant-repository measurements were not exercised.
+
+
+## Retained cache catalog maintenance
+
+The candidate based on809bfb33 passed focused12.91s, complete main-diff lint15.08s,
+full local26.56s, race11.53s, CLI4.17s, docs/regressions7.95s, workflow1.32s and
+native-test compilation1.45s. Regressions cover missing producers, exact reviewed
+owners, changed selection/display membership, incomplete/busy cleanup, recovery
+without deletion, caller-path/owner refusal and common CLI confirmation/display.
+
+On Ubuntu26.04.1/Incus7.0.1 in the dedicated WSL, cache-native-1 passed17.70s
+(test17.67s). Fixture data-e2e-25cadfe2239e648b,
+catalog /var/lib/haco-data-placement-24466710/state.json, exercised ordinary Env
+creation, two cache areas, stopped collection, independent data-bearing reuse,
+clear while a consumer remained live, then --all workflow inspection/cleanup of
+retained collected data after both Envs were deleted. The external Workspace
+marker remained. All operations used the fixture's private catalog and canonical
+ownership transitions; no global/user data or Policy relaxation. This uses the
+real backend and Standard workflow, not installed public CLI, OCI or large-repo
+performance acceptance.
+
+#681 at809bfb33 passed the four Linux CI workflows. Windows34943936799/job104298802478
+passed installation, SSH/editor, tunnel and public reclamation, then FAILED stale
+notification activation with dispatch HRESULT -2147220990 at its10-second deadline.
+Notification follow-up and human decisions were not established by that run.
+Readiness is addressed in #682; this historical failure remains a failure.

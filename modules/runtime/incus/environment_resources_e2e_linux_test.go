@@ -155,6 +155,9 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "printf changed > /root/.cache/haco-e2e-compiler/probe")
 	// Review and clear source generations while independent consumer data stays live.
 	for _, a := range next.Attachments {
+		if os.Getenv("HACO_E2E_CACHE_CATALOG") == "1" && a.Key == "packages" {
+			continue
+		}
 		history, err := workflow.History(ctx, nextName, a.Key)
 		must(err)
 		if len(history.Entries) != 1 || history.Entries[0].State != "current" {
@@ -170,6 +173,36 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 		t.Fatal("clear changed consumer data")
 	}
 	must(svc.Delete(ctx, nextName))
+	if os.Getenv("HACO_E2E_CACHE_CATALOG") == "1" {
+		history, err := workflow.CatalogHistory(ctx)
+		must(err)
+		if len(history.Groups) != 2 {
+			t.Fatal("retained catalog incomplete", history)
+		}
+		count := 0
+		for _, group := range history.Groups {
+			if len(group.Environments) != 0 {
+				t.Fatal("producer should be gone", group)
+			}
+			count += len(group.History.Entries)
+		}
+		if count != 1 {
+			t.Fatal("missing orphaned collected data", history)
+		}
+		cleared, err := workflow.MaintainCatalog(ctx, history.Revision, true)
+		must(err)
+		for _, group := range cleared.Groups {
+			if group.State != "complete" || !group.Result.Reset {
+				t.Fatal("orphan cleanup incomplete", group)
+			}
+			for _, entry := range group.Result.Entries {
+				if entry.State != "deleted" {
+					t.Fatal(entry)
+				}
+			}
+		}
+		t.Log("PASS reviewed catalog cleanup of retained collected data after all producer/consumer Envs were deleted, through exact ownership and common deletion; Workspace retained")
+	}
 	for _, a := range env.Attachments {
 		if _, err := store.GetPersistentResource(ctx, a.Resource.ID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("child ownership was not released", err)

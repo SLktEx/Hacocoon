@@ -147,3 +147,9 @@ are excluded. Import shares the existing ownership and upload transitions;
 unknown results retain a local reference and recovery receipts. See
 [the input contract](design/workspace-input.md). Sparse/partial clones, submodules,
 Windows-native input and giant-repository performance remain outside this slice.
+
+
+Cache catalog maintenance is implemented in the candidate: history/recover/clear
+accept --all to cover retained sources after producer deletion. It uses existing
+review/CAS/cleanup; independent Env/Workspace/OCI data and protected references
+remain. Existing-Env enrollment and unknown-copy cancellation remain incomplete.

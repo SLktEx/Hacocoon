@@ -720,3 +720,19 @@ fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state
 製品実装は2e8d905cへ今回差分を重ねた候補であり、未変更の2e8d905cではありません。
 専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
 認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。
+
+
+## 保持キャッシュ台帳の整理
+
+809bfb33を基にした候補でfocused12.91秒、main全差分lint15.08秒、全ローカル26.56秒、race11.53秒、CLI4.17秒、docs/regressions7.95秒、workflow1.32秒、実機試験compile1.45秒が成功しました。
+生成元不在、確認対象の正確な所有権、選択/表示対象変更、未完了/使用中cleanup、削除しない復旧、callerのpath/owner拒否、CLI共通確認と表示を回帰で検証しています。
+
+専用WSLのUbuntu26.04.1/Incus7.0.1でcache-native-1は実行全体17.70秒、試験17.67秒でPASS。
+fixture data-e2e-25cadfe2239e648b、台帳 /var/lib/haco-data-placement-24466710/state.json。
+通常Env作成、2つのキャッシュ領域、停止収集、実データの独立再利用、使用先Envを残した元整理、両Env削除後の保持データに対する全体一覧/cleanupを確認しました。
+外部Workspaceのmarkerは保持しました。試験専用台帳と共通所有権処理だけを使い、既存データやPolicy緩和は対象にしません。
+実backendとStandard workflowの受入で、導入済み公開CLI・OCI・巨大レポ性能の受入ではありません。
+
+#681の809bfb33はLinux側4 CIが成功しました。
+Windows34943936799/job104298802478は導入・SSH/editor・tunnel・公開容量回収に成功後、失効通知起動のdispatchが10秒期限とHRESULT -2147220990でFAILしました。
+通知後続や人の回答の成功は確立していません。起動準備は#682で対応し、この過去の失敗は保持します。

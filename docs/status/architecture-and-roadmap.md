@@ -232,5 +232,6 @@ existing restore transition. Local full/race and dedicated supported-Incus Git
 state/addition/restart/cleanup passed; see [evidence](acceptance-evidence.md#selected-workspace-membership).
 Independent checkout/linked-worktree input is implemented in the next candidate
 through the client/provider boundaries. Next: installed/authenticated acceptance
-and existing-Env cache enrollment/orphan-generation recovery. Source work is preserved;
+and existing-Env cache enrollment. Retained-source history/recovery/cleanup now
+have --all entry points using the common ownership transitions. Source work is preserved;
 large-repository measurement remains deferred by the user.

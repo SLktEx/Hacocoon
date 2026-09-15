@@ -152,3 +152,10 @@ Within v0.67, the M2 candidate adds explicit independent checkout/linked-worktre
 import. This uses current contracts without adding old-version compatibility.
 Implementation, installed acceptance and deferred performance remain distinct;
 no tag or release is created.
+
+
+## Retained cache maintenance
+
+The current v0.67 candidate adds all-source history, completed-copy recovery and
+reviewed cleanup after producer deletion. This is an M4 usability completion
+slice within current contracts, without a tag/release or old-version migration.

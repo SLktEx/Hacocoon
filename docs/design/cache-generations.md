@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-unknown-copy recovery and orphan-source operations remain incomplete.
+unknown-copy recovery remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -256,8 +256,8 @@ cannot convert an unknown native copy into success. See [the lifecycle decision]
 name, path, creation time, original generation and state. `retained` means not
 currently selected; it does not assert that an interrupted candidate was ever
 published. An existing enrolled Environment identifies the source, including old
-epochs. Listing orphaned sources after removing all identifying Environments is
-not yet a public operation.
+epochs. The --all operations below also cover sources after removing all
+identifying Environments.
 
 `haco cache clear [--yes] [--json] <env> <area>` displays that exact scope and uses
 the common client deletion confirmation. A revision binds the Environment, source
@@ -290,8 +290,27 @@ or reset advanced the source, complete data remains unselected; recovery does no
 delete it or replay an old publication. Use reviewed clear for retained data.
 Deletion-incomplete candidates report cleanup-required. Unknown copies and failed
 provider checks remain recovery-required and owned, with partial results preserved.
-Unknown native-copy cancellation and orphan-source recovery remain unsupported.
+Unknown native-copy cancellation remains unsupported; --all recovery includes
+positively completed orphan-source copies.
 
 Named-data snapshot/copy support is implemented through the canonical saved aggregate;
 saved bytes do not grant publication into a newer common generation. Portable
 added-data transfer is implemented; supported-host acceptance remains separate. See [snapshot semantics](environment-snapshots.md#named-disposable-data).
+
+
+## Retained sources after Environment deletion
+
+`haco cache history --all` lists every retained cache generation group, including
+sources with no remaining producer. Existing Env names and configured area names
+are shown when they can be observed; a missing producer is explicitly unnamed,
+not inferred from an opaque ID. Ordinary output needs no native resource identity.
+
+`haco cache recover --all` resumes only positively completed copies through the
+same recovery transition. `haco cache clear --all` displays the complete scope
+and uses the common confirmation; `--yes` still requires successful display.
+A revision binds all groups, selections, exact owners and displayed Env names.
+Changed review is refused before mutation. Each group then uses the existing
+source CAS, exact-owner cleanup and positive-absence fences. Env data, Workspace,
+OCI and protected snapshots remain. Groups report complete, failed or not_started;
+a partial batch requires fresh inspection. Logical cleanup does not imply physical
+space recovery. Unknown copies are retained, never canceled by destination guess.
