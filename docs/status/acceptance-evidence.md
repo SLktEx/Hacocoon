@@ -613,3 +613,5 @@ The main notification-setup integration reuses 5a6fb54c over GUI aef58798 and ma
 
 
 After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.
+
+After merging current main5121b205 as ac145abc, the combined GUI/notification candidate passed full local tests50.00s, CLI12.86s and docs/regressions31.34s. The aef58798 installed notification-setup failure remains unresolved pending new fixed-operation evidence.
