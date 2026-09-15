@@ -41,14 +41,17 @@ Use `haco ssh setup sample-dev` to prepare SSH without launching a client.
 Desktop keys stay on the desktop. Editor process launch does not prove that its
 connection or build/test is ready. See [Windows SSH](windows-environment-ssh.md).
 
-Before the first `open`, a Base without `sshd` needs package access to install
-`openssh-server`. In **trusted haco-host**, `haco config` shows current Policy and
-`haco approve --list` lists pending requests without deciding. No pending request
-does not mean network access is allowed: default deny creates no approval prompt.
-Use `haco config --edit` to review the existing snapshot and add only the required
-Env/hostname/protocol/port rules; preserve other rules and default deny. Ubuntu's
-default package sources use `archive.ubuntu.com` and `security.ubuntu.com`; inspect
-your Base for mirrors. See the [Policy example](../design/egress-authorization.md#policy-example).
+A Base without `sshd` may still install `openssh-server` during first SSH setup.
+The fixed Ubuntu package repositories used by the official Base contract are a
+product egress baseline: `archive.ubuntu.com`, `security.ubuntu.com` and
+`ports.ubuntu.com` on their normal HTTP/HTTPS ports work without adding Policy
+rules. A custom Base that keeps those Ubuntu sources can use the same baseline.
+Third-party repositories, PPAs and arbitrary mirrors are not added automatically.
+In **trusted haco-host**, `haco config` shows operator Policy and
+`haco approve --list` lists pending requests without deciding. Add an explicit
+matching `deny` or `require-approval` when you need to restrict one of the fixed
+package destinations; add ordinary Policy/approval for any other repository or
+network destination. See the [egress baseline](../design/egress-authorization.md#product-package-repository-baseline).
 An SSH failure does not establish its cause. Inspect Env state/connections and
 Policy before explicitly preparing SSH again. Successfully installed packages
 remain in the Env rootfs across stop/start.
@@ -57,9 +60,11 @@ remain in the Env rootfs across stop/start.
 
 Inside the **Env**, edit under `/workspace` and run that repository's build/test
 commands. For example, in a Go repository: `go build ./...` then `go test ./...`.
-Network/package/Git operations still require the applicable Policy/approval.
-`haco run --no-oci -- <command>` is a separate temporary-Env execution, not an
-execution inside the named persistent Env.
+Standard Ubuntu package update/install can use the fixed package baseline above;
+third-party package repositories, other network access and Git operations still
+use the applicable Policy/approval boundary. `haco run --no-oci -- <command>` is
+a separate temporary-Env execution, not an execution inside the named persistent
+Env.
 
 Exit the Env shell or return to the **trusted haco-host** terminal:
 

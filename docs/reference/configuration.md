@@ -37,6 +37,13 @@ Git rules keep repository, remote, ref and fast-forward update kind fixed.
 See [Policy semantics](../design/policy-and-capability-foundation.md) and
 [Git workflow](../guides/git-workflow.md).
 
+Product-owned baseline grants are not serialized into this revision-bound
+operator document. In particular, the fixed Ubuntu package repository destinations
+documented in [egress authorization](../design/egress-authorization.md#product-package-repository-baseline)
+are considered only when no matching administrator/saved rule exists. Add an
+explicit matching `deny` or `require-approval` rule to restrict those destinations.
+Guest configuration cannot add baseline destinations.
+
 Edits apply to subsequent requests without restarting the controller. Existing
 connections are not revoked. In-flight operations still have their normal
 pre-execution Policy check.
@@ -49,12 +56,14 @@ both succeeded. After any ambiguous error, inspect current configuration before
 retrying; a write may already have completed.
 
 The protected Physical Host `/var/lib/hacocoon/policy.json` remains the single
-source. Raw administrator edits must coordinate with its `.policy-save.lock`
-or be made while the controller is stopped. The ordinary command does this
-coordination automatically. An already malformed or unsafe on-disk Policy is
-refused and requires administrator repair; the command does not discard or
-replace unreadable rules with defaults. Policy details are not notification
-payloads. See [ADR 0027](../adr/0027-revision-bound-policy-editing.md).
+source for revision-bound operator Policy. Raw administrator edits must coordinate
+with its `.policy-save.lock` or be made while the controller is stopped. The
+ordinary command does this coordination automatically. Product baseline rules are
+shipped code and are deliberately not copied into this file. An already malformed
+or unsafe on-disk Policy is refused and requires administrator repair; the command
+does not discard or replace unreadable rules with defaults. Policy details are not
+notification payloads. See [ADR 0027](../adr/0027-revision-bound-policy-editing.md)
+and [ADR 0063](../adr/0063-default-package-repository-egress.md).
 
 Repository tests cover stale edits, simultaneous approval saving, unsafe files,
 malformed input, pre/post-write audit failure and next-request behavior. Shipped

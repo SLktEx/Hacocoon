@@ -24,20 +24,21 @@ OWNER/REPOと既存branchを置き換えてください。private Gitの認証�
 
 `haco open`はdesktop所有のSSH鍵・設定を準備しeditorを起動します。`haco open --client ssh sample-dev`は標準SSH shellを開きます。接続準備だけなら`haco ssh setup sample-dev`です。秘密鍵はdesktopに保持します。editorプロセスの起動だけで接続・build/testが正常とは判定しません。[Windows SSH](windows-environment-ssh.md)も参照してください。
 
-最初の`open`では、`sshd`を含まないBaseに`openssh-server`を導入するため、
-パッケージ取得の許可が必要です。**trusted haco-host**で`haco config`を使って
-現在のPolicyを確認し、`haco approve --list`で判断を行わずに承認待ちを一覧します。
-承認待ちが0件でも通信許可を意味しません。既定のdenyでは承認promptは作られません。
-`haco config --edit`で既存snapshotを確認し、必要なEnv・hostname・protocol・portだけに
-限定した規則を追加します。他の規則とdefault denyを保持してください。Ubuntuの既定の
-配布先は`archive.ubuntu.com`と`security.ubuntu.com`ですが、Baseでmirrorを使っていないか
-確認します。[Policy例](../design/egress-authorization.md#policy-example)を参照してください。
-SSH失敗だけでは原因は確定しません。Envの状態・接続とPolicyを確認してから、明示的に
-SSH準備をやり直します。導入済みパッケージは停止・起動をまたいでEnvのrootfsに残ります。
+`sshd`を含まないBaseでは、最初のSSH準備時に`openssh-server`を導入する場合があります。
+公式Base契約で使うUbuntuの固定package repositoryである`archive.ubuntu.com`、
+`security.ubuntu.com`、`ports.ubuntu.com`の通常HTTP/HTTPS portは製品のegress baselineとして
+Policy追加なしで利用できます。公式Ubuntu Baseからbuildしたcustom Baseが同じsourceを保持して
+いる場合もこのbaselineを使えます。third-party repository、PPA、任意mirrorは自動追加しません。
+**trusted haco-host**の`haco config`は管理者Policyを表示し、`haco approve --list`は判断せずに
+承認待ちを一覧します。固定package宛先をさらに制限したい場合は一致する`deny`または
+`require-approval`を追加し、それ以外のrepositoryやnetwork destinationには通常のPolicy/承認を
+使います。[egress baseline](../design/egress-authorization.ja.md#製品既定の-package-repository-許可)を
+参照してください。SSH失敗だけでは原因は確定しません。Envの状態・接続とPolicyを確認してから、
+明示的にSSH準備をやり直します。導入済みパッケージは停止・起動をまたいでEnvのrootfsに残ります。
 
 ## 作業・停止・翌日の再開
 
-**Env内**の`/workspace`で編集し、そのrepositoryのbuild/testを実行します。Go repositoryなら例として`go build ./...`、`go test ./...`です。network/package/Git操作には引き続きPolicy/承認が必要です。`haco run --no-oci -- <command>`は別の一時Envでの実行で、指定した常用Env内での実行ではありません。
+**Env内**の`/workspace`で編集し、そのrepositoryのbuild/testを実行します。Go repositoryなら例として`go build ./...`、`go test ./...`です。標準Ubuntu packageのupdate/installは上記の固定baselineを使えます。third-party package repository、その他network access、Git操作には従来どおり該当するPolicy/承認を使います。`haco run --no-oci -- <command>`は別の一時Envでの実行で、指定した常用Env内での実行ではありません。
 
 Env shellを終了するか**trusted haco-host端末**へ戻ります:
 
