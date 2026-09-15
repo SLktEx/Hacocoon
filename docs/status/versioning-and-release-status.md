@@ -159,3 +159,9 @@ no tag or release is created.
 The current v0.67 candidate adds all-source history, completed-copy recovery and
 reviewed cleanup after producer deletion. This is an M4 usability completion
 slice within current contracts, without a tag/release or old-version migration.
+
+## Saved-data deletion diagnostics
+
+Within v0.67, the M5 candidate adds read-only snapshot component inspection and
+explicit retry guidance. This does not complete M5, release a package, or establish
+underlying storage health. See the [owning contract](../design/environment-snapshots.md#inspect-a-failed-deletion).

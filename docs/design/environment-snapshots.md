@@ -9,6 +9,7 @@ Replacement switching and broader host acceptance remain partial. See [implement
 ```bash
 haco snapshot create dev
 haco snapshot list dev
+haco snapshot inspect snap-0123456789abcdef0123456789abcdef
 haco snapshot restore snap-0123456789abcdef0123456789abcdef new-dev
 haco snapshot delete snap-0123456789abcdef0123456789abcdef
 ```
@@ -35,6 +36,35 @@ check `list` before retrying. No automatic backup or runtime rollback is created
 current Env/Workspace/OCI data, checks active restore reservations, and retains
 ownership records when cleanup cannot establish positive absence. This is the
 explicit removal operation for complete or incomplete saved data.
+
+## Inspect a failed deletion
+
+**Implemented candidate:** `haco snapshot inspect [--json] [--details] <id>` reads
+ready, incomplete and deleting saves, including after the source Env is gone.
+The normal result identifies each saved part, its presence/ownership check,
+active volume reference count when observable, and the next safe action.
+`--details` adds the recorded component state and provider/project/pool/object.
+JSON includes these typed identities. Raw config, `UsedBy` URLs, credentials and
+provider subprocess output are never projected.
+
+Inspection uses the saved provider binding and the normal Environment/Workspace
+locks. Incus GET observations share the existing deletion ownership validators;
+inspection never creates, deletes, changes receipts or releases reservations.
+An unavailable or ambiguous component remains unknown/partial while independent
+components are still reported. Partial inspection returns failure with its result.
+A busy volume is successfully observed, but remains a deletion blocker.
+
+A delete failure names the component and suggests `inspect`. Normal delete retries
+skip components already recorded absent, recheck exact ownership and keep the
+catalog on ambiguous cleanup. Resolve the reported blockers before retrying
+`haco snapshot delete <id>`. Inspection is a point-in-time observation, not
+permission to delete or a reservation across commands. Current Env/Workspace/OCI
+contents remain outside this operation.
+
+Provider metadata does not prove underlying Btrfs consistency. Backing storage
+health is explicitly **uninspected**; repeated provider errors need provider-aware
+storage investigation. Hacocoon neither probes guessed Incus disk paths nor
+recommends raw subvolume deletion, pool deletion or dropping catalog ownership.
 
 ## Incus owns storage and runtime operations
 

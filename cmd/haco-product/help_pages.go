@@ -65,6 +65,7 @@ var helpPages = []helpPage{
 	{Path: "base delete", Syntax: "[--yes] <name-or-fingerprint>", Message: "command.base.delete", Example: "haco base delete <base>"},
 	{Path: "snapshot", Syntax: "<command>", Message: "command.snapshot", Example: "haco snapshot list"},
 	{Path: "snapshot create", Syntax: "[--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},
+	{Path: "snapshot inspect", Syntax: "[--json] [--details] <snapshot>", Message: "command.snapshot.inspect", Example: "haco snapshot inspect snap-0123456789abcdef0123456789abcdef"},
 	{Path: "snapshot list", Syntax: "[--json] [env]", Message: "command.snapshot.list", Example: "haco snapshot list"},
 	{Path: "snapshot restore", Syntax: "[--json] <snapshot-id> [new-env]", Message: "command.snapshot.restore", Example: "haco snapshot restore <snapshot-id> restored"},
 	{Path: "snapshot delete", Syntax: "<snapshot-id>", Message: "command.snapshot.delete", Example: "haco snapshot delete <snapshot-id>"},

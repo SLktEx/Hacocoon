@@ -160,3 +160,11 @@ registration. Clear/readiness/first review share the existing 20-second launch
 budget; normal 10/8-second operations and no-replay rules remain. Matching installed
 stale/malformed refusal and Host notification subscription passed; human answers
 and visual layout remain separate.
+
+## Saved-data deletion diagnostics candidate
+
+**Implemented candidate:** `haco snapshot inspect` explains each persisted saved
+component, provider presence, volume references and safe retry steps. It uses
+existing ownership validators and locks without changing deletion semantics.
+Underlying Btrfs consistency is explicitly uninspected; this is not a repair or
+whole M5 acceptance. See [snapshot diagnostics](design/environment-snapshots.md#inspect-a-failed-deletion).

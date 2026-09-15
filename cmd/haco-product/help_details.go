@@ -77,6 +77,7 @@ func init() {
 	set([]string{"base build"}, []cliui.HelpField{field("<directory | definition.json>", "base.packer_context")}, []cliui.HelpField{field("--name <base>", "base.packer_name"), field("--from <base>", "base.packer_from"), field("--output", "base.packer_output"), json})
 	set([]string{"base delete"}, []cliui.HelpField{field("<name-or-fingerprint>", "detail.base_delete")}, []cliui.HelpField{yes})
 	set([]string{"snapshot create"}, []cliui.HelpField{env}, []cliui.HelpField{json})
+	set([]string{"snapshot inspect"}, []cliui.HelpField{snapshot}, []cliui.HelpField{json, field("--details", "snapshot.inspect.details")})
 	set([]string{"snapshot list"}, []cliui.HelpField{field("[env]", "detail.snapshot_env")}, []cliui.HelpField{json})
 	set([]string{"snapshot restore"}, []cliui.HelpField{snapshot, field("[new-env]", "detail.restore_name")}, []cliui.HelpField{json})
 	set([]string{"snapshot delete"}, []cliui.HelpField{snapshot}, nil)

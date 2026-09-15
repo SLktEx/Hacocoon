@@ -240,3 +240,11 @@ large-repository measurement remains deferred by the user.
 Native notification startup now waits for private WSL read readiness before COM
 presentation registration. Matching installed refusal/subscription passed; fresh
 human decisions and past CI activation/reclamation failures remain distinct.
+
+## Saved-data deletion diagnostics
+
+The M5 candidate adds read-only component inspection and safe delete retry guidance
+for #523. Provider observations and existing deletion ownership checks are shared;
+underlying Btrfs consistency remains uninspected. Installed current-data evacuation,
+Base archive import and late cache enrollment/local clearing remain separate work.
+Large-repository performance and extra validation follow ordinary usability.

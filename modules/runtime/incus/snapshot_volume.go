@@ -78,17 +78,29 @@ func (r *Runtime) snapshotVolumeObservation(ctx context.Context, p snapshotVolum
 	if err := p.validate(); err != nil {
 		return nil, err
 	}
-	name := p.Source
-	if target {
-		name = p.target()
+	volumes, err := r.readSnapshotVolumes(ctx, p.Pool)
+	if err != nil {
+		return nil, err
 	}
-	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+p.Pool+"/volumes/custom?project="+r.project+"&recursion=1")
+	return r.validateSnapshotVolumeObservation(p, target, volumes)
+}
+
+func (r *Runtime) readSnapshotVolumes(ctx context.Context, pool string) ([]persistentVolumeObservation, error) {
+	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+r.project+"&recursion=1")
 	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 		return nil, core.ErrRuntimeUnavailable
 	}
 	var volumes []persistentVolumeObservation
 	if json.Unmarshal([]byte(out.Stdout), &volumes) != nil || volumes == nil {
 		return nil, core.ErrIncompatibleState
+	}
+	return volumes, nil
+}
+
+func (r *Runtime) validateSnapshotVolumeObservation(p snapshotVolumePlan, target bool, volumes []persistentVolumeObservation) (*persistentVolumeObservation, error) {
+	name := p.Source
+	if target {
+		name = p.target()
 	}
 	var found *persistentVolumeObservation
 	for _, v := range volumes {

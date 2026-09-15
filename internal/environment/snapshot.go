@@ -85,3 +85,20 @@ func (r *Router) DeleteSnapshotComponent(ctx context.Context, c core.SnapshotCom
 	}
 	return backend.DeleteSnapshotComponent(ctx, c)
 }
+
+// InspectSnapshotComponent resolves only the persisted provider route.
+func (r *Router) InspectSnapshotComponent(ctx context.Context, c core.SnapshotComponent) (core.SnapshotComponentInspection, error) {
+	backend, c, id, err := r.snapshotBackend(c)
+	if err != nil {
+		return core.SnapshotComponentInspection{}, err
+	}
+	inspector, ok := backend.(interface {
+		InspectSnapshotComponent(context.Context, core.SnapshotComponent) (core.SnapshotComponentInspection, error)
+	})
+	if !ok {
+		return core.SnapshotComponentInspection{Provider: id}, core.ErrUnsupported
+	}
+	result, err := inspector.InspectSnapshotComponent(ctx, c)
+	result.Provider = id
+	return result, err
+}

@@ -146,6 +146,7 @@ var commandCatalog = map[string]translation{
 	"command.base.delete":              {"Review and delete an owned unused Base image", "所有する未使用のひな形イメージを確認して削除する"},
 	"command.snapshot":                 {"Save and restore independent stopped data", "停止中のデータを独立して保存・復元する"},
 	"command.snapshot.create":          {"Save one stopped environment and its managed data", "停止中の環境と管理対象データを保存する"},
+	"command.snapshot.inspect":         {"Inspect saved components and deletion blockers", "保存データと削除できない理由を確認する"},
 	"command.snapshot.list":            {"List saved snapshots", "保存済みのsnapshotを一覧表示する"},
 	"command.snapshot.restore":         {"Restore independent data into a new environment", "独立したデータを新しい環境へ復元する"},
 	"command.snapshot.delete":          {"Delete one explicitly selected saved snapshot", "選択した保存snapshotを削除する"},
