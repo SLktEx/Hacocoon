@@ -12,10 +12,10 @@ import (
 )
 
 func (s *Service) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
-	return s.create(ctx, spec, nil, nil)
+	return s.create(ctx, spec, nil, nil, nil)
 }
 
-func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot, creator runtimeCreation) (environment core.Environment, err error) {
+func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *core.Snapshot, creator runtimeCreation, imports []core.EnvironmentResourceImport) (environment core.Environment, err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "create_environment", "environment_id", spec.Name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -146,7 +146,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 	var plans []core.EnvironmentResourcePlan
 	var planErr error
-	if saved != nil {
+	if creator != nil {
+		plans, planErr = s.planImportedEnvironmentResources(ctx, workspace, lease, imports)
+	} else if saved != nil {
 		plans, planErr = s.planSavedEnvironmentResources(ctx, spec, workspace, lease, *saved)
 	} else {
 		plans, planErr = s.planEnvironmentResources(ctx, spec, workspace, lease, creator != nil)
@@ -174,7 +176,11 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 
 	var attachments []core.EnvironmentRuntimeAttachment
 	if len(plans) != 0 {
-		attachments, err = s.environmentResources.MaterializeEnvironmentResources(ctx, lease)
+		if len(imports) != 0 {
+			attachments, err = s.environmentResources.(environmentResourceImporter).ImportEnvironmentResources(ctx, lease, imports)
+		} else {
+			attachments, err = s.environmentResources.MaterializeEnvironmentResources(ctx, lease)
+		}
 		if err != nil {
 			return core.Environment{}, errors.Join(err, s.finalizeEnvironmentForCleanup(ctx, name))
 		}

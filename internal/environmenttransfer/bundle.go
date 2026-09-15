@@ -17,7 +17,7 @@ import (
 
 const manifestLimit = 64 * 1024
 const maxWorkspaces = 253 // Same supported attachment bound as the Incus snapshot planner.
-const maxComponents = maxWorkspaces + 2
+const maxComponents = maxWorkspaces + 2 + core.MaxEnvironmentAttachments
 const envelopeOverhead = 512 * 1024
 
 func validLimit(n int64) bool { return n > 0 && n <= (1<<63-1)-envelopeOverhead }
@@ -35,6 +35,7 @@ type Manifest struct {
 	HasOCI     bool         `json:"has_oci"`
 	Components []Component  `json:"components"`
 	Workspaces []Workspace  `json:"workspaces,omitempty"`
+	Data       []Data       `json:"data,omitempty"`
 }
 type Component struct {
 	Role   string `json:"role"`
@@ -46,7 +47,7 @@ func (m Manifest) validate(limit int64) error {
 	if !m.DNSMode.Valid() || (m.Version != 1 && m.Version != 2) || !sourceName.MatchString(m.Source) || !validLimit(limit) {
 		return ErrInvalidBundle
 	}
-	count := len(m.Components) - 1
+	count := len(m.Components) - 1 - len(m.Data)
 	if m.HasOCI {
 		count--
 	}
@@ -56,12 +57,18 @@ func (m Manifest) validate(limit int64) error {
 	if err := m.validateWorkspaces(count); err != nil {
 		return err
 	}
+	if err := m.validateData(); err != nil {
+		return err
+	}
 	roles := []string{"rootfs"}
 	for i := 0; i < count; i++ {
 		roles = append(roles, workspaceRole(i))
 	}
 	if m.HasOCI {
 		roles = append(roles, "oci")
+	}
+	for i := range m.Data {
+		roles = append(roles, dataRole(i))
 	}
 	for i, c := range m.Components {
 		if c.Role != roles[i] || c.Bytes <= 0 || c.Bytes > limit || !digestPattern.MatchString(c.SHA256) {
@@ -102,6 +109,8 @@ func Write(dst io.Writer, m Manifest, parts []io.Reader, limit int64) error {
 	}
 	// Reader/writer callbacks must not change descriptors after validation.
 	m.Components = append([]Component(nil), m.Components...)
+	m.Data = append([]Data(nil), m.Data...)
+	m.Workspaces = append([]Workspace(nil), m.Workspaces...)
 	parts = append([]io.Reader(nil), parts...)
 	if err := m.validate(limit); err != nil {
 		return err

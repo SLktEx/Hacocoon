@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.66**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.67**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -38,7 +38,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
 | [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。既存環境と中断workerの実機レビューは未確認。 |
 | [Envのexport/import](design/environment-transfer.ja.md) | 部分実装 | 停止した管理bundle、検証済みLinux配備、導入済みコントローラー・Windows投影ファイル経路を実装。管理データのWSL間移送を一構成で確認し、停止したcontainerdのイメージ・書込みデータの移送も確認済み。稼働中の移行や環境全体のバックアップではなく、import後の認証Gitと広い実行基盤整合性は未完了。 |
-| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 読み取り専用の棚卸しと明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。環境全体の分類・取得・復元比較と最終置換は未完了。 |
+| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録を含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。環境全体の分類・取得・復元比較と最終置換は未完了。 |
 | [AWS S3](design/aws-operations.ja.md) | 部分実装 | 承認付きの制限ある一覧・検証済みobject取得、送信元を固定したゲスト要求を実装。リポジトリ・模擬native試験あり。認証を伴う実AWS検証はスキップ。EC2のEnv プロバイダーではない。 |
 | [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | `pkg/clientadapter`、情報を絞った対話 event、`haco-notify`のブラウザー・OS・VS Code アダプター。Windowsレビューは限定範囲で確認済み。新規トーストからの人間の判断とLinux通知起動は未確認。 |
 | [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済みの候補 | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
@@ -93,7 +93,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 ## キャッシュ世代管理の共通処理
 
-**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。既存Envへの後付け登録と追加領域のポータブル転送は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
+**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。追加領域のポータブル転送は新しい所有権で取り込む実装済み候補で、対応Incusでの実機受入は未確認です。既存Envへの後付け登録は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
 
 ## PackerによるBase作成の候補
 
@@ -101,10 +101,9 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 キャッシュ履歴・クリアの後続: 実装済み候補。名前付き履歴で現在の再利用元と保持中の候補を分ける。
 確認時のrevisionで固定して再利用元をリセットし、共通の所有権付き削除を使う。
-既存Env・Workspace・OCIデータと結果不明のコピーは保持する。コピー復旧・孤立した再利用元の一覧・
-追加データ転送は部分実装。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
+既存Env・Workspace・OCIデータと結果不明のコピーは保持する。名前付き完了記録の復旧と追加データ転送は実装済み、孤立した再利用元の一覧は未完成。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
 
-キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加、追加データ転送は未完了。新しい実機復旧の受入は別に確認する。
+キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加は未完了。新しい実機復旧の受入は別に確認する。
 
 ## 手元のアプリからTCP接続
 

@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-unknown-copy recovery and added-data portable transfer remain incomplete.
+unknown-copy recovery and orphan-source operations remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -83,7 +83,7 @@ again. A missing runtime reference alone is not evidence of absence.
 
 Incus creation with a durable receipt can place these areas in the rootfs or a managed Workspace.
 Snapshot and independent copy retain every enrolled area through the saved aggregate.
-Portable archive transfer still refuses added areas. The Standard selector reads the trusted Host settings for each new Environment.
+Portable archive transfer includes every added area with fresh destination ownership. The Standard selector reads the trusted Host settings for each new Environment.
 Unconfigured installations select no areas.
 
 ## Rootfs placement and resume
@@ -156,8 +156,8 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Existing-Env enrollment, unknown-copy recovery and added-data
-portable transfer remain incomplete. Unknown copy outcomes retain ownership;
+Existing-Env enrollment, unknown-copy recovery and orphan-source
+operations remain incomplete. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
 These remaining operations must use canonical lifecycle ownership. Workspace and
 OCI data remain retained when an enrolled Environment is deleted.
@@ -294,4 +294,4 @@ Unknown native-copy cancellation and orphan-source recovery remain unsupported.
 
 Named-data snapshot/copy support is implemented through the canonical saved aggregate;
 saved bytes do not grant publication into a newer common generation. Portable
-added-data transfer remains in progress. See [snapshot semantics](environment-snapshots.md#named-disposable-data).
+added-data transfer is implemented; supported-host acceptance remains separate. See [snapshot semantics](environment-snapshots.md#named-disposable-data).

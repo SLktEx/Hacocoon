@@ -68,17 +68,29 @@ func (s *Service) PlanEnvironmentResources(ctx context.Context, request core.Env
 }
 
 func (s *Service) MaterializeEnvironmentResources(ctx context.Context, lease core.WorkspaceLease) ([]core.EnvironmentRuntimeAttachment, error) {
+	return s.materializeEnvironmentResources(ctx, lease, nil)
+}
+
+func (s *Service) materializeEnvironmentResources(ctx context.Context, lease core.WorkspaceLease, inputs map[string]core.EnvironmentResourceImport) ([]core.EnvironmentRuntimeAttachment, error) {
 	store, ok := s.Store.(environmentResourceStore)
 	if !ok {
 		return nil, core.ErrUnsupported
 	}
 	result := make([]core.EnvironmentRuntimeAttachment, 0, len(lease.Attachments))
 	for _, a := range lease.Attachments {
-		r, err := store.BeginEnvironmentResourceMaterialization(ctx, lease, a.Resource)
+		var r core.PersistentResource
+		var err error
+		if inputs != nil {
+			r, err = s.Store.(environmentImportStore).BeginEnvironmentResourceImport(ctx, lease, a.Resource)
+		} else {
+			r, err = store.BeginEnvironmentResourceMaterialization(ctx, lease, a.Resource)
+		}
 		if err != nil {
 			return nil, err
 		}
-		if r.RestoreSource != "" {
+		if inputs != nil {
+			r, err = s.importReservedEnvironmentResource(ctx, r, inputs[a.Key])
+		} else if r.RestoreSource != "" {
 			r, err = s.materializeSavedEnvironmentResource(ctx, lease, a, r)
 		} else if r.CopySource == (core.PersistentResourceRef{}) {
 			r, err = s.createReserved(ctx, r, nil)

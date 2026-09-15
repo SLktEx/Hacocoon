@@ -16,6 +16,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
+	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
@@ -32,7 +33,7 @@ func TestRealIncusSavedEnvironmentDataE2E(t *testing.T) {
 	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {
 		t.Fatal("root, pool and full cached image required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	must := func(err error) {
 		t.Helper()
@@ -51,7 +52,7 @@ func TestRealIncusSavedEnvironmentDataE2E(t *testing.T) {
 	must(err)
 	p.sources["fixture-parent"] = "local:" + image
 	store := state.NewEnvironmentJSONStore(filepath.Join(dir, "state.json"))
-	backend := &RepositoryBackend{Runtime: r}
+	backend := &RepositoryBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	repositories := gitrepo.NewRepositoryService(dir, backend)
 	repositories.SnapshotCatalog = store
 	collection := gitrepo.Object{ID: name, Kind: "work", Owner: random(), State: "ready"}
@@ -80,7 +81,7 @@ func TestRealIncusSavedEnvironmentDataE2E(t *testing.T) {
 	})
 	resolver := savedDataWorkspaceResolver{source: core.Workspace{ID: core.WorkspaceID("workspace:managed:" + collection.Owner), Path: "managed:" + name}, repositories: repositories}
 	svc := workspace.NewWithProvider(p, store, resolver)
-	resources := &persistentresource.Service{Store: store, Backend: &PersistentResourceBackend{Runtime: r}}
+	resources := &persistentresource.Service{Store: store, Backend: &PersistentResourceBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}}
 	selected := []core.EnvironmentResourceSelection{}
 	packagesPath := "/root/.cache/saved-packages"
 	if os.Getenv("HACO_E2E_SAVED_DATA_PLACEMENT") == "repository" {
@@ -168,6 +169,52 @@ func TestRealIncusSavedEnvironmentDataE2E(t *testing.T) {
 	must(svc.Start(ctx, copied.Name))
 	if read(copied.RuntimeRef) != "changedpackages-byteswork-bytes" {
 		t.Fatal("copy resume lost data")
+	}
+	if os.Getenv("HACO_E2E_SAVED_DATA_TRANSFER") == "1" {
+		must(svc.Stop(ctx, copied.Name))
+		exporter := environmenttransfer.Exporter{Snapshots: svc, Component: r.ExportSnapshotComponent, Workspaces: r.ExportSnapshotWorkspaces, Root: dir}
+		exported, err := exporter.ExportStopped(ctx, copied.Name, 4<<30)
+		must(err)
+		defer func() {
+			if err := exported.Bundle.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if exported.TemporarySnapshot != "" || len(exported.Bundle.Manifest().Data) != 2 {
+			t.Fatal("incomplete named-data export")
+		}
+		importer := environmenttransfer.Importer{Catalog: store, Environments: svc, Workspaces: repositories, Stores: resources, Root: dir, StoreKind: OCIStoreKind}
+		result, err := importer.Import(ctx, exported.Bundle.Reader(), name+"-import", 4<<30)
+		must(err)
+		owned[result.Environment] = true
+		imported, err := store.GetEnvironment(ctx, result.Environment)
+		must(err)
+		if read(imported.RuntimeRef) != "changedpackages-byteswork-bytes" || len(imported.Attachments) != 2 {
+			t.Fatal("portable data lost")
+		}
+		for i, a := range imported.Attachments {
+			if a.Resource == copied.Attachments[i].Resource || a.Origin.Name == copied.Attachments[i].Origin.Name {
+				t.Fatal("source ownership replayed")
+			}
+		}
+		run("exec", imported.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "printf imported-change > /root/.cache/saved-compiler/probe")
+		must(svc.Stop(ctx, imported.Name))
+		must(svc.Start(ctx, imported.Name))
+		if read(imported.RuntimeRef) != "imported-changepackages-byteswork-bytes" {
+			t.Fatal("imported resume lost data")
+		}
+		must(svc.Start(ctx, copied.Name))
+		if read(copied.RuntimeRef) != "changedpackages-byteswork-bytes" {
+			t.Fatal("import changed export source")
+		}
+		must(svc.Delete(ctx, imported.Name))
+		delete(owned, imported.Name)
+		importedWork, err := repositories.Get("work", result.Workspace)
+		must(err)
+		must(svc.CleanupRestoredData(ctx, imported.Workspace, func(ctx context.Context) error {
+			return repositories.DeleteWorkspace(ctx, importedWork.ID, importedWork.Owner)
+		}))
+		t.Log("PASS named-data export/import, fresh local source identities, independent edits, imported restart and exact cleanup; no authentication or large-repository performance claim")
 	}
 	must(svc.Delete(ctx, copied.Name))
 	delete(owned, copied.Name)

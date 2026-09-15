@@ -78,6 +78,14 @@ func environmentResourceLease(data environmentFileState, resource core.Persisten
 
 // Claim the planned creation exactly once before issuing a provider request.
 func (s *EnvironmentJSONStore) BeginEnvironmentResourceMaterialization(ctx context.Context, expected core.WorkspaceLease, ref core.PersistentResourceRef) (result core.PersistentResource, err error) {
+	return s.beginEnvironmentResourceMaterialization(ctx, expected, ref, false)
+}
+
+func (s *EnvironmentJSONStore) BeginEnvironmentResourceImport(ctx context.Context, expected core.WorkspaceLease, ref core.PersistentResourceRef) (core.PersistentResource, error) {
+	return s.beginEnvironmentResourceMaterialization(ctx, expected, ref, true)
+}
+
+func (s *EnvironmentJSONStore) beginEnvironmentResourceMaterialization(ctx context.Context, expected core.WorkspaceLease, ref core.PersistentResourceRef, importing bool) (result core.PersistentResource, err error) {
 	if !core.ValidEnvironmentResourceRef(ref) {
 		return result, core.ErrInvalidArgument
 	}
@@ -91,7 +99,7 @@ func (s *EnvironmentJSONStore) BeginEnvironmentResourceMaterialization(ctx conte
 		if !ok || r.Ref() != ref || !bound || !parent.Equal(lease) {
 			return false, core.ErrIncompatibleState
 		}
-		if r.State != "planned" {
+		if r.State != "planned" || r.ImportPending != importing {
 			return false, core.ErrRecoveryRequired
 		}
 		r.State = "creating"

@@ -13,7 +13,6 @@ import (
 	"math"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -51,11 +50,14 @@ type volumeImportMetadata struct {
 // New ownership is placed in native metadata before Incus creates the volume;
 // there is no interval where saved ownership is adopted as destination authority.
 func (b *PersistentResourceBackend) Import(ctx context.Context, r core.PersistentResource, source io.ReadSeeker) (resultErr error) {
-	pool, name, err := persistentVolume(r)
+	pool, name, err := managedResourceVolume(r)
 	if err != nil {
 		return err
 	}
 	if r.SourceOnly || r.State != "creating" || source == nil {
+		return core.ErrInvalidArgument
+	}
+	if r.Kind != OCIStoreKind && (r.Kind != CacheResourceKind || r.EnvironmentInstance == "" || !r.ImportPending) {
 		return core.ErrInvalidArgument
 	}
 	observed, err := b.observe(ctx, r)
@@ -65,7 +67,7 @@ func (b *PersistentResourceBackend) Import(ctx context.Context, r core.Persisten
 	if observed != nil {
 		return core.ErrAlreadyExists
 	}
-	config := map[string]string{"user.hacocoon.owner": r.Owner, "user.hacocoon.resource": r.ID, "user.hacocoon.kind": r.Kind, "user.hacocoon.source-only": strconv.FormatBool(r.SourceOnly)}
+	config := persistentResourceConfig(r)
 	return b.Runtime.importVolumeArchive(ctx, source, b.ImportRoot, b.ImportLimit, pool, name, config)
 }
 

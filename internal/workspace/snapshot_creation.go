@@ -43,5 +43,5 @@ func (s *Service) CreateFromSnapshot(ctx context.Context, spec core.EnvironmentS
 	spec.DNSMode = saved.Source.Environment.DNSMode
 	// Restoring an aggregate never silently copies the current Host OCI area.
 	spec.SkipDefaultResource = spec.PersistentResource == ""
-	return s.create(ctx, spec, &saved, nil)
+	return s.create(ctx, spec, &saved, nil, nil)
 }

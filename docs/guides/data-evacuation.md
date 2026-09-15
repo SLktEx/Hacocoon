@@ -40,9 +40,18 @@ Exit 1 / `native_queries_complete: false` means incomplete observation.
 Only selected references and owner markers are projected, never arbitrary config or
 credentials. URI-shaped sources are withheld; file references are not followed.
 Images include full fingerprints, types, aliases and their native source project;
-shared project views are not separate ownership. Catalog schemas 10–13 are read
-without migration; schema 9 is unsupported. `state_validated` remains false.
+shared project views are not separate ownership. The current catalog schema16 is
+projected without mutation; existing reference-only support for10–13 is unchanged.
+Other schemas remain unsupported. `state_validated` remains false.
 Unprojected pending restore/copy/run records remain explicit counts requiring review.
+
+The current projection includes named data placement, the exact Env child and its
+source generation, selected cache generations, publication/producer references,
+copy completion, pending import and runtime-absence flags. `catalog_links` compares
+these references with the observed catalog resources separately from native volume
+observations. A deleted producer or former generation can be valid history; a missing
+reference is a review item, never automatic corruption, adoption or deletion authority.
+No data content, arbitrary configuration or credentials are included in the report.
 
 Association comparison is bounded to 4096 rows. It distinguishes observed/missing/
 mismatched markers, unsupported routes, ambiguous views and incomplete queries.
