@@ -32,6 +32,13 @@ latest-ready restore by environment name. Local tests and an installed two-save,
 source-deletion, latest-restore and exact-fixture cleanup journey passed. It is a
 stacked draft during #692 CI, with main as the final target. Neither PR is a release.
 
+The main-targeted `codex/main-reclaim-readiness` candidate includes #689–#693 and
+[#696](https://github.com/SLktEx/Hacocoon/pull/696), plus `f50c0d93` for virtual-disk
+observation lifetime. Local full and Windows component checks passed; actual empty
+disk attachment skipped for missing Windows privilege. Keep the previous CI
+failures and current dedicated-WSL concurrent-use uncertainty separate. The new
+candidate still needs all five exact-head workflows before integration.
+
 ## M0–M5 remaining work
 
 | Stage and useful outcome | Remaining implementation or acceptance |

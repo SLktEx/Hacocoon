@@ -1075,3 +1075,25 @@ nativeテストのコンパイル1.75秒が成功しました。実Gitのcompone
 公開回収で `compact_attached` となりました。停止要求あり、open1回、compaction未実行、
 同じtargetの再開は成功です。通知試験はSKIP。初回HTTP503と以前の未解明失敗は別に保持し、
 このheadをmainへ反映する条件は未達です。
+
+## 仮想ディスク観測ハンドルの寿命
+
+開発実装 `f50c0d93445f3f6f427b0e301294e5101f94a65e` は、接続中の観測ハンドルを閉じて
+期限内で待ち、実ファイル・親の固定を維持します。
+[ADR 0103](../adr/0103-virtual-disk-observation-lifetime.ja.md)にnative APIの根拠と
+観測ハンドル・所有固定の違いを記録しています。
+
+ローカル対象9.91秒、lint17.21秒、通常全体39.95秒、回収関連race1.61秒、CLI4.96秒、
+docs13.49秒、workflow1.99秒、nativeテストコンパイル2.18秒が成功しました。
+Windowsの回収0.80秒・client6.09秒・helper0.47秒も成功。Windows専用lintの初回は
+テストのclose結果確認漏れを指摘し、修正後lint1.82秒、対象native回帰1.22秒が成功しました。
+空ディスクのnative接続fixtureは `ERROR_PRIVILEGE_NOT_HELD` により**SKIP**です。
+権限の昇格・迂回はしていません。他の専用ディスクnative試験も有効化していません。
+これらを新候補での導入済み公開回収成功とは扱いません。
+
+別の読み取り観測では、導入済み `e1ec0894` の `Hacocoon-Roadmap-f68a8c6b` に対し、
+Envが空・操作記録なしを確認してpoweroffを要求しました。native openは90秒間共有違反となり、
+90.94秒で同じtargetの再開に成功しました。比較に必要な保持ハンドルは取得できていません。
+systemd記録には途中の起動があり、別のWindowsプロセスによる対象bashも観測しました。
+誰が利用しているかは確認待ちで、プロセスを終了していません。この試行からハンドル寿命の
+結論は出せず、CI #692の `compact_attached` とは分けて保持します。過去の失敗を消しません。

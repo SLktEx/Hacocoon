@@ -1270,3 +1270,29 @@ Linux reclamation, then failed public reclamation with `compact_attached`:
 stop requested, one open, no compaction attempted, same-target resume successful.
 Native notification was skipped. The earlier HTTP503 and unexplained failures
 remain independent; this head is not approved for main integration.
+
+## Virtual-disk observation handle lifetime
+
+Development implementation `f50c0d93445f3f6f427b0e301294e5101f94a65e` closes an
+attached observation handle before its bounded wait, while retaining file/parent
+pins. [ADR 0103](../adr/0103-virtual-disk-observation-lifetime.md) records the native
+API contract and distinguishes observation lifetime from ownership.
+
+Local focused tests 9.91s, lint 17.21s, maintained full tests 39.95s, reclamation
+race tests 1.61s, CLI 4.96s, docs 13.49s, workflow policy 1.99s and native test
+compilation 2.18s passed. Windows packages passed (reclaim 0.80s, client 6.09s,
+helper 0.47s). Windows-specific lint first found an unchecked test handle close;
+after fixing it, lint passed in 1.82s and focused native regression in 1.22s.
+The native empty-disk attachment fixture was **SKIP**, with
+`ERROR_PRIVILEGE_NOT_HELD`; no elevation or permission workaround was applied.
+Other dedicated-disk native checks were not enabled. These results do not prove
+installed public reclamation on the new candidate.
+
+A separate read-only observation on installed `e1ec0894` requested poweroff of
+`Hacocoon-Roadmap-f68a8c6b` after empty-Env/absent-operation checks. Native open
+kept returning sharing violation for 90 seconds; same-target resume succeeded
+at 90.94s. It never obtained the held handle needed for the intended comparison.
+The systemd journal recorded intervening startup, and a separate Windows process
+was running bash in the target. Its ownership/use is awaiting clarification;
+no process was killed. This attempt is inconclusive about handle lifetime and
+separate from CI #692's `compact_attached` result. Existing failures remain.
