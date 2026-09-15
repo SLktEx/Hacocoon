@@ -34,6 +34,9 @@ func (s *EnvironmentJSONStore) EnvironmentInstance(ctx context.Context, expected
 		return "", core.ErrIncompatibleState
 	}
 	current, ok := data.Environments[expected.Name]
+	if err := validateEphemeralIdentities(data); err != nil {
+		return "", err
+	}
 	if !ok {
 		return "", core.ErrNotFound
 	}

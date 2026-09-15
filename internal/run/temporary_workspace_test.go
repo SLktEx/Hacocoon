@@ -15,6 +15,15 @@ type temporaryEnvironments struct {
 func (f temporaryEnvironments) DeleteTemporary(ctx context.Context, name string, w core.Workspace) error {
 	return f.temporaryDelete(ctx, name, w)
 }
+func (f temporaryEnvironments) DeleteRun(ctx context.Context, name, instance string) error {
+	if instance != f.createSpec.EphemeralInstance {
+		return core.ErrCapabilityStale
+	}
+	if f.createSpec.TemporaryWorkspace != nil {
+		return f.DeleteTemporary(ctx, name, *f.createSpec.TemporaryWorkspace)
+	}
+	return f.fakeEnvironments.DeleteRun(ctx, name, instance)
+}
 func TestTemporaryRunRetainsIdentityUntilAllCleanupCompletes(t *testing.T) {
 	store := newFakeRunStore()
 	ordinary := &fakeEnvironments{}
@@ -69,13 +78,14 @@ func TestTemporaryRunKeepsResourcesWhileRuntimeAbsenceUncertain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env := temporaryEnvironments{&fakeEnvironments{}, func(context.Context, string, core.Workspace) error { return core.ErrIncompatibleState }}
+	instance := "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	env := temporaryEnvironments{&fakeEnvironments{createSpec: core.EnvironmentSpec{EphemeralInstance: instance, TemporaryWorkspace: &work}}, func(context.Context, string, core.Workspace) error { return core.ErrIncompatibleState }}
 	service := New(env)
 	service.ConfigureTemporaryWorkspace(func(context.Context, core.Workspace) error {
 		t.Fatal("resource removed while runtime ownership uncertain")
 		return nil
 	})
-	if err := service.cleanupRun(context.Background(), core.EphemeralRun{EnvironmentID: "reused", TemporaryWorkspace: &work}); !errors.Is(err, core.ErrIncompatibleState) {
+	if err := service.cleanupRun(context.Background(), core.EphemeralRun{InstanceID: instance, EnvironmentID: "reused", TemporaryWorkspace: &work}); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatal(err)
 	}
 }

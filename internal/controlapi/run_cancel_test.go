@@ -13,11 +13,13 @@ import (
 )
 
 type interruptedRunLifecycle struct {
-	started chan struct{}
-	cleaned chan error
+	started  chan struct{}
+	cleaned  chan error
+	instance string
 }
 
 func (r *interruptedRunLifecycle) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+	r.instance = spec.EphemeralInstance
 	return core.Environment{Name: spec.Name}, nil
 }
 func (r *interruptedRunLifecycle) Exec(ctx context.Context, _ string, _ core.ExecutionRequest) (core.ExecutionResult, error) {
@@ -25,8 +27,11 @@ func (r *interruptedRunLifecycle) Exec(ctx context.Context, _ string, _ core.Exe
 	<-ctx.Done()
 	return core.ExecutionResult{}, ctx.Err()
 }
-func (r *interruptedRunLifecycle) Delete(ctx context.Context, _ string) error {
+func (r *interruptedRunLifecycle) DeleteRun(ctx context.Context, _ string, instance string) error {
 	err := ctx.Err()
+	if !core.ValidEnvironmentInstanceID(instance) || instance != r.instance {
+		err = core.ErrCapabilityStale
+	}
 	if _, ok := ctx.Deadline(); !ok {
 		err = errors.New("cleanup has no deadline")
 	}

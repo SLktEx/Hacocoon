@@ -48,6 +48,13 @@ func (f *fakeEnvironments) Delete(ctx context.Context, name string) error {
 	return f.deleteErr
 }
 
+func (f *fakeEnvironments) DeleteRun(ctx context.Context, name, instance string) error {
+	if !core.ValidEnvironmentInstanceID(instance) || (f.createSpec.EphemeralInstance != "" && f.createSpec.EphemeralInstance != instance) {
+		return core.ErrCapabilityStale
+	}
+	return f.Delete(ctx, name)
+}
+
 func serviceWithName(env *fakeEnvironments, name string) *Service {
 	s := New(env)
 	s.newName = func() (string, error) { return name, nil }

@@ -205,3 +205,12 @@ and installed GUI acceptance remain separate. Windows notification-contained
 answers now reuse #611 and subsequent refusal/cancellation corrections; both
 clients use the existing common review and Policy services. Fresh installed
 answers and visible notification layout still require acceptance. Old-version compatibility/migration are outside M0–M5.
+
+
+## Temporary execution on main
+
+The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY
+streams in main's split lifecycle files. It preserves shared cleanup outcomes
+and requires current run identity rather than adding legacy migration. DNS modes
+and client-side forwarding remain independent work. Local regression and new
+native acceptance are recorded separately; large-repository performance remains deferred.

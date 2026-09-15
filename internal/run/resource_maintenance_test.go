@@ -16,10 +16,17 @@ type maintenanceEnvironments struct {
 }
 
 func (f maintenanceEnvironments) Create(ctx context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+	f.createSpec = spec
 	return f.create(ctx, spec)
 }
 func (f maintenanceEnvironments) DeleteTemporary(ctx context.Context, name string, work core.Workspace) error {
 	return f.remove(ctx, name, work)
+}
+func (f maintenanceEnvironments) DeleteRun(ctx context.Context, name, instance string) error {
+	if instance != f.createSpec.EphemeralInstance || f.createSpec.TemporaryWorkspace == nil {
+		return core.ErrCapabilityStale
+	}
+	return f.remove(ctx, name, *f.createSpec.TemporaryWorkspace)
 }
 
 func TestMaintainResourceSharesRunOwnershipAndCleanup(t *testing.T) {

@@ -2,7 +2,7 @@
 
 [日本語](temporary-execution.ja.md) | English
 
-Status: **implemented product CLI; real-Incus acceptance passed at 4adfe19**.
+Status: **captured and interactive product CLI implemented in the candidate; fresh stream acceptance pending**. Prior captured-run real-Incus evidence remains scoped to 4adfe19.
 
 Run one command without first naming or creating an Environment:
 
@@ -33,11 +33,13 @@ Only the default copy bound to a temporary Workspace is removed after runtime
 deletion. Host Docker/nerdctl publication and real image-use acceptance retain their
 separate implementation limits in [status](../IMPLEMENTATION_STATUS.md).
 
-Command stdout/stderr and exit status are preserved. Output is captured with the
-existing size limits, not streamed interactively; truncation is reported.
+Command stdout/stderr and exit status are preserved. By default output is captured
+with the existing size limits; truncation is reported. Use `-i` for pipe input and
+separate output streams, or `-it` for terminal input, editing and resize.
 --json returns execution metadata and cleaned_up. A nonzero command exit remains
 a failure even when cleanup succeeds. Cleanup failure is reported separately and
-is never converted into success. --rm=false and interactive stdin/TTY are unsupported.
+is never converted into success. `--rm=false` is unsupported. Streaming cannot use
+`--json`; use captured output when a machine-readable receipt is needed.
 
 Ctrl+C requests controller cancellation and returns 130. Because the client has
 disconnected, it does not claim deletion was confirmed. Use haco env list and
@@ -92,3 +94,25 @@ The JSON shape and guest exit status are unchanged: cleaned_up reports completed
 runtime/scratch cleanup, while a failed marker removal still returns an error.
 Repository regressions cover marker-removal retry, activation failure,
 cancellation, retained Workspace/Store boundaries and partial scratch cleanup.
+
+## Interactive use and exact cleanup ownership
+
+```sh
+printf 'input\n' | haco run -i -- cat
+haco run -it --workspace managed:dev -- bash
+```
+
+TTY requires a real terminal. Guest terminal streams are combined by the PTY;
+plain `-i` retains separate stdout/stderr. EOF ends input, while disconnect requests
+cancellation. Actual exit and confirmed cleanup are required for a successful
+receipt; missing completion remains unknown and is never automatically replayed.
+The retained Workspace/OCI survive; temporary data follows existing cleanup.
+
+Before creation, the durable run marker fixes the exact Environment creation
+identity. Canonical creation checks that reservation; common deletion compares it
+under the lifecycle lock before touching the provider. Same-name recreation can
+never become an older run's cleanup target. Main's split lifecycle and shared
+cleanup-outcome handling remain; the transport owns no create/delete sequence.
+Missing ownership identities are refused. No old-version migration or fallback
+cleanup is added. See [ownership](../adr/0084-ephemeral-run-creation-ownership.md)
+and [bounded process streams](../adr/0085-bounded-process-streams.md).

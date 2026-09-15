@@ -497,3 +497,58 @@ The activation diagnostic follow-up records fixed COM initialize/register/create
 
 
 After integrating main `ef443132` as `effc7801`, the combined GUI candidate passed the full local test entry (72.69s), CLI E2E (6.79s), and docs/regressions (8.14s). Native installed activation and earlier clear failures remain unresolved pending the updated Windows run.
+
+
+<a id="main-interactive-run"></a>
+## Interactive temporary execution on main
+
+The M3 candidate reuses #590/#591 on main's split lifecycle implementation.
+At `acd61022`, focused tests (5.37s), changed-code lint (4.28s), all maintained
+local tests (11.55s), related race checks (10.71s), CLI E2E (6.47s), docs (5.58s)
+and workflow policy (1.17s) passed. Real local PTY and binary pipe fixtures are
+component evidence, not installed Windows/Incus acceptance.
+
+The first WSL launch failed before testing with `0x800705b4`. Later ordinary
+launches worked without restarting WSL. Initial focused tests found missing
+creation IDs and a hard-coded old schema in test data; the current schema tests
+were corrected, not given migration behavior. A draft reference to a nonexistent
+Environment field failed compilation and was removed: the canonical creation ID
+is owned by the Workspace lease. Initial changed-code lint found unchecked
+writes/closes, corrected before the successful run. All failures remain distinct.
+
+The candidate is now based on PR #663's Git work (`ddb03e85`) over main
+`119e3007`, with checkpoint v0.61 for interactive temporary execution. Main's
+existing foreground-readiness PTY resize regression supersedes #594's older
+approach; that patch failed applicability checking and was not applied. New
+combined verification and installed acceptance remain separate from the tests
+above. No old-version migration or fallback cleanup was introduced.
+
+On the combined `8b4d00a2` source plus canonical v0.61 metadata, focused tests
+(4.37s), uncapped changed-code lint (2.53s), full local tests (10.68s), race checks
+(8.51s), CLI E2E (2.95s), docs/regressions (4.95s) and workflow policy (1.02s)
+all passed. Both the Git and run changes were included. Fresh real Incus and
+Windows streamed-run acceptance still require their ordinary environment checks.
+
+
+PR #666 head `7ed40fe53850747ebd06231c09f9df9fc4a87959` passed test,
+quality, Ubuntu installer and real Incus workflows. Incus run 34900137450,
+job 104163854329 passed binary stdin, real PTY editing/resize, exit 17,
+terminal restoration, cancellation cleanup and retained Workspace checks through
+the product run route. Existing snapshot/copy/transfer checks also passed within
+that fixture's scope. This establishes real Incus streamed-run acceptance.
+
+Windows run 34900137466 failed at public reclaim (job 104163854107, step 19):
+Linux reclamation completed, Windows stop was requested, but `compact_attached`
+refused an attached VHD. Compaction and resume were not attempted; no native error
+was recorded. The notification step was skipped. This is an unresolved Windows
+reclaim failure, not streamed-run acceptance or evidence of a repaired worker.
+Do not relax the attached-disk guard. Fresh human GUI, Windows stream use,
+authenticated Git and large-repository performance remain unverified.
+
+After #663 merged as main `9da3ec8f`, #666 was rebased to `18073ee7` with
+an identical file tree to `7ed40fe5`. Only this evidence and status summary were
+then updated; the prior source-bound results are preserved, not relabeled as CI
+success for a new head.
+
+
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.

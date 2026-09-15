@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -43,6 +44,15 @@ func (s *EnvironmentJSONStore) PutEphemeralRun(_ context.Context, run core.Ephem
 	if err != nil {
 		return err
 	}
+	if previous, ok := data.EphemeralRuns[run.EnvironmentID]; ok {
+		if previous.InstanceID != run.InstanceID || !previous.CreatedAt.Equal(run.CreatedAt) || !reflect.DeepEqual(previous.TemporaryWorkspace, run.TemporaryWorkspace) {
+			return core.ErrIncompatibleState
+		}
+	} else if _, exists := data.Leases[run.EnvironmentID]; exists {
+		return core.ErrIncompatibleState
+	} else if _, exists := data.Environments[run.EnvironmentID]; exists {
+		return core.ErrIncompatibleState
+	}
 	data.EphemeralRuns[run.EnvironmentID] = run
 	// Do not remove or replace evidence supporting an admitted Store lease.
 	if err := validatePersistentResourceState(data); err != nil {
@@ -70,6 +80,12 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 	if _, ok := data.EphemeralRuns[environmentID]; !ok {
 		return nil
 	}
+	if _, exists := data.Leases[environmentID]; exists {
+		return core.ErrIncompatibleState
+	}
+	if _, exists := data.Environments[environmentID]; exists {
+		return core.ErrIncompatibleState
+	}
 	delete(data.EphemeralRuns, environmentID)
 	// Do not remove or replace evidence supporting an admitted Store lease.
 	if err := validatePersistentResourceState(data); err != nil {
@@ -79,6 +95,9 @@ func (s *EnvironmentJSONStore) DeleteEphemeralRun(_ context.Context, environment
 }
 
 func validateEphemeralRun(run core.EphemeralRun) error {
+	if !core.ValidEnvironmentInstanceID(run.InstanceID) {
+		return core.ErrInvalidArgument
+	}
 	if run.TemporaryWorkspace != nil && !core.ValidTemporaryWorkspace(*run.TemporaryWorkspace) {
 		return core.ErrInvalidArgument
 	}
