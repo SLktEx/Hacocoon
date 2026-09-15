@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/control"
+	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"github.com/SLktEx/Hacocoon/internal/streamio"
 )
 
@@ -18,6 +19,10 @@ func runControlStdio() int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, time.Hour)
 	defer cancel()
+	client, err := controlapi.NewClient(control.DefaultSocketPath)
+	if err != nil || waitForControllerClient(ctx, client) != nil {
+		return 1
+	}
 	if err := streamio.BridgeStdio(ctx, os.Stdin, os.Stdout, control.UnixDialer(control.DefaultSocketPath)); err != nil {
 		return 1
 	}

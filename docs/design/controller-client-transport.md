@@ -464,3 +464,9 @@ The original deadline is not restarted on delegation. Output and diagnostics
 remain separate. Native Windows component acceptance is distinct from the
 ordinary installed journey in `tools/windows-tunnel-entry-e2e.py`.
 See [ADR 0093](../adr/0093-windows-tunnel-delegation.md).
+
+Private notification review and the fixed Windows stdio bridge use the same
+read-only controller readiness wait as login before reading a review request or
+forwarding client bytes. WSL process startup does not prove the controller socket
+exists. Only transport-unavailable ping is retried; rejection and actual operations
+are not replayed. Parent cancellation still terminates the exact private child.

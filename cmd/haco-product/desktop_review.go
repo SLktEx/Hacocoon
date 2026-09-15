@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,11 +22,18 @@ func runDesktopReview() int {
 	go func() { <-ctx.Done(); _ = os.Stdin.Close() }()
 	client, err := controlapi.NewDefaultClient()
 	if err == nil {
-		err = (&desktopreview.Session{Client: client}).Serve(ctx, os.Stdin, os.Stdout)
+		err = serveDesktopReview(ctx, client, os.Stdin, os.Stdout)
 	}
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "Local review ended without a confirmed result. Inspect current requests and Policy before retrying.")
 		return 1
 	}
 	return 0
+}
+
+func serveDesktopReview(ctx context.Context, client *controlapi.Client, input io.Reader, output io.Writer) error {
+	if err := waitForControllerClient(ctx, client); err != nil {
+		return err
+	}
+	return (&desktopreview.Session{Client: client}).Serve(ctx, input, output)
 }
