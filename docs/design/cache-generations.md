@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-copy recovery commands and added-data snapshot/transfer remain incomplete.
+unknown-copy recovery and added-data snapshot/transfer remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -248,9 +248,8 @@ for new Environments without deleting existing data. Never select credentials or
 irreplaceable files as cache contents.
 
 If collection reports `recovery-required`, source and candidate stay owned and the
-producer cannot resume or be deleted through Hacocoon. Keep it stopped. Complete
-self-service recovery is still pending; retry cannot convert an unknown native copy
-into success. See [the lifecycle decision](../adr/0090-stopped-cache-collection.md).
+producer cannot resume or be deleted through Hacocoon. Keep it stopped. Use `haco cache recover <env> <area>` for copies with durable completion; retry
+cannot convert an unknown native copy into success. See [the lifecycle decision](../adr/0090-stopped-cache-collection.md).
 
 ## Inspect and clear collected data
 
@@ -276,3 +275,20 @@ report recovery-required; busy or failed cleanup reports cleanup-required. The
 result preserves a successful reset separately from partial cleanup. Inspect
 history and repeat clear after in-flight copies finish; unknown copy completion
 still needs recovery. This is logical source cleanup, not physical disk reclamation.
+
+## Recover completed collection
+
+`haco cache recover [--json] <env> <area>` resolves exact candidates from the
+enrolled name. It resumes only copies with a durable positive completion receipt,
+rechecks the exact target owner and provider, then uses the common create commit
+and generation CAS. It never reissues the copy request or uses destination
+existence as completion evidence. Successful recovery releases the original
+in-flight source pin; ordinary lifecycle checks still control Env resume/delete.
+
+If the source is still the producer's original generation, recovery selects the
+ready candidate. An already selected candidate is idempotent. If another producer
+or reset advanced the source, complete data remains unselected; recovery does not
+delete it or replay an old publication. Use reviewed clear for retained data.
+Deletion-incomplete candidates report cleanup-required. Unknown copies and failed
+provider checks remain recovery-required and owned, with partial results preserved.
+Unknown native-copy cancellation and orphan-source recovery remain unsupported.

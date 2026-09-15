@@ -13,6 +13,7 @@ import (
 )
 
 type cacheMaintenanceClient interface {
+	RecoverCache(context.Context, string, string) (controlapi.CacheMaintenanceResponse, error)
 	CacheHistory(context.Context, string, string) (controlapi.CacheMaintenanceResponse, error)
 	ClearCache(context.Context, string, string, string) (controlapi.CacheMaintenanceResponse, error)
 }
@@ -26,7 +27,7 @@ func runCacheMaintenance(args []string, client cacheMaintenanceClient, in io.Rea
 		return 2
 	}
 	rest := flags.Args()
-	if len(rest) != 2 || args[0] == "history" && *yes {
+	if len(rest) != 2 || args[0] != "clear" && *yes {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("cache.maintenance_usage"))
 		return 2
 	}
@@ -49,14 +50,18 @@ func runCacheMaintenance(args []string, client cacheMaintenanceClient, in io.Rea
 		}
 		return 0
 	}
-	// Show the complete reviewed scope even with --yes; stdout remains JSON-only.
-	if printCacheHistory(diagnostic, response.History) != nil {
-		return 1
+	if args[0] == "recover" {
+		response, err = client.RecoverCache(ctx, rest[0], rest[1])
+	} else {
+		// Show the complete reviewed scope even with --yes; stdout remains JSON-only.
+		if printCacheHistory(diagnostic, response.History) != nil {
+			return 1
+		}
+		if code := confirmDataDeletion(in, diagnostic, *yes, "cache.clear_warning", "cache.clear_prompt", "cache.clear_cancelled"); code != 0 {
+			return code
+		}
+		response, err = client.ClearCache(ctx, rest[0], rest[1], response.History.Revision)
 	}
-	if code := confirmDataDeletion(in, diagnostic, *yes, "cache.clear_warning", "cache.clear_prompt", "cache.clear_cancelled"); code != 0 {
-		return code
-	}
-	response, err = client.ClearCache(ctx, rest[0], rest[1], response.History.Revision)
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("cache.failed"))
 		return 1
@@ -71,7 +76,11 @@ func runCacheMaintenance(args []string, client cacheMaintenanceClient, in io.Rea
 				return 1
 			}
 		}
-		for _, entry := range response.Result.Entries {
+		entries := response.Result.Entries
+		if args[0] == "recover" {
+			entries = response.Recovery.Entries
+		}
+		for _, entry := range entries {
 			if printCacheHistoryEntry(out, entry) != nil {
 				return 1
 			}
@@ -82,8 +91,16 @@ func runCacheMaintenance(args []string, client cacheMaintenanceClient, in io.Rea
 		if !response.Result.Reset {
 			key = "cache.clear_changed"
 		}
+		if args[0] == "recover" {
+			key = "cache.recovery"
+		}
 		_, _ = fmt.Fprintln(diagnostic, cliMessage(key))
 		return 1
+	}
+	if args[0] == "recover" && !*asJSON {
+		if _, err := fmt.Fprintln(out, cliMessage("cache.recovered")); err != nil {
+			return 1
+		}
 	}
 	return 0
 }

@@ -79,3 +79,5 @@ haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <
 削除可能な確認済みデータを片付ける。既存Envのコピー・Workspace・OCIデータは保持する。
 共有設定ではグループ全体の今後のEnvに影響する。部分的な削除失敗では非0で終了し、
 JSONにも実行済みの結果を残す。再試行前に履歴を確認する。[キャッシュ世代](../design/cache-generations.ja.md#収集データの確認とクリア)を参照。
+
+`haco cache recover [--json] <env> <area>` は正確な所有権とprovider確認を通して、完了記録のある収集を復旧する。削除確認やコピー再実行は行わない。選択中の世代は再利用でき、古い完成候補は保持する。結果不明はエラーのまま。[復旧](../design/cache-generations.ja.md#完了記録がある収集の復旧)を参照。

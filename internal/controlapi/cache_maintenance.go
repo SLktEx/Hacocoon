@@ -12,6 +12,7 @@ import (
 
 const MethodCacheHistory = "cache.history"
 const MethodCacheClear = "cache.clear"
+const MethodCacheRecover = "cache.recover"
 
 type CacheMaintenanceRequest struct {
 	Environment string `json:"environment"`
@@ -20,25 +21,29 @@ type CacheMaintenanceRequest struct {
 }
 
 type CacheMaintenanceResponse struct {
-	History cache.History     `json:"history"`
-	Result  cache.ClearResult `json:"result"`
-	Failure string            `json:"failure,omitempty"`
+	Recovery cache.RecoveryResult `json:"recovery"`
+	History  cache.History        `json:"history"`
+	Result   cache.ClearResult    `json:"result"`
+	Failure  string               `json:"failure,omitempty"`
 }
 
 func registerCacheMaintenance(server *control.Server, workflow *cache.Workflow) error {
-	for _, method := range []string{MethodCacheHistory, MethodCacheClear} {
+	for _, method := range []string{MethodCacheHistory, MethodCacheClear, MethodCacheRecover} {
 		if err := server.Register(method, func(ctx context.Context, payload json.RawMessage) (any, error) {
 			var request CacheMaintenanceRequest
-			if !decodeCacheRequest(payload, &request) || request.Environment == "" || len(request.Environment) > 128 || request.Area == "" || len(request.Area) > 64 || method == MethodCacheHistory && request.Revision != "" || method == MethodCacheClear && len(request.Revision) != 64 {
+			if !decodeCacheRequest(payload, &request) || request.Environment == "" || len(request.Environment) > 128 || request.Area == "" || len(request.Area) > 64 || method != MethodCacheClear && request.Revision != "" || method == MethodCacheClear && len(request.Revision) != 64 {
 				return nil, control.ErrInvalidArgument
 			}
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 			defer cancel()
 			var response CacheMaintenanceResponse
 			var err error
-			if method == MethodCacheHistory {
+			switch method {
+			case MethodCacheHistory:
 				response.History, err = workflow.History(ctx, request.Environment, request.Area)
-			} else {
+			case MethodCacheRecover:
+				response.Recovery, err = workflow.Recover(ctx, request.Environment, request.Area)
+			case MethodCacheClear:
 				response.Result, err = workflow.Clear(ctx, request.Environment, request.Area, request.Revision)
 			}
 			response.Failure = cache.WorkflowError(err)
@@ -61,5 +66,11 @@ func (c *Client) CacheHistory(ctx context.Context, name, area string) (CacheMain
 func (c *Client) ClearCache(ctx context.Context, name, area, revision string) (CacheMaintenanceResponse, error) {
 	var response CacheMaintenanceResponse
 	err := c.wire.Call(ctx, MethodCacheClear, CacheMaintenanceRequest{Environment: name, Area: area, Revision: revision}, &response)
+	return response, err
+}
+
+func (c *Client) RecoverCache(ctx context.Context, name, area string) (CacheMaintenanceResponse, error) {
+	var response CacheMaintenanceResponse
+	err := c.wire.Call(ctx, MethodCacheRecover, CacheMaintenanceRequest{Environment: name, Area: area}, &response)
 	return response, err
 }

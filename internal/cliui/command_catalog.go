@@ -1,10 +1,12 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"cache.recover":                         {"Resume verified completed collection without copying again", "完了確認済みの収集をコピーし直さず復旧する"},
+	"cache.recovered":                       {"Verified copies recovered. Current sources can be reused; unselected data remains available for reviewed clearing. Check cache status before resuming the producer.", "完了確認済みのコピーを復旧しました。選択中の世代は再利用でき、未選択のデータは確認してクリアできます。元の環境を再開する前に状態を確認してください。"},
 	"cache.history":                         {"List retained collection attempts for a named area", "名前付き領域に残る収集データを確認する"},
 	"cache.clear":                           {"Clear source generations while retaining existing Environment data", "既存環境のデータを保持して再利用元の世代をクリアする"},
 	"cache.clear_yes":                       {"Confirm the displayed source-data cleanup", "表示した再利用元データの削除を確認済みとして実行"},
-	"cache.maintenance_usage":               {"Usage: haco cache history [--json] <env> <area> | clear [--yes] [--json] <env> <area>", "使い方: haco cache history [--json] <env> <area> | clear [--yes] [--json] <env> <area>"},
+	"cache.maintenance_usage":               {"Usage: haco cache history|recover [--json] <env> <area> | clear [--yes] [--json] <env> <area>", "使い方: haco cache history|recover [--json] <env> <area> | clear [--yes] [--json] <env> <area>"},
 	"cache.history_title":                   {"%s: %s; current generation %d", "%s: %s／現在の世代 %d"},
 	"cache.history_entry":                   {"%s; copied from generation %d; %s", "%s／コピー元の世代 %d／%s"},
 	"cache.history_empty":                   {"No retained collection data for this area.", "この領域の収集データは残っていません。"},

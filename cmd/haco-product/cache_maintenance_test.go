@@ -68,3 +68,19 @@ func TestCacheHistoryHumanOutputDoesNotRequireInternalIdentity(t *testing.T) {
 		t.Fatal(code, out.String())
 	}
 }
+
+func (f *maintenanceClientFixture) RecoverCache(context.Context, string, string) (controlapi.CacheMaintenanceResponse, error) {
+	return controlapi.CacheMaintenanceResponse{Recovery: cache.RecoveryResult{Entries: []cache.HistoryEntry{{State: "current"}}}}, nil
+}
+
+func TestCacheRecoveryDoesNotUseDeletionOrReadConfirmation(t *testing.T) {
+	f := &maintenanceClientFixture{}
+	var out, diagnostic bytes.Buffer
+	code := runCacheMaintenance([]string{"recover", "--json", "dev", "compiler"}, f, unexpectedConfirmationRead{t}, &out, &diagnostic)
+	if code != 0 || f.clearCalls != 0 || !strings.Contains(out.String(), `"state":"current"`) {
+		t.Fatal(code, f.clearCalls, out.String())
+	}
+	if code := runCacheMaintenance([]string{"recover", "--yes", "dev", "compiler"}, f, unexpectedConfirmationRead{t}, &out, &diagnostic); code != 2 {
+		t.Fatal("recovery accepted deletion flag", code)
+	}
+}

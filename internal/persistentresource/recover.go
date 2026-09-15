@@ -7,10 +7,16 @@ import (
 
 // RecoverCopy publishes only a copy with a durable positive completion receipt.
 // Unknown provider completion never becomes success from object existence alone.
-func (s *Service) RecoverCopy(ctx context.Context, id string) (core.PersistentResource, error) {
-	target, err := s.Store.GetPersistentResource(ctx, id)
+func (s *Service) RecoverCopy(ctx context.Context, ref core.PersistentResourceRef) (core.PersistentResource, error) {
+	if !core.ValidPersistentResourceRef(ref) {
+		return core.PersistentResource{}, core.ErrInvalidArgument
+	}
+	target, err := s.Store.GetPersistentResource(ctx, ref.ID)
 	if err != nil {
 		return target, err
+	}
+	if target.Ref() != ref {
+		return target, core.ErrCapabilityStale
 	}
 	if target.State == "ready" && target.CopySource == (core.PersistentResourceRef{}) && !target.CopyCompleted {
 		// Another recovery may have published and attached it already. This
@@ -39,7 +45,7 @@ func (s *Service) RecoverCopy(ctx context.Context, id string) (core.PersistentRe
 	}
 	if err := s.Store.CommitPersistentResourceCreate(ctx, target); err != nil {
 		// Another verified recovery may already have committed this exact identity.
-		current, readErr := s.Store.GetPersistentResource(ctx, id)
+		current, readErr := s.Store.GetPersistentResource(ctx, ref.ID)
 		expected := target
 		expected.State = "ready"
 		expected.CopySource = core.PersistentResourceRef{}
