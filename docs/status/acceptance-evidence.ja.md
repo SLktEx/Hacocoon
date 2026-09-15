@@ -586,3 +586,8 @@ DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒
 実機portability-native-1は46.36秒（build6.16秒/test41.23秒）でFAIL。import前に所有snapshot volumeのexportが利用できなかった。fixture saved-data-f7c512b0ca4392e9、台帳 /var/lib/haco-saved-data-2912432684/state.json、snapshot volume haco-snapshot-342b7e71e895c7a826c2d337efe90156。Envと保存処理は共通cleanupを使い、保持されたWorkspace fixtureは所有対象を確認して回収する。一括削除していない。
 
 追跡でhacocoon-secondのIncus client/serverは6.0.5と判明した。既存exportが使う--forceと、リポジトリ配下の配置に必要なfile_storage_volumeがない。現行製品の対象はIncus7.0 LTS（>=7.0.1、<7.1）。以前のDNSおよびrootfsのsnapshot/copy成功は6.0.5での限定的な観測で、対応基盤の受入成功ではない。旧provider向けの回避処理は追加していない。対応版での新規インストール、実機持ち出し、リポジトリ内配置は確認待ち。巨大レポ・性能測定はユーザー指示で後続。既存Windowsのreclaim・並列SSH失敗も未解決のまま保持する。
+
+
+## 現行データの退避前確認
+
+現行schema16の追加データ、選択世代、import・コピー・cleanup未完了記録を台帳を書き換えず表示する。台帳参照の照合と実体の観測を分け、過去の生成元の不在を削除候補にしない。固定候補でLinux退避回帰78件0.96秒、文書・回帰34.39秒、workflow4.39秒PASS。Windowsでも探索実行PASSだがLinux専用29件は明示的SKIPで、Linux実行で別途確認した。現行schema対応を共通Go台帳と照合する回帰を追加。これは読み取り専用一覧の検証であり、全環境のbackup・復元・対応provider実機受入ではない。既存の転送実機・Windows失敗は未解決として保持する。
