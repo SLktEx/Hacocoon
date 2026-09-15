@@ -18,6 +18,14 @@ Core・Standard・Plugin は設計上の役割であり、並立するディレ�
 controller API、通知、client adapter はそれぞれ保持する。
 汎用 capability・event API には現在のclient・通知からの利用があるため保持する。
 
+Agent Host補助CLIも一つの明示的なコマンド分岐に統合する。`init`による横取り、
+prepareの重複した引数解析、標準出力の取り直し、旧出力形式の変換処理は削除する。
+prepareとlookupは同じ型付きセッション記述を直接出力し、補助バイナリと信頼済み
+セッションbrokerはCoreから分離したまま保持する。SSH grantの交換では、Envの作成世代、
+Workspace、アクセスモード、serviceの一致を要求し、grant IDだけは更新できる。
+target全体の一致を要求すると交換を常に拒否し、人向けの名前だけを比較すると別の所有対象を
+許してしまう。旧grantの失効は、新しい接続設定の準備が完了した後に行う。
+
 Env作成は一つのRouterが担当し、providerが返すBase識別情報、実効資源上限、
 所有権の作成記録を保持する。BaseRouterの重複した作成処理を撤去し、Base一覧と
 snapshot・archive操作も同じRouterを使う。参照元のない無効化用・資源上限未対応用

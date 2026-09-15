@@ -53,6 +53,8 @@ func dispatch(ctx context.Context, app *composition.App, args []string) error {
 	switch args[0] {
 	case "prepare":
 		return prepareCommand(ctx, app, args[1:])
+	case "lookup":
+		return lookupCommand(ctx, app, args[1:])
 	case "release":
 		return releaseCommand(ctx, app, args[1:])
 	default:
@@ -68,12 +70,16 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 	identity := fs.String("identity", "", "SSH private key used by the VS Code client")
 	codeCommand := fs.String("code", "code", "VS Code CLI command")
 	noLaunch := fs.Bool("no-launch", false, "prepare the remote host without opening the VS Code Agents window")
+	jsonOutput := fs.Bool("json", false, "emit a machine-readable session descriptor")
 	readOnly := fs.Bool("read-only", false, "create a read-only Workspace lease")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *sessionID == "" || fs.NArg() > 1 {
 		return fmt.Errorf("usage: haco-agent-host prepare --session <id> [options] [workspace]: %w", core.ErrInvalidArgument)
+	}
+	if strings.TrimSpace(*codeCommand) == "" {
+		return fmt.Errorf("VS Code CLI command is empty: %w", core.ErrInvalidArgument)
 	}
 
 	workspaceArg := "."
@@ -172,7 +178,7 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 		return cleanupPreparedConnection(ctx, app, binding.EnvironmentName, preparedConnectionID, err)
 	}
 	managed := managedSSHConfig{Alias: alias, Connection: connection, IdentityFile: identityConfigValue, Distro: os.Getenv("WSL_DISTRO_NAME")}
-	if previous.Connection.Target != nil && (connection.Target == nil || *previous.Connection.Target != *connection.Target) {
+	if previous.Connection.Target != nil && !sameSSHEnvironment(previous.Connection.Target, connection.Target) {
 		return cleanupPreparedConnection(ctx, app, binding.EnvironmentName, preparedConnectionID, core.ErrIncompatibleState)
 	}
 	if err := writeManagedSSHConfig(managedPath, managed); err != nil {
@@ -188,15 +194,15 @@ func prepareCommand(ctx context.Context, app *composition.App, args []string) er
 		}
 	}
 
-	fmt.Printf("environment: %s\n", binding.EnvironmentName)
-	fmt.Printf("ssh: %s\n", alias)
-	fmt.Printf("workspace: %s\n", remoteWorkspacePath)
-	fmt.Printf("agents: New -> Remote -> SSH -> %s\n", alias)
+	descriptor := descriptorForBinding(binding)
+	if err := writeAgentSessionDescriptor(os.Stdout, descriptor, *jsonOutput); err != nil {
+		return err
+	}
 	if *noLaunch {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, *codeCommand, "--agents")
+	cmd := exec.CommandContext(ctx, *codeCommand, agentsLaunchArgs(descriptor.FolderURI)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -250,8 +256,8 @@ func releaseCommand(ctx context.Context, app *composition.App, args []string) er
 		}
 		return fmt.Errorf("remove stale managed SSH config: %w", err)
 	}
-	fmt.Printf("released: %s\n", alias)
-	return nil
+	_, err = fmt.Fprintf(os.Stdout, "released: %s\n", alias)
+	return err
 }
 
 func cleanupPreparedConnection(ctx context.Context, app *composition.App, environment, connectionID string, cause error) error {
@@ -267,6 +273,17 @@ func cleanupPreparedConnection(ctx context.Context, app *composition.App, enviro
 		fmt.Errorf("cleanup failed after agent-host adapter setup error: %w", cleanupErr),
 		core.ErrRecoveryRequired,
 	)
+}
+
+// Grant rotation changes only the access grant; the Environment incarnation,
+// Workspace, access mode and service must remain bound to the same target.
+func sameSSHEnvironment(previous, next *core.StreamTarget) bool {
+	if previous == nil || next == nil {
+		return false
+	}
+	a, b := *previous, *next
+	a.Grant, b.Grant = "", ""
+	return a == b
 }
 
 func findSSHConnection(connections []core.ClientConnection, id string) core.ClientConnection {
@@ -513,7 +530,7 @@ func quoteSSHValue(value string) string {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: haco-agent-host <prepare|release> [options]")
+	fmt.Fprintln(os.Stderr, "usage: haco-agent-host <prepare|lookup|release> [options]")
 }
 
 func fail(err error) {

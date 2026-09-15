@@ -20,6 +20,16 @@ OCI Store/image operations, controller APIs, notifications and client adapters
 remain separate supported implementations. Generic capability/event APIs remain
 because current client and notification consumers use them.
 
+The Agent Host helper also uses one explicit command dispatch. Its `init`-time
+interceptor, duplicate prepare parser, stdout capture and legacy-output adapter
+are removed. Prepare and lookup render the same typed session descriptor directly;
+the existing helper binary and trusted session broker remain separate from Core.
+SSH grant rotation compares the Environment incarnation, Workspace, access mode
+and service while allowing a new grant ID. Comparing the whole target would refuse
+every grant replacement; comparing only its human-readable name would allow a
+different owned target. The previous grant is revoked only after the replacement
+configuration is ready.
+
 Environment creation has one Router implementation that preserves the provider's
 Base identity, effective resource budget and ownership receipt. The separate
 BaseRouter creation override is removed; Base catalog and snapshot/archive

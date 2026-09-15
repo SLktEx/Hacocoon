@@ -134,3 +134,60 @@ func TestFindSSHConnectionIgnoresNonSSHConnections(t *testing.T) {
 func testAgentConnection() core.ClientConnection {
 	return core.ClientConnection{ID: "ssh-one", Kind: "ssh", User: "root", TargetPort: 22, HostPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f", Target: &core.StreamTarget{Environment: "agent-demo", Instance: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Workspace: "work", AccessMode: core.WorkspaceReadWrite, Service: "ssh", Grant: "ssh-one"}}
 }
+
+func TestSSHIncludePreservesUnterminatedPersonalConfiguration(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, ".ssh", "config")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	const personal = "Host personal\n    HostName example.invalid"
+	if err := os.WriteFile(path, []byte(personal), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureSSHInclude(home); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != personal+"\nInclude ~/.ssh/hacocoon/*.conf\n" {
+		t.Fatal(string(got), err)
+	}
+}
+
+func TestManagedSSHConfigRejectsMissingAuthorityAndUnreplaceableDestination(t *testing.T) {
+	home := t.TempDir()
+	base := managedSSHConfig{Alias: agentSSHAlias("s"), Connection: testAgentConnection(), IdentityFile: "~/.ssh/key"}
+	for _, mode := range []string{"alias", "identity", "target", "host-key", "destination-directory", "parent-file"} {
+		t.Run(mode, func(t *testing.T) {
+			config := base
+			path := filepath.Join(home, mode, "managed.conf")
+			switch mode {
+			case "alias":
+				config.Alias = ""
+			case "identity":
+				config.IdentityFile = ""
+			case "target":
+				config.Connection.Target = nil
+			case "host-key":
+				config.Connection.HostPublicKey = "invalid"
+			case "destination-directory":
+				if err := os.MkdirAll(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "parent-file":
+				if err := os.WriteFile(filepath.Dir(path), []byte("unrelated"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writeManagedSSHConfig(path, config); err == nil {
+				t.Fatal("invalid config/destination accepted")
+			}
+			if mode == "destination-directory" {
+				entries, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".haco-agent-host-*.tmp"))
+				if err != nil || len(entries) != 0 {
+					t.Fatal("failed config write leaked temporary file", entries, err)
+				}
+			}
+		})
+	}
+}

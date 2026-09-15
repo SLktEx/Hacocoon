@@ -51,6 +51,7 @@ haco-agent-host release --session <opaque-id>
 - `~/.ssh/hacocoon/` 以下の adapter-owned SSH 設定 fragment だけを管理する
 - Hacocoon の generation に固定した controller stream を利用する
 - 互換な接続は再利用し、変更時は replacement を準備してから古い接続を外す
+- grantの交換ではEnvの作成世代、Workspace、アクセスモード、SSH serviceの一致を要求し、対象が異なる場合は旧設定を保持して新しく準備したgrantだけを失効する
 - Environment、SSH alias、`/workspace`、VS Code remote-folder URI を含むセッション descriptor を出力する
 - `--no-launch` がなければ Hacocoon remote workspace を指定した状態で VS Code Agents window を起動する
 
