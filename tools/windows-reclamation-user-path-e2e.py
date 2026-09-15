@@ -99,10 +99,28 @@ def process_query():
     # Windows process metadata only: do not enter WSL to observe its shutdown.
     # Existing helper identity checks still receive only helper executable paths.
     return """[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$ErrorActionPreference='Stop';
-$rows=@(Get-CimInstance Win32_Process -Filter "Name='haco-wsl.exe' OR Name='wslhost.exe' OR Name='wsl.exe' OR Name='vmmemWSL'");
+$rows=@(Get-CimInstance Win32_Process -Property Name,ExecutablePath,ProcessId,ParentProcessId,CreationDate);
 $helpers=@($rows | Where-Object { $_.Name -eq 'haco-wsl.exe' } | Select-Object ExecutablePath);
 $counts=@{};foreach($name in @('wslhost.exe','wsl.exe','vmmemWSL')) { $counts[$name]=@($rows | Where-Object { $_.Name -eq $name }).Count };
-ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts }
+$byId=@{};foreach($row in $rows) { $byId[[string]$row.ProcessId]=$row };
+$classes=@{'wsl.exe'='wsl';'haco-wsl.exe'='reclamation';'ssh.exe'='ssh';'Code.exe'='editor';'cmd.exe'='shell';'powershell.exe'='powershell';'pwsh.exe'='powershell';'python.exe'='python';'python3.exe'='python';'WindowsTerminal.exe'='terminal';'OpenConsole.exe'='terminal';'conhost.exe'='terminal';'wslservice.exe'='service';'haco-notify.exe'='notification'};
+$origins=@{};
+foreach($row in @($rows | Where-Object { $_.Name -eq 'wsl.exe' })) {
+    $chain=@();$child=$row;$seen=@{};
+    for($depth=0;$depth -lt 8;$depth++) {
+        $parent=$byId[[string]$child.ParentProcessId];
+        if($null -eq $parent -or $seen.ContainsKey([string]$parent.ProcessId) -or
+           $null -eq $parent.CreationDate -or $null -eq $child.CreationDate -or
+           $parent.CreationDate -gt $child.CreationDate) { $chain+='unavailable';break };
+        $seen[[string]$parent.ProcessId]=$true;
+        $kind=$classes[[string]$parent.Name];
+        if($null -eq $kind) { $chain+='other';break };
+        $chain+=$kind;$child=$parent;
+    };
+    $key=$chain -join '/';
+    if($origins.ContainsKey($key)) { $origins[$key]++ } else { $origins[$key]=1 };
+};
+ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts; origins=$origins }
 """
 
 
@@ -116,6 +134,26 @@ def observed_process_counts(snapshot):
     return {"state": "observed", **{key: counts[key] for key in keys}}
 
 
+def observed_process_origins(snapshot):
+    # Parent names are categories, not executable/ownership authentication. The
+    # Windows snapshot omits missing/reused parents and never emits names or PIDs.
+    kinds = {"wsl", "reclamation", "ssh", "editor", "shell", "powershell",
+             "python", "terminal", "service", "notification", "other", "unavailable"}
+    origins = snapshot.get("origins") if isinstance(snapshot, dict) else None
+    counts = observed_process_counts(snapshot)
+    if not isinstance(origins, dict) or len(origins) > 64 or counts["state"] != "observed":
+        return {"state": "unavailable"}
+    for chain, count in origins.items():
+        if (not isinstance(chain, str) or len(chain) > 128 or
+                not 1 <= len(chain.split("/")) <= 8 or
+                any(kind not in kinds for kind in chain.split("/")) or
+                type(count) is not int or not 1 <= count <= 4096):
+            return {"state": "unavailable"}
+    if sum(origins.values()) != counts["wsl.exe"]:
+        return {"state": "unavailable"}
+    return {"state": "observed", "chains": dict(sorted(origins.items()))}
+
+
 def wait_for_worker(helper, registration, operation):
     powershell = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
     script = process_query()
@@ -125,11 +163,13 @@ def wait_for_worker(helper, registration, operation):
     def observe_processes():
         nonlocal previous_counts
         snapshot = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
-        counts = observed_process_counts(snapshot)
+        counts = {"processes": observed_process_counts(snapshot),
+                  "origins": observed_process_origins(snapshot)}
         if counts != previous_counts:
             print(json.dumps({"component": "ci", "operation": "reclamation_windows_processes",
                               "duration_ms": int((time.monotonic() - started) * 1000),
-                              "scope": "all-windows-wsl-processes", "counts": counts}), flush=True)
+                              "scope": "all-windows-wsl-processes", "counts": counts["processes"],
+                              "origins": counts["origins"]}), flush=True)
             previous_counts = counts
         return snapshot.get("helpers") if isinstance(snapshot, dict) else None
 

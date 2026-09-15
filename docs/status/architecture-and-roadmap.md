@@ -90,8 +90,10 @@ Later #704/#705 Windows runs again refused compaction because the disk remained
 attached after the bounded wait. Preserve those failures alongside earlier recovery
 success. Windows-only process-count observations now support distinguishing the
 shutdown/detachment interval without restarting WSL, changing the product timeout
-or weakening refusal; their first installed result and the cause remain pending
-under #381. Counts alone never authorize compaction.
+or weakening refusal. The first installed result (#706, `38aeae56`) showed WSL
+processes disappearing and later returning, but still failed with `compact_attached`.
+Fixed parent-chain categories now narrow the next investigation; the restart source
+and detachment cause remain pending under #381. Counts never authorize compaction.
 Read-only comparisons isolate enrollment visibility to the init interop route;
 the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 

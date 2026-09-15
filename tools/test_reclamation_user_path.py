@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 import json
+import os
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +16,48 @@ PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_parent_categories_are_bounded_and_never_emit_arbitrary_names(self):
+        snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 2, "vmmemWSL": 1},
+                    "origins": {"wsl/ssh/editor/other": 1, "ssh/editor/other": 1}}
+        self.assertEqual(gate.observed_process_origins(snapshot),
+                         {"state": "observed", "chains": snapshot["origins"]})
+        for origins in ({"secret.exe": 2}, {"ssh": True}, {"ssh": -1}, {"ssh": 4097},
+                        {"ssh": 1}, {"ssh/" * 8 + "editor": 2}, {"ssh//editor": 2}, []):
+            with self.subTest(origins=origins):
+                self.assertEqual(gate.observed_process_origins(dict(snapshot, origins=origins)),
+                                 {"state": "unavailable"})
+        self.assertEqual(gate.observed_process_origins(dict(PROCESSES, origins={})),
+                         {"state": "observed", "chains": {}})
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell 5.1 query contract")
+    def test_native_query_classifies_parents_and_rejects_pid_reuse(self):
+        # Supply OS-shaped metadata to the actual PowerShell query. No processes
+        # are started/stopped and no raw fixture fields leave its projection.
+        fixture = r"""
+function Get-CimInstance {
+  $start=[datetime]'2026-01-01T00:00:00Z';
+  foreach($v in @(
+    @(1,0,'private-name.exe',0), @(2,1,'Code.exe',1), @(3,2,'ssh.exe',2),
+    @(4,3,'wsl.exe',3), @(5,4,'wsl.exe',4),
+    @(6,99,'wsl.exe',1), @(7,8,'wsl.exe',1), @(8,0,'ssh.exe',2),
+    @(9,9,'wsl.exe',2), @(10,0,'haco-wsl.exe',1))) {
+      [pscustomobject]@{ ProcessId=$v[0];ParentProcessId=$v[1];Name=$v[2];
+        CreationDate=$start.AddSeconds($v[3]);ExecutablePath='C:\private\'+$v[2] }
+  }
+}
+"""
+        powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command",
+                                 fixture + gate.process_query()], capture_output=True, timeout=25)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        snapshot = json.loads(result.stdout.decode("utf-8-sig"))
+        self.assertEqual(snapshot["origins"], {"ssh/editor/other": 1,
+                         "wsl/ssh/editor/other": 1, "unavailable": 2, "wsl/unavailable": 1})
+        observed = gate.observed_process_origins(snapshot)
+        self.assertEqual(observed["state"], "observed")
+        self.assertNotIn("private", json.dumps(observed))
+        self.assertTrue(gate.helper_is_running(snapshot["helpers"], r"C:\private\haco-wsl.exe"))
+
     def test_japanese_status_still_requires_the_successful_completion_marker(self):
         message = "容量回収の保存結果はありません。この確認で新しい操作は開始していません。\n"
         self.assertFalse(gate.absent_status_completed(message))

@@ -1680,6 +1680,8 @@ the later notification gate was skipped.
 | `9a8a7d07f93677690c04cb6124c8d78bb5373965` (#704, before rebase) | 35006335176 / 104506895607 | failed |
 | `4c94462ffd6e42d5f1e831cff41224fe051021ba` (#704) | 35008285127 / 104513489162 | passed |
 | `c0692cdf327be7f809333c2a9ea23753bd1f5661` (#705, before documentation update) | 35009099013 / 104516251265 | passed |
+| `428b2bdb53b1070ec4d870bf7589778f29f90042` (#705) | 35011032772 / 104522727488 | passed |
+| `38aeae56ed769b41e59c0d9e89859f2f7e50c52e` (#706, counts only) | 35012950293 / 104529173573 | passed |
 
 Earlier successful allocation recovery remains valid within its recorded scope;
 these later failures remain unresolved under #381. Virtual observation handles
@@ -1703,3 +1705,16 @@ root-user-session warning was retained without repairs. Product Go code and
 workflow definitions are unchanged; the earlier full repository results remain
 scoped to their heads. These are diagnostic/component results, not a successful
 installed reclamation with the new observations or a fix for the above failures.
+
+The first installed observation at #706 head `38aeae56` failed as recorded above;
+its four other required workflows passed. At 6.6 seconds, Windows-visible
+`wslhost.exe` and `wsl.exe` counts reached zero. At 12 seconds `wsl.exe` returned
+to two, then `wslhost.exe` reached two at 17.6 seconds. This is evidence of new
+Windows WSL processes, not proof of which distribution or launcher restarted.
+The follow-up classifies parent chains without entering WSL or changing product
+behavior. Windows PowerShell 5.1 fixture/query regression and the 14 other tests
+passed; the real read-only query classified four WSL processes as PowerShell
+descendants. That local observation does not identify the CI restart source.
+The archived Linux follow-up passed 14 observation tests (0.50s; the Windows-only
+query test was SKIP), 12 retention tests (0.61s), maintained local docs (20.78s)
+and workflow policy (1.86s). The same root-user-session warning remained.
