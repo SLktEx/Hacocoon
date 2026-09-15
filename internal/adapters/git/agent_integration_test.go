@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,35 +21,16 @@ import (
 func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	git := func(dir string, args ...string) []byte {
-		t.Helper()
-		cmd := exec.Command("/usr/bin/git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = []string{"PATH=/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.invalid", "GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.invalid"}
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("fixture Git failed: %v: %s", err, out)
-		}
-		return out
-	}
 	remote, seed, repos, workspaces := filepath.Join(root, "remote.git"), filepath.Join(root, "seed"), filepath.Join(root, "repos"), filepath.Join(root, "workspaces")
 	for _, dir := range []string{remote, seed, repos, workspaces} {
 		if err := os.Mkdir(dir, 0700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	git(remote, "init", "--bare", "--initial-branch=main")
-	git(seed, "init", "--initial-branch=main")
-	commit := func(dir, body string) string {
-		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, "work.txt"), []byte(body), 0600); err != nil {
-			t.Fatal(err)
-		}
-		git(dir, "add", "--", "work.txt")
-		git(dir, "commit", "-m", "fixture work")
-		return strings.TrimSpace(string(git(dir, "rev-parse", "HEAD")))
-	}
-	initial := commit(seed, "initial")
-	git(seed, "push", "file://"+remote, "main")
+	testGit(t, remote, "init", "--bare", "--initial-branch=main")
+	testGit(t, seed, "init", "--initial-branch=main")
+	initial := testCommit(t, seed, "work.txt", "initial")
+	testGit(t, seed, "push", "file://"+remote, "main")
 	base := AgentRequest{Repository: "source", Workspace: "work", Remote: "file://" + remote, Branch: "main"}
 	run := func(req AgentRequest) (Response, error) { return RunAgent(ctx, req, repos, workspaces) }
 	clone := base
@@ -59,13 +39,13 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	work := filepath.Join(workspaces, "work")
-	git(root, "clone", "--no-local", filepath.Join(repos, "source"), work)
+	testGit(t, root, "clone", "--no-local", filepath.Join(repos, "source"), work)
 	configure := base
 	configure.Operation = "workspace"
 	if _, err := run(configure); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(string(git(work, "config", "--get", "remote.origin.url"))); got != "haco://source" {
+	if got := testGit(t, work, "config", "--get", "remote.origin.url"); got != "haco://source" {
 		t.Fatal("Workspace leaked remote", got)
 	}
 	t.Chdir(work)
@@ -90,7 +70,7 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 		return run(op)
 	}
 	for _, body := range []string{"first", "second"} {
-		next := commit(work, body)
+		next := testCommit(t, work, "work.txt", body)
 		var out, diagnostic bytes.Buffer
 		input := "capabilities\noption progress false\noption unsupported value\nlist\nfetch " + initial + " refs/heads/main\n\npush HEAD:refs/heads/topic\n\n\n"
 		if err := Helper(ctx, []string{"origin", "haco://source"}, strings.NewReader(input), &out, &diagnostic, exchange); err != nil {
@@ -99,7 +79,7 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 		if !strings.Contains(out.String(), "ok refs/heads/topic\n") || !strings.Contains(diagnostic.String(), "Policy/approval") {
 			t.Fatal("missing helper receipt", out.String())
 		}
-		if got := strings.TrimSpace(string(git(remote, "rev-parse", "refs/heads/topic"))); got != next {
+		if got := testGit(t, remote, "rev-parse", "refs/heads/topic"); got != next {
 			t.Fatal("push changed wrong commit", got)
 		}
 	}

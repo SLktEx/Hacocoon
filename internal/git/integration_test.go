@@ -83,7 +83,8 @@ func (a *gitAudit) Record(_ context.Context, event core.CapabilityAuditEvent) er
 
 func testGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("/usr/bin/git", append([]string{"-C", dir}, args...)...)
+	// Native fixture Git must finish maintenance before temporary repo cleanup.
+	cmd := exec.Command("/usr/bin/git", append([]string{"-c", "maintenance.autoDetach=false", "-c", "gc.autoDetach=false", "-C", dir}, args...)...)
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=PoC", "GIT_AUTHOR_EMAIL=poc@example.invalid", "GIT_COMMITTER_NAME=PoC", "GIT_COMMITTER_EMAIL=poc@example.invalid")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
