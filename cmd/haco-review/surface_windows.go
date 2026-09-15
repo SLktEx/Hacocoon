@@ -118,7 +118,9 @@ func encodeNativeScript(s string) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 func (s *nativeToastSurface) invoke(ctx context.Context, operation, id, xml string) error {
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	// Cold Windows PowerShell/WinRT startup can exceed the short UI action
+	// budget. The caller still owns shorter review/read/cleanup deadlines.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	data, err := json.Marshal(struct {
 		Operation string `json:"operation"`

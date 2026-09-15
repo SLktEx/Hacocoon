@@ -590,3 +590,7 @@ main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを�
 読み取り確認で、失敗fixtureの正確なcatalogにEnv・lease・永続領域が残っておらず、nativeの名前照会も該当なしと確認した。空の世代項目2件だけが残る。元のタイムアウトは未解決。
 
 main4cd0c7dcを611bedafへ統合し、Git/GUI/Packer/キャッシュを合わせた全ローカル14.30秒、CLI3.36秒、文書・回帰5.62秒が通りました。前のGUI8d509399のWindows34923857407はSSHと公開reclaimが成功し、通知clearは8024ms、progress=decodeで失敗しました。このPCの通常Windows権限で同じ固定処理を専用テストIDに実行すると0.53秒/0.23秒で成功しました。制限付き実行枠は通知処理前に拒否しました。CI失敗や人による回答の解決を示す結果ではありません。
+
+dca688f6のWindows34926634572/job104245971260も最初のclearでtimeout、child_exit=1、8019ms、progress=decodeとなりました。直前のSSH/公開reclaimは成功しています。製品のPowerShell/WinRT初回起動上限を30秒にし、呼び出し側の短い期限と正確な子の中断は維持します。これは検証対象の起動上限修正であり、CI遅延の根因やGUI受入の成功を確認したという意味ではありません。
+
+修正ソースのWindows通知テスト全体は、このPCで8.22秒でPASS。実際の日英ToastGeneric表示・履歴・削除（6.90秒）、activation callback、秘匿化、正確な子の中断を含みます。実機componentの証拠であり、人のクリック・見た目の受入・CIのcold起動結果は未確認です。
