@@ -94,9 +94,9 @@ CI成功済みの実装のmain反映を止める条件にはしない。候補�
 開発ブランチでは、設定の確認・保存・失敗時の案内も共通の日英表示へ揃えた。
 revisionで対象を固定する編集・Policyの値・JSONは維持し、表示失敗時にも編集を再実行しない。
 
-main向け統合候補[#701](https://github.com/SLktEx/Hacocoon/pull/701)に、
+main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)に、
 #700のセットアップ案内、通信・設定の案内、導入済みTCP試験の準備待ち修正を含める。
-ローカル試験は成功、最終の導入済みCIは確認待ち。#700の異なる2回のWindows失敗は
+同一headの5系統CIと導入済みWindows受入は成功。本人操作の確認はリリース後に残す。#700の異なる2回のWindows失敗は
 [受入記録](status/acceptance-evidence.ja.md#転送試験の準備待ち修正)に保持する。
 
 Gitの開発候補は両方の既存境界で全量base64を上限付きのバイナリ転送へ置き換える。

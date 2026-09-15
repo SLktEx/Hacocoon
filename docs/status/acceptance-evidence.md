@@ -1575,3 +1575,27 @@ Malformed frames, excess lengths, missing EOF/receipts, trailing bytes, wrong by
 counts and output failures remain failures. Forty MiB streaming does not prove
 representative giant-repository speed/capacity; those measurements and installed
 provider acceptance remain separate. See [ADR 0106](../adr/0106-streaming-git-packs.md).
+
+## Main integration of setup, network and configuration guidance
+
+[#701](https://github.com/SLktEx/Hacocoon/pull/701) merged as main
+`f225e5c1a005358929a5c3bfe2b5154cc55a4ec6` after exact head `161f3854` passed
+quality `35000716746`, test `35000716642`, Ubuntu `35000716870`, Incus
+`35000716637` and Windows `35000716814`. The merged tree matches that head.
+#700's exact head is an ancestor and its PR was closed as integrated.
+
+Windows job `104488129559` and evidence job `104497872650` passed. Ordinary
+installation/re-entry, HTTPS/direct-egress refusal, native SSH/editor/TCP, Linux
+and public reclamation and native notification review routes passed. The forwarding
+application was armed after native ownership at 26,202 ms. Public operation
+`{40F8CDCB-AE50-4141-BC3B-F5A1A64B2E14}` recovered 2,683,305,984 bytes:
+Windows allocation 7,629,438,976 → 4,946,132,992, unchanged virtual capacity
+1,099,511,627,776, 255 open observations, completed compaction and same-WSL resume.
+Human toast clicks/fresh GUI answers and VPN/NRPT remain skipped and post-release.
+Earlier attached-disk failures remain distinct; this success does not prove their cause.
+
+The following Git implementation `68135b19` is tree-identical to `ace86ee4`
+after rebasing onto this main. The latter's normal ten-binary Linux/Windows
+package built in 42.32s. No local installation, WSL termination or publication
+was performed. Product code also matches the full-tested pre-rebase `9c9d2ed0`;
+four documentation conflicts preserved both independent evidence sections.

@@ -65,7 +65,7 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
-Main `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
+Previous main checkpoint `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
 #689–#693 and #696–#698 on top of #687/#688. Restored-tree comparison,
 Japanese reclamation results, bounded SSH failure classification, latest-ready
 restore by source environment name, incremental Git history reuse and sequential
@@ -84,8 +84,7 @@ or huge-repository acceptance.
 
 [#700](https://github.com/SLktEx/Hacocoon/pull/700) adds shared English/Japanese
 Host/project setup outcomes and next actions, preserving raw script output,
-explicit replay, diagnostic values and vertical help. It is implemented on its
-development branch; local full checks and normal package generation passed.
+explicit replay, diagnostic values and vertical help. It is integrated through #701 on main; local full checks and normal package generation passed.
 [Overall language coverage](reference/cli-language.md) remains partial.
 
 Person-dependent login, notification clicks and fresh VS Code answers are
@@ -104,10 +103,9 @@ Configuration inspection/save and recovery guidance also use shared bilingual
 presentation on the development branch. Revision-bound edits, Policy values and
 JSON are unchanged; display failure never retries an edit.
 
-The combined main candidate [#701](https://github.com/SLktEx/Hacocoon/pull/701)
+Main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)
 includes #700 setup guidance, network/configuration guidance and a correction
-to the installed TCP fixture's readiness timing. Local tests pass; its final
-installed CI is pending. #700's two distinct Windows failures remain in
+to the installed TCP fixture's readiness timing. All five exact-head workflows and installed Windows acceptance passed; person-dependent checks remain post-release. #700's two distinct Windows failures remain in
 [acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).
 
 The Git streaming development candidate replaces whole-pack base64 with bounded
