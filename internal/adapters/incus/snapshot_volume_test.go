@@ -96,7 +96,6 @@ func TestSnapshotVolumeCopyBindsSourceAndIndependentTarget(t *testing.T) {
 							list = append(list, observed)
 						}
 						if mode == "missing" {
-							list = nil
 							return host.Result{Stdout: "[]"}, nil
 						}
 						data, _ := json.Marshal(list)

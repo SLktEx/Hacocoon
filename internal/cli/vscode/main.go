@@ -80,7 +80,7 @@ func runAdapter(ctx context.Context, args []string) error {
 			return err
 		}
 		if filepath.Clean(status.Environment.Workspace.Path) != path {
-			return fmt.Errorf("Workspace binding mismatch")
+			return fmt.Errorf("workspace binding mismatch")
 		}
 		if err = client.DeleteEnvironment(ctx, *name); err != nil {
 			return err
@@ -94,7 +94,9 @@ func runAdapter(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stdout, "SSH ready:", alias)
+	if _, err := fmt.Fprintln(os.Stdout, "SSH ready:", alias); err != nil {
+		return err
+	}
 	if *noLaunch {
 		return nil
 	}

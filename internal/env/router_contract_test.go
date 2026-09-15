@@ -106,8 +106,8 @@ type routeOperation struct {
 func TestPersistedEnvironmentRoutePinsOperationsAfterDefaultChanges(t *testing.T) {
 	const instance = "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	client, peer := net.Pipe()
-	defer client.Close()
-	defer peer.Close()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = peer.Close() }()
 	execution := core.ExecutionRequest{Argv: []string{"cat"}, Stdin: []byte("input\x00bytes"), WorkingDirectory: "/workspace"}
 	port := core.LocalPortRequest{Protocol: "udp", HostPort: 18000, TargetPort: 9000}
 	ssh := core.SSHAccessRequest{PublicKey: "caller-owned-key"}
@@ -236,6 +236,28 @@ func TestProcessRoutePreservesStreamsExitAndCancellation(t *testing.T) {
 	} {
 		if _, err := tc.router.ExecEnvironmentStream(context.Background(), tc.ref, req, nil, io.Discard, io.Discard); !errors.Is(err, tc.want) || p.calls != 0 {
 			t.Fatal("invalid process request reached backend", err)
+		}
+	}
+}
+
+func TestShellStreamRouteRejectsUnavailableProvider(t *testing.T) {
+	p := &contractProvider{}
+	r, err := NewRouter(testProvider, Register(testProvider, p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		router *Router
+		ref    string
+		want   error
+	}{
+		{r, encodeRouteRef(testProvider, "owned-native"), core.ErrUnsupported},
+		{r, "", core.ErrIncompatibleState},
+		{r, encodeRouteRef("removed-provider", "owned-native"), core.ErrUnsupported},
+		{nil, encodeRouteRef(testProvider, "owned-native"), core.ErrRuntimeUnavailable},
+	} {
+		if err := tc.router.ShellEnvironmentStream(context.Background(), tc.ref, strings.NewReader("input"), io.Discard, io.Discard); !errors.Is(err, tc.want) || p.calls != 0 {
+			t.Fatal("unavailable shell route reached provider", err)
 		}
 	}
 }

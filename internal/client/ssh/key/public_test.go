@@ -1,7 +1,9 @@
 package sshkey_test
 
 import (
+	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -21,7 +23,8 @@ func wire(fields ...[]byte) []byte {
 	return result
 }
 
-func fixtures() map[string][][]byte {
+func fixtures(t *testing.T) map[string][][]byte {
+	t.Helper()
 	result := map[string][][]byte{
 		"ssh-ed25519":                {make([]byte, 32)},
 		"ssh-rsa":                    {{1, 0, 1}, {0, 0x80, 1}},
@@ -29,7 +32,14 @@ func fixtures() map[string][][]byte {
 	}
 	for _, curve := range []elliptic.Curve{elliptic.P256(), elliptic.P384(), elliptic.P521()} {
 		name := map[int]string{256: "nistp256", 384: "nistp384", 521: "nistp521"}[curve.Params().BitSize]
-		point := elliptic.Marshal(curve, curve.Params().Gx, curve.Params().Gy)
+		key, err := ecdsa.GenerateKey(curve, rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		point, err := key.PublicKey.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
 		result["ecdsa-sha2-"+name] = [][]byte{[]byte(name), point}
 		if name == "nistp256" {
 			result["sk-ecdsa-sha2-nistp256@openssh.com"] = [][]byte{[]byte(name), point, []byte("ssh:test")}
@@ -39,7 +49,7 @@ func fixtures() map[string][][]byte {
 }
 
 func TestNormalizeSupportedWireKeysAndRemoveComments(t *testing.T) {
-	for algorithm, fields := range fixtures() {
+	for algorithm, fields := range fixtures(t) {
 		t.Run(algorithm, func(t *testing.T) {
 			blob := wire(append([][]byte{[]byte(algorithm)}, fields...)...)
 			for _, encoding := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding} {
@@ -54,7 +64,7 @@ func TestNormalizeSupportedWireKeysAndRemoveComments(t *testing.T) {
 }
 
 func TestNormalizeRejectsMalformedWireForEveryAlgorithm(t *testing.T) {
-	for algorithm, fields := range fixtures() {
+	for algorithm, fields := range fixtures(t) {
 		t.Run(algorithm, func(t *testing.T) {
 			blob := wire(append([][]byte{[]byte(algorithm)}, fields...)...)
 			mutations := [][]byte{append(append([]byte{}, blob...), 0), wire([]byte("ssh-unknown"))}
@@ -99,5 +109,32 @@ func TestNormalizeRejectsInvalidTextAndNoncanonicalRSAIntegers(t *testing.T) {
 				t.Fatalf("accepted RSA integer %x: %q, %v", integer, got, err)
 			}
 		}
+	}
+}
+
+func TestNormalizeRejectsInvalidECDSAPoints(t *testing.T) {
+	for algorithm, fields := range fixtures(t) {
+		if !strings.Contains(algorithm, "ecdsa") {
+			continue
+		}
+		t.Run(algorithm, func(t *testing.T) {
+			point := fields[1]
+			offCurve := make([]byte, len(point))
+			offCurve[0] = 4
+			outOfRange := make([]byte, len(point))
+			for i := range outOfRange {
+				outOfRange[i] = 0xff
+			}
+			outOfRange[0] = 4
+			compressed := append([]byte{2}, point[1:(len(point)+1)/2]...)
+			for _, invalid := range [][]byte{offCurve, outOfRange, compressed, {0}} {
+				payload := append([][]byte{[]byte(algorithm)}, fields...)
+				payload[2] = invalid
+				raw := algorithm + " " + base64.StdEncoding.EncodeToString(wire(payload...))
+				if got, err := sshkey.NormalizePublicKey(raw); got != "" || !errors.Is(err, core.ErrInvalidArgument) {
+					t.Fatalf("accepted invalid point %x: %q, %v", invalid, got, err)
+				}
+			}
+		})
 	}
 }

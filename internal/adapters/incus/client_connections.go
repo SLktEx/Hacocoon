@@ -40,9 +40,6 @@ func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID 
 	return err
 }
 
-func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort, targetPort int) error {
-	return r.addLoopbackProtocolProxy(ctx, ref, id, "tcp", hostPort, targetPort)
-}
 func (r *Runtime) addLoopbackProtocolProxy(ctx context.Context, ref, id, protocol string, hostPort, targetPort int) error {
 	if protocol != "tcp" && protocol != "udp" {
 		return core.ErrInvalidArgument

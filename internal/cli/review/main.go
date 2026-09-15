@@ -27,7 +27,7 @@ func loadConfiguration(path string) (configuration, error) {
 	if err != nil {
 		return c, errors.New("cannot open local review configuration")
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	d := json.NewDecoder(io.LimitReader(f, 4097))
 	d.DisallowUnknownFields()
 	if d.Decode(&c) != nil {

@@ -18,6 +18,3 @@ func writeTrustedHostNoticeInLanguage(out *os.File, language cliui.Language) {
 	}
 	fmt.Fprintln(out, message)
 }
-func trustedHostNotice() string {
-	return cliMessage("host.notice")
-}

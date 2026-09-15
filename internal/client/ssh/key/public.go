@@ -1,6 +1,7 @@
 package sshkey
 
 import (
+	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/base64"
 	"encoding/binary"
@@ -149,6 +150,6 @@ func validateECDSAFields(reader *sshWireReader, expectedCurve string, curve elli
 	if !ok {
 		return false
 	}
-	x, y := elliptic.Unmarshal(curve, point)
-	return x != nil && y != nil
+	_, err := ecdsa.ParseUncompressedPublicKey(curve, point)
+	return err == nil
 }

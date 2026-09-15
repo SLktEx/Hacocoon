@@ -16,7 +16,6 @@ type reposFixture struct {
 	selection    []string
 	restores     int
 	createCalls  int
-	dataFail     error
 	catalogReady bool
 }
 

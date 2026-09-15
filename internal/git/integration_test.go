@@ -30,15 +30,6 @@ func (b localBackend) RunGit(ctx context.Context, request gitadapter.AgentReques
 	return gitadapter.RunAgent(ctx, request, b.repos, b.workspaces)
 }
 
-type singleEnvironment struct{ environment core.Environment }
-
-func (s singleEnvironment) GetEnvironment(_ context.Context, name string) (core.Environment, error) {
-	if name != s.environment.Name {
-		return core.Environment{}, core.ErrNotFound
-	}
-	return s.environment, nil
-}
-
 type gitPolicy struct{}
 
 func (gitPolicy) Evaluate(_ context.Context, req core.CapabilityRequest) (core.PolicyEvaluation, error) {

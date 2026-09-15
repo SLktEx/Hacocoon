@@ -391,13 +391,16 @@ func ensureSSHInclude(home string) error {
 	if err != nil {
 		return fmt.Errorf("open SSH config: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	prefix := ""
 	if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
 		prefix = "\n"
 	}
 	if _, err := fmt.Fprintf(file, "%s%s\n", prefix, include); err != nil {
 		return fmt.Errorf("write SSH config include: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close SSH config include: %w", err)
 	}
 	return nil
 }
@@ -486,7 +489,7 @@ func safeSSHAlias(value string) bool {
 		return false
 	}
 	for _, r := range value {
-		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return false
 		}
 	}

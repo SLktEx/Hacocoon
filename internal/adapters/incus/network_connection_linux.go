@@ -135,10 +135,6 @@ func (r *Runtime) networkInstancePID(ctx context.Context, ref string) (int, erro
 	}
 	return state.PID, nil
 }
-func dialNetworkNamespace(ctx context.Context, namespace int, protocol string, port int) (net.Conn, error) {
-	return dialNetworkNamespaceAddress(ctx, namespace, protocol, "127.0.0.1", port)
-}
-
 func openCurrentNetworkNamespace() (int, error) {
 	// Network namespaces belong to threads. The process leader may itself be
 	// a dedicated guest dial worker; it is not the calling Host thread.

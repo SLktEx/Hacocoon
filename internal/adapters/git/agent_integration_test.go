@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -181,7 +182,11 @@ func TestUnixExchangeRefusesMalformedAndFailedBrokerResponses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Error(err)
+		}
+	})
 	socket := filepath.Join(dir, "git.sock")
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
@@ -195,22 +200,34 @@ func TestUnixExchangeRefusesMalformedAndFailedBrokerResponses(t *testing.T) {
 		if json.NewDecoder(r.Body).Decode(&req) != nil {
 			t.Error("invalid request encoding")
 		}
+		var body string
 		switch req.Operation {
 		case "unknown-field":
-			w.Write([]byte(`{"command":"sh"}`))
+			body = `{"command":"sh"}`
 		case "invalid-json":
-			w.Write([]byte(`{`))
+			body = `{`
 		case "refused":
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"denied"}`))
+			body = `{"error":"denied"}`
 		case "failed":
-			w.Write([]byte(`{"error":"unavailable"}`))
+			body = `{"error":"unavailable"}`
 		default:
-			w.Write([]byte(`{"ref":"refs/heads/main"}`))
+			body = `{"ref":"refs/heads/main"}`
+		}
+		if _, err := io.WriteString(w, body); err != nil {
+			t.Error(err)
 		}
 	})}
-	go server.Serve(listener)
-	t.Cleanup(func() { server.Close() })
+	served := make(chan error, 1)
+	go func() { served <- server.Serve(listener) }()
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := <-served; !errors.Is(err, http.ErrServerClosed) {
+			t.Error("unexpected broker termination", err)
+		}
+	})
 	exchange := UnixExchange(socket)
 	for _, op := range []string{"valid", "unknown-field", "invalid-json", "refused", "failed"} {
 		response, err := exchange(context.Background(), Request{Operation: op})
@@ -227,7 +244,9 @@ func TestUnixExchangeRefusesMalformedAndFailedBrokerResponses(t *testing.T) {
 	if _, err := exchange(ctx, Request{}); err == nil {
 		t.Fatal("canceled request accepted")
 	}
-	server.Close()
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := exchange(context.Background(), Request{}); err == nil || errors.Is(err, context.Canceled) {
 		t.Fatal("unavailable broker accepted", err)
 	}

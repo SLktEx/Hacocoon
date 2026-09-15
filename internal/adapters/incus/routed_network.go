@@ -14,17 +14,13 @@ import (
 
 const (
 	sandboxRoutedProxyIPv4       = "169.254.254.1"
-	sandboxRoutedGatewayIPv4     = "169.254.254.254" // compatibility constant
 	sandboxRoutedHostIPv4        = sandboxRoutedProxyIPv4
-	sandboxRoutedGuestPool       = "198.18.0.0/15" // compatibility constant
 	sandboxRoutedHostPrefix      = "hbr"
 	sandboxRoutedFirewallFamily  = "inet"
 	sandboxRoutedFirewallTable   = "hacocoon_sandbox"
 	sandboxRoutedGuardPrefix     = "haco_guard_"
 	sandboxBridgeResourceProject = "default"
 )
-
-var sandboxRoutedPool = netip.MustParsePrefix(sandboxRoutedGuestPool)
 
 // ensureRoutedSandboxHost retains its migration-era name, but the Environment
 // data plane is now bridge based. Only the proxy endpoint and host firewall are
@@ -92,12 +88,6 @@ func (r *Runtime) ensureRoutedProxyAddress(ctx context.Context) error {
 		return fmt.Errorf("Hacocoon proxy address did not persist: %w", core.ErrIncompatibleState)
 	}
 	return nil
-}
-
-func (r *Runtime) ensureRoutedPoolAvailable(context.Context) error { return nil }
-
-func prefixesOverlap(a, b netip.Prefix) bool {
-	return a.Contains(b.Addr()) || b.Contains(a.Addr())
 }
 
 func (r *Runtime) ensureRoutedSandboxFirewall(ctx context.Context) error {
@@ -439,21 +429,4 @@ func routedSandboxGuardTable(ref string) string {
 	sum := sha256.Sum256([]byte(ref))
 	value := binary.BigEndian.Uint64(sum[:8]) & 0xffffffffff
 	return fmt.Sprintf("%s%010x", sandboxRoutedGuardPrefix, value)
-}
-
-func routedSandboxIPv4At(offset uint32) string {
-	second := byte(18 + ((offset >> 16) & 0x1))
-	third := byte((offset >> 8) & 0xff)
-	fourth := byte(offset & 0xff)
-	return netip.AddrFrom4([4]byte{198, second, third, fourth}).String()
-}
-
-func hasExactRoutedSandboxHostRoute(raw string, address netip.Addr) bool {
-	for _, line := range strings.Split(raw, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 0 && (fields[0] == address.String() || fields[0] == address.String()+"/32") {
-			return true
-		}
-	}
-	return false
 }

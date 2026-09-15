@@ -154,7 +154,7 @@ func Main() {
 		if err != nil {
 			fail(fmt.Errorf("bind Standard egress endpoint: %w", err))
 		}
-		defer proxyListener.Close()
+		defer func() { _ = proxyListener.Close() }()
 	}
 
 	path := control.SocketPath()
@@ -162,7 +162,7 @@ func Main() {
 	if err != nil {
 		fail(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	if err := app.GitBroker.Start(ctx); err != nil {
 		fail(err)
 	}
