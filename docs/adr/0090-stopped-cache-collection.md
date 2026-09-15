@@ -41,3 +41,11 @@ explicitly incomplete. No old-version compatibility layer is introduced. Native
 functional acceptance and large-repository measurements are separate evidence.
 
 Recovery follows the same ownership decision: common copy recovery now requires an exact reference, including OCI callers. Standard resolves named candidates; the common service accepts only durable completion, verifies the provider and commits once. Recovery reuses the generation CAS but retains stale complete candidates, since it cannot infer that a historical candidate was never selected. It never replays copying or treats resource existence as a receipt.
+
+
+Retained-source maintenance may enumerate the complete build-cache generation
+catalog without an existing Environment. The same review-bound reset, common
+exact-owner deletion and completed-copy recovery remain canonical. Names from
+existing Env receipts are display observations; missing names never infer
+ownership. All-group review binds every source/candidate and visible membership,
+then each group keeps its own partial outcome. Ordinary output needs no opaque ID.

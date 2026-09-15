@@ -13,11 +13,14 @@ type archiveRuntimeCreator interface {
 // Incus unified archives are explicitly routed to Incus. The current default
 // provider and source Base metadata cannot select a different interpreter.
 func (r *BaseRouter) CreateEnvironmentFromArchive(ctx context.Context, spec core.EnvironmentRuntimeSpec, source io.ReadSeeker, privateRoot string, limit int64, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if r == nil || r.Router == nil || source == nil || record == nil || limit <= 0 || spec.Base != "" || spec.TemporaryWorkspace || spec.ResourceMaintenance {
+	if r == nil || r.Router == nil || source == nil || record == nil || limit <= 0 || spec.Base != "" || spec.ResourceMaintenance {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	provider, err := r.provider(ProviderIncus)
 	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	if err := validateTemporaryProvider(provider, spec); err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
 	creator, ok := provider.(archiveRuntimeCreator)

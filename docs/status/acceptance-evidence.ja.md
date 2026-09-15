@@ -392,6 +392,49 @@ main `119e3007`取り込み後の案内・準備の統合候補`3c2d4c5c`は、�
 PR #665のhead `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa`はWindows34900315650を含む全5CIがPASS。main `9da3ec8f`を`35d5ea81`へ統合後、全ローカル13.58秒、CLI E2E3.22秒、文書と回帰4.65秒がPASSしました。先行するnative protocol起動timeoutの原因は未解明のまま保持し、後の成功で消しません。新しい人のデスクトップ操作の受入とは扱いません。
 
 
+<a id="main-gui-approval"></a>
+## main向け画面内承認
+
+VS Code部分は #588（`e7ba7987`）をmain `7e876bc1`へ再利用しました。
+desktop・共通review・control・製品の集中試験（2.67秒）と変更差分の
+golangci-lint 2.13.2（4.49秒）はPASS。最初の全体確認はGoとrenderer/clientの32試験が
+PASSした後、検証archiveの未コミット新規ファイルに日時0を付けたためVSIX作成2試験がFAIL。
+Windowsのcheckout上でのパッケージ試験はPASSし、製品の作成条件は緩めていません。
+検証コピーが元の日時を保持するように直し、標準ローカル試験（13.99秒）、
+関連race（6.18秒）、CLI E2E（3.49秒）、文書と回帰（4.51秒）がPASSしました。
+新しく導入した実Webviewや人の回答の受入ではありません。
+#588の過去の受入を今回のmain統合の成功に読み替えません。
+
+PR #664のhead `8c1cc435`は通常・品質・Ubuntu・IncusがPASSしましたが、
+Windows実行34894187686の導入済み通知確認（job104143946090）はFAIL。
+stage=clear、reason=timeout、子の終了1、8023ms、HRESULT未取得でした。
+それ以前のインストール、厳格なSSH、2段階の容量回収はPASSです。原因は未確定で、
+コンポーネント成功で消しません。後続修正は固定した進行段階だけを上限付きで観測し、
+期限延長や履歴処理の省略はしていません。追加の検証結果は別に記録します。
+
+main `119e3007`取り込み後の`ffb31f2b`は、集中2.48秒、lint3.49秒、全ローカル
+10.53秒、race6.15秒、CLI E2E2.91秒、文書4.83秒、workflow policy1.04秒がPASS。
+Windows試験・GUI形式の構築とvetに加え、実Windows review11.41秒、desktop0.42秒、
+一時登録2.38秒もPASSです。段階の分割受信・無関係な出力・上限超過・子の失敗を確認し、
+通常の初回clear・表示・履歴・削除も再確認しました。導入CIのclear期限切れは
+更新候補での確認待ちとして保持します。
+
+先行する検証用アーカイブはmerge commit完了中に取得したため、削除済みSeed fixtureが
+混入し、そのsource guard不一致で全体試験がFAILしました。これは誤った検証ソースの
+失敗として残し、統合候補の証拠には使いません。作成時のcommitを固定し途中の変更を
+拒否するようにした新しい正確なアーカイブで、上記が成功しました。製品の保護や期限は
+緩和していません。
+
+
+#664 head `38dc1ffe`のWindows run34914309433 / job104208480202は導入・厳密SSH・公開reclaimまでPASSし、通知review step20でFAILしました。固定診断は`stage=activation, reason=unavailable`、HRESULT・child所要時間・renderer進捗は未観測。約10秒で、存在しない要求への期待された「承認待ちではない」拒否に到達しませんでした。これは先行clear timeoutとは別の未解決activation失敗で、以前の問題の修復とは扱いません。新しい人のGUI回答は未確認です。
+
+
+起動診断の追補はCOMのinitialize/register/create/dispatchと数値HRESULTを記録し、読み取り専用の期限切れ・中止をCOM応答と非公開peer終了後も保持します。集中1.22秒、文書と回帰10.37秒、実Windows通知4.75秒、desktop0.44秒、専用登録2.81秒、Windows build/vet、PowerShell probe構文がPASS。最後の整形は空白のみです。導入済み起動失敗の修復とは主張せず、上記の失敗runを保持します。
+
+
+main `ef443132`を`effc7801`へ統合後、GUI候補の全ローカル72.69秒、CLI E2E6.79秒、文書と回帰8.14秒がPASSしました。導入済み起動と先行clearの失敗は未解決で、更新headのWindows実行を待ちます。
+
+
 <a id="main-interactive-run"></a>
 ## main向け一時実行の対話操作
 
@@ -484,9 +527,19 @@ native／子終了／経過時間は未記録です。新規の人の通知回�
 最終結果はGo1.27.1の集中12.86秒、件数制限なしの変更lint10.84秒、全ローカル22.15秒、関連race9.78秒、CLI E2E4.01秒、文書と回帰6.96秒、workflow policy1.34秒がPASS。先行lintの応答close・fixture write・条件式も修正後の結果です。上記の過去実測を新しい実機受入には読み替えず、曖昧な旧fixture poolは操作していません。公開設定、停止Envからの採用、履歴・クリア、追加データのsnapshot/copy/transferは未完成のため通常の適用は無効です。
 main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。
 
+#664のhead aef58798、Windows34918511743/job104221234323は導入・厳密SSH・Linux回収に成功。公開回収のHost再入場で02:08:10 UTCにstage=notification_setup reason=failedとなり、観測側が02:37:51まで待ってタイムアウトした。公開reclaim本体には到達せず、通知step20はSKIP。他4CIは成功。以前のclear/COM起動失敗とは別の失敗として保持する。後続は5a6fb54cの分類と入場失敗検出を再利用し、原因修復の成功とは主張しない。
+
+通知準備のmain統合はGUI aef58798とmain5e89597aへ5a6fb54cを再利用。集中4.37秒、通知Python回帰0.69秒、変更範囲lint30.66秒、全ローカル117.79秒、race20.22秒、CLI11.78秒、文書17.46秒、workflow2.88秒がPASS。初回はmainにない将来のstream受入scriptのimportでFAIL。無関係なimportを除き、既存の通常入場回帰を保持した。Windows上のnative観測回帰6件も0.555秒でPASS。新しい導入済み通知の成功は主張しない。
+
+
 
 main `5e89597a`を`3d8c2877`へ統合後、キャッシュ基盤の全ローカル13.62秒、CLI E2E3.27秒、文書と回帰4.86秒がPASS。先行head `22b119d8`はWindows34917359766を含む全5workflowがPASSしました。公開収集は別の追補で、この基盤だけでは登録を有効化しません。
 
+現main5121b205をac145abcへ統合し、GUI/通知候補の全ローカル50.00秒、CLI12.86秒、文書・回帰31.34秒がPASS。aef58798の導入済み通知準備失敗は未解決で、新しい固定操作分類の証拠を待つ。
+
+## Git push照合の統合確認
+
+GUI・通知の8d509399へ既存42aa706fを再利用しました。Go 1.27.1で集中テスト9.31秒、変更コードのlint12.57秒、標準ローカル25.06秒、race28.69秒、CLI E2E4.44秒、文書・回帰8.66秒、workflow1.50秒が成功しました。最初のlintでは監査テストのClose結果未処理が見つかり、修正後に全項目が通りました。実Gitリポジトリと読み取り専用のリモート照合で、結果不明の送信記録やEnv作成実体の置換も確認しています。認証付きリモートGitと人による承認操作は未実施です。照合はpushを再送せず、現在のブランチ一致から元の送信成功を推定しません。
 
 <a id="ordinary-cache-collection"></a>
 ## 通常Envからのキャッシュ収集候補
@@ -536,6 +589,12 @@ main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを�
 
 読み取り確認で、失敗fixtureの正確なcatalogにEnv・lease・永続領域が残っておらず、nativeの名前照会も該当なしと確認した。空の世代項目2件だけが残る。元のタイムアウトは未解決。
 
+main4cd0c7dcを611bedafへ統合し、Git/GUI/Packer/キャッシュを合わせた全ローカル14.30秒、CLI3.36秒、文書・回帰5.62秒が通りました。前のGUI8d509399のWindows34923857407はSSHと公開reclaimが成功し、通知clearは8024ms、progress=decodeで失敗しました。このPCの通常Windows権限で同じ固定処理を専用テストIDに実行すると0.53秒/0.23秒で成功しました。制限付き実行枠は通知処理前に拒否しました。CI失敗や人による回答の解決を示す結果ではありません。
+
+dca688f6のWindows34926634572/job104245971260も最初のclearでtimeout、child_exit=1、8019ms、progress=decodeとなりました。直前のSSH/公開reclaimは成功しています。製品のPowerShell/WinRT初回起動上限を30秒にし、呼び出し側の短い期限と正確な子の中断は維持します。これは検証対象の起動上限修正であり、CI遅延の根因やGUI受入の成功を確認したという意味ではありません。
+
+修正ソースのWindows通知テスト全体は、このPCで8.22秒でPASS。実際の日英ToastGeneric表示・履歴・削除（6.90秒）、activation callback、秘匿化、正確な子の中断を含みます。実機componentの証拠であり、人のクリック・見た目の受入・CIのcold起動結果は未確認です。
+
 ## 名前付きキャッシュ完了復旧
 
 #670の後続はライフサイクル/キャッシュ/OCI/CLI/controller集中19.10秒、変更範囲lint15.71秒、全ローカル39.78秒、race14.61秒、CLI7.25秒、文書・回帰10.41秒、workflow2.00秒がPASS。実catalogと段階的provider失敗の試験で、完了記録からコピーし直さず復旧し、検査後に元データの保持を解除すること、リセット後の候補を保持し、不明・provider拒否・所有権違いは拒否することを確認。OCIの共通復旧も正確な所有参照を渡す。部品検証であり、新しいnative復旧やWindows受入ではない。先行の実機保守timeoutは未解決。
@@ -545,6 +604,8 @@ main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを�
 復旧3ac51f91のquality34924782288はcache_maintenance.go:41のQF1003で失敗しました。test34924782199、Ubuntu34924782166、Incus34924782231は成功しました。分岐を同じ挙動のswitchへ整理しています。この失敗は先の変更差分lint成功と区別します。
 
 分岐修正後、control/cache/workspaceの集中テスト11.23秒、現在mainに対する件数上限なしlint18.59秒、文書・回帰8.48秒が通りました。確認済み親1ee2962bと全ファイル一致するmain4cd0c7dcへ載せ替え、内容は変更していません。
+
+main df22a1a5を2f07fa3dへ統合後、全ローカル95.04秒、CLI8.56秒、文書・回帰10.27秒がPASS。通知の実装は上記の実Windows確認から変更していません。
 
 ## クライアント転送のmain向け統合
 
@@ -557,6 +618,8 @@ PowerShell5.1のインストーラ部品コマンドはPCのスクリプト実�
 v0.64と導入案内の更新後も表示/ビルド情報2.81秒、architecture/checksum/破損archive梱包0.54秒、文書5.72秒、workflow1.11秒が通りました。Windows CIは実際の10ビルドを確認し、転送用成果物も必須にします。公開対象のamd64/arm64は維持します。
 
 修正済み復旧c35f6610へ合わせたc682faaaは、集中4.22秒、main差分lint16.99秒、全ローカル104.53秒、race36.42秒、CLI18.56秒、文書19.60秒、workflow2.66秒が成功しました。その後#671は5つのCIに通りmaindf22a1a5へ反映されました。c35f6610と全ファイル一致するため、転送を11823e02として載せ替えても内容は変わっていません。
+
+mainの転送2f995027を14b8fb9aへ統合後、Git/GUI/通知候補は全ローカル53.41秒、CLI8.88秒、文書・回帰19.00秒、workflow2.79秒がPASS。両方の非公開入口とWindows client試験を保持し、通知プロセス動作は実Windows8.22秒成功時から変更していません。
 
 DNS選択候補: 最初の集中72.65秒がPASS。snapshot作成・import設定保持の回帰追加後は集中30.07秒、変更範囲lint23.44秒、全ローカル45.48秒、race14.76秒、CLI35.53秒、文書・回帰13.46秒、workflow5.91秒がPASS。最終の状態表示とnative adapter回帰追加は別途確認します。この部品検証は3モードの実Incus受入ではありません。
 
@@ -579,6 +642,18 @@ DNS #674 head a44c0cc5はLinux4CI成功、Windows34930836374/job104258506823は�
 
 DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒、全ローカル29.81秒、race11.90秒、CLI4.77秒、文書8.15秒、workflow1.50秒PASS。上記の実機追加データの証拠は変更していないライフサイクル/provider処理を対象とする。新しいWindows成功とは扱わない。
 
+
+main9f5bc9e3（DNSと追加データ保存・コピー）をab77483fとして統合し、競合した検証記録は両側を保持した。Git/GUI統合後の全ローカル105.78秒、CLI7.58秒、文書10.98秒、workflow2.62秒PASS。以前のWindows並列cold SSH stream_deniedは原因未解決であり、ローカル成功を実機受入の代わりにしない。
+
+
+## 呼び出しスレッドのネットワーク識別
+
+実機名前空間回帰は従来の先頭スレッド参照で11.20秒FAILし、別スレッドの識別を検出した。呼び出しスレッド参照へ変更後、同じ権限で23.70秒PASS。集中13.84秒、main差分lint12.61秒、全ローカル33.40秒、race18.79秒、CLI4.29秒、文書8.59秒、workflow1.50秒PASS。Host名前空間拒否と専用スレッド破棄を維持する。欠陥と修正の証拠であり、以前のWindows stream_deniedとの因果は導入後再接続で別途確認する。
+
+f68a8c6bから作成した通常WindowsインストーラがHacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）で完了。storage・trusted Host・doctor DNS/HTTPS・Windows登録・通知登録を含み、試験用権限変更はない。対応版のrootfs追加データsnapshot/copy/export/importは76.26秒/test76.23秒PASS。fixture saved-data-c1685c13e42f7479、台帳 /var/lib/haco-saved-data-90071584/state.json。新しい所有権、独立変更、import後再開、共通cleanupを確認。人の通知回答・認証付きGit・巨大レポの成功とはしない。
+
+別のリポジトリ配下配置は11.61秒/test11.56秒でcapture時にFAIL。capability staleとなりEnvは停止状態を保持した。fixture saved-data-ec2813c23b2ada60、台帳 /var/lib/haco-saved-data-3393557504/state.json。対応7.0.1で起きる製品側の不具合として調査し、以前の6.0.5のAPI不足と区別する。元Envのcleanupは実行済みで、保持Workspace fixtureの記録を残す。
+
 ## 名前付きEnvironmentデータの持ち出し
 
 #675のfa6c1312を基にしたv0.67候補で、既存export/import形式と共通Environmentライフサイクルへ追加データを統合した。最終の固定ソースでfocused16.47秒、main差分全体lint15.45秒、ローカル全体27.39秒、race12.82秒、CLI4.59秒、文書・回帰8.38秒、workflow1.48秒がPASS。全データ、新しいローカル所有ID、import専用予約、配置の完全性、Workspace作成前の未対応provider拒否、cleanup不明時の所有保持を確認した。full-1はfixtureの一時stagingディレクトリが非公開でなくFAILし、0700へ厳格化して修正。full-2はfocused12.92秒PASS後、テストreaderのClose結果2件の未確認でlint FAILし、結果確認を追加した。製品の権限を緩めていない。
@@ -591,3 +666,214 @@ DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒
 ## 現行データの退避前確認
 
 現行schema16の追加データ、選択世代、import・コピー・cleanup未完了記録を台帳を書き換えず表示する。台帳参照の照合と実体の観測を分け、過去の生成元の不在を削除候補にしない。固定候補でLinux退避回帰78件0.96秒、文書・回帰34.39秒、workflow4.39秒PASS。Windowsでも探索実行PASSだがLinux専用29件は明示的SKIPで、Linux実行で別途確認した。現行schema対応を共通Go台帳と照合する回帰を追加。これは読み取り専用一覧の検証であり、全環境のbackup・復元・対応provider実機受入ではない。既存の転送実機・Windows失敗は未解決として保持する。
+
+
+## 保存Envのリポジトリ内追加データ
+
+対応7.0.1のsaved-data-ec2813c23b2ada60はsnapshot計画でcapability staleとなり11.61秒/test11.56秒FAIL。台帳 /var/lib/haco-saved-data-3393557504/state.json。通常のリポジトリ内配置はWorkspaceのstorageも固定するが、計画側は追加データだけのdigestを比べていた。作成・再開・importで使うruntimeの配置解決を共用し、完全な照合の受入とデータだけへの置換拒否の部品回帰を追加した。
+
+f71ab282に基づく修正後固定候補で集中16.88秒、main全差分lint15.95秒、全ローカル27.33秒、race11.29秒、CLI4.21秒、文書7.90秒、workflow1.45秒、実機試験compile1.61秒PASS。新規Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1、Incus7.0.1）でplacement-supported-native-1は55.61秒/test55.58秒PASS。fixture saved-data-054e30231401ddac、台帳 /var/lib/haco-saved-data-2319641996/state.json。2つのWorkspace、rootfsのcompilerデータ、/workspace/two/node_modulesを含む稼働中保存・再開、停止copy、export/import、未収集内容、新しい所有権、独立編集、元削除、import後再開、共通cleanupを確認。先行失敗fixtureと保持Workspace記録は別に残す。
+
+対応版rootfs限定の持ち出しはf68a8c6bで76.26秒/test76.23秒PASS。通常Windowsインストールでdoctor・DNS/HTTPS・Windows登録・通知登録が完了し、hacocoon-secondは保持。現行schema一覧も保持中の6.0.5 fixture台帳と実体を2.89秒で読み取り照合でき、authority=falseを維持した。
+
+通常導入後のPackerサンプルは依存導入で10.39秒FAILし、非公開診断付き再試行も6.56秒FAIL。UbuntuのHTTP取得に通常proxyが403を返した。公開configはdefault=deny・ruleなしであり、試験専用の許可を追加していない。実Packer実行は通常の通信設定待ち。#676 head f68a8c6bのWindows34935395589/job104272085316は導入・並列cold SSH・実VS Code編集・setup・preview・通常export/importに成功後、通常Windows tunnelでtimeout/connection resetとなりFAIL。回収・通知は未実施。過去の失敗原因も解決扱いにしない。
+
+統合候補b42be03eは現main a3d0f4fd、Git/GUI #672、リポジトリ内配置 #679を含みます。focused21.73秒、main全差分lint23.92秒、ローカル全体41.13秒、race21.73秒、CLI5.39秒、docs/regressions11.17秒、workflow1.75秒が成功しました。実namespace・配置の検証済み実装は変更していません。#677はf71ab282で5ワークフローすべて成功し、a3d0f4fdとしてmainへ反映しました。#676は取り込み済みとして閉じましたが、同PRのWindowsトンネル失敗は上記の別結果として残します。
+
+## Workspaceのレポ選択
+
+6b376a62に基づく候補でfocused10.58秒、main全差分lint16.44秒、全ローカル25.61秒、race27.75秒、CLI2.86秒、docs/regressions8.59秒、workflow1.36秒、実機試験compile1.55秒が成功しました。
+先行full-1も成功し、full-2では追加レポのコピー失敗時の参照保持と実機試験を追加しています。
+
+Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）のmembership-native-1は16.98秒/test16.95秒で成功しました。
+fixture selection-c393aee4e83d、台帳 /var/lib/haco-selection-154075238/state.json。
+試験用にローカルで作ったGitデータと実リポジトリbackend、共通snapshot/Env lifecycleを使い、未コミット変更・HEAD・indexの保持、通常のGit準備による登録済みレポ追加、選ばなかったレポの元側保持、独立編集、元Env削除、コピー先再開、所有対象のcleanupを確認しました。
+Policyの変更やEnvへの管理権限追加はありません。OCIの選択は既存の関連データ処理の部品検証範囲です。この実機試験ではOCI・認証付きGit・公開CLI・巨大レポ性能は検証していません。
+
+## Windows候補の未解決失敗
+
+#678の6b376a62はquality・test・Ubuntu・IncusのCIが成功しました。
+Windows34938847867/job104282639159は通常SSH/editor/tunnel、容量回収、保持データ復元に成功後、通知の失効要求起動がactivation/timeoutで失敗しました。
+dispatchのHRESULT -2147220990はhelperの読み取り期限です。回収では割当7,864,320,000→5,041,553,408バイトを観測しています。
+以前のtunnel・回収失敗の解決や人の承認回答の成功とはしません。
+
+#680の2e8d905cもLinux側4ワークフローが成功しました。
+Windows34940269831/job104287130520は導入・通常SSH/editor・Linux回収に成功後、公開reclaimがcompact_attachedで失敗しました。
+実体openは1回、compact未実行、WSLは再開済みです。通知はSKIPです。この失敗結果で両PRをmainへマージしていません。
+
+ローカルのHacocoon-Roadmap-f68a8c6bでも通知確認はreview timeoutで失敗しました。
+ただし更新したのはWindows helperだけで、導入済みLinuxはf68a8c6bのまま、_desktop-reviewを実装していませんでした。
+この混在候補は#678の受入ではなく、CIの別のactivation失敗の原因も確定しません。
+次のローカル一貫確認は通常インストーラで両側の候補を揃えてから行います。
+
+## 既存worktreeの独立取り込み
+
+2e8d905cを基にした固定入力候補のfull-3でfocused36.42秒、main全差分lint22.84秒、全ローカル39.45秒、race31.22秒、CLI4.92秒、docs/regressions9.04秒、workflow1.71秒、実機試験build1.96秒が成功しました。
+最後に追加したarchiveのtraversal・alias・xattr・特別権限・余分な末尾の回帰もrace3.01秒、main全差分lint19.81秒で成功しました。
+CLIでは結果不明の記録保持、再送・置換拒否、未確認importのopen拒否を確認しました。
+実ローカルGitの回帰はcheckout・linked worktree・split index・packed refs・stage/dirty保持・Host設定や管理情報の除外を含みます。
+full-1はfocused26.38秒成功後にlint15件で停止し、修正しました。full-2も追加CLI・拒否回帰前の全項目が成功しています。
+
+Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）のinput-native-1は26.23秒/test26.19秒で成功しました。
+fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state.json。
+実linked worktreeをprovider共通のcaptureと実Incus importで新しい管理volumeへ取り込み、HEAD・ファイル、guest独立編集、通常Env停止・再開、所有対象cleanupを確認しました。既存レポ選択試験も併せて成功しました。
+製品実装は2e8d905cへ今回差分を重ねた候補であり、未変更の2e8d905cではありません。
+専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
+認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。
+
+
+## 保持キャッシュ台帳の整理
+
+809bfb33を基にした候補でfocused12.91秒、main全差分lint15.08秒、全ローカル26.56秒、race11.53秒、CLI4.17秒、docs/regressions7.95秒、workflow1.32秒、実機試験compile1.45秒が成功しました。
+生成元不在、確認対象の正確な所有権、選択/表示対象変更、未完了/使用中cleanup、削除しない復旧、callerのpath/owner拒否、CLI共通確認と表示を回帰で検証しています。
+
+専用WSLのUbuntu26.04.1/Incus7.0.1でcache-native-1は実行全体17.70秒、試験17.67秒でPASS。
+fixture data-e2e-25cadfe2239e648b、台帳 /var/lib/haco-data-placement-24466710/state.json。
+通常Env作成、2つのキャッシュ領域、停止収集、実データの独立再利用、使用先Envを残した元整理、両Env削除後の保持データに対する全体一覧/cleanupを確認しました。
+外部Workspaceのmarkerは保持しました。試験専用台帳と共通所有権処理だけを使い、既存データやPolicy緩和は対象にしません。
+実backendとStandard workflowの受入で、導入済み公開CLI・OCI・巨大レポ性能の受入ではありません。
+
+#681の809bfb33はLinux側4 CIが成功しました。
+Windows34943936799/job104298802478は導入・SSH/editor・tunnel・公開容量回収に成功後、失効通知起動のdispatchが10秒期限とHRESULT -2147220990でFAILしました。
+通知後続や人の回答の成功は確立していません。起動準備は#682で対応し、この過去の失敗は保持します。
+
+
+## 通知の起動準備
+
+Hacocoon-Roadmap-f68a8c6bを通常インストーラで809bfb33へ揃えました。
+最初の確認はPowerShell5.1のため、7が必要なfixture本体は未実施です。
+PowerShell7のnative-review-matching-2はreview timeoutでFAILしました。
+同じWSL起動・環境・非公開パイプによる読取probeは13.56秒で空のpending一覧を返し、以前の初回review上限10秒を超えました。
+ローカルの起動待ち失敗の根拠であり、過去の全CI失敗の原因確定とはしません。
+
+809bfb33を基にした準備確認候補はfocused5.32秒、main全差分lint20.03秒PASS。
+Windows部品は0.83秒PASSで通知表示は当初SKIP。別途有効にした実通知表示・履歴・削除は2.64秒/test2.63秒PASSし、日英XMLの受入を確認しました。
+人のclick・見た目の確認ではありません。先行のPowerShellによる-test.v解釈は試験前に失敗し、構造化引数へ直したfixture実行と区別します。
+
+通常のWindows helper導入処理で候補を専用WSLへ適用しました。Linux側809bfb33のprotocol実装は変更していません。
+installed-review-1は実COM登録・所有再開/反復・別所有者/activator不一致拒否・失効/不正入力拒否・Host通知controller購読・listener cleanupがPASS。
+人のtoast click・新しいGUI回答は明示的SKIPです。Policy/認証の変更・回答の再送はありません。
+#678 CIのactivation timeout、#680のcompact_attachedは別の未解決観測として保持します。
+
+
+最終の準備確認候補も全ローカル26.41秒、focused5.11秒、main全差分lint19.06秒、race2.30秒、CLI4.14秒、docs/regressions8.03秒、workflow1.54秒が成功しました。
+未実施の人の回答を受入済みにするものではありません。
+
+
+統合候補2f49460fは通知準備修正#682も含みます。
+focused15.09秒、main全差分lint14.42秒、全ローカル28.63秒、race11.70秒、CLI4.18秒、docs/regressions8.27秒、workflow1.48秒が成功しました。
+対応Incus・実Windowsで別途確認した両実装は変更していません。
+
+## 保存データの削除診断候補
+
+実装 `9c2736db` の `snapshot-full-3` で、対象回帰17.96秒、main差分全体のlint
+10.05秒、保守対象の全体テスト25.99秒、ライフサイクル/APIのrace検査16.47秒、
+CLI E2E 4.12秒、文書8.06秒、workflow policy 1.51秒、実Incus用ビルド1.51秒が成功。
+初回は表示書式と試験側の要求オブジェクトに残った項目で失敗し、修正した。
+2回目は対象回帰成功後、新しい診断出力のerrcheckで失敗。修正後の3回目が全成功。
+
+専用WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1 の `snapshot-native-2` は
+25.75秒（試験25.71秒）で成功。試験名 `saved-data-61784250e8f288f3`、台帳
+`/var/lib/haco-saved-data-3210844539/state.json`。rootfs、Workspace 2件、管理データ
+2領域の存在・所有を読み取り専用で確認し、通常削除、独立コピー、元Env削除、
+コピー再開、正確な所有対象のcleanupまで成功した。サービスとproviderの確認であり、
+インストール済みCLI、Btrfs内部の整合性、OCI実行、人による承認、巨大レポ性能の確認
+ではない。`snapshot-native-1` は実機試験の指定漏れにより **SKIP**。終了コード0を成功とは数えない。
+
+## 通知起動のCI残件
+
+[PR #682](https://github.com/SLktEx/Hacocoon/pull/682)、`bd83251b` はLinux系4項目成功、
+[Windows run 34946460934](https://github.com/SLktEx/Hacocoon/actions/runs/34946460934) は
+job `104306922882` の通知起動で失敗。COM生成のHRESULTは `-2146959355`、native進捗は未観測。
+その前のインストール、厳格なSSH/editor、転送、公開reclaim、切り離したWorkspace/OCI/snapshot
+の復元は成功している。ローカルのインストール済み通知確認成功で、この失敗や以前のdispatch
+タイムアウトは消さない。#683はこの変更を含み、候補自身の確認が必要。
+
+## Baseアーカイブ取り込み候補
+
+実装 `35a0c496` の `base-full-3` で、対象回帰23.08秒、main差分全体のlint
+18.20秒、保守対象の全体テスト33.10秒、一時保存/build/転送/ライフサイクル/APIの
+race検査18.88秒、CLI E2E 4.51秒、文書8.78秒、workflow policy 1.57秒、CLIビルド
+0.71秒、実機試験ビルド1.93秒が成功。追加した一時Workspace境界の回帰もrace付き
+24.29秒、差分lint 39.84秒、文書9.49秒で成功した。初回は既存の一時保存上限値の
+回帰で失敗し、共通化によって有効な境界値を拒否しないよう修正した。2回目は対象
+回帰成功後、新規3件のerrcheckで失敗して修正した。ビルド用WSLの整形と最終検査には
+systemdのrootユーザーセッション起動警告が出たが、コマンドとテストは成功した。
+この警告をWindows利用の新しい確認成功とは数えない。
+
+専用WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1 の `base-native-1` は実際の
+`haco base import` CLI/controller転送を165.94秒（試験165.89秒）で完了した。
+専用台帳は `/var/lib/haco-base-import-1372522241/state.json`。所有する元rootfsを
+書き出して元Envを削除し、アーカイブを隔離した一時作成環境で取り込み、不変Base
+`sha256:6fbaf82f1e891f16d32da5186119908cd1499614018eeb2646f7828fd74986b8` を公開。
+新しいEnvで取り込んだツールを使えた。通常の所有確認によるEnv・イメージ整理も成功し、
+入力アーカイブは保持した。native CLI/providerの確認であり、配布済みWindows入口、
+認証付きGit、Packer依存物、巨大レポの性能確認ではない。
+
+[PR #683](https://github.com/SLktEx/Hacocoon/pull/683)、`bda75b67` はLinux系4項目成功。
+[Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actions/runs/34947135337) の
+job `104309115278` は公開reclaim成功後、#682と同じCOM生成HRESULT `-2146959355` で失敗。
+このheadはmainマージ条件を満たさない。ローカルの通知成功で失敗を消さない。
+
+## 通知の所有・準備完了とcontrollerの初回起動
+
+`e043b740`で、実Windowsのkernel objectを使った未準備の所有者・終了待ちの引き継ぎ・
+起動失敗後の再取得が通りました。`lifecycle-local-2`のWindows構成要素試験は1.84秒でPASS。
+通知表示の最初の実行はworkspace権限で一時registry作成を拒否され、通常ユーザーのregistry操作を
+許した同じ試験は11.28秒（test 11.18秒）でPASS。日英XML・履歴・除去を確認し、人の回答・見切れは未確認です。
+
+後続`92ce27a5`を含む`lifecycle-full-2`はfocused 11.02秒、mainとの差分全体lint 21.31秒、
+維持中の全体試験35.57秒、private client/reviewのrace 15.74秒、CLI E2E 4.75秒、
+docs 10.72秒、workflow policy 1.81秒、native compile 4.24秒ですべてPASS。
+遅れて準備されるcontrollerを要求消費前に待つこと、拒否を再送しないこと、一覧取得失敗を成功扱いにしないことを確認します。
+
+Windows helperだけ更新した`installed-review-1`と`-2`は、Linux側が`809bfb33`のままで
+private準備確認に失敗しました。読み取り調査ではpending成功とpending_unavailableの両方を観測し、
+WSL起動時にcontrollerの接続口がまだ無いことを確認しました。権限・サービス・Policyの抜け道は加えていません。
+
+通常のWindowsパッケージインストーラで専用WSL`Hacocoon-Roadmap-f68a8c6b`と全companionを
+`92ce27a5`へ更新しました（ローカルbuild 37.42秒、v0.0.0-e2e、未配布）。このWSLだけ停止した後の
+`installed-review-3`は、実登録・所有対象の再開・冪等性・他所有者とactivator不一致の拒否・
+古い要求と不正な要求の拒否がPASS。直後のHost購読確認は通知サービスの起動前に失敗しました。
+後の読み取りではenabled/active/running、再起動0回、successでした。最初の起動時の結果は未解決の
+タイミングとして保持します。`installed-review-4`は同じ経路とHost controller購読、auditの投影なし、
+所有listenerのcleanupまでPASS。人による新規回答は明示SKIPで、CI全体やM0〜M5全体の完了ではありません。
+
+[PR #684](https://github.com/SLktEx/Hacocoon/pull/684)の`a45e936f`はLinux側4workflowがPASSですが、
+[Windows run 34949250114](https://github.com/SLktEx/Hacocoon/actions/runs/34949250114)のjob
+`104316004120`はreclaim成功後にclear/timeout（20,013 ms、native progress decode）で失敗しました。
+[PR #685](https://github.com/SLktEx/Hacocoon/pull/685)の`d6c9fa13`もLinux側4workflowはPASSですが、
+[Windows run 34951609643](https://github.com/SLktEx/Hacocoon/actions/runs/34951609643)のjob
+`104323633089`はcompact_attachedで失敗しました。Linux回収は完了、Windows圧縮は未実行、再開成功、
+通知受け入れはSKIPです。失敗したheadはマージせず、以前のCOM作成・dispatch失敗も保持します。
+
+## Env内キャッシュの掃除
+
+候補 `2ca6af59c16b49d499c8c557f589934c1fcb33ad` の`empty-full-1`は対象回帰19.93秒、
+main全差分lint40.76秒、通常の全体テスト102.05秒、race50.65秒、CLI E2E6.73秒、
+docs14.90秒、workflow policy2.46秒、native build4.97秒で成功しました。
+台帳への直接snapshot/収集も掃除中に止める追加後、`empty-final-guards`は対象22.16秒、
+lint13.25秒、race27.00秒、docs9.49秒、native build2.15秒で成功しています。
+保存済みsnapshotの保持、台帳再読込後の停止継続、新規snapshot拒否、同じ所有者への明示的再試行を確認しました。
+
+先行`empty-local-2`は追加テストの依存不足と非端末を模したメモリreaderの使い方で失敗しました。
+`empty-local-3`では既存の非端末拒否が期待した1ではなく終了コード2を返しました。
+fixtureを直した`empty-local-4`は29.89秒、native build2.31秒で成功し、製品の権限や確認は緩和していません。
+整形処理ではWSLのroot user-session起動警告も出ましたが、整形自体は成功しています。
+
+専用Incus7.0.1の`empty-native-1`は34.00秒（試験33.96秒）で成功しました。
+fixtureは`data-e2e-ee7f06d38f566742`、台帳は
+`/var/lib/haco-data-placement-3790057143/state.json`です。
+通常Env作成・収集・独立再利用、単一領域と全Envの掃除、入れ子ファイル、Workspaceへのリンクを
+たどらない削除、別領域・共通元・Workspaceの保持、通常再開と共通cleanupを確認しました。
+導入済みCLI、実OCI/snapshot保持、人によるUI回答、巨大レポ性能の受入はこの結果に含みません。
+
+最終の台帳側ガードを含む`empty-native-2`も26.36秒（試験26.31秒）で成功しました。
+fixtureは`data-e2e-37c63c45b570dc31`、台帳は
+`/var/lib/haco-data-placement-605572226/state.json`で、確認範囲は同じです。
+
+親[PR #686](https://github.com/SLktEx/Hacocoon/pull/686)の`935c0752`はLinux4 workflow成功です。
+[Windows run 34955347257](https://github.com/SLktEx/Hacocoon/actions/runs/34955347257)の
+job `104335936830`はpublic reclaimで`compact_attached`となりました。
+Linux完了・停止要求済み・open1回・Windows圧縮未実施・resume成功で、通知試験はSKIPです。
+ローカル通知成功とこの失敗を分け、このheadはmainへマージしていません。

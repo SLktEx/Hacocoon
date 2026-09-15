@@ -14,7 +14,7 @@ func (s *EnvironmentJSONStore) BeginEnvironmentGenerationCopy(ctx context.Contex
 		if !ok || !lease.Equal(expected) || !environmentGenerationCopy(*data, source, target, lease) {
 			return false, core.ErrCapabilityStale
 		}
-		if snapshotBusy(*data, lease.EnvironmentID) {
+		if snapshotBusy(*data, lease.EnvironmentID) || environmentResourcesBusy(*data, lease.EnvironmentID) {
 			return false, core.ErrRecoveryRequired
 		}
 		if err := reservePersistentResourceCopy(data, source, target); err != nil {
@@ -39,19 +39,19 @@ func environmentGenerationCopy(data environmentFileState, source, target core.Pe
 	return false
 }
 
-func environmentResourceCopyBusy(data environmentFileState, name string) bool {
+func environmentResourcesBusy(data environmentFileState, name string) bool {
 	for _, area := range data.Leases[name].Attachments {
-		if persistentCopyReserved(data, area.Resource.ID) {
+		if data.PersistentResources[area.Resource.ID].State == "clearing" || persistentCopyReserved(data, area.Resource.ID) {
 			return true
 		}
 	}
 	return false
 }
 
-// An incomplete copy survives process exit and fences start/access/deletion.
-func (s *EnvironmentJSONStore) CheckEnvironmentResourceCopyIdle(ctx context.Context, name string) error {
+// Incomplete data maintenance survives process exit and fences start/access/deletion.
+func (s *EnvironmentJSONStore) CheckEnvironmentResourcesIdle(ctx context.Context, name string) error {
 	return s.catalogTransaction(ctx, func(data *environmentFileState) (bool, error) {
-		if environmentResourceCopyBusy(*data, name) {
+		if environmentResourcesBusy(*data, name) {
 			return false, core.ErrRecoveryRequired
 		}
 		return false, nil

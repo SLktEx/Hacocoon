@@ -77,6 +77,11 @@ func (w *Workflow) historySnapshot(ctx context.Context, name, key string) (Histo
 	if err != nil {
 		return result, current, nil, err
 	}
+	return sourceHistory(env, area, current, all)
+}
+
+func sourceHistory(env core.Environment, area core.EnvironmentAttachment, current core.ResourceGeneration, all []core.PersistentResource) (History, core.ResourceGeneration, []core.PersistentResource, error) {
+	result := History{Entries: []HistoryEntry{}}
 	candidates := []core.PersistentResource{}
 	for _, r := range all {
 		if r.Kind == Kind && r.SourceOnly && r.EnvironmentInstance == "" && r.WorkspaceID == "" && r.PublicationOrigin.Name == current.Name && r.PublicationOrigin.Compatibility == current.Compatibility {
@@ -104,7 +109,7 @@ func (w *Workflow) historySnapshot(ctx context.Context, name, key string) (Histo
 		Source      core.ResourceGeneration
 		Resources   []core.PersistentResource
 		Area        string
-	}{env, current, candidates, key})
+	}{env, current, candidates, area.Key})
 	if err != nil {
 		return result, current, nil, err
 	}
@@ -133,6 +138,11 @@ func (w *Workflow) Clear(ctx context.Context, name, key, revision string) (Clear
 	if revision == "" || revision != h.Revision {
 		return result, core.ErrCapabilityStale
 	}
+	return w.clearReviewed(ctx, h, current, candidates)
+}
+
+func (w *Workflow) clearReviewed(ctx context.Context, h History, current core.ResourceGeneration, candidates []core.PersistentResource) (ClearResult, error) {
+	result := ClearResult{Entries: []HistoryEntry{}}
 	catalog, ok := w.Catalog.(maintenanceCatalog)
 	if !ok {
 		return result, core.ErrUnsupported

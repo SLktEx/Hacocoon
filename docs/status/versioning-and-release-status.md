@@ -139,3 +139,48 @@ v0.61 records stdin/TTY and streamed output with exact creation-bound cleanup.
 It follows the main-targeted Git checkpoint in #663. This is development progress,
 not all of M3 or Windows/Incus acceptance and not a release. See
 [verification](acceptance-evidence.md#main-interactive-run).
+
+## Workspace membership selection
+
+Within the current v0.67 development checkpoint, stopped forks can select retained
+members and add registered repositories. This M2 completion slice creates no tag
+or release; native acceptance is recorded separately from implementation.
+
+## Existing worktree input
+
+Within v0.67, the M2 candidate adds explicit independent checkout/linked-worktree
+import. This uses current contracts without adding old-version compatibility.
+Implementation, installed acceptance and deferred performance remain distinct;
+no tag or release is created.
+
+
+## Retained cache maintenance
+
+The current v0.67 candidate adds all-source history, completed-copy recovery and
+reviewed cleanup after producer deletion. This is an M4 usability completion
+slice within current contracts, without a tag/release or old-version migration.
+
+## Saved-data deletion diagnostics
+
+Within v0.67, the M5 candidate adds read-only snapshot component inspection and
+explicit retry guidance. This does not complete M5, release a package, or establish
+underlying storage health. See the [owning contract](../design/environment-snapshots.md#inspect-a-failed-deletion).
+
+## Base archive input
+
+Within v0.67, the M4 candidate adds isolated Base archive import and finite builder
+resources, reusing input staging and the existing publication/cleanup lifecycle.
+This is a development checkpoint, not a release or complete M4/M5 acceptance.
+
+## Notification session handoff
+
+Within v0.67, the Windows candidate separates process ownership from presentation
+readiness and bounds startup independently from predecessor cleanup. This corrects
+a daily-use startup race; it does not complete human answer acceptance or release
+a new package. See [ADR 0100](../adr/0100-notification-session-readiness.md).
+
+## Env cache emptying
+
+The v0.67 M4 candidate adds reviewed cache emptying with retained-data ownership.
+Implementation and real-host acceptance remain distinct; this does not complete
+M4/M5, create a tag or publish a release.

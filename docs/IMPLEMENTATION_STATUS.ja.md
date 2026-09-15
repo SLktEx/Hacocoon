@@ -40,7 +40,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [Envのexport/import](design/environment-transfer.ja.md) | 部分実装 | 停止した管理bundle、検証済みLinux配備、導入済みコントローラー・Windows投影ファイル経路を実装。管理データのWSL間移送を一構成で確認し、停止したcontainerdのイメージ・書込みデータの移送も確認済み。稼働中の移行や環境全体のバックアップではなく、import後の認証Gitと広い実行基盤整合性は未完了。 |
 | [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録を含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。環境全体の分類・取得・復元比較と最終置換は未完了。 |
 | [AWS S3](design/aws-operations.ja.md) | 部分実装 | 承認付きの制限ある一覧・検証済みobject取得、送信元を固定したゲスト要求を実装。リポジトリ・模擬native試験あり。認証を伴う実AWS検証はスキップ。EC2のEnv プロバイダーではない。 |
-| [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | `pkg/clientadapter`、情報を絞った対話 event、`haco-notify`のブラウザー・OS・VS Code アダプター。Windowsレビューは限定範囲で確認済み。新規トーストからの人間の判断とLinux通知起動は未確認。 |
+| [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | 情報を絞ったeventと任意のadapter。VS Code GUIとWindows通知内のページで共通review/Policyを通して明示回答が完結。開くだけでは回答しない。新規の導入GUI・人の回答・Linux起動は未確認で、native/部品の証拠は別管理。 |
 | [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済みの候補 | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
 | [クラウド・registry・管理UI](status/architecture-and-roadmap.md) | 延期 | 具体的なクラウドEnv プロバイダー、必須のlocal registry、管理UI、Storeの同時書込み共有、live 移行は現行機能ではない。プロバイダー境界と将来方針は保持。 |
 
@@ -90,6 +90,9 @@ Windows/SSH確認とExplorer操作は別の残件です。
 生成時の識別子を使い、同じ名前で作り直した別Envを片付けません。分割済みの責務と共通cleanup結果処理を維持します。
 旧版の移行・代替cleanupは対象外です。新しいローカル試験と実機受入は区別します。
 
+通知準備の後続: サービス準備の失敗操作を固定分類で表示し、Host入場に失敗した利用確認は待ち続けず終了する。現mainとGUI #664へ5a6fb54cを再利用。診断と無駄な待ち時間の改善であり、Windowsの通知起動・サービス起動の修復成功とは主張しない。
+
+
 
 ## キャッシュ世代管理の共通処理
 
@@ -101,12 +104,63 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 キャッシュ履歴・クリアの後続: 実装済み候補。名前付き履歴で現在の再利用元と保持中の候補を分ける。
 確認時のrevisionで固定して再利用元をリセットし、共通の所有権付き削除を使う。
-既存Env・Workspace・OCIデータと結果不明のコピーは保持する。名前付き完了記録の復旧と追加データ転送は実装済み、孤立した再利用元の一覧は未完成。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
+既存Env・Workspace・OCIデータと結果不明のコピーは保持する。名前付き完了記録の復旧と追加データ転送は実装済み、全再利用元の一覧も実装済みです。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
 
-キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加は未完了。新しい実機復旧の受入は別に確認する。
+Git push照合の後続: 42aa706fを再利用した実装済み候補。送信前/確認後の永続記録と現所有権に基づく対象refの読み取りで、元の失敗とリモートの現状を分ける。書き込み再送や承認復元は行わず、mainのclone/fetchはpush許可にならない。新しい認証付き実機利用と巨大Git転送は別に確認する。
+
+キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合と既存Envへの追加は未完了。新しい実機復旧の受入は別に確認する。
 
 ## 手元のアプリからTCP接続
 
 **実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。
 
 名前解決の選択: 実装済み候補。Env作成時の`--dns host|backend|disabled`を受け付け、通常はPhysical Hostを使い、snapshot/copy/転送で設定を保持します。無効時はguestの処理を再起動してもcontrollerが問い合わせを拒否します。導入済み3モードの受入は未確認。[名前解決](design/name-resolution.ja.md)を参照。
+
+Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Hostスレッドを識別する。[ADR0096](adr/0096-calling-thread-network-identity.ja.md)を参照。Host名前空間への接続拒否は維持し、スレッド実機回帰と導入後Windows再接続の受入を分ける。
+
+リポジトリ内追加データのsnapshot計画も、作成・再開・importと同じ配置照合でWorkspaceのstorage所有関係を保持する。対応Incus7.0.1で保存・コピー・持ち出しを確認した。範囲は受入記録を参照。
+
+## Workspaceのレポ選択
+
+実装済み候補: `workspace fork --repo first,third`で選んだ既存レポのGit状態を保持し、登録済みHostレポを独立追加します。
+共通の復元・削除処理を使い、元の作業とOCIは残します。独立したlinked worktree入力は下記に記録し、巨大レポの実測は後続に残します。
+[仕様](design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。
+
+## 既存Git作業場所の取り込み
+
+実装済み候補: `workspace import`でLinux/WSLのcheckoutまたはlinked worktreeを独立した管理Workspaceへコピーし、未コミット変更・選択HEAD/index・objectsを保持します。
+HostのGit config/hooksと別worktreeの管理情報は持ち込みません。既存の所有権・アップロード処理を共用し、結果不明時はローカル参照と復旧記録を残します。
+[入力契約](design/workspace-input.ja.md)を参照してください。sparse/partial clone、submodule、Windows直接入力、巨大レポ性能はこの範囲に含めません。
+
+
+キャッシュ台帳の整理は実装済み候補です。history/recover/clearの--allで、生成元Env削除後の再利用元も扱います。
+既存の確認/CAS/cleanupを使い、Env・Workspace・OCIの独立データと保護参照を残します。
+既存Envへの後付け登録と結果不明コピーの取り消しは未完です。
+
+
+通知起動はWSLの実際の読取応答を確認してからCOM受付を登録します。
+表示準備完了を別のeventで示し、起動・cleanup中の重複呼び出しを待たせます。
+起動50秒と前の処理の待機を分け、通常の読み取り・回答期限と再送禁止を維持します。
+人による新規回答と表示確認は別の残件です。[通知レビュー](design/pending-approval-review.ja.md)を参照してください。
+
+## 保存データの削除診断の開発候補
+
+**実装済み候補:** `haco snapshot inspect` は保存した各データの存在状態、
+所有関係、使用中の参照数と、安全な再試行手順を表示する。既存の所有確認と
+ロックを使い、削除動作は変えない。Btrfs内部の整合性は明示的に未確認とする。
+自動修復やM5全体の確認完了ではない。[削除診断](design/environment-snapshots.md#inspect-a-failed-deletion)を参照。
+
+## Baseアーカイブ取り込み候補
+
+**実装済み候補:** `haco base import` は非圧縮のIncusイメージを固定し、隔離した一時Envを
+作成して既存の不変Base公開・cleanupを使う。定義・Packer・取り込みの作成環境には
+有限の資源上限を設定する。圧縮・VM・分割イメージと自動的な中断再開は未対応。
+[Base入力](design/base-images-and-custom-environments.md#import-a-container-image-archive)を参照。
+リポジトリ内検証と実機確認は区別する。
+
+## Env内キャッシュの掃除
+
+**実装済み候補:** `cache empty`は単一/全領域/全Envを確認して空にします。停止中の正確な所有対象を
+共通処理で固定し、失敗時は永続状態を残して明示的再試行まで再開を止めます。
+Workspace・OCI・共通世代・保存コピーは保持します。後付け登録・結果不明コピーの取り消し・
+巨大レポ性能は未完です。[所有仕様](design/cache-generations.ja.md#env内のキャッシュを空にする)を参照。

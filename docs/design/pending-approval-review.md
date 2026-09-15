@@ -2,7 +2,7 @@
 
 [日本語](pending-approval-review.ja.md) | English
 
-Status: **implemented repository slice; VS Code review implemented; Windows native entry implemented; D2 acceptance partial**.
+Status: **VS Code GUI and Windows notification review implemented on the development candidate; fresh installed-answer acceptance partial**.
 Repository tests are separate from installed network, desktop and GitHub acceptance.
 
 ## Ordinary use
@@ -91,67 +91,127 @@ contain only request ID, an explicit boolean and an optional saved-choice enum;
 clients cannot replace targets, attributes or saved scope. Responses preserve the
 actual result on failure but omit provider output and use fixed error categories.
 
-## Notifications
+## VS Code GUI review
 
-The [interaction stream](../reference/interaction-events.md) remains read-only and minimized.
-Its request ID is correlation data, never an approval token. The optional desktop
-VS Code extension offers Review and a Hacocoon: Review Pending Approvals command.
-Both open the ordinary CLI in a custom terminal owned by the local UI extension
-host. Clicking supplies no answer. The operator sees the exact trusted prompt
-and types the existing one-shot or saved choice, including a separate answer for ask.
+Status: **implemented development candidate; installed GUI acceptance pending**.
+The optional local UI extension opens a Webview from Review or **Hacocoon: Review
+Pending Approvals**. Inspect the complete current operation, choose whether to save
+Policy, then click **Allow this operation** or **Deny this operation**. No terminal
+input is required. Labels follow the VS Code English/Japanese display language.
+The command palette works without the notification bridge.
 
-Windows uses the installed local Hacocoon WSL distribution and its default operator
-account. Linux uses the installed local Physical Host CLI. Executables are fixed
-absolute paths, arguments are separate, and a small environment allowlist excludes
-workspace/controller overrides. No remote shell or workspace task runs the command.
-Only an explicit local user setting can select another installed WSL distribution.
-Web, remote extension hosts, untrusted windows and unsupported platforms refuse review.
+No saved Policy is the default. The dropdown offers only scopes returned by the
+common Policy builders. The full rule is displayed, including exact Git ref/update
+kind or network hostname/protocol/port. Environment scope binds this creation;
+global scope includes future Environments. Saving ask still requires an explicit
+current answer. Selecting, refreshing and opening a notification do not answer.
 
-Duplicate panes for the same request are reused. Input and output are bounded;
-subprocess control characters cannot alter terminal display. Closing, Ctrl-C/D or
-fifteen-minute expiry terminates the local child and never retries or rolls back
-an already submitted decision. Failed/unknown outcomes remain visibly unconfirmed.
-Windows native entry is described below; Linux desktop activation remains planned. See [ADR 0029](../adr/0029-local-desktop-approval-review.md).
+A fixed local installed CLI uses private child-process pipes to the existing
+management API. Windows selects its installed Hacocoon WSL distribution using only
+the local user setting; Linux uses the local Physical Host. Web/remote extension
+hosts, untrusted windows and unsupported platforms refuse review. Workspace values,
+provider output and public events cannot choose executable paths, credentials or
+controller sockets. No management authority is projected into an Environment.
 
-Repository JS tests cover routing, input, disposal, failures and notification clicks.
-Installed GHA now probes the real custom terminal from a Remote-SSH editor with an
-unpredictable stale ID, requiring the installed controller's refusal. This probe passed in actual local VS Code 1.136.1 with installed 6771f2f and observer 05c8206; it does not prove an actual human's fresh approval or OS notification click.
+A private selection token binds the complete displayed request. Immediately before
+submission, the adapter compares a fresh snapshot including Environment creation
+and saved scope, then calls the common decision service. That service retains its
+single-consumer claim, Policy validation/persistence, audit and execution. Tokens
+never enter argv, logs, URLs or the read-only event bridge. They are not a replacement
+for the management endpoint's existing authorization.
 
-See [ADR 0028](../adr/0028-pending-approval-sessions.md).
+One local panel is reused. Pending requests refresh every five seconds when idle;
+submission consumes its selection before a fallible call. Closing or the fifteen-minute
+presentation deadline stops the local child without retry or rollback. The queue's
+shorter request deadlines remain unchanged. Read/protocol/transport failures disable
+or invalidate the selection; an unknown submitted outcome remains unconfirmed.
+The receipt distinguishes denial, actual successful execution, saved Policy and
+incomplete audit. Inspect Policy and audit before retrying an uncertain result.
 
-The installed observer uses only explicitly selected stable VS Code APIs: enumerating
-the full API object failed before review in real desktop acceptance. It removes
-proven owned editor/terminal probes on failure, and reports only fixed diagnostic
-steps and booleans without subprocess output. A real local test passed ordinary
-HTTPS approval decisions separately; the corrected desktop observer passed the actual local editor, terminal and stale-request refusal checks, followed by successful fixture cleanup.
+The Webview denies network/command/local-file resources, uses a nonce CSP and renders
+untrusted values as literal text without truncating authority fields. Display snapshots,
+pending counts, input/output and stderr are bounded. The private protocol is an internal
+presentation interface, not a public plugin API. See [ADR 0082](../adr/0082-local-gui-approval-session.md).
 
-## Windows notification entry
+Repository tests exercise actual renderer clicks, saved scopes, stale/changed requests,
+trust revocation, duplicate answers, malformed output and cancellation. Installed
+acceptance observes the real Webview handshake and the installed controller's stale
+request refusal without injecting decisions. Its new result is pending. Earlier custom
+terminal successes are historical evidence, not GUI acceptance; see
+[acceptance evidence](../status/acceptance-evidence.md). Windows notification-contained
+fresh answers remain a separate open part of Issue #568.
 
-The Windows installer registers the native review adapter for its own WSL
-distribution and enables the owned notification service in the trusted `haco-host`.
-`-SkipDesktopReview` skips registration and disables that service. Ordinary Host
-setup provisions the notification companion and subscribes through the controller;
-raw audit files are not projected. Clicking opens the existing `haco approve`
-console for that request. Inspect the scope and type the ordinary answer; opening
-never answers, saves Policy or retries an operation. Installed Windows automatic
-startup acceptance remains pending; see [interaction delivery](../reference/interaction-events.md).
+## Answering inside Windows notifications
 
-Each distribution has its own user protocol and notification identity. Installing a
-test instance does not redirect another instance's notifications. The helper receives
-only a canonical request URI, fixes executable paths and the configured distribution,
-and strips environment overrides. Invalid links, extra arguments and stale requests
-fail closed. Missing registration leaves a notification without an approval action.
-Linux desktop activation remains planned; VS Code remains optional.
+Status: **implemented on the development candidate; fresh installed answers and
+visual layout acceptance remain pending**.
 
-Local Windows evidence covers native notification history with the exact protocol URI,
-Windows protocol launch of the expected helper, and the installed controller's stale
-request refusal. These used an already completed dedicated HTTPS test request. Fresh
-decisions through an OS notification and a human's visible toast click are not yet
-verified. See [ADR 0030](../adr/0030-windows-notification-review.md).
+The Windows installer registers the hidden helper, protocol correlation entry,
+notification identity and COM activator for its own WSL distribution. Owned Host
+setup subscribes through the existing controller transport. `-SkipDesktopReview`
+still skips registration and disables the owned notification service.
 
-Windows run 34176272125 at `4bb8dad` failed before desktop acceptance because
-native adapter checksum verification required unavailable `Get-FileHash`.
-The adapter now hashes through .NET directly; PowerShell 5.1 component regression
-passes with `Get-FileHash` deliberately unavailable. Real Windows installation
-and automatic service acceptance after this fix remain pending. Downstream checks
-in that failed run were skipped, not successful.
+A pending notification opens the complete review in the OS notification itself.
+Use Next/Previous to inspect every current condition, choose whether to save Policy,
+then inspect the actual saved rule before allowing or denying the current operation.
+No saved Policy is the default. This Env means this creation only; all Envs includes
+future creations. Saving ask still needs an explicit current answer. Body clicks,
+display, closing, reopening and URLs never answer. No terminal, browser or separate
+management window is required by this implementation.
+
+Long authority values continue onto further pages without truncation. Text is literal,
+with control/bidirectional characters escaped. Selection controls contain only common
+saved choices. Each successfully shown page gets a private, single-use native nonce.
+The final intent is reselected through a separate private child and compared with the
+complete displayed request and saved options before the common service decides.
+Controller tokens/answers never enter argv, URLs or public events. Core gains no
+Windows-specific Policy or execution logic; ordinary Environments gain no authority.
+
+The helper validates installed per-user/per-distribution ownership and fixed launch
+paths. Duplicate launches ask the existing COM server to show that read-only request
+and acknowledge actual Show. At most sixteen reviews are active; pending state refreshes
+every three seconds, admitting at most one new notification per refresh. Removed requests
+lose their buttons, and the native notification also has a two-minute expiry. The helper
+and private peers have a fifteen-minute maximum lifetime; submitted children have a
+five-minute bound within it. Shutdown cancels/reaps owned children and clears owned
+review notifications. Old nonces remain invalid even if native cleanup fails.
+
+Display, protocol, registration and transport failures never imply approval. A submission
+is consumed before any fallible call and is not automatically retried. Receipts distinguish
+denial, successful operation with audit, known saved Policy, failed operation and uncertain
+results. Check current Policy and audit before retrying an uncertain result. Native
+diagnostics expose only fixed stages/status values, not raw subprocess output.
+
+See [ADR 0083](../adr/0083-notification-contained-approval.md). Windows COM callbacks and
+English/Japanese selection XML in native history have component coverage. This does not
+prove visible layout, human clicks or fresh installed decisions. Previous console/URI
+acceptance, the historical checksum failure and remaining native gaps stay in
+[acceptance evidence](../status/acceptance-evidence.md). Linux native activation remains planned.
+
+The main integration includes the follow-up duplicate-review refusal and native
+process diagnostics from `7de0ad51` / `8eeac2b8`. A disappeared request stays a
+normal refusal rather than breaking an existing presentation session. Cancellation
+and expiry remain failures even when a terminated child emitted a success marker.
+Failures expose only fixed stages/reasons, bounded HRESULT, exit code and elapsed
+time through the shared logger. They never log raw child output or replay a decision.
+
+The native PowerShell process has a30-second ceiling for cold startup, including the initial owned-history clear. Individual review/read and final cleanup callers retain their shorter10/8-second bounds. Cancellation still owns the outcome and stops the exact child even if it printed success. Slow startup never bypasses clearing, retries an approval, or reports a failed operation as success.
+
+
+Private WSL readiness is checked by a read-only round trip before COM presentation
+registration. Owned-history clear, readiness and initial review share a 50-second
+startup budget. A duplicate launcher waits up to 60 seconds for either published
+presentation readiness or ownership after the previous process finishes cleanup.
+The outer notifier allows 120 seconds for that handoff and startup, while normal
+10/8-second reads and decision deadlines remain unchanged. The per-user session
+mutex alone is not evidence that COM can present a request. A named readiness
+event is published only after initialization; it conveys no decision or credential.
+Shutdown withdraws readiness before COM revocation and retains mutex ownership
+through private-peer and owned-history cleanup. A failed unpublished startup can
+be replaced after cleanup. Duplicate launch success still requires actual Show;
+no approval is replayed. See [ADR 0100](../adr/0100-notification-session-readiness.md).
+
+The private Linux client also waits for the enabled controller through the shared
+read-only Ping boundary before consuming any private message. This handles a WSL
+process arriving before its controller socket; it starts no service and retries
+no review or answer. The native parent's startup deadline remains authoritative.

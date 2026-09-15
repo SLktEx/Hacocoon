@@ -11,7 +11,9 @@ does not introduce a second ownership catalog.
 
 ## Path entry
 
-A local directory can hold a small Workspace reference. Preparing/opening that
+A local directory can hold a small Workspace reference. Explicit
+[local checkout / linked-worktree import](workspace-input.md) makes independent
+managed data; `open` itself never implicitly imports directory files. Preparing/opening that
 reference copies explicitly selected Host-managed repositories into the existing
 Incus Btrfs Workspace volumes. The directory's existing files are not moved,
 replaced, mounted into the Environment or used as an implicit source. The new local files are the explicit Workspace reference
@@ -62,6 +64,23 @@ A fork inherits neither live connections nor one-shot approvals. Environment
 creation identities are new. Administrator Policy retains its declared global,
 name or creation scope; name/creation rules for the source do not silently become
 rules for the fork.
+
+## Choose the copy's repositories
+
+`haco workspace fork --repo first,third --path ./next ./task` creates a new
+composition. Existing selected members come from the stopped source snapshot,
+including their Git index and dirty files. Names absent from the source must be
+registered Host repositories; those use the normal independent repository copy.
+Omitting `--repo` keeps all members. Explicit selection accepts one to eight
+distinct names. Unselected repositories remain in the source, and its OCI data
+is copied independently in full. No source data is deleted by selection.
+
+Membership is immutable after publication. Reopen the new reference to use the
+changed composition; the source reference and its stopped Env remain usable.
+The complete destination is reserved before native copying. Added Host sources
+are protected by the existing registry references; the full saved aggregate
+remains pinned until publication or positive cleanup. Saved Git data is never
+reinitialized by the addition path. See [the decision](../adr/0097-workspace-fork-membership.md).
 
 ## Retention and validation
 

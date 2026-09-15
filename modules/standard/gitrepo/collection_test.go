@@ -127,8 +127,14 @@ func TestTwoRepositoriesPushToTheirOwnRemotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(sockets)
-	broker := NewBroker(service, singleEnvironment{env}, sockets)
-	broker.Capabilities, err = capabilityapp.New(gitPolicy{}, nil, &gitAudit{}, broker)
+	identity, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	broker := NewBroker(service, &identityEnvironmentStore{environment: env, identity: identity}, sockets)
+	audit := &gitAudit{}
+	broker.PushAudit = audit
+	broker.Capabilities, err = capabilityapp.New(gitPolicy{}, nil, audit, broker)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,10 +41,14 @@ func (r *Runtime) snapshotRootfsObservation(ctx context.Context, p snapshotRootf
 	if err := p.validate(); err != nil {
 		return nil, err
 	}
-	ref := p.Source
-	if target {
-		ref = p.target()
+	instances, err := r.readSnapshotInstances(ctx)
+	if err != nil {
+		return nil, err
 	}
+	return validateSnapshotRootfsObservation(p, target, instances)
+}
+
+func (r *Runtime) readSnapshotInstances(ctx context.Context) ([]snapshotInstanceObservation, error) {
 	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/instances?project="+r.project+"&recursion=1")
 	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
 		return nil, core.ErrRuntimeUnavailable
@@ -52,6 +56,14 @@ func (r *Runtime) snapshotRootfsObservation(ctx context.Context, p snapshotRootf
 	var instances []snapshotInstanceObservation
 	if json.Unmarshal([]byte(out.Stdout), &instances) != nil || instances == nil {
 		return nil, core.ErrIncompatibleState
+	}
+	return instances, nil
+}
+
+func validateSnapshotRootfsObservation(p snapshotRootfsPlan, target bool, instances []snapshotInstanceObservation) (*snapshotInstanceObservation, error) {
+	ref := p.Source
+	if target {
+		ref = p.target()
 	}
 	var found *snapshotInstanceObservation
 	for _, i := range instances {

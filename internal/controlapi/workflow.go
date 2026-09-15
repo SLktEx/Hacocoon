@@ -15,11 +15,12 @@ import (
 const MethodWorkflow = "workspace.workflow"
 
 type WorkflowRequest struct {
-	Operation string                `json:"operation"`
-	Prepare   *workflow.PrepareSpec `json:"prepare,omitempty"`
-	Open      *workflow.OpenSpec    `json:"open,omitempty"`
-	Reference *workflow.Reference   `json:"reference,omitempty"`
-	Target    string                `json:"target,omitempty"`
+	Repositories []string              `json:"repositories,omitempty"`
+	Operation    string                `json:"operation"`
+	Prepare      *workflow.PrepareSpec `json:"prepare,omitempty"`
+	Open         *workflow.OpenSpec    `json:"open,omitempty"`
+	Reference    *workflow.Reference   `json:"reference,omitempty"`
+	Target       string                `json:"target,omitempty"`
 }
 type WorkflowResponse struct {
 	Reference *workflow.Reference  `json:"reference,omitempty"`
@@ -31,7 +32,7 @@ type workflowService interface {
 	Reference(context.Context, string) (workflow.Reference, error)
 	Prepare(context.Context, workflow.PrepareSpec) (workflow.Reference, error)
 	Open(context.Context, workflow.OpenSpec) (workflow.OpenResult, error)
-	Fork(context.Context, workflow.Reference, string) (workflow.ForkResult, error)
+	Fork(context.Context, workflow.Reference, string, []string) (workflow.ForkResult, error)
 }
 
 func RegisterWorkflow(server *control.Server, service workflowService) error {
@@ -45,11 +46,11 @@ func RegisterWorkflow(server *control.Server, service workflowService) error {
 		valid := false
 		switch req.Operation {
 		case "prepare":
-			valid = req.Prepare != nil && req.Open == nil && req.Reference == nil && req.Target == ""
+			valid = req.Prepare != nil && req.Open == nil && req.Reference == nil && req.Target == "" && req.Repositories == nil
 		case "open":
-			valid = req.Open != nil && req.Prepare == nil && req.Reference == nil && req.Target == ""
+			valid = req.Open != nil && req.Prepare == nil && req.Reference == nil && req.Target == "" && req.Repositories == nil
 		case "reference":
-			valid = req.Reference != nil && req.Reference.Workspace == "" && req.Prepare == nil && req.Open == nil && req.Target == ""
+			valid = req.Reference != nil && req.Reference.Workspace == "" && req.Prepare == nil && req.Open == nil && req.Target == "" && req.Repositories == nil
 		case "fork":
 			valid = req.Reference != nil && req.Reference.Workspace != "" && req.Prepare == nil && req.Open == nil && req.Target != ""
 		}
@@ -71,7 +72,7 @@ func RegisterWorkflow(server *control.Server, service workflowService) error {
 			result, e := service.Open(ctx, *req.Open)
 			response.Open, err = &result, e
 		case "fork":
-			result, e := service.Fork(ctx, *req.Reference, req.Target)
+			result, e := service.Fork(ctx, *req.Reference, req.Target, req.Repositories)
 			response.Fork, err = &result, e
 		}
 		response.Error = statusFromError(err)

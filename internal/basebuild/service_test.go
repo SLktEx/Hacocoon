@@ -23,6 +23,9 @@ func (f *fakeEnv) Create(_ context.Context, s core.EnvironmentSpec) (core.Enviro
 	if s.TemporaryWorkspace == nil || !core.ValidTemporaryWorkspace(*s.TemporaryWorkspace) || !s.SkipDefaultResource || s.WorkspacePath != "" {
 		f.t.Fatal("not isolated", s)
 	}
+	if s.Resources != builderResources() {
+		f.t.Fatal("builder lacks finite limits", s.Resources)
+	}
 	f.work = *s.TemporaryWorkspace
 	if f.fail == "create" {
 		return core.Environment{}, core.ErrRecoveryRequired

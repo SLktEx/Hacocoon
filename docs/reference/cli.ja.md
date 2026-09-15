@@ -34,7 +34,7 @@ help・versionにコントローラーは不要です。
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |
 | OCIイメージ一覧 | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [イメージ参照](../design/oci-image-deletion.ja.md)。既定はnerdctl。`--host`時は対象引数なし |
 | OCIイメージ削除 | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused`時はイメージ引数なし。タグ付きでも未使用候補になる場合あり |
-| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `restore [--json] <id> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
+| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] <id> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
 | コピー | `haco env copy [--json] <stopped-env> [new-env]` | 既定名は`<source>-copy`。[コピー](../design/environment-copy.md) |
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |
@@ -59,10 +59,11 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 コピー可能な実行例の改行改善、補助haco-hostヘルプは残件です。
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
 
+`haco git status [--json] [--request <request-id>] <environment>` は最新または指定したpushの保存記録を表示する。`haco git reconcile` も同じ引数で、現Policyに従った新しい読み取りを要求する。どちらもpushを再送しない。[Gitの案内](../guides/git-workflow.ja.md)を参照。
 
 ## キャッシュ操作
 
-信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用、履歴・クリア・復旧、追加領域を含む転送は未完成です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
+信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用は未完成です。履歴・クリア・完了記録のある復旧・追加領域転送は実装済み候補です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
 
 ## Packerでひな形を作る
 
@@ -87,3 +88,16 @@ JSONにも実行済みの結果を残す。再試行前に履歴を確認する�
 通常のHost入口で`haco env tunnel --target-port 8080 demo`を実行し、表示された接続先をアプリで開きます。ポートは自動選択、最大1時間で、Ctrl+Cですべての接続を終了します。Linuxは手元、WSL入口は導入済みWindowsクライアントで待ち受けます。PowerShellからは`& <導入済みhaco-tunnel.exe> --distribution <WSL名> --target-port 8080 demo`を使います。実行ファイルの場所は導入完了時に表示します。[通信と前提](../design/controller-client-transport.ja.md)を参照してください。
 
 Env作成時に`--dns host|backend|disabled`を選べます（通常は`host`）。通常statusにも名前解決設定を表示し、snapshot/copy/転送で保持します。Policy境界と確認範囲は[名前解決](../design/name-resolution.ja.md)を参照してください.
+
+## Baseのアーカイブ取り込み
+
+`haco base import --name <base> [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
+
+[入力・上限・失敗時の扱い](../design/base-images-and-custom-environments.md#import-a-container-image-archive)。
+
+## Env内キャッシュの掃除
+
+`haco cache empty --preview <env> [<area>]`で登録済み領域を確認し、Envを停止して
+`haco cache empty [--yes] [--json] <env> [<area>]`を実行します。`--all`は全Envを選びます。
+Workspace・OCI・共通世代・保存コピーを保持します。途中失敗時は停止したまま確認して再試行します。
+[内容と制限](../design/cache-generations.ja.md#env内のキャッシュを空にする)を参照してください。

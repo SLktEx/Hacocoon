@@ -46,7 +46,7 @@ exact ref and distinguish `update_kind: create` from `fast-forward`; neither
 choice authorizes the other. See [ADR 0081](../adr/0081-git-read-and-push-authority.md).
 Force push, branch deletion, multiple-ref pushes, LFS and submodules are
 **deferred**. A transport failure after an external write can leave its result
-unknown; inspect the remote before retrying. Generic retry/recovery is deferred.
+unknown; use the explicit status/reconcile operations below before a fresh proposal. Automatic write replay is unsupported.
 
 Allow tools and agents inside a Hacocoon Environment to participate in Git/GitHub workflows without receiving broad, long-lived parent credentials.
 
@@ -145,3 +145,14 @@ Status: existing service composition verified by a component test combining
 Workspace import, explicit source clone and broker connection, including mismatch,
 offline and same-name replacement refusal. Native imported Git fetch/push remains
 unverified; this is not a real-provider or network acceptance result.
+
+## Push receipts and reconciliation
+
+The Standard broker persists a dispatch receipt before an authenticated push and
+a confirmation only after validating the exact porcelain result. The common
+execution request identity correlates audit facts; it grants no authority.
+`haco git status <env>` reads the latest push, while `haco git reconcile <env>`
+performs a new exact-ref read under current Policy, original Environment creation
+and source ownership. It never repeats a push or recreates an approval.
+A matching remote OID remains an observation and cannot erase a failed original
+operation. See [ADR 0086](../adr/0086-git-push-reconciliation-evidence.md).

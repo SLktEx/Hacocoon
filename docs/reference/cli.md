@@ -33,7 +33,7 @@ help and version require no controller.
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
 | Image removal | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused` replaces image selector; reviewed candidates may include tagged images |
-| Snapshot | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `restore [--json] <id> [new-env]`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
+| Snapshot | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] <id> [new-env]`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
 | Copy | `haco env copy [--json] <stopped-env> [new-env]` | Default `<source>-copy`; [copy](../design/environment-copy.md) |
 | Transfer | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux; defaults `<env>.haco` / `<source>-imported`; [transfer](../design/environment-transfer.md) |
 | Disk allocation | `haco reclaim [--yes \| --status \| --review [--yes]]` | Managed Windows/WSL only; [reclamation](../design/storage-reclamation.md) |
@@ -60,10 +60,11 @@ wrap with aligned indentation at 60 columns. Wrapping long command syntax and
 copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
 
+`haco git status [--json] [--request <request-id>] <environment>` shows the latest or selected recorded push. `haco git reconcile` accepts the same arguments and requests a fresh Policy-controlled read. Neither repeats a push. See [Git recovery](../guides/git-workflow.md).
 
 ## Cache commands
 
-On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/recovery and additional-data transfer remain incomplete. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
+On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/completed-copy recovery and additional-data transfer are implemented candidates. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
 
 ## Build a Base with Packer
 
@@ -89,3 +90,16 @@ its result in JSON; inspect history before retrying. See [cache generations](../
 Run `haco env tunnel --target-port 8080 demo` from ordinary Host entry and connect an application to the address it prints. The default port is automatic, the maximum duration is one hour, and Ctrl+C closes all connections. Native Linux listens locally; WSL entry uses the installed Windows client. Direct PowerShell use: `& <installed-haco-tunnel.exe> --distribution <WSL-name> --target-port 8080 demo`. The installer prints its location. See [transport and prerequisites](../design/controller-client-transport.md#client-tcp-listeners).
 
 Environment creation accepts `--dns host|backend|disabled` (default `host`); ordinary status displays the selected resolver. Snapshot/copy/transfer preserve the mode. See [name resolution](../design/name-resolution.md) for the Policy boundary and acceptance scope.
+
+## Base archive input
+
+`haco base import --name <base> [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
+
+See [input, limits and failure handling](../design/base-images-and-custom-environments.md#import-a-container-image-archive).
+
+## Empty Env cache contents
+
+Use `haco cache empty --preview <env> [<area>]` to inspect enrolled areas, stop the
+Env, then run `haco cache empty [--yes] [--json] <env> [<area>]`. `--all` selects all
+Envs. Workspace, OCI, common generations and saved copies remain. Keep an interrupted
+Env stopped and explicitly retry after fresh review. See [scope and limits](../design/cache-generations.md#empty-an-environments-cache).

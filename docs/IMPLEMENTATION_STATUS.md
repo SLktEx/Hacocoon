@@ -16,7 +16,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |
 | [TCP/UDP development connections](design/network-connections.md) | implemented | Explicit guest loopback listeners, source-generation-bound Policy/approval, optional rule expiry and active revocation. Existing HTTP/SNI and source guards remain. Dedicated provider acceptance is scoped; outbound Internet/VPN and full Windows UI remain incomplete. |
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Current binfmt P/PF and fresh Japanese-Windows entry still need packaged acceptance. |
-| [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
+| [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Selected membership in independent forks is implemented in the candidate; in-place editing is unsupported. General interrupted-preparation recovery remains incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
 | [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
@@ -34,7 +34,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Environment export/import](design/environment-transfer.md) | partial | Stopped managed bundle, verified Linux delivery, installed controller and Windows projected-file route; one managed cross-WSL fixture and stopped containerd image/writable-data transfer accepted. Not live migration or a whole-installation backup; imported authenticated Git and broader runtime consistency remain incomplete. |
 | [Evacuation / replacement](guides/data-evacuation.md) | partial | Read-only inventory includes current schema16 named data, generation references and pending lifecycle receipts; explicit ordinary-tree archives exist, including isolated failed-snapshot fixtures. Native Incus export/import accepted two split images; unified images/new-Env boot are unverified. Whole-installation classification/capture/restored comparison and final replacement are not complete. |
 | [AWS S3](design/aws-operations.md) | partial | Approved bounded listing and verified object download, including source-bound guest requests. Repository and synthetic native tests exist; authenticated real AWS acceptance was skipped. This is not an EC2 Environment provider. |
-| [Notifications / client APIs](reference/interaction-events.md) | implemented | `pkg/clientadapter`, minimized interaction events and `haco-notify` browser/native/VS Code adapters. Windows review has scoped acceptance; fresh human toast and Linux activation gaps remain. |
+| [Notifications / client APIs](reference/interaction-events.md) | implemented | Minimized events and optional adapters. VS Code GUI and Windows notification pages complete explicit answers through common review/Policy; opening alone never answers. Fresh installed GUI/human answers and Linux activation remain unverified; native/component evidence is scoped separately. |
 | [Seed retirement](design/oci-seed-and-cow.md) | implemented candidate | Seed runtime/build/harvest/catalog/sampling/recommendation and its old image deletion/re-enable state are removed. Current Base, managed images and OCI Stores remain; optional Docker integration is independent. Old-version compatibility/migration is out of scope. |
 | [Cloud / registry / management UI](status/architecture-and-roadmap.md) | deferred | Concrete cloud Environment provider, mandatory local registry, management UI, simultaneous writable Store sharing and live migration are not current features. Provider seams and explicit future directions remain. |
 
@@ -98,6 +98,9 @@ canonical run lifecycle. Exact creation identities fence cleanup and same-name
 recreation; current split ownership and cleanup-outcome handling remain. Old-version
 migration/fallback cleanup is excluded. New local and native acceptance are separate.
 
+Notification setup follow-up: service refresh identifies fixed failing operations and user-path observers stop when Host entry has already failed. Reuses `5a6fb54c` on current main and GUI #664. This improves diagnosis and avoids idle waits; it does not establish that Windows activation or service startup is fixed.
+
+
 
 ## Cache generation foundation
 
@@ -110,13 +113,76 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 Cache history/clear follow-up: implemented candidate. Named history separates
 current selection from retained attempts. Revision-bound clear resets reuse and
 uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
-uncertain copies. Orphan-source browsing remains incomplete; named positive-completion recovery and added-data
+uncertain copies. All-source browsing, named positive-completion recovery and added-data
 transfer are implemented. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
 
-Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
+Push reconciliation follow-up: implemented candidate reusing42aa706f. Durable dispatch/confirmation records and current-owner exact-ref reads distinguish original failure from current remote state, without replaying writes or restoring approval. Main clone/fetch grants no push authority. Fresh authenticated installed use and larger Git transport remain separate.
+
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
 
 ## Client TCP access
 
 **Implemented candidate:** `haco env tunnel --target-port 8080 demo` opens a loopback listener for applications. Native Linux stays local; ordinary WSL/Host entry delegates to the installed Windows client, retaining the exact Env creation and WSL registration. Closing the foreground client closes its listener and connections. Shared parsing, process framing, cancellation and installer placement reuse existing development work. Fresh installed acceptance remains separate; DNS modes and VPN/NRPT acceptance remain incomplete. See [client transport](design/controller-client-transport.md#client-tcp-listeners).
 
 Resolver selection: implemented candidate. Environment creation accepts `--dns host|backend|disabled`, defaults to the Physical Host, and preserves the setting through snapshot/copy/transfer. Disabled mode refuses controller lookups even if guest tooling is restarted. Three-mode installed acceptance is pending; see [name resolution](design/name-resolution.md).
+
+The Incus network dialer identifies the calling Host thread when preparing concurrent SSH/forwarding connections; see [ADR0096](adr/0096-calling-thread-network-identity.md). The Host-namespace guard remains enforced. Native thread regression is separate from installed Windows reconnect acceptance.
+
+Snapshot planning now reuses the create/resume/import placement binding for data inside a repository, preserving its Workspace storage identity. The supported Incus7.0.1 regression covers capture, copy and portable transfer; see the acceptance evidence.
+
+## Workspace membership selection
+
+Implemented candidate: `workspace fork --repo first,third` retains selected saved
+Git state and independently adds registered Host repositories through the same
+restore/cleanup transition. Source work and OCI remain intact. Independent linked-worktree
+input is described below; giant-repository measurement remains deferred. See
+[the contract](design/workspace-workflow.md#choose-the-copys-repositories).
+
+## Existing Git working-directory input
+
+Implemented candidate: `workspace import` copies a Linux/WSL checkout or linked
+worktree into an independent managed Workspace, retaining dirty files, selected
+HEAD/index and objects. Host Git config/hooks and other worktree administration
+are excluded. Import shares the existing ownership and upload transitions;
+unknown results retain a local reference and recovery receipts. See
+[the input contract](design/workspace-input.md). Sparse/partial clones, submodules,
+Windows-native input and giant-repository performance remain outside this slice.
+
+
+Cache catalog maintenance is implemented in the candidate: history/recover/clear
+accept --all to cover retained sources after producer deletion. It uses existing
+review/CAS/cleanup; independent Env/Workspace/OCI data and protected references
+remain. Existing-Env enrollment and unknown-copy cancellation remain incomplete.
+
+
+Notification startup checks private WSL readiness before COM registration. A
+separate readiness event prevents duplicates from dispatching during startup or
+cleanup. The 50-second startup budget covers native history clear, readiness and
+initial review; predecessor wait is bounded separately. Normal read/decision
+bounds and no-replay rules remain. Installed human answers and visible layout
+remain separate acceptance. See [notification review](design/pending-approval-review.md).
+
+## Saved-data deletion diagnostics candidate
+
+**Implemented candidate:** `haco snapshot inspect` explains each persisted saved
+component, provider presence, volume references and safe retry steps. It uses
+existing ownership validators and locks without changing deletion semantics.
+Underlying Btrfs consistency is explicitly uninspected; this is not a repair or
+whole M5 acceptance. See [snapshot diagnostics](design/environment-snapshots.md#inspect-a-failed-deletion).
+
+## Base archive input candidate
+
+**Implemented candidate:** `haco base import` captures uncompressed Incus image
+bytes, creates an isolated temporary Env and shares existing immutable Base
+publication/cleanup. Definition, Packer and import builders have finite resource
+budgets. Compressed/VM/split images and automatic crash replay remain unsupported.
+See [Base input](design/base-images-and-custom-environments.md#import-a-container-image-archive);
+repository tests and real-host acceptance remain separate.
+
+## Env cache emptying
+
+**Implemented candidate:** reviewed `cache empty` handles one/all areas or all Envs
+through canonical stopped-owner maintenance. A persisted failure fences resume until
+explicit retry verifies empty contents. Workspace, OCI, common generations and saved
+copies remain. Late enrollment, unknown-copy cancellation and giant-repository
+performance remain incomplete. See the [owning contract](design/cache-generations.md#empty-an-environments-cache).

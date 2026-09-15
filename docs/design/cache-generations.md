@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-unknown-copy recovery and orphan-source operations remain incomplete.
+unknown-copy recovery remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -256,8 +256,8 @@ cannot convert an unknown native copy into success. See [the lifecycle decision]
 name, path, creation time, original generation and state. `retained` means not
 currently selected; it does not assert that an interrupted candidate was ever
 published. An existing enrolled Environment identifies the source, including old
-epochs. Listing orphaned sources after removing all identifying Environments is
-not yet a public operation.
+epochs. The --all operations below also cover sources after removing all
+identifying Environments.
 
 `haco cache clear [--yes] [--json] <env> <area>` displays that exact scope and uses
 the common client deletion confirmation. A revision binds the Environment, source
@@ -290,8 +290,64 @@ or reset advanced the source, complete data remains unselected; recovery does no
 delete it or replay an old publication. Use reviewed clear for retained data.
 Deletion-incomplete candidates report cleanup-required. Unknown copies and failed
 provider checks remain recovery-required and owned, with partial results preserved.
-Unknown native-copy cancellation and orphan-source recovery remain unsupported.
+Unknown native-copy cancellation remains unsupported; --all recovery includes
+positively completed orphan-source copies.
 
 Named-data snapshot/copy support is implemented through the canonical saved aggregate;
 saved bytes do not grant publication into a newer common generation. Portable
 added-data transfer is implemented; supported-host acceptance remains separate. See [snapshot semantics](environment-snapshots.md#named-disposable-data).
+
+
+## Retained sources after Environment deletion
+
+`haco cache history --all` lists every retained cache generation group, including
+sources with no remaining producer. Existing Env names and configured area names
+are shown when they can be observed; a missing producer is explicitly unnamed,
+not inferred from an opaque ID. Ordinary output needs no native resource identity.
+
+`haco cache recover --all` resumes only positively completed copies through the
+same recovery transition. `haco cache clear --all` displays the complete scope
+and uses the common confirmation; `--yes` still requires successful display.
+A revision binds all groups, selections, exact owners and displayed Env names.
+Changed review is refused before mutation. Each group then uses the existing
+source CAS, exact-owner cleanup and positive-absence fences. Env data, Workspace,
+OCI and protected snapshots remain. Groups report complete, failed or not_started;
+a partial batch requires fresh inspection. Logical cleanup does not imply physical
+space recovery. Unknown copies are retained, never canceled by destination guess.
+
+## Empty an Environment's cache
+
+Implemented candidate: `haco cache empty --preview <env> [<area>]` displays enrolled
+cache directories, their maintenance state and retained snapshot count. Stop the
+Env, then use `haco cache empty <env> [<area>]` to confirm and empty those contents.
+`--all` selects all enrolled Envs; `--yes` skips the prompt only after successful
+scope display. `--json` preserves per-area results. Options precede names.
+Names and configured paths are sufficient; native volume identities are not inputs.
+
+Unlike source `clear`, `empty` preserves common generations and removes only the
+selected Env's cache contents. The Env, rootfs, Workspace, OCI data, independent
+copies and saved snapshots remain. A later new Env may still reuse a common source;
+use source clear separately when intended. This is logical emptying, not a claim
+that snapshot/shared storage or the Windows disk has shrunk.
+
+Standard binds a revision to the complete displayed selection and passes each exact
+attachment to the common Env lifecycle. Core holds Env/Workspace locks, verifies the
+owned stopped runtime and durably changes the child to `clearing` before any provider
+mutation. Normal start/access/snapshot/copy/delete remain fenced. The provider
+independently verifies the owned volume and sole stopped consumer, empties it,
+verifies empty contents and ownership again, then Core commits `ready`. Neither
+resource nor parent lease is released or replaced.
+
+An interrupted/failed area stays `clearing` and blocks that Env's use. Keep it stopped,
+inspect a fresh preview and explicitly repeat emptying. This retry only removes
+remaining contents from the same owner; it cannot adopt a replacement Env/volume.
+Other Envs may continue. Batches retain successful, failed and not_started results;
+another area of the same interrupted Env remains blocked until recovery.
+
+Linux Incus requires the volume file API (`file_storage_volume`). It enumerates
+directory entries before deleting children in postorder, never follows symbolic
+links or deletes the volume root, and never runs a guest executable or guesses Host
+mount paths. Traversal is bounded to 100,000 entries, depth 64, 4096-byte paths and
+4 MiB directory responses under a five-minute operation deadline. Unsupported or
+malformed observations fail closed. These are bounded initial operations, not
+large-repository performance acceptance. See [ADR 0101](../adr/0101-environment-cache-emptying.md).

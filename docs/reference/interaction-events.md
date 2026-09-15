@@ -22,13 +22,13 @@ identities fail closed. Upgrading an older installation requires rerunning the
 Windows installer so the identity is captured before controller setup.
 
 
-The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter opens the same CLI. See [pending approval review](../design/pending-approval-review.md).
+The trusted Host can review current pending requests with haco approve. This is a separate private management path; the optional Windows native adapter uses a private child session to answer inside the OS notification. See [pending approval review](../design/pending-approval-review.md).
 
 ## Approval correlation
 
 Trusted approval prompts and pending Git proposals now carry the same controller-assigned
 `request_id` as interaction events, audit records and the final capability result.
-This is implemented groundwork for notification review; Windows native activation opens the local CLI. The ID grants no authority. Git decisions still use the existing
+This is implemented groundwork for notification review; Windows native activation uses the separate private review session. The ID grants no authority. Git decisions still use the existing
 trusted management endpoint and proposal ID. No action endpoint or sensitive detail
 is added to the read-only event bridge.
 
@@ -183,6 +183,11 @@ A running old executable is not truncated. Cleanup removes only the exact owned
 staging file/directory and reports recovery-required if cleanup fails.
 
 Normal `haco setup` refreshes an already enabled notification service after companion publication. It preserves a disabled service and does not create one before Windows desktop registration.
+
+A failed refresh reports the fixed service operation through
+[setup diagnostics](../design/trusted-host.md#setup-progress-and-failure-diagnostics).
+It still fails setup; it does not erase cursor state, grant approval, repair
+Windows notification settings or claim that notification delivery was accepted.
 
 ## Repeated native failure notifications
 

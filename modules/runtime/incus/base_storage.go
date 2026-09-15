@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -32,14 +31,14 @@ func (r *Runtime) baseStorageObservation(ctx context.Context, p baseStorageIdent
 	if err := p.validate(); err != nil {
 		return nil, err
 	}
-	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/instances?project="+r.project+"&recursion=1")
-	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
-		return nil, core.ErrRuntimeUnavailable
+	instances, err := r.readSnapshotInstances(ctx)
+	if err != nil {
+		return nil, err
 	}
-	var instances []snapshotInstanceObservation
-	if json.Unmarshal([]byte(out.Stdout), &instances) != nil || instances == nil {
-		return nil, core.ErrIncompatibleState
-	}
+	return validateBaseStorageObservation(p, instances)
+}
+
+func validateBaseStorageObservation(p baseStorageIdentity, instances []snapshotInstanceObservation) (*snapshotInstanceObservation, error) {
 	var found *snapshotInstanceObservation
 	expected := p.config()
 	fingerprint, _ := baseRevisionFingerprint(p.Base.Revision)

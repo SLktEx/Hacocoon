@@ -20,7 +20,7 @@ type Repositories interface {
 	Get(string, string) (gitrepo.Object, error)
 	CopyWorkspace(context.Context, string, string) (gitrepo.Object, error)
 	CopyWorkspaceSet(context.Context, string, []string) (gitrepo.Object, error)
-	RestoreWorkspaceWithData(context.Context, string, core.Snapshot, func(context.Context, core.Workspace) error) (gitrepo.Object, error)
+	RestoreWorkspaceSelectionWithData(context.Context, string, core.Snapshot, []string, func(context.Context, core.Workspace) error) (gitrepo.Object, error)
 }
 type Environments interface {
 	List(context.Context) ([]core.Environment, error)
@@ -58,7 +58,8 @@ type OpenResult struct {
 	Created     bool             `json:"created"`
 }
 type ForkResult struct {
-	Resource core.PersistentResourceRef `json:"resource,omitempty"`
+	Repositories []string                   `json:"repositories"`
+	Resource     core.PersistentResourceRef `json:"resource,omitempty"`
 	Reference
 	OCI               string        `json:"oci"`
 	Base              core.BaseName `json:"base"`
@@ -217,9 +218,12 @@ func (s *Service) openExisting(ctx context.Context, spec OpenSpec, result OpenRe
 // Fork captures the stopped aggregate through its canonical API, then reuses
 // existing COW data restores. Rootfs is captured for existing snapshot semantics
 // but never restored. Failed data copies retain their owning catalog records.
-func (s *Service) Fork(ctx context.Context, source Reference, target string) (result ForkResult, err error) {
+func (s *Service) Fork(ctx context.Context, source Reference, target string, repositories []string) (result ForkResult, err error) {
 	if source.Workspace == "" || !gitrepo.ValidID(target) || source.Name == target {
 		return result, core.ErrInvalidArgument
+	}
+	if err := gitrepo.ValidateRepositorySelection(repositories); err != nil {
+		return result, err
 	}
 	object, err := s.resolve(source)
 	if err != nil {
@@ -264,7 +268,7 @@ func (s *Service) Fork(ctx context.Context, source Reference, target string) (re
 		result.Base = saved.Source.Environment.Base.Name
 	}
 	result.OCI = "none"
-	copied, err := s.Repositories.RestoreWorkspaceWithData(ctx, target, saved, func(ctx context.Context, work core.Workspace) error {
+	copied, err := s.Repositories.RestoreWorkspaceSelectionWithData(ctx, target, saved, repositories, func(ctx context.Context, work core.Workspace) error {
 		result.Reference = Reference{Name: target, Workspace: work.ID}
 		if saved.Source.Environment.PersistentResource.ID == "" {
 			return nil
@@ -281,6 +285,9 @@ func (s *Service) Fork(ctx context.Context, source Reference, target string) (re
 	})
 	if copied.ID != "" {
 		result.Reference = reference(copied)
+		for _, member := range copied.Copies() {
+			result.Repositories = append(result.Repositories, member.Repository)
+		}
 	}
 	if err != nil {
 		result.State = "recovery-required"

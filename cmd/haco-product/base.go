@@ -59,6 +59,9 @@ func runBase(args []string) int {
 			}
 		}
 	}
+	if len(args) > 0 && args[0] == "import" {
+		return runBaseImport(args[1:])
+	}
 	if len(args) > 0 && args[0] == "build" {
 		return runBaseBuild(args[1:])
 	}

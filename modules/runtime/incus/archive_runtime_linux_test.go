@@ -3,6 +3,7 @@
 package incus
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -110,6 +111,38 @@ func TestImportedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 				}
 			} else if err == nil {
 				t.Fatal("failure published")
+			}
+		})
+	}
+}
+
+func TestArchiveTemporaryBuilderRefusesAttachmentsBeforeNativeWork(t *testing.T) {
+	for _, mode := range []string{"path", "readonly", "oci", "data"} {
+		t.Run(mode, func(t *testing.T) {
+			work, err := core.NewTemporaryWorkspace()
+			if err != nil {
+				t.Fatal(err)
+			}
+			spec := core.EnvironmentRuntimeSpec{Name: "builder", InstanceID: "env-" + strings.Repeat("a", 32), WorkspacePath: work.Path, TemporaryWorkspace: true}
+			switch mode {
+			case "path":
+				spec.WorkspacePath = "/host/private"
+			case "readonly":
+				spec.ReadOnly = true
+			case "oci":
+				spec.PersistentResource.ID = "oci:unrelated"
+			case "data":
+				spec.Attachments = append(spec.Attachments, core.EnvironmentRuntimeAttachment{})
+			}
+			p, err := NewSandboxProvider(New(&fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+				t.Fatal("invalid builder reached native work")
+				return host.Result{}, nil
+			}}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := p.CreateEnvironmentFromArchive(context.Background(), spec, bytes.NewReader(nil), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { return nil }); err == nil {
+				t.Fatal("invalid temporary builder accepted")
 			}
 		})
 	}

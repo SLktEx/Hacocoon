@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
 	"net/url"
 	"strings"
 )
@@ -14,11 +15,23 @@ func (b *PersistentResourceBackend) verifyEnvironmentGenerationSource(ctx contex
 	if source.Kind != CacheResourceKind || source.SourceOnly || !core.ValidEnvironmentResourceRef(source.Ref()) || !core.ValidEnvironmentInstanceID(source.EnvironmentInstance) || !core.ValidGenerationResource(target.Ref()) || !target.SourceOnly || target.EnvironmentInstance != "" || target.WorkspaceID != "" || target.CopySource != source.Ref() || observed == nil || len(observed.UsedBy) != 1 {
 		return core.ErrStorageBusy
 	}
+	return b.verifyStoppedEnvironmentDataConsumer(ctx, source, observed, "")
+}
+
+// Shared by whole-generation collection and in-place disposable-data clearing.
+// Observe the native exclusive consumer without executing any guest program.
+func (b *PersistentResourceBackend) verifyStoppedEnvironmentDataConsumer(ctx context.Context, source core.PersistentResource, observed *persistentVolumeObservation, expectedRuntime string) error {
+	if source.Kind != CacheResourceKind || source.SourceOnly || !core.ValidEnvironmentResourceRef(source.Ref()) || !core.ValidEnvironmentInstanceID(source.EnvironmentInstance) || observed == nil || len(observed.UsedBy) != 1 {
+		return core.ErrStorageBusy
+	}
 	u, err := url.Parse(observed.UsedBy[0])
 	if err != nil {
 		return core.ErrIncompatibleState
 	}
 	ref := strings.TrimPrefix(u.Path, "/1.0/instances/")
+	if expectedRuntime != "" && !environmentapp.MatchesRuntimeRef(expectedRuntime, environmentapp.ProviderIncus, ref) {
+		return core.ErrCapabilityStale
+	}
 	if !environmentDataUsedBy(observed.UsedBy[0], b.Runtime.project, ref) {
 		return core.ErrIncompatibleState
 	}

@@ -45,3 +45,6 @@ an empty ordinary create. Materialization must claim the matching input mode;
 positive completion, publication and deletion use the existing shared resource
 transition. The current provider validates placement and writes only fresh native
 ownership; archive config cannot mount Host paths or grant management access.
+
+
+Snapshot planning uses the same provider placement binding as Environment create, start and import. Repository-subdirectory data binds the leased Workspace storage identities as well as the data areas. A data-only digest cannot stand in for that complete binding. The helper lives on the shared Incus runtime so every adapter path uses the same contract.

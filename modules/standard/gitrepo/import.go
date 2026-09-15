@@ -32,7 +32,13 @@ func (s *RepositoryService) ImportWorkspace(ctx context.Context, id, repository,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	object := Object{Kind: "work", ID: id, Repository: repository, Remote: remote, Branch: branch}
-	created, err := s.createPrepared(ctx, object, func(ctx context.Context, o Object) error { return backend.ImportWorkspaceVolume(ctx, o, archive) }, nil)
+	return s.importPreparedWorkspace(ctx, object, func(ctx context.Context, o Object) error { return backend.ImportWorkspaceVolume(ctx, o, archive) })
+}
+
+// Caller holds the registry lock. Native and portable tree imports share the
+// same ownership/publication/positive-cleanup transition.
+func (s *RepositoryService) importPreparedWorkspace(ctx context.Context, object Object, create func(context.Context, Object) error) (Object, error) {
+	created, err := s.createPrepared(ctx, object, create, nil)
 	if err == nil || created.State != "created" {
 		return created, err
 	}

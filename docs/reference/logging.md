@@ -187,6 +187,33 @@ Host customization keeps bounded stdout/stderr in a private result, displayed on
 by explicit `haco setup --script-result`. Raw output and the result object never
 enter structured logs, progress-stage fields or audit data.
 
+The Windows review executable owns the single `notification_review` ERROR for
+unavailable native review. `stage` is limited to registration, session_plan,
+ownership, activation, clear, peer_start, review, events or unknown; `reason` is
+unavailable, timeout or canceled. A validated native display result can additionally
+report `native_stage` (runtime/xml/create/identity/show/history) and numeric
+`native_error` (HRESULT). Raw errors, controller replies, XML, page tokens, paths
+and subprocess output are excluded. The installed probe reports only these fixed
+classifications and exit/expected-text booleans when an assertion fails.
+
+Native notification renderer failures also record numeric `exit_code` and
+`duration_ms`. Exit -1 means that no portable exit code is available, including
+failure before child startup. Context cancellation/deadline classification takes
+precedence over child output. The same review boundary owns the single ERROR;
+raw process errors, stdout and stderr are not logged.
+
+Renderer failures also include `native_progress`, the last complete fixed stage
+observed from at most 512 bytes: runtime, input, decode, winrt, xml, create,
+identity, show, history or complete. Missing, partial, oversized or unrelated
+diagnostics become unobserved. This observation cannot confirm rendering,
+execution or approval, and never overrides a timeout or cancellation.
+
+
+COM activation failures include `activation_stage` (initialize/register/create/dispatch) and numeric `activation_error` (signed HRESULT). Read-only activation deadlines/cancellation retain their context classification across COM and private peer shutdown. No raw native error or private request is logged.
+
+Notification refresh failures now preserve fixed service-operation reasons (`notification_enable_state_failed`, `notification_activity_failed`, `notification_disable_failed`, `notification_reload_failed`, `notification_failure_state_failed`, `notification_reset_failed`, `notification_enable_failed`, `notification_restart_failed`) at the existing setup boundary. Private helper exits 50–57 are recognized only for refresh. Raw output is not forwarded and cancellation retains precedence.
+
+Git reconciliation reuses the synchronized capability audit: fixed git-push-started/confirmed/observed records carry request and Environment creation identities, source ownership, registered remote, ref and old/new OIDs. Observation records retain a separate read-request identity. These are audit facts, not operational log dumps; credentials, raw subprocess output and complete Git configuration are excluded.
 
 Cache management returns named area results separately from diagnostics. Its failure boundary logs only the fixed operation name and classified failure code with component `cache`; settings documents, paths, native responses and raw errors are not logged.
 

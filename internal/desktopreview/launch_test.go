@@ -17,7 +17,7 @@ func TestExactLocalReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.File != `C:\Windows\System32\wsl.exe` || !reflect.DeepEqual(p.Args, []string{"--distribution", distro, "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", "approve", id}) {
+	if p.File != `C:\Windows\System32\wsl.exe` || !reflect.DeepEqual(p.Args, []string{"--distribution", distro, "--exec", "/usr/bin/env", "-i", "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "/usr/local/bin/haco", "_desktop-review"}) {
 		t.Fatalf("wrong fixed launch: %+v", p)
 	}
 	if !reflect.DeepEqual(p.Env, []string{`SystemRoot=C:\Windows`, `WINDIR=C:\Windows`}) {
@@ -49,5 +49,11 @@ func TestDistributionRegistrationsDoNotReplaceEachOther(t *testing.T) {
 	b, _ := Scheme("Hacocoon-Test")
 	if a != same || a == b {
 		t.Fatal(a, same, b)
+	}
+	class, _ := ClassID("Hacocoon")
+	sameClass, _ := ClassID("hacocoon")
+	otherClass, _ := ClassID("Hacocoon-Test")
+	if class != "{d2677f30-7bd6-897e-929f-9a455e17c0ca}" || class != sameClass || class == otherClass {
+		t.Fatal("installer/native class identity mismatch")
 	}
 }

@@ -172,7 +172,10 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		resource := core.PersistentResource{ID: area.Resource.ID, Owner: area.Resource.Owner, Kind: area.Origin.Kind, NativeRef: pool + "/" + plan.Source, State: "ready", EnvironmentInstance: source.InstanceID}
 		areas = append(areas, core.EnvironmentRuntimeAttachment{Attachment: area, Resource: resource})
 	}
-	binding, err := environmentDataBinding(source.InstanceID, areas)
+	binding, _, err := r.environmentPlacementBinding(ctx, core.EnvironmentResourceBinding{
+		InstanceID: source.InstanceID, WorkspacePath: source.Environment.Workspace.Path,
+		ReadOnly: source.Environment.AccessMode == core.WorkspaceReadOnly, Attachments: areas,
+	})
 	if err != nil {
 		return nil, err
 	}

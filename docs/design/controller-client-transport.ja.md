@@ -426,3 +426,8 @@ Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所�
 委譲しても元の期限を延ばしません。結果と診断出力を分離します。実Windowsの構成要素試験と、
 `tools/windows-tunnel-entry-e2e.py`の通常導入経路は別の証拠です。
 [ADR 0093](../adr/0093-windows-tunnel-delegation.ja.md)を参照してください。
+
+通知のprivate reviewとWindowsの固定stdio接続も、要求や転送データを読む前に
+通常ログインと同じcontroller準備待ちを使います。WSLプロセスの起動だけでは接続口の
+準備完了を証明できません。接続不能時の読み取り専用pingだけを再試行し、拒否や実際の
+操作は再送しません。親の中止は起動したprivateな子プロセスだけを終了します。

@@ -28,11 +28,11 @@ def package(output):
     ET.SubElement(root, tag("Dependencies"))
     assets = ET.SubElement(root, tag("Assets"))
     ET.SubElement(assets, tag("Asset"), Type="Microsoft.VisualStudio.Code.Manifest", Path="extension/package.json", Addressable="true")
-    content_types = '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="md" ContentType="text/markdown"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>'
+    content_types = '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="png" ContentType="image/png"/><Default Extension="md" ContentType="text/markdown"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>'
     with zipfile.ZipFile(output, "x", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("extension.vsixmanifest", ET.tostring(root, encoding="utf-8", xml_declaration=True))
         archive.writestr("[Content_Types].xml", content_types)
-        for name in ("package.json", "extension.js", "review.js", "README.md"):
+        for name in ("package.json", "extension.js", "review.js", "review_panel.js", "media/icon.png", "README.md"):
             if name == "README.md":
                 # Repository-relative links do not exist in an installed VSIX.
                 readme = (SOURCE / name).read_text(encoding="utf-8").replace(

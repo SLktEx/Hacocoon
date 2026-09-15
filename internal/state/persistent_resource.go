@@ -236,7 +236,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 			return core.ErrIncompatibleState
 		}
 
-		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting" && (r.State != "planned" || r.EnvironmentInstance == "")) {
+		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting" && ((r.State != "planned" && r.State != "clearing") || r.EnvironmentInstance == "")) {
 			return fmt.Errorf("invalid persistent resource catalog: %w", core.ErrIncompatibleState)
 		}
 	}

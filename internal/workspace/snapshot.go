@@ -130,9 +130,9 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 
 func (s *Service) checkLifecycleIdle(ctx context.Context, name string) error {
 	if store, ok := s.store.(interface {
-		CheckEnvironmentResourceCopyIdle(context.Context, string) error
+		CheckEnvironmentResourcesIdle(context.Context, string) error
 	}); ok {
-		if err := store.CheckEnvironmentResourceCopyIdle(ctx, name); err != nil {
+		if err := store.CheckEnvironmentResourcesIdle(ctx, name); err != nil {
 			return err
 		}
 	}
