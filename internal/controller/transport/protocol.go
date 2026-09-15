@@ -63,6 +63,8 @@ func errorEnvelope(err error) responseEnvelope {
 	var typed *StatusError
 	if errors.As(err, &typed) {
 		status = typed
+	} else if errors.Is(err, ErrInvalidArgument) {
+		status.Code = "invalid_argument"
 	}
 	return responseEnvelope{
 		Version: ProtocolVersion,
