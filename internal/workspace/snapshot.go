@@ -29,7 +29,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 		return err
 	}
 	defer unlock()
-	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+	if err := s.checkLifecycleIdle(ctx, name); err != nil {
 		return err
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)
@@ -49,38 +49,14 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 		return err
 	}
 	defer release()
-	lease, err := s.store.GetWorkspaceLease(ctx, name)
-	if err != nil {
-		return fmt.Errorf("snapshot requires durable ownership: %w", core.ErrRecoveryRequired)
-	}
-	if lease.EnvironmentID != name || !lease.MatchesEnvironment(environment) || lease.Owner == "" || !core.ValidEnvironmentInstanceID(lease.InstanceID) {
-		return core.ErrRecoveryRequired
-	}
-	if environment.PersistentResource != (core.PersistentResourceRef{}) && !core.ValidPersistentResourceRef(environment.PersistentResource) {
-		return core.ErrRecoveryRequired
-	}
-	identities, ok := s.store.(interface {
-		EnvironmentInstance(context.Context, core.Environment) (string, error)
-	})
-	if !ok {
-		return core.ErrUnsupported
-	}
-	instance, err := identities.EnvironmentInstance(ctx, environment)
+	lease, err := s.inspectOwnedEnvironmentLease(ctx, environment)
 	if err != nil {
 		return err
 	}
-	if instance != lease.InstanceID {
-		return core.ErrCapabilityStale
-	}
-	verifier, ok := s.runtime.(interface {
+	instance := lease.InstanceID
+	verifier := s.runtime.(interface {
 		VerifyEnvironmentIdentity(context.Context, string, string) error
 	})
-	if !ok {
-		return core.ErrUnsupported
-	}
-	if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
-		return err
-	}
 	runtime, ok := s.runtime.(interface {
 		InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
 	})
@@ -133,7 +109,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 		return err
 	}
 	if wasRunning {
-		if err := s.checkSnapshotIdle(ctx, name); err != nil {
+		if err := s.checkLifecycleIdle(ctx, name); err != nil {
 			return err
 		}
 		if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
@@ -153,11 +129,21 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	return nil
 }
 
-func (s *Service) checkSnapshotIdle(ctx context.Context, name string) error {
+func (s *Service) checkLifecycleIdle(ctx context.Context, name string) error {
+	if store, ok := s.store.(interface {
+		CheckEnvironmentResourceCopyIdle(context.Context, string) error
+	}); ok {
+		if err := store.CheckEnvironmentResourceCopyIdle(ctx, name); err != nil {
+			return err
+		}
+	}
+
 	if store, ok := s.store.(interface {
 		CheckSnapshotIdle(context.Context, string) error
 	}); ok {
-		return store.CheckSnapshotIdle(ctx, name)
+		if err := store.CheckSnapshotIdle(ctx, name); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -16,7 +16,7 @@ func (s *Service) WithClientAccess(ctx context.Context, name string, expected *c
 		return err
 	}
 	defer unlock()
-	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+	if err := s.checkLifecycleIdle(ctx, name); err != nil {
 		return err
 	}
 	env, err := s.store.GetEnvironment(ctx, name)

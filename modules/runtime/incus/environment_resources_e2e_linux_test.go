@@ -21,7 +21,7 @@ import (
 )
 
 // This exercises ordinary Env creation, two rootfs cache placements and canonical
-// resume/delete. It does not claim selected-path collection or large-repo speed.
+// resume/delete and whole-generation collection/reuse. It does not measure large-repo speed.
 func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	if os.Getenv("HACO_E2E_INCUS_RESUME") != "1" {
 		t.Skip("set HACO_E2E_INCUS_RESUME=1 on an Incus host")
@@ -59,9 +59,20 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	for _, key := range []string{"compiler", "packages"} {
 		configuration.Areas = append(configuration.Areas, cacheapp.Area{Name: key, Path: "/root/.cache/haco-e2e-" + key, Compatibility: "fixture-format-1"})
 	}
-	selector, err := cacheapp.NewSelector(configuration, store, nil)
+	settings := cacheapp.Settings{Path: filepath.Join(root, "cache.json")}
+	initial, err := settings.Read(ctx)
 	must(err)
-	svc.ConfigureEnvironmentResources(resources, selector.Select)
+	initial.Configuration = configuration
+	_, err = settings.Replace(ctx, initial)
+	must(err)
+	svc.ConfigureEnvironmentResources(resources, func(ctx context.Context, request core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error) {
+		selector, err := settings.Select(ctx, store, nil)
+		if err != nil {
+			return nil, err
+		}
+		return selector.Select(ctx, request)
+	})
+	workflow := &cacheapp.Workflow{Settings: settings, Catalog: store, Collector: svc}
 	cleaned, createdOK := false, false
 	defer func() {
 		// Create owns failed-creation cleanup. A name collision is not authority
@@ -113,8 +124,42 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	// Stop-triggered client access must use the same complete resource binding.
 	must(svc.Stop(ctx, name))
 	must(svc.WithClientAccess(ctx, name, nil, true, nil, func(core.Environment, string) error { return nil }))
+	must(svc.Stop(ctx, name))
+	collected, err := workflow.Collect(ctx, name, "")
+	must(err)
+	if len(collected) != 2 || collected[0].State != "published" || collected[1].State != "published" {
+		t.Fatal("ordinary collection incomplete", collected)
+	}
 	must(svc.Delete(ctx, name))
 	cleaned = true
+	p.sources["fixture-next"] = "local:" + image
+	nextName := name + "-next"
+	next, err := svc.Create(ctx, core.EnvironmentSpec{Name: nextName, WorkspacePath: work, Base: "fixture-next", SkipDefaultResource: true})
+	must(err)
+	defer func() {
+		cleanup, stop := context.WithTimeout(context.Background(), 45*time.Second)
+		defer stop()
+		if err := svc.Delete(cleanup, nextName); err != nil && !errors.Is(err, core.ErrNotFound) {
+			t.Errorf("consumer cleanup: %v", err)
+		}
+	}()
+	reused := run("exec", next.RuntimeRef, "--project", r.project, "--", "cat", "/root/.cache/haco-e2e-compiler/probe", "/root/.cache/haco-e2e-packages/probe", "/workspace/probe")
+	if reused != "compiler-datapackage-datakeep-work" {
+		t.Fatal("whole-generation reuse lost contents")
+	}
+	for i, a := range next.Attachments {
+		if a.Origin.Number != 1 || a.Resource == env.Attachments[i].Resource {
+			t.Fatal("consumer did not receive independent generation copy")
+		}
+	}
+	run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "printf changed > /root/.cache/haco-e2e-compiler/probe")
+	must(svc.Delete(ctx, nextName))
+	// Selection reset and exact source cleanup affect only this fixture's sources.
+	for _, a := range next.Attachments {
+		_, err := store.ResetResourceGeneration(ctx, a.Origin, a.Origin.Compatibility)
+		must(err)
+		must(resources.DeleteUnselectedGeneration(ctx, a.Origin.Current))
+	}
 	for _, a := range env.Attachments {
 		if _, err := store.GetPersistentResource(ctx, a.Resource.ID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("child ownership was not released", err)
@@ -125,5 +170,5 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	if string(data) != "keep-work" {
 		t.Fatal("Workspace was not retained")
 	}
-	t.Log("PASS ordinary creation, two writable rootfs areas, exact resume/client resume, native target drift refusal, disposable cleanup and Workspace retention")
+	t.Log("PASS ordinary creation, two writable rootfs areas, exact resume/client resume, native target drift refusal, disposable cleanup, Host settings, stopped collection, data-bearing independent reuse with another Base name, and Workspace retention")
 }

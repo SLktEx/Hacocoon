@@ -58,3 +58,8 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 説明は60桁を基準にインデントを揃えて折り返します。長いコマンド引数の構文と
 コピー可能な実行例の改行改善、補助haco-hostヘルプは残件です。
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
+
+
+## キャッシュ操作
+
+信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用、履歴・クリア・復旧、追加領域を含む転送は未完成です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。

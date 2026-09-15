@@ -30,7 +30,7 @@ func (s *Service) start(ctx context.Context, name string, expected core.Workspac
 		return err
 	}
 	defer unlock()
-	if err := s.checkSnapshotIdle(ctx, name); err != nil {
+	if err := s.checkLifecycleIdle(ctx, name); err != nil {
 		return err
 	}
 	environment, err := s.store.GetEnvironment(ctx, name)

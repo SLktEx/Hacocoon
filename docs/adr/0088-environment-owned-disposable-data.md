@@ -21,7 +21,7 @@ Do not resend runtime deletion after its durable absence receipt.
 Origin receipts do not pin an old source forever. In-flight copy reservations do.
 An unsupported runtime or snapshot aggregate must refuse extra data explicitly
 until it can preserve the complete contract. Linux rootfs/managed-repository placement and bound
-resume are implemented candidates; the Standard selector remains disabled.
+resume are implemented candidates. Host settings now enable selection; see [stopped collection](0090-stopped-cache-collection.md).
 
 ## Rejected alternatives
 
@@ -34,7 +34,7 @@ replaying deletion of a previously absent runtime name can destroy unrelated dat
 Dropping unknown attachments from snapshot/copy/transfer would silently lose data.
 
 This decision implements the ownership part of [cache generations](../design/cache-generations.md).
-Host configuration and stopped-Env collection remain open.
+Host configuration and stopped-Env collection are added by ADR 0090; history/clearing and transfer remain open.
 
 ## Native placement decision
 

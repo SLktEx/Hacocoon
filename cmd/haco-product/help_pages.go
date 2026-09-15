@@ -10,6 +10,11 @@ import (
 type helpPage = cliui.CommandHelp
 
 var helpPages = []helpPage{
+	{Path: "cache", Syntax: "<settings|configure|status|collect>", Message: "cache.help", Example: "haco cache status work"},
+	{Path: "cache settings", Syntax: "[--json]", Message: "cache.settings", Example: "haco cache settings"},
+	{Path: "cache configure", Syntax: "[--json] <file>", Message: "cache.configure", Example: "haco cache configure cache.json"},
+	{Path: "cache status", Syntax: "[--json] <env>", Message: "cache.status", Example: "haco cache status work"},
+	{Path: "cache collect", Syntax: "[--json] <env> [area]", Message: "cache.collect", Example: "haco cache collect work"},
 	{Path: "run", Syntax: "[-i | -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] [--rm] -- <command...>", Message: "run.help", Example: "haco run -it -- bash"},
 	{Path: "env", Syntax: "<command>", Message: "command.env", Example: "haco env list"},
 	{Path: "env list", Syntax: "[--json]", Message: "command.env.list", Example: "haco env list"},

@@ -91,4 +91,4 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 
 ## Cache generation foundation
 
-**Partial:** atomic generation adoption, independent CoW resources, exact Env-owned disposable attachments and Host target selection are implemented components. Production selection is disabled until stopped collection and public configuration/cleanup are connected. Added attachments currently refuse snapshot/copy/transfer instead of dropping data. Existing Workspace/OCI retention is unchanged. See [cache generations](design/cache-generations.md).
+**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Existing-Env enrollment, history/clear/recovery commands and added-data snapshot/copy/transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).

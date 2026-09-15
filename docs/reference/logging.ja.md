@@ -122,3 +122,6 @@ Host setupは固定`stage`、`state`、`reason`と`request_id`、`duration_ms`�
 Hostのユーザー設定のstdout/stderrは上限付き非公開結果として保存し、明示的な
 `haco setup --script-result`だけで表示します。生の出力や結果objectを構造化log、
 progress stage、auditに記録しません。
+
+
+キャッシュ管理は領域別の結果と診断を分けます。失敗を報告する境界ではcomponentを`cache`とし、固定した操作名と分類済み失敗コードだけを記録します。設定文書、パス、基盤の応答、生のエラーはログへ出しません。

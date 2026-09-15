@@ -59,3 +59,8 @@ or Incus access. Invalid arguments retain stderr and nonzero exits. Explanations
 wrap with aligned indentation at 60 columns. Wrapping long command syntax and
 copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
+
+
+## Cache commands
+
+On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/recovery and additional-data transfer remain incomplete. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).

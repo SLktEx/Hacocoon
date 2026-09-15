@@ -133,6 +133,13 @@ func generationReferences(data environmentFileState, id string) bool {
 }
 
 func validateResourceGenerations(data environmentFileState) error {
+	for _, r := range data.PersistentResources {
+		if r.PublicationOrigin != (core.ResourceGeneration{}) || r.Producer != (core.PersistentResourceRef{}) {
+			if !core.ValidResourceGeneration(r.PublicationOrigin) || !core.ValidEnvironmentResourceRef(r.Producer) || !core.ValidGenerationResource(r.Ref()) || !r.SourceOnly || r.EnvironmentInstance != "" || r.WorkspaceID != "" || r.Kind != r.PublicationOrigin.Kind || r.RestoreSource != "" || (r.CopySource != (core.PersistentResourceRef{}) && r.CopySource != r.Producer) {
+				return core.ErrIncompatibleState
+			}
+		}
+	}
 	if len(data.ResourceGenerations) != 0 && (data.Version < 15 || data.Version > environmentStateVersion) {
 		return core.ErrIncompatibleState
 	}

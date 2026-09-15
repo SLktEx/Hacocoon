@@ -81,7 +81,7 @@ func TestGenerationPublicationConcurrentProducerKeepsOneWholeSource(t *testing.T
 			b.failDelete = failDelete
 			ready := make(chan struct{}, 2)
 			release := make(chan struct{})
-			results := make([]persistentresource.GenerationPublication, 2)
+			results := make([]core.ResourceGenerationPublication, 2)
 			errs := make([]error, 2)
 			var wg sync.WaitGroup
 			for i := range results {

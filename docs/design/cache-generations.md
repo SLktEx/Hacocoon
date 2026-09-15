@@ -2,13 +2,11 @@
 
 [日本語](cache-generations.ja.md) | English
 
-Status: **partial**. Atomic selection of complete managed sources and detached
-Incus cache-volume copying are implemented on this development candidate.
-Env-owned disposable resource reservation, materialization and cleanup now share
-canonical lifecycle transitions. Linux Incus rootfs and managed-repository placement
-with bound resume are implemented candidates. Host configuration is not enabled. Selected-path collection, existing-Env enrollment, history, clearing and real
-cache-workflow acceptance remain planned. There is no public cache command yet.
-See [remaining work](../status/architecture-and-roadmap.md).
+Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
+collection and independent generation reuse are implemented in this candidate.
+Use the public commands below on the trusted Host. Existing-Env enrollment,
+history/clear/recovery commands and added-data snapshot/transfer remain incomplete.
+Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
 
@@ -22,7 +20,7 @@ Host does not build the cache or execute guest-origin data as trusted tooling.
 Unconfigured files, source code, irreplaceable outputs and credentials are outside
 the selection. Placement supports explicit HOME and managed-repository targets,
 including individual collection members, and rejects links or existing content.
-Public selection and collection boundaries remain incomplete.
+Only creation-time enrollment is supported; existing content is not adopted.
 
 ## Atomic publication contract
 
@@ -86,8 +84,8 @@ again. A missing runtime reference alone is not evidence of absence.
 Incus creation with a durable receipt can place these areas in the rootfs or a managed Workspace.
 Restore/archive and snapshot planning still refuse them; snapshot refusal precedes
 quiescing so an unsupported capture does not stop the producer. Existing Envs
-without added areas keep their snapshot/copy/transfer paths. The Standard selector
-is not registered in production and there is no public cache operation.
+without added areas keep their snapshot/copy/transfer paths. The Standard selector reads the trusted Host settings for each new Environment.
+Unconfigured installations select no areas.
 
 ## Rootfs placement and resume
 
@@ -145,28 +143,25 @@ link. It does not establish Host configuration, collection or large-repo perform
 
 The Incus adapter recognizes `build-cache` volumes through the existing owned
 custom-volume create, verify, copy and delete mechanisms. Copies require Btrfs,
-fresh ownership, matching resource kinds and detached sources. Source config is
-not copied wholesale. Attached cache sources are refused; they cannot use trusted
-Host OCI pause/resume or OCI attachment/maintenance/import paths.
+fresh ownership and matching resource kinds. Ordinary copies require detached
+sources. Collection has a separate canonical reservation for one exact stopped
+Env-owned child; Incus checks its sole consumer, explicit instance identity, data
+device, stopped state and disabled autostart. Source config is not copied wholesale.
+Cache collection never uses trusted Host OCI pause/resume or OCI maintenance.
 
-Catalog format 15 introduced generation selections; format 16 adds Env-owned
-children and runtime-absence receipts. Supported earlier formats remain
-readable without writes during observation; the first mutation upgrades the
-catalog. Format 9 remains unsupported. Generation fields under earlier formats,
-invalid ownership or incomplete selected resources fail closed. Format-16
-attachment fields in older catalogs, orphan children, conflicting identities,
-nonmatching Env/lease data and invalid creation/absence states also fail closed. Older binaries
-that do not understand format 16 must refuse it; do not replace an installed
-controller merely to run these tests.
+The current catalog validates generation ownership, immutable publication origin,
+producer receipts, selected ready sources and complete Env/lease bindings. In-flight
+copy reservations survive process exit and block parent start, client access and
+deletion. Origin receipts alone do not pin a deleted producer. Old-version
+compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-The foundation does not yet define the public Host configuration format, map
-user-facing repository selections to targets, enroll pre-existing Envs,
-collect stopped writers, expose origin/history or clear selected/all Env copies.
-Those changes must extend canonical lifecycle ownership rather than assemble
-independent resource/lease operations in orchestration code. Env-local cache copies
-must be disposable while contracted Workspace and OCI data remain retained.
+Existing-Env enrollment, user-facing history/clearing/recovery and added-data
+snapshot/copy/transfer remain incomplete. Unknown copy outcomes retain ownership;
+there is no automatic replay or inference of success from an existing destination.
+These remaining operations must use canonical lifecycle ownership. Workspace and
+OCI data remain retained when an enrolled Environment is deleted.
 
 Real Incus/Btrfs acceptance must measure shared extents and independent mutation,
 then the complete ordinary-Env flow across compatible different Bases. Large-repo
@@ -181,12 +176,11 @@ Small synthetic Incus/Btrfs provider measurements are recorded in [acceptance ev
 
 ## Host target and compatibility selection
 
-Status: **implemented Standard component; not enabled in production**. The cache
+Status: **implemented Standard component; enabled when Host settings select areas**. The cache
 selector accepts a trusted Host configuration of up to 32 named areas. Its bounded
 JSON decoder rejects duplicate keys (including case aliases), unknown fields,
-trailing documents, invalid UTF-8 and documents over 64 KiB. Parsing does not choose
-a configuration file or authorize edits. The public settings command and automatic
-registration remain open with collection and complete added-data transfer support.
+trailing documents, invalid UTF-8 and documents over 64 KiB. Parsing does not authorize edits. The public settings API is registered only on
+the existing trusted management transport. Complete added-data transfer remains open.
 
 An area specifies `name`, `path`, `compatibility`, optional `repository`, `scope`
 and `group`. Without `repository`, `path` is an absolute path inside the Env.
@@ -215,3 +209,45 @@ source entries but returns no partial selection and never creates provider data.
 The native rootfs fixture now uses this Standard selector. That does not establish
 stopped-writer publication, public configuration, data-bearing cross-Base reuse,
 large-repository performance or new Windows acceptance.
+
+## Configure and collect
+
+Run on the trusted `haco-host` or Linux/WSL Physical Host. Save `cache.json`:
+
+```json
+{"areas":[{"name":"go-build","path":"/root/.cache/go-build","compatibility":"go-linux-amd64"}]}
+```
+
+Select a compatibility value matching your toolchain/platform. The default scope
+is one Workspace. Use `scope: "shared"` and an explicit `group` only for data safe
+to share across the intended Workspaces. `repository` selects a managed repository
+and makes `path` relative to that repository. Paths do not expand shell variables.
+
+```sh
+haco cache configure cache.json
+haco cache settings
+haco env create --workspace managed:work development
+# Build normally inside development, then stop it.
+haco env stop development
+haco cache status development
+haco cache collect development
+# Or collect one named area:
+haco cache collect development go-build
+```
+
+New compatible Environments receive independent CoW copies. The producer keeps its
+local data. Another producer based on an older generation is skipped; files are
+never automatically merged. `--json` before the target preserves named result
+states for scripts. Plain output uses area names, paths and generation numbers.
+
+Settings are persisted by the trusted controller under its private state directory,
+using revision comparison, an exclusive file lock and an atomic, synced replacement.
+They are re-read for new Environments; no restart is needed. Existing Environments
+keep their original placements and data. An empty `areas` array disables enrollment
+for new Environments without deleting existing data. Never select credentials or
+irreplaceable files as cache contents.
+
+If collection reports `recovery-required`, source and candidate stay owned and the
+producer cannot resume or be deleted through Hacocoon. Keep it stopped. Complete
+self-service recovery is still pending; retry cannot convert an unknown native copy
+into success. See [the lifecycle decision](../adr/0090-stopped-cache-collection.md).

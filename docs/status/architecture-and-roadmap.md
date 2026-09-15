@@ -194,3 +194,6 @@ streams in main's split lifecycle files. It preserves shared cleanup outcomes
 and requires current run identity rather than adding legacy migration. DNS modes
 and client-side forwarding remain independent work. Local regression and new
 native acceptance are recorded separately; large-repository performance remains deferred.
+
+
+The M4 public cache candidate adds Host settings, creation-time enrollment, stopped collection and named status output. Next: complete history/clearing/recovery and added-data transfer, then installed ordinary workflow acceptance. Large-repository measurements follow usable flows and are not claimed by small fixtures.

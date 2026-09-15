@@ -86,4 +86,4 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 ## キャッシュ世代管理の共通処理
 
-**部分実装:** 原子的な世代採用、独立CoW領域、Env所有の使い捨てデータ、Hostの対象選択は部品として実装済みです。停止中収集と公開設定・削除操作を接続するまで通常の選択は無効です。追加データがあるsnapshot/copy/transferはデータを落とさず拒否し、既存Workspace・OCI保持を維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
+**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。既存Envへの後付け登録、履歴・クリア・復旧コマンド、追加領域を含むsnapshot/copy/transferは未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。

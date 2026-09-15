@@ -283,7 +283,11 @@ func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, sour
 		return err
 	}
 	var resume func(context.Context) error
-	if len(observed.UsedBy) != 0 {
+	if source.EnvironmentInstance != "" {
+		if err := b.verifyEnvironmentGenerationSource(ctx, source, target, observed); err != nil {
+			return err
+		}
+	} else if len(observed.UsedBy) != 0 {
 		if source.Kind != OCIStoreKind {
 			return core.ErrStorageBusy
 		}
