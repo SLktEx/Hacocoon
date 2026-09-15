@@ -33,6 +33,13 @@ contains choices saved by ordinary approval. Both participate in the same
 matching rules: deny, then require-approval, then allow. Removing a saved choice
 does not remove an administrator restriction. A saved Environment choice binds
 to its creation identity; global choices explicitly use `environment: "*"`.
+
+Inspection, successful save and recovery guidance use the shared English/Japanese
+presentation. `--json`, Policy values and revision checks are language-independent.
+Unconfirmed saves direct you to inspect current settings before retrying; an
+edited file remains available on failure. A successful save does not revoke
+existing connections. Display failure never retries an edit or grants permission.
+
 Git rules keep repository, remote, ref and fast-forward update kind fixed.
 See [Policy semantics](../design/policy-and-capability-foundation.md) and
 [Git workflow](../guides/git-workflow.md).

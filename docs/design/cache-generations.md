@@ -4,8 +4,9 @@
 
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented on main.
-Use the public commands below on the trusted Host. Existing-Env enrollment,
-unknown-copy recovery remain incomplete.
+Use the public commands below on the trusted Host. Existing-Env enrollment and
+unknown native-copy cancellation remain incomplete. Named and --all source
+history, reviewed clearing and positive-receipt recovery are implemented.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -156,8 +157,9 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Existing-Env enrollment, unknown-copy recovery and orphan-source
-operations remain incomplete. Unknown copy outcomes retain ownership;
+Existing-Env enrollment and unknown native-copy cancellation remain incomplete.
+Retained-source history/clear and recovery of positively completed copies work
+with or without a remaining producer. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
 These remaining operations must use canonical lifecycle ownership. Workspace and
 OCI data remain retained when an enrolled Environment is deleted.
@@ -179,7 +181,8 @@ Status: **implemented Standard component; enabled when Host settings select area
 selector accepts a trusted Host configuration of up to 32 named areas. Its bounded
 JSON decoder rejects duplicate keys (including case aliases), unknown fields,
 trailing documents, invalid UTF-8 and documents over 64 KiB. Parsing does not authorize edits. The public settings API is registered only on
-the existing trusted management transport. Complete added-data transfer remains open.
+the existing trusted management transport. Added data is retained by the existing
+snapshot/copy/portable-transfer implementation; installed acceptance is separate.
 
 An area specifies `name`, `path`, `compatibility`, optional `repository`, `scope`
 and `group`. Without `repository`, `path` is an absolute path inside the Env.
@@ -317,7 +320,7 @@ space recovery. Unknown copies are retained, never canceled by destination guess
 
 ## Empty an Environment's cache
 
-Implemented candidate: `haco cache empty --preview <env> [<area>]` displays enrolled
+Implemented on main: `haco cache empty --preview <env> [<area>]` displays enrolled
 cache directories, their maintenance state and retained snapshot count. Stop the
 Env, then use `haco cache empty <env> [<area>]` to confirm and empty those contents.
 `--all` selects all enrolled Envs; `--yes` skips the prompt only after successful

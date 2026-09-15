@@ -211,3 +211,12 @@ Incus journey passed; this checkpoint does not complete M5 or publish a release.
 The catalog lifecycle-lock correction is a v0.68 usability fix, not a new checkpoint or release. Person-dependent login and GUI acceptance is explicitly post-release and does not gate integration of implemented work.
 
 Sequential multi-head fetch is another v0.68 usability correction: it removes a cumulative rejection without changing the per-pack or per-ref authority limits. It does not establish large-repository performance acceptance.
+
+Setup outcome localization is a v0.68 daily-use correction with no checkpoint
+advance or release. Human login and notification/editor decisions remain
+post-release acceptance, not a gate for merging implemented work with green CI.
+
+Main e4d99700 (#699) integrates the retained-data, Git and lifecycle follow-ups within v0.68 after all five exact-head workflows passed. This is main integration, not publication or completed person-dependent acceptance.
+
+Network and configuration result guidance share the v0.68 daily-use checkpoint. Localization does
+not change connection authority, create a new checkpoint or publish a release.

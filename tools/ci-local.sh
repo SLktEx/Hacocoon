@@ -200,6 +200,7 @@ run_test() {
     python3 tools/test_evacuation_files.py
     python3 tools/test_evacuation_compare.py
   python3 tools/test_cleanup_ci_base_asset.py
+  python3 tools/test_forward_application.py
   section "test"
   go test -count=1 -shuffle=615 ./...
   go vet ./...

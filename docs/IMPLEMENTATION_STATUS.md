@@ -65,42 +65,47 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
-Main `2f421006` (#687) integrates daily bilingual/vertical help, Host language
-handoff, repeated-failure grouping, installer final results, Git/GUI, Workspace
-composition/input, interactive run, DNS/forwarding, cache/Packer and saved-data
-work. `ee8bf7fb` (#688) adds reclamation failure diagnosis. Each exact PR head passed
-all five CI workflows. Detailed [language coverage](reference/cli-language.md)
-remains partial; original tool errors and structured values are not translated.
+Main `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
+#689–#693 and #696–#698 on top of #687/#688. Restored-tree comparison,
+Japanese reclamation results, bounded SSH failure classification, latest-ready
+restore by source environment name, incremental Git history reuse and sequential
+multi-head fetch are on main. Catalog-scoped lifecycle locks and the virtual-disk
+observation lifetime correction are also integrated; see [ADR 0105](adr/0105-catalog-lifecycle-locks.md)
+and [ADR 0103](adr/0103-virtual-disk-observation-lifetime.md).
 
-The normal Windows journey has passed installed SSH/editor/forwarding, retained
-Workspace/OCI and measured public reclaim. Native notification refusal/subscription
-also passed, but fresh human notification/VS Code answers and visible layout remain
-unperformed. These results do not erase the earlier unexplained Windows failures.
+The exact #699 head `51ba4f24` passed all five workflows. Packaged Windows
+installation, SSH/editor/forwarding, retained Workspace/OCI/snapshot restoration,
+public reclamation and native notification ownership/refusal routes passed.
+Actual allocation recovered 2,840,592,384 bytes while virtual capacity remained
+unchanged. This does not erase earlier Windows failures or resolve the dedicated
+local enrollment observation; [acceptance evidence](status/acceptance-evidence.md)
+preserves their scopes. The small restored-tree comparison is not all-current-data
+or huge-repository acceptance.
 
-**Implemented development candidate:** [#690](https://github.com/SLktEx/Hacocoon/pull/690)
-includes #689's read-only restored-tree manifests/comparison and Japanese reclamation
-results/review. Comparison covers contents, mode, numeric owners, internal hardlinks
-and regular-file/directory xattrs. A small retained tree restored across WSLs matched;
-whole-current-data and authenticated development are not proven. The same installed
-candidate passed Japanese ordinary entry/help/read-only status. See
-[comparison](guides/data-evacuation.md#compare-a-restored-tree) and
-[language evidence](status/acceptance-evidence.md#reclamation-language).
+[#700](https://github.com/SLktEx/Hacocoon/pull/700) adds shared English/Japanese
+Host/project setup outcomes and next actions, preserving raw script output,
+explicit replay, diagnostic values and vertical help. It is implemented on its
+development branch; local full checks and normal package generation passed.
+[Overall language coverage](reference/cli-language.md) remains partial.
 
-Candidate, main and released artifacts remain distinct. There is no new release.
-Person-dependent login and GUI acceptance will be performed after release and do
-not block integration of implemented features into main; unperformed checks remain
-unperformed. Known CI failures still require resolution before merging.
-Performance/additional strict validation and excluded old-version reconstruction
-are separated from required current-data retention in the
+Person-dependent login, notification clicks and fresh VS Code answers are
+post-release checks and do not block main integration of implemented work with
+successful CI. Candidate, main and published artifacts remain distinct; no new
+release was created. Performance/additional strict validation and excluded
+old-version reconstruction are separated from current data retention in the
 [M0–M5 roadmap](status/architecture-and-roadmap.md).
 
-Development follow-up: `snapshot restore --latest <source-env> [new-env]` selects
-by persisted capture time and reuses canonical restore. Unknown/tied times need an
-explicit ID; failed restoration never selects a different save. Local and native
-acceptance remain separately recorded.
+The network-guidance development follow-up adds English/Japanese registration,
+revocation, rule and listener outcomes with unchanged machine results and
+permission semantics. This completes another M1/M3 presentation slice; installed
+acceptance and overall CLI language coverage remain separately tracked.
 
-Development follow-up: reclamation now closes an attached virtual-disk observation
-handle before waiting to reopen the same pinned path. File/parent ownership pins
-remain held; installed acceptance is pending. See [the lifetime decision](adr/0103-virtual-disk-observation-lifetime.md).
+Configuration inspection/save and recovery guidance also use shared bilingual
+presentation on the development branch. Revision-bound edits, Policy values and
+JSON are unchanged; display failure never retries an edit.
 
-Lifecycle operations now use mandatory catalog-scoped locks rather than shared temporary names. This fixes the ownership collision observed during installed Env creation; see [ADR 0105](adr/0105-catalog-lifecycle-locks.md). Installed acceptance of this correction is pending.
+The combined main candidate [#701](https://github.com/SLktEx/Hacocoon/pull/701)
+includes #700 setup guidance, network/configuration guidance and a correction
+to the installed TCP fixture's readiness timing. Local tests pass; its final
+installed CI is pending. #700's two distinct Windows failures remain in
+[acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).
