@@ -133,6 +133,9 @@ func controllerError(err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
+	if errors.Is(err, control.ErrInvalidArgument) {
+		return fmt.Errorf("invalid controller argument: %v: %w", err, core.ErrInvalidArgument)
+	}
 	if errors.Is(err, control.ErrUnavailable) {
 		return fmt.Errorf("controller unavailable: %v: %w", err, core.ErrRuntimeUnavailable)
 	}

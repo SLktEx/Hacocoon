@@ -31,6 +31,9 @@ func UnixDialer(path string) Dialer {
 		var dialer net.Dialer
 		conn, err := dialer.DialContext(ctx, "unix", path)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			return nil, fmt.Errorf("dial Hacocoon control socket %q: %v: %w", path, err, ErrUnavailable)
 		}
 		return conn, nil

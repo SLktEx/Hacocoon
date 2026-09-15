@@ -10,7 +10,8 @@ Hacocoon は `github.com/SLktEx/Hacocoon/pkg/clientadapter` を通じて、clien
 
 | Operation | 役割 |
 | --- | --- |
-| `NewLocal` | local Hacocoon Hostへアダプターを開く |
+| `NewController` / `NewControllerAt` | 設定済み／明示した controller socket を通してライフサイクル・接続を操作する |
+| `NewLocal` | Physical Host のローカルサービスと対話イベント reader を初期化する |
 | `Ensure` | Environment/Workspace/access-modeが完全一致すれば再利用し、それ以外は新規作成 |
 | `Status` | client-safeなEnvironment 状態を取得 |
 | `Connections` | Hacocoon/runtime 状態から現在のクライアント接続を照合・調整 |
@@ -131,6 +132,15 @@ minimization、再開 cursor、Browser Notification mappingは [`INTERACTION_EVE
 ## Public compatibility boundary
 
 `pkg/clientadapter` のexported signatureはpackage-owned DTOと公開 error sentinelだけを使い、`internal/core` typeを公開しません。provider/runtimeやIDE固有詳細はアダプター境界の内側に残します。
+
+信頼済み `haco-host` 内を含む通常のクライアントは、controller 経由の constructor を使います。
+`NewLocal` はローカルサービスの初期化に Physical Host の権限を必要とします。
+`InteractionBatch` は `NewLocal` で利用できます。controller 経由の constructor が現在提供するのは、
+ライフサイクルと接続の操作です。
+
+明示した controller endpoint が空なら `ErrInvalidArgument` を返します。呼び出し側の中断と
+期限切れは、それぞれ `context.Canceled` と `context.DeadlineExceeded` を `errors.Is` で
+判別できます。endpoint の不在や接続拒否は `ErrUnavailable` を返します。
 
 pre-1.0のためbreaking changeはまだあり得ますが、クライアント固有branchingはHacocoon Coreではなくクライアントアダプター側へ置きます。
 

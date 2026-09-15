@@ -10,7 +10,8 @@ The package is a **client integration boundary**, not a new UI and not an author
 
 | Operation | Purpose |
 | --- | --- |
-| `NewLocal` | Open the adapter against the local Hacocoon Host |
+| `NewController` / `NewControllerAt` | Open lifecycle and connection operations through the configured / explicit controller socket |
+| `NewLocal` | Initialize local composition and an interaction reader on the Physical Host |
 | `Ensure` | Reuse an exact Environment/Workspace/access-mode match or create it |
 | `Status` | Inspect client-safe Environment state |
 | `Connections` | Reconcile current client connections from Hacocoon/runtime state |
@@ -132,6 +133,16 @@ See [`INTERACTION_EVENTS.md`](interaction-events.md) for event minimization, res
 ## Public compatibility boundary
 
 `pkg/clientadapter` exported signatures use package-owned DTOs and public error sentinels rather than `internal/core` types. Provider/runtime and IDE-specific details remain implementation details behind the adapter boundary.
+
+Ordinary clients, including those inside trusted `haco-host`, use the controller
+constructors. `NewLocal` requires Physical Host authority to initialize local
+services. `InteractionBatch` is available from `NewLocal`; the controller
+constructors currently expose only lifecycle and connection operations.
+
+An empty explicit controller endpoint returns `ErrInvalidArgument`. Caller
+cancellation and deadline expiry preserve `context.Canceled` and
+`context.DeadlineExceeded` for `errors.Is`; a missing or refused endpoint returns
+`ErrUnavailable`.
 
 This is a pre-1.0 contract. Breaking changes are still possible, but client-specific branching should be added in the client adapter, not Hacocoon Core.
 
