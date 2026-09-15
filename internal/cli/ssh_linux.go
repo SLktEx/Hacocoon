@@ -178,7 +178,10 @@ func setupDesktopSSH(args []string, launch string) int {
 		return dailyFailure(os.Stderr, "open", "ssh_connection", name, err)
 	}
 	fmt.Fprintln(os.Stderr, "[succeeded] ssh_connection")
-	fmt.Fprintln(os.Stdout, "SSH ready:", alias)
+	if _, err := fmt.Fprintln(os.Stdout, "SSH ready:", alias); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.write_result"))
+		return 1
+	}
 	if launch == "" {
 		return 0
 	}
