@@ -42,7 +42,7 @@ type Result struct {
 type environmentLifecycle interface {
 	Create(context.Context, core.EnvironmentSpec) (core.Environment, error)
 	Exec(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	Delete(context.Context, string) error
+	DeleteRun(context.Context, string, string) error
 }
 
 type ephemeralRunStore interface {
@@ -89,7 +89,7 @@ func (s *Service) Run(ctx context.Context, spec Spec) (Result, error) {
 	if len(spec.Argv) == 0 {
 		return Result{}, core.ErrInvalidArgument
 	}
-	return s.run(ctx, spec, core.PersistentResourceRef{}, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+	return s.run(ctx, spec, core.PersistentResourceRef{}, func(ctx context.Context, environment core.Environment, _ string) (core.ExecutionResult, error) {
 		return s.environments.Exec(ctx, environment.Name, core.ExecutionRequest{WorkingDirectory: "/workspace", Argv: append([]string(nil), spec.Argv...)})
 	})
 }
@@ -107,7 +107,7 @@ func (s *Service) MaintainResource(ctx context.Context, resource core.Persistent
 	}
 	// An explicit Store already bypasses default provisioning. Combining it with
 	// SkipDefaultResource would contradict the canonical create contract.
-	return s.run(ctx, Spec{}, resource, func(ctx context.Context, environment core.Environment) (core.ExecutionResult, error) {
+	return s.run(ctx, Spec{}, resource, func(ctx context.Context, environment core.Environment, _ string) (core.ExecutionResult, error) {
 		if environment.PersistentResource != resource {
 			return core.ExecutionResult{}, core.ErrCapabilityStale
 		}
@@ -115,7 +115,7 @@ func (s *Service) MaintainResource(ctx context.Context, resource core.Persistent
 	})
 }
 
-func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentResourceRef, operation func(context.Context, core.Environment) (core.ExecutionResult, error)) (Result, error) {
+func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentResourceRef, operation func(context.Context, core.Environment, string) (core.ExecutionResult, error)) (Result, error) {
 	if s == nil || s.environments == nil || operation == nil {
 		return Result{}, core.ErrInvalidArgument
 	}
@@ -142,7 +142,11 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 		}
 		temporary = &work
 	}
-	var marker core.EphemeralRun
+	instance, err := core.NewEnvironmentInstanceID()
+	if err != nil {
+		return Result{}, err
+	}
+	marker := core.EphemeralRun{InstanceID: instance, TemporaryWorkspace: temporary, EnvironmentID: name, State: core.EphemeralRunCreating, CreatedAt: s.now().UTC()}
 	var ownership runOwnershipLock
 	if s.recoveryEnabled() {
 		var acquired bool
@@ -154,18 +158,13 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 			return Result{Environment: name}, fmt.Errorf("ephemeral run identity %q is already owned: %w", name, core.ErrAlreadyExists)
 		}
 		defer func() { _ = ownership.Release() }()
-		marker = core.EphemeralRun{
-			TemporaryWorkspace: temporary,
-			EnvironmentID:      name,
-			State:              core.EphemeralRunCreating,
-			CreatedAt:          s.now().UTC(),
-		}
 		if err := s.runs.PutEphemeralRun(ctx, marker); err != nil {
 			return Result{Environment: name}, fmt.Errorf("persist ephemeral run marker %q: %w", name, err)
 		}
 	}
 
 	environment, err := s.environments.Create(ctx, core.EnvironmentSpec{
+		EphemeralInstance:   instance,
 		PersistentResource:  resource.ID,
 		ExpectedResource:    resource,
 		TemporaryWorkspace:  temporary,
@@ -206,7 +205,7 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 	}
 
 	result := Result{Environment: environment.Name}
-	execution, execErr := operation(ctx, environment)
+	execution, execErr := operation(ctx, environment, instance)
 	_, stdoutMarker, stdoutMarkerBytes := host.DecodeCapturedOutput(execution.Stdout)
 	_, stderrMarker, stderrMarkerBytes := host.DecodeCapturedOutput(execution.Stderr)
 	result.Execution = ExecutionResult{

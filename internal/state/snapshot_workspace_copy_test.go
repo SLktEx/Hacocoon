@@ -70,7 +70,7 @@ func TestSnapshotWorkspaceCopyDeleteRace(t *testing.T) {
 	}
 }
 func TestSnapshotWorkspaceCopySchemaPreservation(t *testing.T) {
-	for _, version := range []int{12, 13} {
+	for _, version := range []int{12, environmentStateVersion} {
 		s, saved := readyWorkspaceCopySnapshot(t)
 		ctx := context.Background()
 		owner := strings.Repeat("d", 32)

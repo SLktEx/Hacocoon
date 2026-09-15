@@ -157,6 +157,9 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 	if err := registerRun(server, runner); err != nil {
 		return err
 	}
+	if err := registerRunProcess(server, runner); err != nil {
+		return err
+	}
 	if err := server.RegisterStream(MethodCapabilityRequest, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {
 		var request CapabilityRequestPayload
 		if err := json.Unmarshal(payload, &request); err != nil || strings.TrimSpace(request.Capability) == "" || strings.TrimSpace(request.Action) == "" {

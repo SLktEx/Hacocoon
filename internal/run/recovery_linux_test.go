@@ -48,7 +48,7 @@ func TestOwnershipLockReleasedAfterSIGKILLAllowsRecovery(t *testing.T) {
 		t.Fatalf("helper did not acquire lock: text=%q err=%v", scanner.Text(), scanner.Err())
 	}
 
-	run := core.EphemeralRun{EnvironmentID: environmentID, State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+	run := core.EphemeralRun{InstanceID: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EnvironmentID: environmentID, State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
 	store := newFakeRunStore(run)
 	env := &fakeEnvironments{}
 	service := NewWithRecovery(env, store, lockDir)
@@ -159,10 +159,19 @@ func TestSIGTERMServiceRunHelper(t *testing.T) {
 
 type signalCleanupEnvironment struct {
 	cleanupPath string
+	instance    string
 }
 
-func (*signalCleanupEnvironment) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+func (e *signalCleanupEnvironment) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
+	e.instance = spec.EphemeralInstance
 	return core.Environment{Name: spec.Name}, nil
+}
+
+func (e *signalCleanupEnvironment) DeleteRun(ctx context.Context, name, instance string) error {
+	if instance != e.instance {
+		return core.ErrCapabilityStale
+	}
+	return e.Delete(ctx, name)
 }
 
 func (*signalCleanupEnvironment) Exec(ctx context.Context, _ string, _ core.ExecutionRequest) (core.ExecutionResult, error) {

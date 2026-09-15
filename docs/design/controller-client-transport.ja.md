@@ -328,3 +328,10 @@ Windows 操作権限も与えません。[対象識別の取得](storage-reclama
 ## Host setupの観測
 
 `system.setup.progress`は既存の特権管理socketだけで利用する、上限付きJSONイベントstreamです。`system.setup`と一つの排他を共有し、同じserviceを呼びます。固定stage/state/reason、所要時間、controller生成の相関IDを返します。完了には最終frameを要求し、EOFを成功とみなしません。CLIは別の変更要求へfallbackしません。接続断でも時間制限付き処理が戻るまでserver側のlifecycle所有権を維持します。guest endpointや新たな管理権限は追加しません。[setup診断](trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。
+
+## 一時実行の双方向転送
+
+`run.process`は上限付きのstdin/stdout/stderr、入力終了・受信可能量、共通cleanup後の結果を転送します。
+接続切断時は中断し、結果や通信完了が確認できなければ不明として残します。既存の端末サイズ制御と
+providerの任意の実行契約を使い、clientにIncus管理権限を渡しません。[一時実行](temporary-execution.ja.md)と
+[ADR 0085](../adr/0085-bounded-process-streams.md)を参照してください。

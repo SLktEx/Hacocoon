@@ -81,13 +81,13 @@ func TestTemporaryResourceRequiresReviewedOwnerAndRetainsStore(t *testing.T) {
 				t.Fatal(err)
 			}
 			if mode != "missing-run" {
-				if err := store.PutEphemeralRun(ctx, core.EphemeralRun{EnvironmentID: "maintenance", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}); err != nil {
+				if err := store.PutEphemeralRun(ctx, core.EphemeralRun{EnvironmentID: "maintenance", InstanceID: "env-cccccccccccccccccccccccccccccccc", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}); err != nil {
 					t.Fatal(err)
 				}
 			}
 			runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "haco-maintenance"}}
 			service := New(runtime, store)
-			spec := core.EnvironmentSpec{Name: "maintenance", TemporaryWorkspace: &work, PersistentResource: resource.ID, ExpectedResource: resource.Ref()}
+			spec := core.EnvironmentSpec{Name: "maintenance", EphemeralInstance: "env-cccccccccccccccccccccccccccccccc", TemporaryWorkspace: &work, PersistentResource: resource.ID, ExpectedResource: resource.Ref()}
 			if mode == "missing-owner" {
 				spec.ExpectedResource = core.PersistentResourceRef{}
 			}

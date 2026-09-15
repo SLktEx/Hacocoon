@@ -13,19 +13,10 @@ func (s *Service) ConfigureTemporaryWorkspace(cleanup func(context.Context, core
 }
 
 func (s *Service) cleanupRun(ctx context.Context, marker core.EphemeralRun) error {
-	var err error
-	if marker.TemporaryWorkspace != nil {
-		owner, ok := s.environments.(interface {
-			DeleteTemporary(context.Context, string, core.Workspace) error
-		})
-		if !ok || !core.ValidTemporaryWorkspace(*marker.TemporaryWorkspace) {
-			return core.ErrRecoveryRequired
-		}
-		err = owner.DeleteTemporary(ctx, marker.EnvironmentID, *marker.TemporaryWorkspace)
-	} else {
-		err = s.environments.Delete(ctx, marker.EnvironmentID)
+	if !core.ValidEnvironmentInstanceID(marker.InstanceID) {
+		return core.ErrRecoveryRequired
 	}
-	if err != nil {
+	if err := s.environments.DeleteRun(ctx, marker.EnvironmentID, marker.InstanceID); err != nil {
 		return err
 	}
 	return s.cleanupTemporary(ctx, marker.TemporaryWorkspace)

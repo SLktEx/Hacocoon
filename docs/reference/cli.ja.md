@@ -28,7 +28,7 @@ help・versionにコントローラーは不要です。
 | デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開し、複数候補は対話で選択 |
 | 手動SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | 永続targetをProxyCommandで使用。`haco stream <target>`はraw stdio接続。[SSH詳細](windows-environment-ssh.md) |
 | プレビュー | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTPプレビュー](../design/development-preview.ja.md)。Env内ループバックポート |
-| 一時実行 | `haco run [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [一時実行](../design/temporary-execution.ja.md)。`--rm`の既定はtrue、TTYなし |
+| 一時実行 | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [一時実行](../design/temporary-execution.ja.md)。`--rm`の既定はtrue。`-i`で入力を逐次転送、`-it`で端末を使用。JSONは通常出力のみ |
 | Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md)。通常のlist/inspectはJSON |
 | Git仲介 | `haco git connect <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git承認](../guides/git-workflow.ja.md) |
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |

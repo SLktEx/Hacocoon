@@ -86,6 +86,7 @@ func TestEnvironmentJSONStoreEphemeralRunRoundTrip(t *testing.T) {
 	store := NewEnvironmentJSONStore(path)
 	ctx := context.Background()
 	run := core.EphemeralRun{
+		InstanceID:    "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		EnvironmentID: "run-deadbeef",
 		State:         core.EphemeralRunActive,
 		CreatedAt:     time.Date(2026, 8, 30, 4, 0, 0, 0, time.UTC),
@@ -116,6 +117,7 @@ func TestEnvironmentJSONStoreMigratesVersion2WhenWritingEphemeralMarker(t *testi
 	}
 	store := NewEnvironmentJSONStore(path)
 	if err := store.PutEphemeralRun(context.Background(), core.EphemeralRun{
+		InstanceID:    "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		EnvironmentID: "run-migrate",
 		State:         core.EphemeralRunCreating,
 		CreatedAt:     time.Date(2026, 8, 30, 4, 1, 0, 0, time.UTC),

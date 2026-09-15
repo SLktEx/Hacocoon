@@ -146,6 +146,9 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		}
 		data.EphemeralRuns[environmentID] = run
 	}
+	if err := validateEphemeralIdentities(*data); err != nil {
+		return err
+	}
 	if err := validatePersistentResourceState(*data); err != nil {
 		return err
 	}
