@@ -131,3 +131,8 @@ Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Host�
 実装済み候補: `workspace import`でLinux/WSLのcheckoutまたはlinked worktreeを独立した管理Workspaceへコピーし、未コミット変更・選択HEAD/index・objectsを保持します。
 HostのGit config/hooksと別worktreeの管理情報は持ち込みません。既存の所有権・アップロード処理を共用し、結果不明時はローカル参照と復旧記録を残します。
 [入力契約](design/workspace-input.ja.md)を参照してください。sparse/partial clone、submodule、Windows直接入力、巨大レポ性能はこの範囲に含めません。
+
+
+通知起動はWSLの実際の読取応答を確認してからCOM受付を登録します。
+clear・準備・初回reviewは既存の起動待ち20秒を共有し、通常の10/8秒と再送禁止を維持します。
+導入済み候補で失効・不正入力拒否とHost通知購読が成功しました。人の回答・見た目の確認は別に残ります。

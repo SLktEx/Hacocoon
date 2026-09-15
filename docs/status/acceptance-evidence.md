@@ -833,3 +833,34 @@ The product implementation was the candidate overlay, not unchanged2e8d905c;
 the dedicated test binary was used, not the installed CLI. No Policy relaxation
 or guest management authority was added. Authenticated Git, human GUI answers,
 installed input and giant-repository measurements were not exercised.
+
+
+## Native review readiness
+
+Matching installation of809bfb33 on Hacocoon-Roadmap-f68a8c6b completed normally.
+The first invocation of the test used PowerShell5.1 and did not run because the
+fixture requires7. With PowerShell7, native-review-matching-2 FAILED review timeout.
+A read-only probe using the same WSL command/environment/private pipes received
+an empty pending list in13.56s; the original first-review limit was10s. This
+establishes a local startup timing failure, not the cause of every past CI failure.
+
+The readiness candidate based on809bfb33 passed focused5.32s and complete main-diff
+lint20.03s. Windows component tests passed0.83s, with native toast display initially
+SKIPPED. Separate enabled native display/history/removal passed2.64s/test2.63s with
+English/Japanese XML; no human click or visual-layout claim. An earlier unquoted
+PowerShell -test.v invocation failed argument parsing before tests; structured
+arguments corrected that harness invocation.
+
+The ordinary Windows helper installer then applied the readiness candidate to
+that dedicated distribution; its Linux809bfb33 protocol implementation was unchanged.
+installed-review-1 PASSED actual COM registration, owned resume/idempotence, foreign
+and mismatched activator refusal, stale/malformed input refusal, Host notification
+controller subscription and listener cleanup. Human toast click/fresh UI decision
+remains explicitly SKIPPED. No Policy/auth changes or answer retries were used.
+The older #678 CI activation timeout and #680 compact_attached results remain
+separate unresolved observations.
+
+
+The final readiness candidate also passed full local26.41s, focused5.11s,
+complete main-diff lint19.06s, race2.30s, CLI4.14s, docs/regressions8.03s and
+workflow1.54s. This does not turn the skipped human response into acceptance.

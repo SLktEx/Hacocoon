@@ -96,19 +96,14 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		return errors.New("cannot own native review session")
 	}
 	defer windows.ReleaseMutex(mutex)
-	stage = "activation"
-	events := make(chan nativeActivation, 32)
-	stop, err := startToastCOM(class, appID, events)
-	if err != nil {
-		return err
-	}
-	defer stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
+	startup, finishStartup := context.WithTimeout(ctx, 20*time.Second)
+	defer finishStartup()
 	surface := &nativeToastSurface{plan: plan, appID: appID}
 	// Expired in-memory nonces are never recovered after a crash or restart.
 	stage = "clear"
-	if err := surface.Clear(ctx); err != nil {
+	if err := surface.Clear(startup); err != nil {
 		return err
 	}
 	defer func() {
@@ -122,11 +117,24 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		return err
 	}
 	defer peer.Close()
+	// WSL may need to start a user session before it can read the first request.
+	// Finish a read-only round trip before publishing a responsive COM server.
+	stage = "peer_ready"
+	if err := peer.Ready(startup); err != nil {
+		return err
+	}
+	stage = "activation"
+	events := make(chan nativeActivation, 32)
+	stop, err := startToastCOM(class, appID, events)
+	if err != nil {
+		return err
+	}
+	defer stop()
 	language, _, _ := windows.NewLazySystemDLL("kernel32.dll").NewProc("GetUserDefaultUILanguage").Call()
 	manager := &desktopreview.ToastManager{Exchange: peer, Surface: surface, Japanese: language&0x3ff == 0x11}
 	if id != "" {
 		stage = "review"
-		opening, done := context.WithTimeout(ctx, 10*time.Second)
+		opening, done := context.WithTimeout(startup, 10*time.Second)
 		err := manager.Review(opening, id)
 		done()
 		if err != nil {
@@ -136,6 +144,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 			return err
 		}
 	}
+	finishStartup()
 	stage = "events"
 	type completion struct {
 		job   *desktopreview.ToastSubmission

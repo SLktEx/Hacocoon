@@ -20,6 +20,7 @@ func TestReviewFailureLogsOnlyFixedClassifications(t *testing.T) {
 		{"review", errors.New("private-page-token raw-controller-output"), "review", "unavailable"},
 		{"clear", context.DeadlineExceeded, "clear", "timeout"},
 		{"peer_start", context.Canceled, "peer_start", "canceled"},
+		{"peer_ready", context.DeadlineExceeded, "peer_ready", "timeout"},
 		{"private-stage-secret", errors.New("private-error-secret"), "unknown", "unavailable"},
 	} {
 		var output bytes.Buffer

@@ -66,3 +66,15 @@ act as a receipt. Existing timeout and cancellation outcomes remain unchanged.
 
 
 COM creation/dispatch diagnostics preserve only the fixed phase and numeric HRESULT. Read-only activation timeout/cancellation has a distinct refusal code, without converting unavailability into a missing request or retrying an answer.
+
+
+## Startup readiness
+
+A private WSL peer completes a read-only list round trip before the helper
+registers an available COM presentation server. One 20-second startup budget
+covers owned-history clearing, peer readiness and initial review, matching the
+existing launch receipt wait. Process creation is not readiness. The ordinary
+10/8-second presentation/read limits remain bounded by the caller; completed
+startup does not grant authority, replay a request or acknowledge queueing.
+COM registration is revoked before child/history cleanup, so duplicate launches
+cannot dispatch into an already exiting presentation loop.

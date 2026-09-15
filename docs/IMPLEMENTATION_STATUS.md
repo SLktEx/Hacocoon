@@ -147,3 +147,10 @@ are excluded. Import shares the existing ownership and upload transitions;
 unknown results retain a local reference and recovery receipts. See
 [the input contract](design/workspace-input.md). Sparse/partial clones, submodules,
 Windows-native input and giant-repository performance remain outside this slice.
+
+
+Notification startup now waits for a real private WSL read response before COM
+registration. Clear/readiness/first review share the existing 20-second launch
+budget; normal 10/8-second operations and no-replay rules remain. Matching installed
+stale/malformed refusal and Host notification subscription passed; human answers
+and visual layout remain separate.

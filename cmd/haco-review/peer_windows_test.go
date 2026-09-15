@@ -25,6 +25,9 @@ func TestNativePrivateReviewChild(t *testing.T) {
 	if json.Unmarshal(scanner.Bytes(), &m) != nil {
 		os.Exit(2)
 	}
+	if os.Getenv("HACO_REVIEW_TEST_DELAY") == "1" {
+		time.Sleep(200 * time.Millisecond)
+	}
 	reply, _ := json.Marshal(desktopreview.Reply{Version: 1, Sequence: m.Sequence, Type: "pending"})
 	fmt.Println(string(reply))
 	// Wait with a blocked read: canceling the parent must close and reap this
@@ -32,6 +35,28 @@ func TestNativePrivateReviewChild(t *testing.T) {
 	for scanner.Scan() {
 	}
 	os.Exit(0)
+}
+
+func TestNativePeerStartupWaitsForReadAndRefusesExpiredReadiness(t *testing.T) {
+	own, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, timeout := range []time.Duration{3 * time.Second, 50 * time.Millisecond} {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		plan := desktopreview.Invocation{File: own, Args: []string{"-test.run=^TestNativePrivateReviewChild$"}, Env: []string{"HACO_REVIEW_TEST_CHILD=1", "HACO_REVIEW_TEST_DELAY=1", "SystemRoot=" + os.Getenv("SystemRoot")}}
+		p, err := startReviewPeer(context.Background(), plan, own)
+		if err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+		err = p.Ready(ctx)
+		cancel()
+		p.Close()
+		if (err == nil) != (timeout > time.Second) {
+			t.Fatal(timeout, err)
+		}
+	}
 }
 func TestNativePrivatePeerCancellationClosesAndReapsChild(t *testing.T) {
 	own, err := os.Executable()
