@@ -100,6 +100,7 @@ func reclaimCommand(ctx context.Context, args []string, in io.Reader, out, diagn
 	}
 	raw, err := invoke(ctx, selected, mode)
 	if err != nil {
+		writeReclaimInvocationFailure(diagnostic, err)
 		fmt.Fprintln(diagnostic, "Windows reclamation could not be confirmed. Inspect haco reclaim --status; do not assume a failed dispatch means no work started.")
 		return 1
 	}
@@ -252,6 +253,9 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 		fmt.Fprintf(out, "Windows: stop requested=%t, compaction complete=%t, resumed=%t\n", o.StopRequested, o.Compaction.Completed, o.Resumed)
 		if o.Failure != "" {
 			fmt.Fprintf(out, "  failure stage: %s\n", o.Failure)
+			if o.Failure == "compact_attached" {
+				_, _ = fmt.Fprintln(out, cliMessage("reclaim.attached"))
+			}
 		}
 		if o.NativeError != 0 {
 			fmt.Fprintf(out, "  native error: %d\n", o.NativeError)

@@ -877,3 +877,32 @@ fixtureは`data-e2e-37c63c45b570dc31`、台帳は
 job `104335936830`はpublic reclaimで`compact_attached`となりました。
 Linux完了・停止要求済み・open1回・Windows圧縮未実施・resume成功で、通知試験はSKIPです。
 ローカル通知成功とこの失敗を分け、このheadはmainへマージしていません。
+
+## main統合と容量回収の診断
+
+[PR #687](https://github.com/SLktEx/Hacocoon/pull/687) のhead
+`21b2452b63cb58d86e9adc3cda546fc1c3214149` で5 workflowがすべて成功し、
+mainへ `2f421006d1ce86edbb5a1deb3da9c17c46a5ef5c` としてsquash mergeした。
+[Windows job 104346984027](https://github.com/SLktEx/Hacocoon/actions/runs/34958740591/job/104346984027)
+では通常入口、SSH/editor/tunnel、容量回収、保持Workspace/OCI/snapshotの復元、
+導入済み通知の拒否・購読・cleanupが成功。割当量は7,864,320,000から5,020,581,888 bytesへ
+減少（2,843,738,112 bytes回収）、仮想容量1 TiBとpool容量128 GiBを維持した。
+人による通知クリック・新規GUI回答は明示的なSKIP。この後続成功だけでは以前の
+`compact_attached` やCOM失敗の原因は確定せず、元の結果を保持する。
+
+既存の専用導入環境（`92ce27a5`）では `ordinary-reclaim-1` が端末開始から36.78秒で
+保存操作の作成前に失敗し、Windowsの保存状態も `none` のままだった。再送や記録削除は
+していない。別の正確なGUIDによるsystemd停止観察では、停止後に共有エラー32が続き、
+81.30秒でディスク解放を観測、108.41秒で同じGUIDの再開が成功した。圧縮試験でも
+CIのディスク使用中の観測を再現した証拠でもない。
+
+診断候補の `detach-local-2` は対象回帰3.31秒、Windowsのwslreclaim 0.77秒、
+reclaimclient 3.83秒、haco-wsl 0.45秒で成功。導入識別の読み取り5.54秒、
+既存登録・所有者・ファイルの照合5.78秒も成功し、操作の作成・trim・停止は行っていない。
+初期の補助プログラム試験は失敗時の標準出力が空という旧assertion 2件で失敗し、
+制限された診断応答に合わせて修正した。`detach-full-1` は追加した表示処理の
+errcheckで失敗し、戻り値の扱いを修正した。導入済みの通常操作の再試行成功は未確認。
+
+`detach-full-2` は対象回帰3.25秒、main差分lint 5.27秒、ローカル全体12.31秒、race 10.68秒、CLI E2E 2.88秒、docs 6.16秒、workflow policy 0.97秒、native build 1.11秒で成功した。
+
+候補 `97ffa2d66c223ebced04b195bc1d409d59b43829` を通常パッケージでbuild（21.54秒）し、専用の既存WSLへLinux/Windowsを揃えて導入（44.86秒）、インストーラのdoctorは成功した。`ordinary-reclaim-2` は端末開始から21.88秒で再び失敗したが、今回は準備/登録情報、Windowsエラー2と表示できた。同じ対象のWindows直接照合は成功しており、経路による差は未解決。見つからない登録の作り直しやワーカー再送はしていない。

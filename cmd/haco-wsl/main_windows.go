@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/logging"
+	"github.com/SLktEx/Hacocoon/internal/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/wslreclaim"
 )
 
@@ -64,7 +65,9 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	if prepareRequest {
 		prepared, prepareErr := actions.prepare(ctx, args[1])
 		if prepareErr != nil {
-			logger.Error("Windows continuation preparation failed", "component", "host", "operation", "prepare_wsl_worker", "error", prepareErr)
+			failure := wslreclaim.PreparationFailure(prepareErr)
+			logger.Error("Windows continuation preparation failed", "component", "host", "operation", "prepare_wsl_worker", "stage", failure.Stage, "native_error", failure.NativeError, "error", prepareErr)
+			_ = json.NewEncoder(stdout).Encode(reclamation.InvocationFailureReceipt{Failure: failure})
 			return 1
 		}
 		if err := json.NewEncoder(stdout).Encode(prepared); err != nil {
@@ -119,6 +122,7 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 		fields := []any{"component", "host", "operation", operation, "error", err}
 		if args[0] == "_launch" {
 			stage, nativeCode := wslreclaim.WorkerLaunchFailure(err)
+			_ = json.NewEncoder(stdout).Encode(reclamation.InvocationFailureReceipt{Failure: reclamation.InvocationFailure{Phase: "launch", Stage: stage, NativeError: nativeCode}})
 			fields = append(fields, "stage", stage)
 			if nativeCode != 0 {
 				fields = append(fields, "native_error", nativeCode)

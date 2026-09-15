@@ -82,3 +82,24 @@ func TestDedicatedWSLInstallationObservation(t *testing.T) {
 	}
 	t.Logf("PASS observed installed Host with pinned file %+v and nonempty Windows owner; no enrollment or compaction", result.Disk)
 }
+
+func TestDedicatedEnrolledTargetObservation(t *testing.T) {
+	if os.Getenv("HACO_E2E_RECLAIM_OBSERVE_INSTALLATION") != "1" {
+		t.Skip("requires exact dedicated enrolled WSL; no reclamation is started")
+	}
+	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := r.diskPath()
+	if err != nil || path != os.Getenv("HACO_E2E_RECLAIM_VHD") {
+		t.Fatal("unexpected VHD", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	err = r.withReclamationTarget(ctx, func(_ *operationStore, _ *pinnedDisk, _ installationObservation) error { return nil })
+	if err != nil {
+		t.Fatalf("enrolled target observation failed: %+v", PreparationFailure(err))
+	}
+	t.Log("PASS existing enrollment and exact target; no intent, discard, stop or compaction")
+}

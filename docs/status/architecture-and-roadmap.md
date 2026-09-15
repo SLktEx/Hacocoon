@@ -273,3 +273,13 @@ retry resolves a persisted interrupted clear; unknown-copy cancellation and late
 existing-Env enrollment remain. Current-data replacement, authenticated installed
 use and human GUI answers still need their own evidence. Performance follows usable
 flows. See [the contract](../design/cache-generations.md#empty-an-environments-cache).
+
+## Ordinary reclamation diagnosis
+
+The M5 candidate adds bounded bilingual preparation/launch diagnostics. Next: resolve
+the dedicated installation's pre-dispatch failure, then the independent Windows CI
+attached-disk failure. Keep failed receipts; do not force global WSL shutdown or treat
+a diagnostic as permission to replay. Current-data evacuation and authenticated
+restoration remain separate; giant performance stays deferred.
+
+PR #687 passed all five exact-head workflows and is on main at `2f421006`. This integrates the preceding candidate stack, including saved-data inspection, Base archive input, cache maintenance, Workspace composition and notification readiness. Human GUI answers and the dedicated installed reclamation failure remain separate from the successful Windows CI.

@@ -1037,3 +1037,36 @@ job `104335936830`, failed at public reclaim with `compact_attached`: Linux stag
 complete, stop requested, one open attempt, compaction not attempted, resume
 succeeded. Notifications were SKIP. This failure remains distinct from local
 notification acceptance; that head was not merged.
+
+## Main integration and reclamation diagnostics
+
+[PR #687](https://github.com/SLktEx/Hacocoon/pull/687) head
+`21b2452b63cb58d86e9adc3cda546fc1c3214149` passed all five workflows and was
+squash-merged to main as `2f421006d1ce86edbb5a1deb3da9c17c46a5ef5c`.
+[Windows job 104346984027](https://github.com/SLktEx/Hacocoon/actions/runs/34958740591/job/104346984027)
+passed ordinary entry, SSH/editor/tunnel, reclamation, detached Workspace/OCI/snapshot
+restore and installed notification refusal/subscription/cleanup. Allocation fell
+from 7,864,320,000 to 5,020,581,888 bytes (2,843,738,112 recovered), with 1 TiB
+virtual capacity and 128 GiB pool capacity retained. Fresh human toast/UI answers
+were explicitly SKIP. This later pass does not establish the cause of earlier
+`compact_attached` or COM failures; their recorded results remain.
+
+On the existing dedicated installation (`92ce27a5`), `ordinary-reclaim-1` failed
+before a saved operation appeared (36.78 s from terminal start); the Windows saved
+status remained `none`. No worker was retried or record cleared. A separate exact-GUID
+systemd shutdown observation saw sharing error 32 after stop, then an unattached
+disk at 81.30 s and successful same-GUID resumption at 108.41 s. This is not a
+compaction attempt or a reproduction of CI's attached-disk observation.
+
+The diagnostic candidate's `detach-local-2` focused tests passed (3.31 s); native
+Windows suites passed for wslreclaim (0.77 s), reclaimclient (3.83 s) and haco-wsl
+(0.45 s). Dedicated installed identity observation passed (5.54 s), followed by
+existing enrollment/owner/file correspondence (5.78 s); no intent, trim or stop
+was issued. Initial helper tests failed because two old assertions required empty
+stdout on failure; they were updated for the bounded diagnostic receipt.
+`detach-full-1` failed errcheck on the new display write; the return handling was
+corrected. These checks do not establish a successful installed public retry.
+
+`detach-full-2` passed focused tests (3.25 s), main-diff lint (5.27 s), maintained local tests (12.31 s), race (10.68 s), CLI E2E (2.88 s), docs (6.16 s), workflow policy (0.97 s) and native build (1.11 s).
+
+Candidate `97ffa2d66c223ebced04b195bc1d409d59b43829` was built through normal packaging (21.54 s) and installed with matching Linux/Windows companions into the dedicated existing WSL (44.86 s), with installer doctor passing. `ordinary-reclaim-2` failed again (21.88 s from terminal start), now reporting preparation/enrollment, Windows code 2. The same target passes direct Windows enrolled-target observation. This route-dependent discrepancy is unresolved; no missing binding was recreated and no worker was replayed.

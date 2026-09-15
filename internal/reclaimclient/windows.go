@@ -28,7 +28,7 @@ func windowsReclaimScript(target reclamation.WSLTarget, mode string) (string, er
 	if mode == "status" {
 		return prefix + `& $helper _status $reg.ToString('B');exit $LASTEXITCODE`, nil
 	}
-	return prefix + `$raw=& $helper _prepare $reg.ToString('B');if($LASTEXITCODE -ne 0){exit 1};$prepared=($raw -join "` + "`n" + `")|ConvertFrom-Json;$op=[guid]::Empty;if($prepared.state -cne 'pending' -or ![guid]::TryParse($prepared.operation,[ref]$op) -or $op -eq [guid]::Empty){exit 1};$dispatch=& $helper _launch $reg.ToString('B') $op.ToString('B');if($LASTEXITCODE -ne 0){exit 1};$text=$dispatch -join "` + "`n" + `";if($text -cnotmatch '^Dispatched Windows worker ([1-9][0-9]*); inspect the prepared operation for completion\.\s*$'){exit 1};[ordered]@{operation=$op.ToString('B');worker_pid=[int]$Matches[1]}|ConvertTo-Json -Compress`, nil
+	return prefix + `$raw=& $helper _prepare $reg.ToString('B');if($LASTEXITCODE -ne 0){$raw;exit 1};$prepared=($raw -join "` + "`n" + `")|ConvertFrom-Json;$op=[guid]::Empty;if($prepared.state -cne 'pending' -or ![guid]::TryParse($prepared.operation,[ref]$op) -or $op -eq [guid]::Empty){exit 1};$dispatch=& $helper _launch $reg.ToString('B') $op.ToString('B');if($LASTEXITCODE -ne 0){$dispatch;exit 1};$text=$dispatch -join "` + "`n" + `";if($text -cnotmatch '^Dispatched Windows worker ([1-9][0-9]*); inspect the prepared operation for completion\.\s*$'){exit 1};[ordered]@{operation=$op.ToString('B');worker_pid=[int]$Matches[1]}|ConvertTo-Json -Compress`, nil
 }
 
 func windowsReclaimPrefix(target reclamation.WSLTarget) string {
@@ -95,6 +95,9 @@ func invokeWindowsScript(ctx context.Context, script string) ([]byte, error) {
 	command.Stderr = io.Discard
 	command.WaitDelay = 5 * time.Second
 	if err := command.Run(); err != nil {
+		if failure := decodeInvocationFailure(output.Bytes()); failure != nil {
+			return nil, failure
+		}
 		return nil, errors.New("Windows helper invocation unconfirmed")
 	}
 	return output.Bytes(), nil

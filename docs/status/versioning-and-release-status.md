@@ -184,3 +184,9 @@ a new package. See [ADR 0100](../adr/0100-notification-session-readiness.md).
 The v0.67 M4 candidate adds reviewed cache emptying with retained-data ownership.
 Implementation and real-host acceptance remain distinct; this does not complete
 M4/M5, create a tag or publish a release.
+
+## Reclamation diagnostics
+
+Within v0.67, bounded failure stages and bilingual next actions improve the ordinary
+Windows reclamation path. This does not complete M5 or publish a release; existing
+attached-disk and installed pre-dispatch failures remain distinct acceptance gaps.

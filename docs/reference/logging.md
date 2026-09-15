@@ -220,3 +220,7 @@ Cache management returns named area results separately from diagnostics. Its fai
 Cache maintenance uses the same `component=cache` boundary with fixed operations `cache.history` and `cache.clear`, and a fixed `failure_code`. Review revisions, native resource locations and raw provider errors are not logged.
 
 Named collection recovery uses the existing cache failure boundary and fixed `operation=cache.recover`. Exact ownership records and raw provider errors remain excluded from logs.
+
+Windows reclamation preparation/launch errors use the existing helper error boundary
+with fixed `phase`, `stage` and numeric `native_error` diagnostics. The failed-command
+stdout receipt contains only the allowlisted stage and code, never raw error text.
