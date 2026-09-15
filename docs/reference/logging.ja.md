@@ -152,3 +152,7 @@ Git照合は共通の同期済みCapability監査を使う。固定git-push-star
 キャッシュ保守も共通の `component=cache` 境界を使い、固定操作名 `cache.history` / `cache.clear` と固定 `failure_code` を記録する。確認revision・providerの保存場所・生のエラーはログに出さない。
 
 名前付き収集の復旧は既存キャッシュ失敗境界と固定 operation=cache.recover を使う。所有記録の内容やproviderの生のエラーはログへ出さない。
+
+Windowsの容量回収の準備・起動失敗は、既存の補助プログラムのエラー境界で、
+固定の `phase`、`stage` と数値の `native_error` を記録する。失敗したコマンドの
+標準出力には許可された段階と番号だけを返し、生のエラー文を含めない。

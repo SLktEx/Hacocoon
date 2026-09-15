@@ -186,3 +186,11 @@ through canonical stopped-owner maintenance. A persisted failure fences resume u
 explicit retry verifies empty contents. Workspace, OCI, common generations and saved
 copies remain. Late enrollment, unknown-copy cancellation and giant-repository
 performance remain incomplete. See the [owning contract](design/cache-generations.md#empty-an-environments-cache).
+
+## Reclamation failure guidance
+
+**Implemented candidate:** installed preparation/launch errors carry bounded stage
+and Windows-code diagnostics with bilingual next actions. Saved attached-disk failures
+explain retention and explicit review. Actual ordinary reclamation failed before
+record creation on the dedicated installation; this diagnosis change does not
+establish successful compaction. See [the contract](design/storage-reclamation.md#failure-diagnostics).
