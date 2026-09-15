@@ -2,7 +2,7 @@
 
 Status: **正規の Environment プロバイダーは実装済み。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
-Incus SandboxProviderはLinux/WSLのEnvironmentごとに専用の管理対象bridgeを作る。旧共有 `haco-sandbox0`・ACL・profileの準備処理と、Runtime/Baseの別の作成経路は削除した。[廃止の判断](../adr/0106-responsibility-layout-and-cli-retirement.ja.md)を参照。
+Incus SandboxProviderはLinux/WSLのEnvironmentごとに専用の管理対象bridgeを作る。旧共有 `haco-sandbox0`・ACL・profileの準備処理と、Runtime/Baseの別の作成経路は削除した。[廃止の判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)を参照。
 
 ## 現在のtopologyと所有権
 

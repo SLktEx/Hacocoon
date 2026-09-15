@@ -60,7 +60,7 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 	}
 	testGit(t, remote, "init", "--bare", "--initial-branch=main")
 	testGit(t, seed, "init", "--initial-branch=main")
-	data := make([]byte, MaxPack+1<<20)
+	data := make([]byte, legacyPackLimit+1<<20)
 	if _, err := rand.Read(data); err != nil {
 		t.Fatal(err)
 	}
@@ -83,16 +83,17 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 	}
 	next := testCommit(t, seed, "small.txt", "remote update\n")
 	testGit(t, seed, "push", "file://"+remote, "main")
-	var received int
+	var received int64
 	exchange := func(ctx context.Context, request Request) (Response, error) {
 		agent := req
 		agent.Operation, agent.Heads, agent.Haves = request.Operation, request.Heads, request.Haves
+		agent.PackOutput = request.PackOutput
 		response, err := RunAgent(ctx, agent, repos, "")
 		if request.Operation == "fetch" {
 			if len(request.Haves) == 0 {
 				t.Fatal("helper omitted existing branch tips")
 			}
-			received += len(response.Pack)
+			received += response.PackBytes
 		}
 		return response, err
 	}
@@ -108,19 +109,20 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 	}
 	testGit(t, guest, "reset", "--hard", next)
 	local := testCommit(t, guest, "local.txt", "local update\n")
-	pack, err := helperPushPack(ctx, local, next)
-	if err != nil || len(pack) > 64<<10 {
-		t.Fatalf("incremental push: %d bytes, %v", len(pack), err)
+	var pack bytes.Buffer
+	err := helperPushPack(ctx, local, next, &pack)
+	if err != nil || pack.Len() > 64<<10 {
+		t.Fatalf("incremental push: %d bytes, %v", pack.Len(), err)
 	}
 	prepared := req
-	prepared.Operation, prepared.Ref, prepared.OldOID, prepared.NewOID, prepared.Pack = "prepare", "refs/heads/main", next, local, pack
+	prepared.Operation, prepared.Ref, prepared.OldOID, prepared.NewOID, prepared.Pack = "prepare", "refs/heads/main", next, local, bytes.NewReader(pack.Bytes())
 	if _, err := RunAgent(ctx, prepared, repos, ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := testGit(t, remote, "rev-parse", "refs/heads/main"); got != next {
 		t.Fatal("preparation changed remote")
 	}
-	t.Logf("existing random data=%d bytes; fetch=%d bytes; prepared push=%d bytes", len(data), received, len(pack))
+	t.Logf("existing random data=%d bytes; fetch=%d bytes; prepared push=%d bytes", len(data), received, pack.Len())
 	var operations []string
 	var newBranchBytes int
 	newBranchExchange := func(ctx context.Context, request Request) (Response, error) {
@@ -131,7 +133,12 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 		if request.OldOID != ZeroOID || request.Ref != "refs/heads/feature/new" || request.NewOID != local {
 			t.Fatal("history reuse changed the proposed target", request.Ref, request.OldOID)
 		}
-		newBranchBytes = len(request.Pack)
+		var packed bytes.Buffer
+		if _, err := io.Copy(&packed, request.Pack); err != nil {
+			return Response{}, err
+		}
+		newBranchBytes = packed.Len()
+		request.Pack = bytes.NewReader(packed.Bytes())
 		agent := req
 		agent.Operation, agent.Ref, agent.OldOID, agent.NewOID, agent.Pack = "prepare", request.Ref, request.OldOID, request.NewOID, request.Pack
 		return RunAgent(ctx, agent, repos, "") // No external write in this component check.
@@ -171,7 +178,7 @@ func TestNewBranchRefReadFailureNeverReachesPush(t *testing.T) {
 					t.Fatal("failed basis read reached another operation", request.Operation)
 				}
 				if failure == "wrong confirmation" {
-					response.OID, response.Pack = strings.Repeat("a", 40), []byte("pack")
+					response.OID, response.PackBytes = strings.Repeat("a", 40), 4
 					return response, nil
 				}
 				return Response{}, fmt.Errorf("basis read %s", failure)
@@ -209,7 +216,7 @@ func TestFetchExcludesOnlyAncestorsOfAuthorizedHead(t *testing.T) {
 			return nil, nil
 		}
 	}
-	_, err := fetchHead(git, AgentRequest{Heads: []Head{{Ref: "refs/heads/main", OID: head}}, Haves: []string{hidden, missing, ancestor}})
+	_, err := fetchHead(git, AgentRequest{Heads: []Head{{Ref: "refs/heads/main", OID: head}}, Haves: []string{hidden, missing, ancestor}}, func(input []byte) (int64, error) { revisions = string(input); return 4, nil })
 	if err != nil || revisions != head+"\n^"+ancestor+"\n" {
 		t.Fatalf("revisions=%q err=%v", revisions, err)
 	}

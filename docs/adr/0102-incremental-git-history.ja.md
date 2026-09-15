@@ -38,3 +38,6 @@ have OID取得、clone/fetchを承認と扱う方式は採用しません。補�
 大きい場合は上限へ達します。partial/shallow clone、LFS、submodule、大容量転送全体を
 この変更で実装したとは扱いません。33 MiBの回帰は代表的な性能受入ではありません。
 [読み取りとpushの権限分離](0081-git-read-and-push-authority.ja.md)も参照してください。
+
+後続の[ADR 0106](0106-streaming-git-packs.ja.md)が全量転送と32 MiB上限を
+置き換える。上記の履歴と権限の規則は維持する。

@@ -30,9 +30,14 @@ branch, under a separate exact-ref decision. Registration selects checkout
 provenance, not the set of permitted push targets.
 Fetch revalidates each requested ref/OID against a fresh Host observation;
 unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
-a 32 MiB pack per head are accepted per helper batch. Packs are fetched and
-indexed sequentially; their aggregate may exceed 32 MiB. The head count and
-per-response bounds remain in force. Discovery is checked
+one pack per head are accepted per helper batch. Packs stream through bounded
+64 KiB frames and are indexed sequentially, with a finite 16 GiB per-pack limit
+and 2 MiB metadata bound. Whole packs are no longer buffered as JSON/base64.
+The exact final byte-count receipt and local index-pack must both succeed.
+Source ownership locks remain held through the agent's stream completion; push
+preparation consumes complete input before the separate approved write.
+See [streaming transport](../adr/0106-streaming-git-packs.md). The head-count bound
+remains in force. Discovery is checked
 against both the all-heads scope and each exact ref; object fetch executes under
 a new exact-ref decision. An exact-ref deny cannot be bypassed by broad discovery.
 Fetch accepts at most 32 distinct local commit hints. Only ancestors of the freshly

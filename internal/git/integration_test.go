@@ -3,9 +3,11 @@ package gitrepo
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +29,34 @@ func (localBackend) InspectVolume(context.Context, Object) error                
 func (localBackend) Populate(context.Context, Object) error                             { return nil }
 func (localBackend) ConnectGit(context.Context, core.Environment, Object, string) error { return nil }
 func (b localBackend) RunGit(ctx context.Context, request gitadapter.AgentRequest) (gitadapter.Response, error) {
-	return gitadapter.RunAgent(ctx, request, b.repos, b.workspaces)
+	input, err := gitadapter.AgentRequestBody(request)
+	if err != nil {
+		return gitadapter.Response{}, err
+	}
+	reader, writer := io.Pipe()
+	defer func() { _ = reader.Close() }()
+	completed := make(chan error, 1)
+	go func() {
+		err := gitadapter.ServeAgent(ctx, input, writer, b.repos, b.workspaces)
+		_ = writer.CloseWithError(err)
+		completed <- err
+	}()
+	response, err := gitadapter.ReadResponse(reader, request.PackOutput)
+	_ = reader.CloseWithError(err)
+	finished := <-completed
+	if err != nil {
+		return gitadapter.Response{}, err
+	}
+	return response, finished
+}
+
+type singleEnvironment struct{ environment core.Environment }
+
+func (s singleEnvironment) GetEnvironment(_ context.Context, name string) (core.Environment, error) {
+	if name != s.environment.Name {
+		return core.Environment{}, core.ErrNotFound
+	}
+	return s.environment, nil
 }
 
 type gitPolicy struct{}
@@ -91,7 +120,9 @@ func TestGitHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
+func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) { ordinaryGitWorkflow(t, 0) }
+func TestOrdinaryLargeGitFetchAndApprovedPush(t *testing.T)    { ordinaryGitWorkflow(t, 40<<20) }
+func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	if _, err := os.Stat("/usr/bin/git"); err != nil {
 		t.Skip("Linux Git is required")
 	}
@@ -235,6 +266,9 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/second"); got != feature {
 		t.Fatal("new upstream head omitted")
 	}
+	if largeBytes > 0 {
+		addLargeGitBlob(t, seed, "large-upstream.bin", largeBytes)
+	}
 	upstream := testCommit(t, seed, "upstream.txt", "pulled normally\n")
 	testGit(t, seed, "push", "origin", "main")
 	testGit(t, workspace, "pull", "--ff-only")
@@ -243,6 +277,12 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	}
 	if got := testGit(t, filepath.Join(backend.repos, "demo"), "rev-parse", "HEAD"); got != initial {
 		t.Fatal("guest modified trusted worktree")
+	}
+	if largeBytes > 0 {
+		if testGit(t, workspace, "rev-parse", "HEAD:large-upstream.bin") != testGit(t, seed, "rev-parse", "HEAD:large-upstream.bin") {
+			t.Fatal("large fetch content differs")
+		}
+		addLargeGitBlob(t, workspace, "large-local.bin", largeBytes)
 	}
 	approved := testCommit(t, workspace, "work.txt", "approved work\n")
 	push := func(refs ...string) (chan error, *bytes.Buffer) {
@@ -307,7 +347,7 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	if err := broker.Decide(proposal.ID, true); err == nil {
 		t.Fatal("approval replay succeeded")
 	}
-	for _, req := range []gitadapter.Request{{Operation: "list", Repository: "other"}, {Operation: "approve", Repository: "demo"}, {Operation: "push", Repository: "demo", Ref: "refs/heads/other", OldOID: approved, NewOID: unpushed, Pack: []byte("bad")}} {
+	for _, req := range []gitadapter.Request{{Operation: "list", Repository: "other"}, {Operation: "approve", Repository: "demo"}, {Operation: "push", Repository: "demo", Ref: "refs/heads/other", OldOID: approved, NewOID: unpushed, Pack: strings.NewReader("bad")}} {
 		if _, err := gitadapter.UnixExchange(broker.socket("dev"))(ctx, req); err == nil {
 			t.Fatalf("accepted %#v", req)
 		}
@@ -533,4 +573,18 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 			}
 		}
 	})
+}
+
+func addLargeGitBlob(t *testing.T, dir, name string, size int64) {
+	t.Helper()
+	file, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, copyErr := io.CopyN(file, rand.Reader, size)
+	closeErr := file.Close()
+	if copyErr != nil || closeErr != nil {
+		t.Fatal(copyErr, closeErr)
+	}
+	testGit(t, dir, "add", "--", name)
 }

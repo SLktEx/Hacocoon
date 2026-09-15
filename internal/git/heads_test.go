@@ -3,6 +3,7 @@ package gitrepo
 import (
 	"context"
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,12 +38,13 @@ func TestTrustedFetchRejectsStaleDeletedAndUnlistedCommits(t *testing.T) {
 		t.Fatal(listed, err)
 	}
 	req.Operation, req.Heads = "fetch", listed.Heads[:1]
-	if got, err := gitadapter.RunAgent(context.Background(), req, repos, ""); err != nil || len(got.Pack) == 0 {
+	req.PackOutput = io.Discard
+	if got, err := gitadapter.RunAgent(context.Background(), req, repos, ""); err != nil || got.PackBytes == 0 {
 		t.Fatal("valid batch", err)
 	}
 	for _, heads := range [][]gitadapter.Head{{{Ref: "refs/heads/unlisted", OID: old}}, {{Ref: "refs/tags/topic", OID: old}}, {{Ref: "refs/heads/topic", OID: old}, {Ref: "refs/heads/topic", OID: old}}, {{Ref: "refs/heads/topic", OID: strings.Repeat("f", 40)}}} {
 		req.Heads = heads
-		if got, err := gitadapter.RunAgent(context.Background(), req, repos, ""); err == nil || len(got.Pack) != 0 {
+		if got, err := gitadapter.RunAgent(context.Background(), req, repos, ""); err == nil || got.PackBytes != 0 {
 			t.Fatal("unreviewed commit escaped", heads, err)
 		}
 	}

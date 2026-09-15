@@ -221,7 +221,7 @@ func (b *Broker) listenLocked(bound binding) error {
 		return err
 	}
 	slot := make(chan struct{}, 1)
-	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 10 * time.Minute, BaseContext: func(net.Listener) context.Context { return b.ctx }}
+	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Minute, WriteTimeout: 10 * time.Minute, BaseContext: func(net.Listener) context.Context { return b.ctx }}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case slot <- struct{}{}:
@@ -236,21 +236,13 @@ func (b *Broker) listenLocked(bound binding) error {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 9*time.Minute)
 		defer cancel()
-		var request gitadapter.Request
-		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, gitadapter.MaxMessage))
-		decoder.DisallowUnknownFields()
-		var response gitadapter.Response
-		err := decoder.Decode(&request)
-		if err == nil {
-			response, err = b.exchange(ctx, bound, request)
-		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/octet-stream")
+		err := gitadapter.ServeExchange(ctx, r.Body, w, func(ctx context.Context, request gitadapter.Request) (gitadapter.Response, error) {
+			return b.exchange(ctx, bound, request)
+		})
 		if err != nil {
 			logging.FromContext(ctx).ErrorContext(ctx, "Git operation failed", "component", "git", "operation", "git_request", "environment_id", bound.Environment.Name, "error", err)
-			w.WriteHeader(http.StatusForbidden)
-			response = gitadapter.Response{Error: "operation did not complete cleanly; inspect the remote and trusted Host before retrying"}
 		}
-		json.NewEncoder(w).Encode(response)
 	})
 	b.servers[bound.Environment.Name] = boundServer{binding: bound, server: server}
 	go server.Serve(listener)
@@ -311,22 +303,22 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req gitadapter.Req
 		}
 	}
 	ref := "refs/heads/" + repo.Branch
-	if repo.ID == "" || req.Repository != repo.ID || len(req.Pack) > gitadapter.MaxPack {
+	if repo.ID == "" || req.Repository != repo.ID {
 		return gitadapter.Response{}, core.ErrPolicyDenied
 	}
-	agent := gitadapter.AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, Heads: append([]gitadapter.Head(nil), req.Heads...)}
+	agent := gitadapter.AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, PackOutput: req.PackOutput, Heads: append([]gitadapter.Head(nil), req.Heads...)}
 	agent.Haves = append([]string(nil), req.Haves...)
 	switch req.Operation {
 	case "list":
-		if req.Ref != "" || req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 || len(req.Heads) != 0 {
+		if req.Ref != "" || req.OldOID != "" || req.NewOID != "" || req.Pack != nil || len(req.Heads) != 0 {
 			return gitadapter.Response{}, core.ErrInvalidArgument
 		}
 	case "fetch":
-		if _, err := gitadapter.ValidateHeads(req.Heads); err != nil || len(req.Heads) != 1 || req.Ref != "" || req.NewOID != "" || req.OldOID != "" || len(req.Pack) != 0 {
+		if _, err := gitadapter.ValidateHeads(req.Heads); err != nil || len(req.Heads) != 1 || req.Ref != "" || req.NewOID != "" || req.OldOID != "" || req.Pack != nil {
 			return gitadapter.Response{}, core.ErrInvalidArgument
 		}
 	case "push":
-		if !gitadapter.ValidHeadRef(req.Ref) || !gitadapter.ValidOID(req.NewOID) || req.NewOID == gitadapter.ZeroOID || !gitadapter.ValidOID(req.OldOID) || len(req.Pack) == 0 || len(req.Heads) != 0 {
+		if !gitadapter.ValidHeadRef(req.Ref) || !gitadapter.ValidOID(req.NewOID) || req.NewOID == gitadapter.ZeroOID || !gitadapter.ValidOID(req.OldOID) || req.Pack == nil || len(req.Heads) != 0 {
 			return gitadapter.Response{}, core.ErrInvalidArgument
 		}
 		ref, agent.Ref = req.Ref, req.Ref
@@ -364,7 +356,7 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req gitadapter.Req
 	if err != nil {
 		return gitadapter.Response{}, err
 	}
-	if prepared.Ref != req.Ref || prepared.OID != req.OldOID || prepared.Error != "" || len(prepared.Pack) != 0 || len(prepared.Summary) > 8192 {
+	if prepared.Ref != req.Ref || prepared.OID != req.OldOID || prepared.Error != "" || prepared.PackBytes != 0 || len(prepared.Summary) > 8192 {
 		return gitadapter.Response{}, core.ErrIncompatibleState
 	}
 	proposal.Operation = "push"

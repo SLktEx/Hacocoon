@@ -3,6 +3,7 @@ package gitadapter
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -44,7 +45,7 @@ func helperHaves(ctx context.Context) ([]string, error) {
 	return haves, nil
 }
 
-func helperPushPack(ctx context.Context, next, old string) ([]byte, error) {
+func helperPushPack(ctx context.Context, next, old string, output io.Writer) error {
 	revisions := next + "\n"
 	// Existing targets are fetched during preparation. A new branch's basis
 	// must first pass the separate exact-ref fetch in helperNewBranchBasis.
@@ -53,7 +54,8 @@ func helperPushPack(ctx context.Context, next, old string) ([]byte, error) {
 			revisions += "^" + old + "\n"
 		}
 	}
-	return helperGit(ctx, []byte(revisions), "pack-objects", "--stdout", "--revs")
+	_, err := runPack(helperCommand(ctx, "pack-objects", "--stdout", "--revs"), strings.NewReader(revisions), output)
+	return err
 }
 
 // helperNewBranchBasis reuses one advertised ancestor through the ordinary
@@ -81,11 +83,11 @@ func helperNewBranchBasis(ctx context.Context, repo, next string, listed Respons
 		// The Host fetches only this freshly authorized ref and checks its exact
 		// OID. Supplying the same have yields an empty pack; no history is sent
 		// back to the guest. The Host's read-cache ref retains the basis objects.
-		response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: []string{head.OID}})
+		response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: []string{head.OID}, PackOutput: io.Discard})
 		if err != nil {
 			return "", err // A denied or moved ref never triggers another read/push.
 		}
-		if response.Error != "" || response.Ref != head.Ref || response.OID != head.OID || len(response.Pack) == 0 || len(response.Pack) > MaxPack {
+		if response.Error != "" || response.Ref != head.Ref || response.OID != head.OID || response.PackBytes <= 0 || response.PackBytes > maxTransferBytes {
 			return "", fmt.Errorf("invalid new-branch history confirmation")
 		}
 		return head.OID, nil

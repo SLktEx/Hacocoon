@@ -268,7 +268,7 @@ require_text("docs/reference/client-adapter.md", [
 ])
 require_text("docs/design/plugin-architecture.md", [
     "Core / Standard / Plugin classification", "haco base",
-    "0106-responsibility-layout-and-cli-retirement.md",
+    "0107-responsibility-layout-and-cli-retirement.md",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [
     "OCI Seed retirement", "No legacy catalog reader", "seeds.json",

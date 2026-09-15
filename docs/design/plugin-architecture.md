@@ -42,7 +42,7 @@ Docker Engine, containerd, nerdctl, OCI registries, Git, cloud CLIs and IDEs are
 
 Current OCI Store/image operations use `haco plugin oci ...`; Base inspection uses
 `haco base ...`. Optional tools remain replaceable at explicit composition boundaries.
-The [layout decision](../adr/0106-responsibility-layout-and-cli-retirement.md) records retired interfaces.
+The [layout decision](../adr/0107-responsibility-layout-and-cli-retirement.md) records retired interfaces.
 
 [Persistent OCI Stores](persistent-oci-store.md) define current retained data. The [Seed implementation is removed](oci-seed-and-cow.md), including old usage/deletion catalogs. Current Docker image inspection does not require Seed state.
 

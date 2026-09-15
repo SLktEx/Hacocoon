@@ -5,7 +5,7 @@ package gitadapter
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -74,6 +74,7 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 			t.Fatal("helper substituted repository")
 		}
 		op := base
+		op.PackOutput = req.PackOutput
 		op.Operation, op.Heads, op.Ref, op.OldOID, op.NewOID, op.Pack = req.Operation, req.Heads, req.Ref, req.OldOID, req.NewOID, req.Pack
 		if req.Operation == "push" {
 			op.Operation = "prepare"
@@ -104,25 +105,31 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 	}
 	// A receiver cannot bypass the preparation path by changing object bytes.
 	bad := base
-	bad.Operation, bad.Ref, bad.OldOID, bad.NewOID, bad.Pack = "push", "refs/heads/topic", initial, initial, []byte("another pack")
+	bad.Operation, bad.Ref, bad.OldOID, bad.NewOID, bad.Pack = "push", "refs/heads/topic", initial, initial, strings.NewReader("another pack")
 	if _, err := run(bad); err == nil {
 		t.Fatal("accepted replacement pack after approval")
 	}
 }
 
 func TestTrustedWireRejectsUnknownFieldsAndInvalidRouting(t *testing.T) {
-	for _, body := range []string{"{", `{"command":"sh"}`} {
+	for _, body := range []string{"{", `{"metadata":{"command":"sh"},"has_pack":false}`} {
+		wire := make([]byte, 4+len(body)+4)
+		binary.BigEndian.PutUint32(wire[:4], uint32(len(body)))
+		copy(wire[4:], body)
 		var out bytes.Buffer
-		if err := Agent(context.Background(), strings.NewReader(body), &out); err == nil || out.Len() != 0 {
+		if err := Agent(context.Background(), bytes.NewReader(wire), &out); err == nil || out.Len() != 0 {
 			t.Fatal("malformed wire request executed", out.String(), err)
 		}
 	}
 	var out bytes.Buffer
-	if err := Agent(context.Background(), strings.NewReader(`{"repository":"../other"}`), &out); err != nil {
+	input, err := AgentRequestBody(AgentRequest{Repository: "../other"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	var response Response
-	if json.Unmarshal(out.Bytes(), &response) != nil || response.Error == "" || response.OID != "" {
+	if err := Agent(context.Background(), input, &out); err != nil {
+		t.Fatal(err)
+	}
+	if response, err := ReadResponse(&out, io.Discard); err == nil || response.OID != "" {
 		t.Fatal("invalid operation got success", out.String())
 	}
 	for _, remote := range []string{"https://github.com/owner/repo.git", "file:///tmp/local.git"} {
@@ -196,8 +203,8 @@ func TestUnixExchangeRefusesMalformedAndFailedBrokerResponses(t *testing.T) {
 		if r.Method != http.MethodPost || r.URL.Path != "/git" {
 			t.Error("wrong wire route")
 		}
-		var req Request
-		if json.NewDecoder(r.Body).Decode(&req) != nil {
+		req, err := ReadRequest(r.Body)
+		if err != nil {
 			t.Error("invalid request encoding")
 		}
 		var body string
@@ -214,7 +221,11 @@ func TestUnixExchangeRefusesMalformedAndFailedBrokerResponses(t *testing.T) {
 		default:
 			body = `{"ref":"refs/heads/main"}`
 		}
-		if _, err := io.WriteString(w, body); err != nil {
+		// A zero pack frame precedes the final metadata receipt.
+		wire := make([]byte, 8+len(body))
+		binary.BigEndian.PutUint32(wire[4:8], uint32(len(body)))
+		copy(wire[8:], body)
+		if _, err := w.Write(wire); err != nil {
 			t.Error(err)
 		}
 	})}

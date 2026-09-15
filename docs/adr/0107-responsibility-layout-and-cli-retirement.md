@@ -88,8 +88,10 @@ canonical Workspace lifecycle. A saved snapshot is not owned by a live Env.
 SSH configuration and public-key validation have distinct clients and provider
 consumers; moving them does not give a workload management authority.
 
-Git process/wire code belongs to its adapter. Repository ownership and approval
-coordination remain with the Git feature. OCI download/extraction belongs to its
+Git process/wire code belongs to its adapter. Framed exchanges and final receipts
+from [streaming Git packs](0106-streaming-git-packs.md) complete inside the adapter;
+the broker retains its source slot and authorization through the exchange call.
+Repository ownership and approval coordination remain with the Git feature. OCI download/extraction belongs to its
 adapter; retained Store ownership remains with storage services. Windows/WSL
 identity, enrollment and worker code stays separate from reclamation values and
 the client that dispatches it. All creation receipts, exact-owner cleanup,

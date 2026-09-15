@@ -1,7 +1,6 @@
 package incus
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -173,40 +172,36 @@ func (b *RepositoryBackend) RunGit(ctx context.Context, request gitadapter.Agent
 	if err := b.Runtime.verifyTrustedHostOwnership(ctx); err != nil {
 		return gitadapter.Response{}, err
 	}
-	data, err := json.Marshal(request)
-	if err != nil || len(data) > gitadapter.MaxMessage {
+	input, err := gitadapter.AgentRequestBody(request)
+	if err != nil {
 		return gitadapter.Response{}, core.ErrInvalidArgument
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, "incus", "exec", trustedHostName, "--project", b.Runtime.project, "--", "/usr/local/bin/haco", "_git-agent")
-	cmd.Stdin = bytes.NewReader(data)
-	var output bytes.Buffer
-	cmd.Stdout = &limitedGitOutput{Writer: &output, remaining: gitadapter.MaxMessage}
+	cmd.Stdin = input
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.StdoutPipe()
+	if err != nil {
 		return gitadapter.Response{}, fmt.Errorf("trusted Git agent unavailable")
 	}
-	var response gitadapter.Response
-	if json.Unmarshal(output.Bytes(), &response) != nil || len(response.Pack) > gitadapter.MaxPack {
-		return gitadapter.Response{}, fmt.Errorf("invalid trusted Git response")
+	defer func() { _ = output.Close() }()
+	if err := cmd.Start(); err != nil {
+		return gitadapter.Response{}, fmt.Errorf("trusted Git agent unavailable")
 	}
-	if response.Error != "" {
-		return gitadapter.Response{}, fmt.Errorf("%s", response.Error)
+	response, decodeErr := gitadapter.ReadResponse(output, request.PackOutput)
+	if decodeErr != nil {
+		cancel()
+	}
+	waitErr := cmd.Wait()
+	if decodeErr != nil {
+		return gitadapter.Response{}, decodeErr
+	}
+	if waitErr != nil {
+		return gitadapter.Response{}, fmt.Errorf("trusted Git agent unavailable")
 	}
 	return response, nil
-}
-
-type limitedGitOutput struct {
-	io.Writer
-	remaining int
-}
-
-func (w *limitedGitOutput) Write(data []byte) (int, error) {
-	if len(data) > w.remaining {
-		return 0, fmt.Errorf("Git response exceeds limit")
-	}
-	w.remaining -= len(data)
-	return w.Writer.Write(data)
 }
 
 func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Environment, workspace gitrepo.Object, socket string) error {

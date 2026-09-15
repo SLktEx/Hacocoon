@@ -79,6 +79,8 @@ Envの経路選択・コピー・移送は、snapshot復元および正規のWor
 移動によってworkloadへ管理権限を与えない。
 
 Gitプロセスと通信形式はadapter、登録所有権と承認の手順はGit機能が担当する。
+[Git packのストリーム転送](0106-streaming-git-packs.ja.md)のフレーム交換と最終receiptは
+adapter内で完了する。brokerは交換の呼び出し中も、接続元の実行枠と認可を保持する。
 OCIの取得・展開はadapter、保持Storeの所有権はstorage serviceが担当する。
 Windows/WSLのidentity・登録・workerは、回収の値と呼出側clientから分離する。
 作成receipt、正確な所有者を確認する後始末、承認、隔離は新しい配置でも必要である。

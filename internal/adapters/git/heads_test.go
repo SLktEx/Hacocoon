@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 )
@@ -73,9 +74,10 @@ func TestReadHeadsRejectsExcessAndNonCommitBeforePack(t *testing.T) {
 		req := AgentRequest{Operation: "list", Branch: "main"}
 		if mode == "tree" {
 			req.Operation = "fetch"
+			req.PackOutput = io.Discard
 			req.Heads = []Head{{Ref: "refs/heads/main", OID: strings.Repeat("a", 40)}}
 		}
-		if _, err := readHeads(git, req); err == nil {
+		if _, err := readHeads(git, req, func([]byte) (int64, error) { t.Fatal("invalid remote reached pack"); return 0, nil }); err == nil {
 			t.Fatal("invalid remote accepted", mode)
 		}
 	}

@@ -32,7 +32,7 @@ func TestPushReceiptRequiresExactConfirmedMutation(t *testing.T) {
 }
 
 func TestPushRejectsMalformedTargetsBeforeRunningGit(t *testing.T) {
-	good := AgentRequest{Operation: "prepare", Ref: "refs/heads/feature/work", OldOID: ZeroOID, NewOID: strings.Repeat("a", 40), Pack: []byte("pack")}
+	good := AgentRequest{Operation: "prepare", Ref: "refs/heads/feature/work", OldOID: ZeroOID, NewOID: strings.Repeat("a", 40), Pack: strings.NewReader("pack")}
 	for _, change := range []func(*AgentRequest){
 		func(r *AgentRequest) { r.Ref = "--upload-pack=evil" },
 		func(r *AgentRequest) { r.Ref = "refs/tags/release" },
@@ -44,7 +44,7 @@ func TestPushRejectsMalformedTargetsBeforeRunningGit(t *testing.T) {
 	} {
 		req := good
 		change(&req)
-		_, err := pushOperation(func([]byte, ...string) ([]byte, error) { t.Fatal("invalid request reached Git"); return nil, nil }, req)
+		_, err := pushOperation(func([]byte, ...string) ([]byte, error) { t.Fatal("invalid request reached Git"); return nil, nil }, req, nil)
 		if err == nil {
 			t.Fatalf("accepted %+v", req)
 		}

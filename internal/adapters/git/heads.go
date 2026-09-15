@@ -52,9 +52,9 @@ func ValidateHeads(heads []Head) (map[string]string, error) {
 	return result, nil
 }
 
-func readHeads(git func([]byte, ...string) ([]byte, error), req AgentRequest) (Response, error) {
+func readHeads(git func([]byte, ...string) ([]byte, error), req AgentRequest, pack func([]byte) (int64, error)) (Response, error) {
 	if req.Operation == "fetch" {
-		return fetchHead(git, req)
+		return fetchHead(git, req, pack)
 	}
 	// Discovery transfers names/OIDs only. No branch objects are fetched before
 	// the broker's per-ref Policy check, even when all-head discovery is allowed.
@@ -82,7 +82,7 @@ func readHeads(git func([]byte, ...string) ([]byte, error), req AgentRequest) (R
 	return result, nil
 }
 
-func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest) (Response, error) {
+func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest, pack func([]byte) (int64, error)) (Response, error) {
 	if _, err := ValidateHeads(req.Heads); err != nil || len(req.Heads) != 1 {
 		return Response{}, fmt.Errorf("fetch requires one authorized head")
 	}
@@ -108,6 +108,6 @@ func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest) (R
 			revisions += "^" + have + "\n"
 		}
 	}
-	result.Pack, err = git([]byte(revisions), "pack-objects", "--stdout", "--revs")
+	result.PackBytes, err = pack([]byte(revisions))
 	return result, err
 }

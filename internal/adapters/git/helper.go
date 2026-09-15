@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -23,11 +22,11 @@ func UnixExchange(socket string) Exchange {
 	}, DisableKeepAlives: true}
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Minute}
 	return func(ctx context.Context, request Request) (Response, error) {
-		payload, err := json.Marshal(request)
-		if err != nil || len(payload) > MaxMessage {
-			return Response{}, fmt.Errorf("Git request exceeds PoC limit")
+		body, err := RequestBody(request)
+		if err != nil {
+			return Response{}, err
 		}
-		req, err := http.NewRequestWithContext(ctx, "POST", "http://haco/git", bytes.NewReader(payload))
+		req, err := http.NewRequestWithContext(ctx, "POST", "http://haco/git", body)
 		if err != nil {
 			return Response{}, err
 		}
@@ -36,14 +35,12 @@ func UnixExchange(socket string) Exchange {
 			return Response{}, fmt.Errorf("Environment Git broker is unavailable")
 		}
 		defer response.Body.Close()
-		var result Response
-		decoder := json.NewDecoder(io.LimitReader(response.Body, MaxMessage+1))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&result); err != nil || len(result.Pack) > MaxPack {
-			return Response{}, fmt.Errorf("invalid Git broker response")
+		result, err := ReadResponse(response.Body, request.PackOutput)
+		if err != nil {
+			return Response{}, err
 		}
-		if response.StatusCode != 200 || result.Error != "" {
-			return Response{}, fmt.Errorf("Git broker refused: %s", result.Error)
+		if response.StatusCode != 200 {
+			return Response{}, fmt.Errorf("git broker refused operation")
 		}
 		return result, nil
 	}
@@ -51,7 +48,7 @@ func UnixExchange(socket string) Exchange {
 
 func Helper(ctx context.Context, args []string, input io.Reader, output, diagnostic io.Writer, exchange Exchange) error {
 	if len(args) != 2 || !strings.HasPrefix(args[1], "haco://") {
-		return fmt.Errorf("Git remote must use haco://<registered-repository>")
+		return fmt.Errorf("git remote must use haco://<registered-repository>")
 	}
 	repo := strings.TrimPrefix(args[1], "haco://")
 	if !ValidID(repo) {
@@ -113,16 +110,7 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				if err != nil {
 					return err
 				}
-				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: haves})
-				if err != nil {
-					return err
-				}
-				// Each independently authorized response is indexed before the next
-				// request. Bound that pack, not the cumulative sequential transfer.
-				if len(response.Pack) == 0 || len(response.Pack) > MaxPack {
-					return fmt.Errorf("git response exceeds supported pack size")
-				}
-				if _, err := helperGit(ctx, response.Pack, "index-pack", "--stdin", "--strict"); err != nil {
+				if err := helperFetch(ctx, exchange, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: haves}); err != nil {
 					return err
 				}
 			}
@@ -160,12 +148,8 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 					return err
 				}
 			}
-			pack, err := helperPushPack(ctx, oid, basis)
-			if err != nil {
-				return err
-			}
 			fmt.Fprintln(diagnostic, "Push awaits trusted Host Policy/approval. In another Host terminal, run: haco git pending")
-			_, err = exchange(ctx, Request{Operation: "push", Repository: repo, Ref: parts[1], OldOID: oldOID, NewOID: oid, Pack: pack})
+			err = helperPush(ctx, exchange, Request{Operation: "push", Repository: repo, Ref: parts[1], OldOID: oldOID, NewOID: oid}, basis)
 			if err != nil {
 				fmt.Fprintf(diagnostic, "%s\n", err)
 				_, _ = fmt.Fprintf(output, "error %s broker-failed\n\n", parts[1])
@@ -187,23 +171,79 @@ func helperBatch(scanner *bufio.Scanner, first string) ([]string, error) {
 		}
 		batch = append(batch, scanner.Text())
 		if len(batch) > MaxHeads {
-			return nil, fmt.Errorf("Git batch exceeds PoC limit")
+			return nil, fmt.Errorf("git batch exceeds PoC limit")
 		}
 	}
 	return nil, fmt.Errorf("incomplete Git helper batch")
 }
 
-func helperGit(ctx context.Context, input []byte, args ...string) ([]byte, error) {
+func helperCommand(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.hooksPath=/dev/null", "-c", "gc.auto=0", "-c", "maintenance.auto=false"}, args...)...)
 	cmd.Env = os.Environ() // Entirely inside the untrusted Environment.
-	cmd.Stdin = bytes.NewReader(input)
-	var out cappedBuffer
-	out.limit = MaxPack
-	cmd.Stdout = &out
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second
-	if err := cmd.Run(); err != nil {
+	return cmd
+}
+func helperGit(ctx context.Context, input []byte, args ...string) ([]byte, error) {
+	var out cappedBuffer
+	out.limit = maxCommandOutput
+	_, err := runPack(helperCommand(ctx, args...), bytes.NewReader(input), &out)
+	if err != nil {
 		return nil, fmt.Errorf("local Git %s failed", args[0])
 	}
 	return out.Bytes(), nil
+}
+
+func helperFetch(ctx context.Context, exchange Exchange, req Request) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
+	completed := make(chan error, 1)
+	go func() {
+		_, err := runPack(helperCommand(ctx, "index-pack", "--stdin", "--strict", fmt.Sprintf("--max-input-size=%d", maxTransferBytes)), reader, io.Discard)
+		_ = reader.CloseWithError(err)
+		completed <- err
+	}()
+	req.PackOutput = writer
+	response, err := exchange(ctx, req)
+	_ = writer.CloseWithError(err)
+	if err != nil {
+		cancel()
+	}
+	indexed := <-completed
+	if err != nil {
+		return err
+	}
+	if indexed != nil {
+		return indexed
+	}
+	if response.PackBytes <= 0 || response.PackBytes > maxTransferBytes || response.Ref != req.Heads[0].Ref || response.OID != req.Heads[0].OID {
+		return fmt.Errorf("invalid Git pack receipt")
+	}
+	return nil
+}
+
+func helperPush(ctx context.Context, exchange Exchange, req Request, basis string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
+	completed := make(chan error, 1)
+	go func() {
+		err := helperPushPack(ctx, req.NewOID, basis, writer)
+		_ = writer.CloseWithError(err)
+		completed <- err
+	}()
+	req.Pack = reader
+	_, err := exchange(ctx, req)
+	_ = reader.CloseWithError(err)
+	cancel()
+	produced := <-completed
+	if err != nil {
+		return err
+	}
+	return produced
 }

@@ -2,7 +2,7 @@
 
 Status: **implemented for the canonical Environment provider; installed Windows proxy allow/deny and direct-egress refusal acceptance passed.**
 
-The Incus SandboxProvider creates one dedicated managed bridge per Environment on Linux and WSL. The old shared `haco-sandbox0` / ACL / profile provisioning and the separate Runtime/Base creation paths are removed. See [the retirement decision](../adr/0106-responsibility-layout-and-cli-retirement.md).
+The Incus SandboxProvider creates one dedicated managed bridge per Environment on Linux and WSL. The old shared `haco-sandbox0` / ACL / profile provisioning and the separate Runtime/Base creation paths are removed. See [the retirement decision](../adr/0107-responsibility-layout-and-cli-retirement.md).
 
 ## Current topology and ownership
 

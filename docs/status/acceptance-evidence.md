@@ -1549,3 +1549,53 @@ Local validation passed: application regression 1.80s, Windows observer regressi
 1.73s. This is component evidence; the updated installed Windows journey remains
 pending. #701 contains #700's exact head and is the combined main candidate;
 #700 stays open until that integration is proven.
+
+## Streaming Git pack candidate
+
+The development candidate removes whole-pack JSON/base64 buffering on the helper
+and trusted-agent boundaries. A 40 MiB random-data ordinary Git fixture fails on
+old product `e4cbd257` during `git pull --ff-only` (10.02s command / 9.19s test).
+Only the large-data fixture was added to that archived product; its transport and
+Policy were unchanged. The new implementation passes the same ordinary pull and
+separate denied/approved fixed-content push journey with 40 MiB new data in both
+directions. The Host-agent framing is exercised through pipes as well as the
+actual Unix HTTP broker; this is not a native Incus or authenticated remote test.
+A separately measured single fetch pack transferred **41,956,043 bytes**.
+
+Local final checks passed: Git/Incus component tests 38.62s, changed-code lint
+15.73s, maintained full tests 56.13s, Git race 71.11s, CLI E2E 6.89s, docs 12.96s,
+workflow policy 2.12s and native compilation 1.84s. The first compile found one
+remaining reconciliation reference to the removed byte-slice field; the first
+full lint found seven unchecked closes and thirteen style findings. All were
+corrected before this full pass. Follow-up documentation checks also pass.
+
+Regressions retain exact-ref read decisions, push denial, changed-local-content
+approval pinning, new-branch expected-absent leases and incremental history reuse.
+Malformed frames, excess lengths, missing EOF/receipts, trailing bytes, wrong byte
+counts and output failures remain failures. Forty MiB streaming does not prove
+representative giant-repository speed/capacity; those measurements and installed
+provider acceptance remain separate. See [ADR 0106](../adr/0106-streaming-git-packs.md).
+
+## Main integration of setup, network and configuration guidance
+
+[#701](https://github.com/SLktEx/Hacocoon/pull/701) merged as main
+`f225e5c1a005358929a5c3bfe2b5154cc55a4ec6` after exact head `161f3854` passed
+quality `35000716746`, test `35000716642`, Ubuntu `35000716870`, Incus
+`35000716637` and Windows `35000716814`. The merged tree matches that head.
+#700's exact head is an ancestor and its PR was closed as integrated.
+
+Windows job `104488129559` and evidence job `104497872650` passed. Ordinary
+installation/re-entry, HTTPS/direct-egress refusal, native SSH/editor/TCP, Linux
+and public reclamation and native notification review routes passed. The forwarding
+application was armed after native ownership at 26,202 ms. Public operation
+`{40F8CDCB-AE50-4141-BC3B-F5A1A64B2E14}` recovered 2,683,305,984 bytes:
+Windows allocation 7,629,438,976 → 4,946,132,992, unchanged virtual capacity
+1,099,511,627,776, 255 open observations, completed compaction and same-WSL resume.
+Human toast clicks/fresh GUI answers and VPN/NRPT remain skipped and post-release.
+Earlier attached-disk failures remain distinct; this success does not prove their cause.
+
+The following Git implementation `68135b19` is tree-identical to `ace86ee4`
+after rebasing onto this main. The latter's normal ten-binary Linux/Windows
+package built in 42.32s. No local installation, WSL termination or publication
+was performed. Product code also matches the full-tested pre-rebase `9c9d2ed0`;
+four documentation conflicts preserved both independent evidence sections.

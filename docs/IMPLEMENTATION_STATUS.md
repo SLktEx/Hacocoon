@@ -20,7 +20,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
 | [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
-| [Ordinary Git](guides/git-workflow.md) | partial | All-head fetch with independent per-ref read checks; one new branch or existing fast-forward push with fixed-content approval. Clone/fetch grants no push authority; main remains reviewable. Exact old/new remote observation reconciles a dispatched push without replay. Fetch reuses verified ancestor history; existing-target push omits the available old history. New-target push reuses one available advertised ancestor through a fresh exact-ref read. Multi-head fetch indexes each bounded pack in sequence, so aggregate batches may exceed 32 MiB. Single full or incremental packs above 32 MiB, LFS/submodules, force/deletion/multi-ref and general recovery remain limited or unsupported. Native authenticated use and large repositories need separate acceptance. |
+| [Ordinary Git](guides/git-workflow.md) | partial | All-head fetch with independent per-ref read checks; one new branch or existing fast-forward push with fixed-content approval. Clone/fetch grants no push authority; main remains reviewable. Exact old/new remote observation reconciles a dispatched push without replay. Fetch reuses verified ancestor history; existing-target push omits the available old history. New-target push reuses one available advertised ancestor through a fresh exact-ref read. Multi-head fetch streams each pack in sequence with bounded buffers and a finite 16 GiB per-pack limit; a final receipt and successful object import are required. LFS/submodules, force/deletion/multi-ref and general recovery remain limited or unsupported. Native authenticated use and large repositories need separate acceptance. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
 | [Network / DNS](design/egress-authorization.md) | implemented | Controller-owned Standard proxy, Incus lower-layer direct-egress guard and trusted source-bound DNS. Resolve and connect permissions are separate. Per-Env host/backend/disabled selection survives snapshot/copy/import; client loopback TCP forwarding uses controller streams. A read-only kernel source-guard observer exists; full packaged Windows and spoofed-packet acceptance remain separate. VPN/NRPT, restart combinations and broad supported-Incus acceptance remain incomplete. |
 | [Setup recipes / preview](design/project-setup.md) | partial | Host recipes apply once per incarnation with explicit script-only retry and private output/exit receipts; Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
@@ -65,7 +65,7 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
-Main `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
+Previous main checkpoint `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
 #689–#693 and #696–#698 on top of #687/#688. Restored-tree comparison,
 Japanese reclamation results, bounded SSH failure classification, latest-ready
 restore by source environment name, incremental Git history reuse and sequential
@@ -84,8 +84,7 @@ or huge-repository acceptance.
 
 [#700](https://github.com/SLktEx/Hacocoon/pull/700) adds shared English/Japanese
 Host/project setup outcomes and next actions, preserving raw script output,
-explicit replay, diagnostic values and vertical help. It is implemented on its
-development branch; local full checks and normal package generation passed.
+explicit replay, diagnostic values and vertical help. It is integrated through #701 on main; local full checks and normal package generation passed.
 [Overall language coverage](reference/cli-language.md) remains partial.
 
 Person-dependent login, notification clicks and fresh VS Code answers are
@@ -104,12 +103,17 @@ Configuration inspection/save and recovery guidance also use shared bilingual
 presentation on the development branch. Revision-bound edits, Policy values and
 JSON are unchanged; display failure never retries an edit.
 
-The combined main candidate [#701](https://github.com/SLktEx/Hacocoon/pull/701)
+Main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)
 includes #700 setup guidance, network/configuration guidance and a correction
-to the installed TCP fixture's readiness timing. Local tests pass; its final
-installed CI is pending. #700's two distinct Windows failures remain in
+to the installed TCP fixture's readiness timing. All five exact-head workflows and installed Windows acceptance passed; person-dependent checks remain post-release. #700's two distinct Windows failures remain in
 [acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).
+
+The Git streaming development candidate replaces whole-pack base64 with bounded
+binary frames on both existing transport boundaries. It removes the 32 MiB
+single-pack restriction, retains separate exact-ref push approval and checks a
+final byte-count receipt. Local real Git over 32 MiB and full repository validation pass; installed
+validation is pending. See [ADR 0106](adr/0106-streaming-git-packs.md).
 
 ## Repository layout and retired CLI
 
-The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0106-responsibility-layout-and-cli-retirement.md).
+The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).

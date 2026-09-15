@@ -2,17 +2,18 @@ package gitadapter
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
 // Preparation and external mutation receive separate Policy checks. The target
 // is a controller-selected literal ref, not authority derived from checkout.
-func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest) (Response, error) {
+func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest, index func(io.Reader) error) (Response, error) {
 	if !ValidHeadRef(req.Ref) || !ValidOID(req.OldOID) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID {
 		return Response{}, fmt.Errorf("invalid push ref or OIDs")
 	}
 	if req.Operation == "push" {
-		if len(req.Pack) != 0 {
+		if req.Pack != nil {
 			return Response{}, fmt.Errorf("approved push cannot supply another pack")
 		}
 		if err := validatePushCommits(git, req.OldOID, req.NewOID); err != nil {
@@ -33,7 +34,7 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 		}
 		return Response{OID: req.NewOID, Ref: req.Ref}, nil
 	}
-	if req.Operation != "prepare" || len(req.Pack) == 0 {
+	if req.Operation != "prepare" || req.Pack == nil {
 		return Response{}, fmt.Errorf("invalid push preparation")
 	}
 	old, err := observeHead(git, req.Remote, req.Ref)
@@ -54,7 +55,7 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 		}
 	}
 	// Only object bytes are imported, never guest .git/config, hooks or remotes.
-	if _, err := git(req.Pack, "index-pack", "--stdin", "--strict", "--max-input-size=33554432"); err != nil {
+	if err := index(req.Pack); err != nil {
 		return Response{}, fmt.Errorf("invalid Git object pack")
 	}
 	if err := validatePushCommits(git, old, req.NewOID); err != nil {
