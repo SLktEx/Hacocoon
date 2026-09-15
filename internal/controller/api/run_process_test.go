@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,20 +151,41 @@ func TestRunProcessDisconnectWhileInputBlockedStillCleansUp(t *testing.T) {
 	}
 }
 
-func TestRunProcessRejectsInvalidTTYBeforeCreation(t *testing.T) {
+func TestRunRequestsRejectInvalidInputBeforeCreation(t *testing.T) {
 	lifecycle := &processTestLifecycle{cleaned: make(chan error, 1)}
 	client := processTestClient(t, lifecycle)
-	for _, request := range []RunStreamRequest{
-		{Spec: runapp.Spec{Argv: []string{"bash"}}, TTY: true},
-		{Spec: runapp.Spec{Argv: []string{"cat"}}, Terminal: TerminalMetadata{Term: "xterm"}},
-		{Spec: runapp.Spec{Argv: []string{"bad\x00command"}}},
+	for _, test := range []struct {
+		name, method string
+		request      any
+	}{
+		{"missing-dimensions", MethodRunStream, RunStreamRequest{Spec: runapp.Spec{Argv: []string{"bash"}}, TTY: true}},
+		{"terminal-without-tty", MethodRunStream, RunStreamRequest{Spec: runapp.Spec{Argv: []string{"cat"}}, Terminal: TerminalMetadata{Term: "xterm"}}},
+		{"nul-command", MethodRunStream, RunStreamRequest{Spec: runapp.Spec{Argv: []string{"bad\x00command"}}}},
+		{"oversized", MethodRunStream, RunStreamRequest{Spec: runapp.Spec{Argv: []string{strings.Repeat("x", 64<<10)}}}},
+		{"wrong-json-type", MethodRunStream, "not a request object"},
+		{"unknown-field", MethodRunStream, map[string]any{"spec": runapp.Spec{Argv: []string{"true"}}, "unreviewed": true}},
+		{"invalid-terminal-identity", MethodRunStream, RunStreamRequest{Spec: runapp.Spec{Argv: []string{"bash"}}, TTY: true, Terminal: TerminalMetadata{Term: "xterm\ncommand", Columns: 80, Rows: 24}}},
+		{"missing-argv", MethodRun, runapp.Spec{WorkspacePath: "/retained"}},
+		{"captured-wrong-json-type", MethodRun, "not a request object"},
 	} {
-		conn, err := client.wire.OpenSession(context.Background(), MethodRunStream, request)
-		if conn != nil {
-			_ = conn.Close()
-		}
-		if err == nil || lifecycle.created.Load() != 0 {
-			t.Fatal("invalid request created an Environment", err)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			conn, err := client.wire.OpenSession(context.Background(), test.method, test.request)
+			if conn != nil {
+				_ = conn.Close()
+			}
+			var status *control.StatusError
+			if !errors.As(err, &status) || status.Code != "invalid_argument" || lifecycle.created.Load() != 0 {
+				t.Fatal("invalid request was not refused before Environment creation", err)
+			}
+		})
+	}
+	lifecycle.execute = func(context.Context, io.Reader, io.Writer, io.Writer) (core.ExecutionResult, error) {
+		return core.ExecutionResult{}, nil
+	}
+	if _, err := client.RunStream(context.Background(), runapp.Spec{WorkspacePath: "/retained", Argv: []string{"true"}}, false, strings.NewReader(""), io.Discard, io.Discard); err != nil || lifecycle.created.Load() != 1 {
+		t.Fatal("refused input broke subsequent valid execution", err)
+	}
+	if err := <-lifecycle.cleaned; err != nil {
+		t.Fatal("valid execution did not finish canonical cleanup", err)
 	}
 }
