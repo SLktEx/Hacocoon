@@ -158,3 +158,63 @@ func TestDeleteRestoredCopyRefusesForeignOwnerAndAcquiringAttachment(t *testing.
 		t.Fatal("positive cleanup retained receipt", err)
 	}
 }
+
+type restorePersistenceFault struct {
+	*state.EnvironmentJSONStore
+	stage string
+	after bool
+	err   error
+}
+
+func (s *restorePersistenceFault) RecordPersistentResourceCreated(ctx context.Context, r core.PersistentResource) error {
+	if s.stage != "receipt" || s.after {
+		if err := s.EnvironmentJSONStore.RecordPersistentResourceCreated(ctx, r); err != nil {
+			return err
+		}
+	}
+	if s.stage == "receipt" {
+		return s.err
+	}
+	return nil
+}
+
+func (s *restorePersistenceFault) CommitPersistentResourceCreate(ctx context.Context, r core.PersistentResource) error {
+	if s.stage != "commit" || s.after {
+		if err := s.EnvironmentJSONStore.CommitPersistentResourceCreate(ctx, r); err != nil {
+			return err
+		}
+	}
+	if s.stage == "commit" {
+		return s.err
+	}
+	return nil
+}
+
+func TestSnapshotRestorePersistenceFailureCleansOnlyItsOwnedCopy(t *testing.T) {
+	for _, stage := range []string{"receipt", "commit"} {
+		for _, after := range []bool{false, true} {
+			t.Run(stage+map[bool]string{false: "-before-write", true: "-after-write"}[after], func(t *testing.T) {
+				ctx := context.Background()
+				store, saved := restoreFixture(t)
+				b := &restoreBackend{backend: backend{store: store}, t: t, saved: saved}
+				failure := errors.New("restore catalog reply lost")
+				fault := &restorePersistenceFault{EnvironmentJSONStore: store, stage: stage, after: after, err: failure}
+				svc := &persistentresource.Service{Store: fault, Backend: b}
+				result, err := svc.RestoreSnapshot(ctx, "oci:restored", saved, "new-work")
+				if !errors.Is(err, failure) || errors.Is(err, core.ErrRecoveryRequired) || result != (core.PersistentResource{}) || b.exists {
+					t.Fatal("failed publication did not clean its exact owned copy", result, err, b.exists)
+				}
+				if _, err := store.GetPersistentResource(ctx, "oci:restored"); !errors.Is(err, core.ErrNotFound) {
+					t.Fatal("positive cleanup left a resource reservation", err)
+				}
+				retained, err := store.GetSnapshot(ctx, saved.ID)
+				if err != nil || retained.State != "ready" || retained.ID != saved.ID || len(retained.Components) != len(saved.Components) {
+					t.Fatal("failed restore damaged the saved aggregate", retained, err)
+				}
+				if err := store.BeginSnapshotDelete(ctx, saved.ID); err != nil {
+					t.Fatal("positive absence did not release the snapshot pin", err)
+				}
+			})
+		}
+	}
+}

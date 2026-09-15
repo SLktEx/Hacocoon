@@ -1,9 +1,11 @@
 package persistentresource_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,59 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/state"
 	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 )
+
+type savedPlanFailure struct {
+	*savedDataBackend
+	mode string
+}
+
+func (b savedPlanFailure) PlanSavedEnvironmentResource(ctx context.Context, saved core.Snapshot, key, owner string) (string, string, error) {
+	switch b.mode {
+	case "native-error":
+		return "", "", core.ErrRuntimeUnavailable
+	case "wrong-kind":
+		return "oci-containerd", "saved/" + owner, nil
+	case "empty-native":
+		return "build-cache", "", nil
+	}
+	return b.savedDataBackend.PlanSavedEnvironmentResource(ctx, saved, key, owner)
+}
+
+func TestSavedDataPlanningRejectsIncompleteOrIncompatibleSourceWithoutReserving(t *testing.T) {
+	for _, mode := range []string{"not-ready", "overlapping-areas", "invalid-instance", "native-error", "wrong-kind", "empty-native"} {
+		t.Run(mode, func(t *testing.T) {
+			store, saved, path := savedDataFixture(t)
+			backend := &savedDataBackend{t: t, store: store}
+			svc := &persistentresource.Service{Store: store, Backend: savedPlanFailure{backend, mode}}
+			request := core.EnvironmentResourceRequest{EnvironmentID: "restored", InstanceID: "env-" + strings.Repeat("c", 32), Workspace: core.Workspace{ID: "restored-work", Path: "managed:restored"}}
+			want := core.ErrInvalidArgument
+			switch mode {
+			case "not-ready":
+				saved.State = "capturing"
+			case "overlapping-areas":
+				saved.Source.Environment.Attachments[1].Target = saved.Source.Environment.Attachments[0].Target + "/nested"
+			case "invalid-instance":
+				request.InstanceID = "restored"
+			case "native-error":
+				want = core.ErrRuntimeUnavailable
+			case "wrong-kind", "empty-native":
+				want = core.ErrIncompatibleState
+			}
+			// Compare the durable catalog, including all saved-component ownership.
+			before, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.PlanSavedEnvironmentResources(context.Background(), request, saved); !errors.Is(err, want) {
+				t.Fatal("incompatible saved data accepted", err)
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(before, after) || backend.copies != 0 {
+				t.Fatal("failed plan altered the saved catalog", err)
+			}
+		})
+	}
+}
 
 type savedDataBackend struct {
 	t      *testing.T
@@ -64,7 +119,7 @@ func (b *savedDataBackend) CreateSavedEnvironmentResource(ctx context.Context, s
 	}
 	return nil
 }
-func savedDataFixture(t *testing.T) (*state.EnvironmentJSONStore, core.Snapshot) {
+func savedDataFixture(t *testing.T) (*state.EnvironmentJSONStore, core.Snapshot, string) {
 	t.Helper()
 	ctx := context.Background()
 	manager, backend, request, selections := environmentContractService(t)
@@ -101,14 +156,14 @@ func savedDataFixture(t *testing.T) (*state.EnvironmentJSONStore, core.Snapshot)
 	must(store.CommitSnapshot(ctx, saved.ID))
 	saved, err = store.GetSnapshot(ctx, saved.ID)
 	must(err)
-	return store, saved
+	return store, saved, backend.path
 }
 
 func TestSavedDataReservationReceiptAndCleanup(t *testing.T) {
 	for _, mode := range []string{"ok", "source-changed", "copy", "verify", "delete"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
-			store, saved := savedDataFixture(t)
+			store, saved, _ := savedDataFixture(t)
 			if mode == "source-changed" {
 				for _, a := range saved.Source.Environment.Attachments {
 					if _, err := store.ResetResourceGeneration(ctx, a.Origin, a.Origin.Compatibility); err != nil {

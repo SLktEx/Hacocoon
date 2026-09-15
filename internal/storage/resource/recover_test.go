@@ -102,3 +102,87 @@ func TestCompletedCopyRecoversAfterReopeningStateWithoutRecopying(t *testing.T) 
 		})
 	}
 }
+
+// Fail on either side of the real durable commit. Recovery must distinguish a
+// lost reply from a failed write without repeating the native copy.
+type recoveryCommitFault struct {
+	*state.EnvironmentJSONStore
+	afterWrite bool
+	readFails  bool
+	committed  bool
+	err        error
+}
+
+func (s *recoveryCommitFault) CommitPersistentResourceCreate(ctx context.Context, r core.PersistentResource) error {
+	if s.afterWrite {
+		if err := s.EnvironmentJSONStore.CommitPersistentResourceCreate(ctx, r); err != nil {
+			return err
+		}
+	}
+	s.committed = true
+	return s.err
+}
+
+func (s *recoveryCommitFault) GetPersistentResource(ctx context.Context, id string) (core.PersistentResource, error) {
+	if s.committed && s.readFails {
+		return core.PersistentResource{}, s.err
+	}
+	return s.EnvironmentJSONStore.GetPersistentResource(ctx, id)
+}
+
+func TestCopyRecoveryResolvesCommitUncertaintyFromDurableIdentity(t *testing.T) {
+	for _, mode := range []string{"before-write", "after-write", "after-write-read-failed"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := context.Background()
+			path := filepath.Join(t.TempDir(), "state.json")
+			st := state.NewEnvironmentJSONStore(path)
+			b := &stagedCopyBackend{copyBackend: &copyBackend{backend: backend{store: st}, test: t}}
+			svc := &persistentresource.Service{Store: st, Backend: b}
+			source, err := svc.Create(ctx, "oci:source", "oci-containerd")
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := svc.CopyForWorkspace(ctx, "oci:target", source.Kind, source.ID, "work")
+			if !errors.Is(err, core.ErrRecoveryRequired) || !target.CopyCompleted {
+				t.Fatal("fixture did not retain a completed copy", target, err)
+			}
+			fault := &recoveryCommitFault{EnvironmentJSONStore: state.NewEnvironmentJSONStore(path), afterWrite: mode != "before-write", readFails: mode == "after-write-read-failed", err: errors.New("catalog reply lost")}
+			svc.Store = fault
+			result, err := svc.RecoverCopy(ctx, target.Ref())
+			if mode == "after-write" {
+				if err != nil || result.State != "ready" || result.Ref() != target.Ref() {
+					t.Fatal("durably committed identity was not recognized", result, err)
+				}
+			} else if !errors.Is(err, fault.err) || result != target {
+				t.Fatal("uncertain publication was reported as successful", result, err)
+			}
+			reopened := state.NewEnvironmentJSONStore(path)
+			held, err := reopened.GetPersistentResource(ctx, target.ID)
+			if err != nil || held.Ref() != target.Ref() || held.WorkspaceID != "work" {
+				t.Fatal("recovery lost exact ownership", held, err)
+			}
+			if mode == "before-write" {
+				if held != target {
+					t.Fatal("failed commit lost the completion receipt", held)
+				}
+				if _, err := reopened.BeginPersistentResourceDelete(ctx, source.ID); !errors.Is(err, core.ErrStorageBusy) {
+					t.Fatal("failed commit released the copy source", err)
+				}
+			} else if held.State != "ready" || held.CopyCompleted || held.CopySource != (core.PersistentResourceRef{}) {
+				t.Fatal("successful commit retained an unfinished copy", held)
+			}
+			svc.Store = reopened
+			recovered, err := svc.RecoverCopy(ctx, target.Ref())
+			wantRecoveries := 1
+			if mode == "before-write" {
+				wantRecoveries++
+			}
+			if err != nil || recovered.Ref() != target.Ref() || recovered.State != "ready" || recovered.WorkspaceID != "work" || b.copies != 1 || b.recoveries != wantRecoveries {
+				t.Fatal("retry copied again or changed ownership", recovered, err, b.copies, b.recoveries)
+			}
+			if err := svc.Delete(ctx, source.ID); err != nil {
+				t.Fatal("successful recovery did not release the source", err)
+			}
+		})
+	}
+}

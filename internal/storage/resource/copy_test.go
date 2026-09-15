@@ -104,6 +104,15 @@ func TestCopyRejectsAttachedSourceAndInvalidTargetsBeforeProvider(t *testing.T) 
 			t.Fatalf("accepted %q", id)
 		}
 	}
+	if _, err := svc.CopyForWorkspace(ctx, "oci:copy", source.Kind, source.ID, ""); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal("workspace copy without ownership accepted", err)
+	}
+	if _, err := svc.Copy(ctx, "oci:copy", "different-kind", source.ID); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatal("source data copied as an incompatible kind", err)
+	}
+	if resources, err := store.ListPersistentResources(ctx); err != nil || len(resources) != 1 || resources[0] != source || b.copies != 0 {
+		t.Fatal("refused copy reserved a target or changed the source", resources, err)
+	}
 	lease := core.WorkspaceLease{EnvironmentID: "dev", Owner: "owner", WorkspaceID: "work", SourcePath: "/work", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: source.Ref()}
 	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)
