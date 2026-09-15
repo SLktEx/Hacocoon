@@ -84,8 +84,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.59 | Host customization lifecycle and results | ✅ implemented |
 | v0.60 | Git branch read and push authority | ✅ implemented |
 | v0.61 | Interactive temporary execution | ✅ implemented |
+| v0.62 | Packer HCL2 Base builds | ✅ implemented |
 
-The current milestone position is **v0.61**. This declaration and the table mirror YAML.
+The current milestone position is **v0.62**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
