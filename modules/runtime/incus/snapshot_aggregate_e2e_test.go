@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/control"
 	"github.com/SLktEx/Hacocoon/internal/controlapi"
 	"io"
@@ -976,16 +977,43 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if _, err := reopened.GetSnapshot(ctx, snap.ID); !errors.Is(err, core.ErrNotFound) {
 		t.Fatal("snapshot catalog cleanup", err)
 	}
-	entries, err := os.ReadDir(dir)
+	retainedLocks, err := cleanupAggregateRecoveryFiles(dir)
 	must(err)
-	for _, entry := range entries {
-		if !entry.Type().IsRegular() {
-			t.Fatal("unexpected recovery entry", entry.Name())
-		}
-		must(os.Remove(filepath.Join(dir, entry.Name())))
+	if retainedLocks {
+		t.Logf("Fixture resources are absent; persistent catalog lock identities retained at %s", filepath.Join(dir, "lifecycle-locks"))
 	}
-	must(os.Remove(dir))
 	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public CLI coverage reported separately; restored SSH handshake/live OCI consistency not tested.")
+}
+
+// Called only after the fixture's controllers have joined and every owned
+// provider resource is positively absent. Catalog lock inodes persist across
+// operations; this fixture does not delete or replace their identity.
+func cleanupAggregateRecoveryFiles(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	retainedLocks := false
+	for _, entry := range entries {
+		if entry.Name() == "lifecycle-locks" && entry.IsDir() {
+			retainedLocks = true
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			return false, fmt.Errorf("unexpected recovery entry %s", entry.Name())
+		}
+	}
+	for _, entry := range entries {
+		if entry.Type().IsRegular() {
+			if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil {
+				return retainedLocks, err
+			}
+		}
+	}
+	if !retainedLocks {
+		return false, os.Remove(dir)
+	}
+	return true, nil
 }
 
 // The fixture uses the same trusted registry lookup as application composition.

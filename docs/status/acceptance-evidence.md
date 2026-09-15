@@ -1369,3 +1369,18 @@ of the correction remains pending. Human login/notification/VS Code answers are
 post-release acceptance, not a main-merge gate; prior CI failures remain failures.
 
 Final local validation of the catalog-lock implementation passed: focused state/Workspace 9.55s, changed-code lint 18.78s, maintained full test entry 30.88s, race 12.11s, CLI E2E 4.18s, docs 8.50s, workflow policy 1.39s and native Incus test compilation 1.94s. After the later documentation/phase-recording edits, Windows-side documentation consistency, fixture syntax and diff checks also passed. The WSL root systemd-user-session warning was observed again; it was not repaired or counted as resolved. No installed acceptance or authenticated/GUI interaction is implied.
+
+## Catalog-lock candidate CI and package
+
+At #699 head `1ae5b410`, quality `34986231603`, test `34986231525` and Ubuntu
+`34986231600` succeeded. Incus `34986231453` passed the standalone and Core jobs
+but failed Btrfs job `104438909790` after all aggregate save/export/import/restore,
+copy, retained Workspace/OCI and owned provider deletion checks passed. The final
+fixture-directory cleanup rejected the newly persistent `lifecycle-locks` child.
+This remains a failed run, not complete Incus acceptance. The fixture correction
+retains this directory/inodes, removes completed recovery files only after a full
+entry preflight, and still refuses unknown directories or symlinks. It does not
+change provider-absence checks or product locking.
+
+The normal ten-binary Linux/Windows installer package built from exact `1ae5b410`
+in 69.93s. It was not installed or published; no running WSL was stopped.
