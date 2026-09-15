@@ -49,6 +49,13 @@ func TestSessionHistoryEvictsOldestTerminalRecordAndPreservesActiveConnection(t 
 		remaining[view.ID] = view
 	}
 	if remaining[live.Session.ID].State != "active" {
+		authority.mu.Lock()
+		defer authority.mu.Unlock()
+		for _, event := range authority.events {
+			if event.Type == "connection-closed" && event.Attributes["connection_id"] == live.Session.ID {
+				t.Fatalf("live connection closed before history check: %s", event.Reason)
+			}
+		}
 		t.Fatal("history eviction removed live authority")
 	}
 	if _, ok := remaining[terminalIDs[0]]; ok {
