@@ -1476,3 +1476,18 @@ The setup-language follow-up was rebased without a tree difference from
 `724adc2d` onto this main (`e5a4e1e8` → `8b95f79a`). Its normal ten-binary
 Linux/Windows package built from `724adc2d` in 45.49s, without installation,
 WSL termination or publication. These scopes do not claim a new release.
+
+## Network command language
+
+`0387258d` adds shared English/Japanese network result and next-action messages.
+Focused CLI/catalog/relay tests passed in 11.76s, changed-code lint in 26.63s,
+the maintained full test entry in 44.33s, race in 15.72s, CLI E2E in 4.40s,
+docs in 10.50s, workflow policy in 1.58s and native-test compilation in 2.00s.
+Tests compare JSON across languages, preserve exact revocation and ask-rule
+scope/expiry, keep unrelated Git approval rules and default denial while editing
+Host registrations, and retain original error details. Result-write failure
+does not replay the mutation. Actual Linux loopback TCP/UDP listeners were
+opened, canceled and rebound at their exact emitted addresses without opening
+an upstream connection. This is local CLI/relay evidence, not installed network,
+external-service, VPN or human UI acceptance. Catalog selection does not change
+structured log fields or the underlying Policy implementation.

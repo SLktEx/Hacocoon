@@ -121,3 +121,12 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
+
+The network-language follow-up (`0387258d`) adds M1/M3 result and next-action
+guidance while keeping JSON, source/target authority and rule scope unchanged.
+Local full checks passed, including real local TCP/UDP listener cancellation;
+installed/upstream acceptance is separate. The cache contract also removes stale
+claims that retained-source maintenance and added-data transfer are unimplemented.
+Existing native cache collection/reuse/emptying evidence is reused; late enrollment
+and unknown-copy cancellation remain follow-ups rather than being confused with
+the already working creation-time workflow.
