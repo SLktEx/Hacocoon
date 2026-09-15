@@ -1149,3 +1149,23 @@ after91.11s at prepare/enrollment with Windows error2. Read-only status was succ
 and still returned none afterward; no new operation record, stop, compaction or
 automatic replay was observed. The new diagnostic presentation worked, while the
 previous enrolled-record visibility discrepancy remains unresolved.
+
+
+<a id="supported-dns-modes"></a>
+## Supported Incus DNS modes
+
+With installed product `99522ebd893e7fbdc0752e3db3d6f84595f10fb6` on dedicated
+Hacocoon-Roadmap-f68a8c6b / Incus7.0.1, the existing three-mode native regression
+passed24.68s (test24.61s): host10.31s, backend8.09s, disabled6.20s. It created fresh
+owned Envs, checked resolver service/configuration across stop/resume and backend
+resolution, then completed canonical owned cleanup. Catalogs remain at
+`/var/lib/haco-dns-modes-2079785240/state.json`, `-3117962770/state.json` and
+`-811325797/state.json`. No Policy/configuration or dependency overrides were added.
+This supplements the earlier6.0.5 evidence, not guest Policy-query/Windows DNS
+tunneling/VPN/NRPT or giant-repository acceptance. The first wrapper used an invalid
+Incus info flag and stopped before the test; the maintained query /1.0 interface
+was used for the successful supported-server observation.
+
+The M0–M5/status consolidation passed the maintained local docs check39.09s and
+subsequent link checks. It removes stale candidate diaries, preserves unique failure
+evidence and updates paired owning contracts; no product code or checkpoint changes.

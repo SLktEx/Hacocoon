@@ -50,6 +50,7 @@ Source identity is checked before and after resolution. Backend mode has no
 fallback to Host or public DNS. The provider owns the bounded trusted operation;
 Standard has no Incus-specific branching. See [ADR0094](../adr/0094-environment-resolver-selection.md).
 
-Mode selection is implemented on main. Installed three-mode
-acceptance and DNS changes on networks outside the ordinary configuration remain
-unverified; existing host-mode evidence above is retained at its original scope.
+Mode selection is implemented on main. Native provisioning, stop/resume and backend
+resolution for all three modes passed on the supported Incus 7.0.1 baseline with
+installed product companion `99522ebd`; this is not end-to-end guest Policy-query
+or VPN/NRPT/restart acceptance. See [acceptance evidence](../status/acceptance-evidence.md#supported-dns-modes).
