@@ -43,6 +43,13 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if len(spec.Attachments) != 0 && (record == nil || p == nil || !p.SupportsEnvironmentResources() || spec.ResourceMaintenance || spec.TemporaryWorkspace) {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
+	dataBinding, _, err := p.environmentPlacementBinding(ctx, spec.ResourceBinding())
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
 	// Maintenance requires durable ownership before preparation or attachment.
 	// Receipt-free entry points cannot acquire this authority.
 	if spec.ResourceMaintenance {
@@ -88,6 +95,9 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 	profileConfig, err := p.sandboxProfileConfig(ctx)
 	if err != nil {
 		return core.EnvironmentRuntime{}, fmt.Errorf("resolve Hacocoon sandbox proxy configuration: %w", err)
+	}
+	if dataBinding != "" {
+		profileConfig[environmentDataKey] = dataBinding
 	}
 	initArgs := []string{
 		"init", resolved.pinnedSource, ref,

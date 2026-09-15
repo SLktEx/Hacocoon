@@ -2,7 +2,6 @@ package persistentresource
 
 import (
 	"context"
-	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
@@ -41,8 +40,5 @@ func (s *Service) DeleteReviewed(ctx context.Context, ref core.PersistentResourc
 	if err != nil {
 		return err
 	}
-	if err := s.Backend.Delete(ctx, owned); err != nil {
-		return fmt.Errorf("owned Store retained for explicit retry: %w: %w", core.ErrRecoveryRequired, err)
-	}
-	return s.Store.FinalizePersistentResourceDelete(ctx, owned)
+	return s.finishDelete(ctx, owned)
 }

@@ -17,14 +17,14 @@ import (
 // The consumer must create an independent instance with current explicit config;
 // it must not retain the transport image as a Base or another saved component.
 func (r *Runtime) WithImportedRootfs(ctx context.Context, source io.ReadSeeker, root string, limit int64, consume func(string) error) error {
-	connect, err := localImageExportConnect(r.project)
+	connect, err := localDaemonConnect(r.project)
 	if err != nil {
 		return err
 	}
 	return r.withImportedRootfs(ctx, source, root, limit, consume, connect)
 }
 
-func (r *Runtime) withImportedRootfs(ctx context.Context, source io.ReadSeeker, root string, limit int64, consume func(string) error, connect imageExportConnect) (resultErr error) {
+func (r *Runtime) withImportedRootfs(ctx context.Context, source io.ReadSeeker, root string, limit int64, consume func(string) error, connect localIncusConnect) (resultErr error) {
 	if source == nil || consume == nil || connect == nil {
 		return core.ErrInvalidArgument
 	}

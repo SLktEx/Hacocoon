@@ -478,4 +478,60 @@ then updated; the prior source-bound results are preserved, not relabeled as CI
 success for a new head.
 
 
+<a id="cache-generation-foundation"></a>
+## Cache generation foundation
+
+Implementation `2a0e94990710bd3db9143f97d8fa5c4934b6a664` (v0.69) adds atomic source selection and
+detached `build-cache` provider volumes. Go 1.26.8 Core/state/resource/architecture/
+Incus regressions and three targeted race repetitions passed. Source verification
+found 1,474 byte-identical files between the final tested copy and this commit.
+Documentation consistency and 18 checker regressions passed.
+
+Production changes passed the other packages in standard local test CI (Go
+1.27.1, shuffle 615), but `TestLoginBootstrapPTYDoesNotStartHostSetup` failed
+waiting for the Bash input prompt (6.64 s). Its earlier failures remain unresolved.
+The later CI stages were skipped in that execution; separately, `go vet`, client
+syntax, 32 notification-client tests and two packaging tests passed. These split
+results do not turn the full CI run into a pass. The new opt-in native cache
+fixture was added after that full run and executed separately.
+
+Real Incus 6.0.5/Btrfs provider acceptance used a dedicated 1 GiB pool and random
+8 MiB fixture data. Two independent copies took 3.837846024 s. `btrfs filesystem
+du --raw -s` reported total/shared 8,388,608 bytes and exclusive 0 for each of the
+source and two copies, before mutation. Contents, independent mutation, current
+source deletion refusal, copies surviving reset/source deletion, native snapshot
+reference refusal and exact fixture cleanup passed (16.45 s total). This measures
+small synthetic data extents, not total pool allocation or giant-repository speed.
+
+The first native attempt failed before publication because the test process
+could not see the daemon's separate storage mount namespace. Pool/project
+`haco-cache-15c4cf3cbcded3c0` and catalog
+`/var/lib/haco-cache-generation-2844418008/state.json` retain a creating owned
+source at generation zero; no forced catalog edit or cleanup bypass was used.
+The successful attempt ran the same compiled fixture in the existing daemon
+mount namespace, without changing isolation/authorization settings, and removed
+its own pool/project `haco-cache-969c95ea6a2e3bc9`. It does not clean or resolve the
+first attempt's retained source. This privileged fixture seeds and observes only
+its own volumes; it is not ordinary-Env collection or installed client acceptance.
+
+Host-selected paths, compatibility enrollment, multiple Env attachments,
+automatic stopped collection, history/clear operations and actual large-repository
+measurement remain open in [the cache contract](../design/cache-generations.md).
+
+Parent Packer PR #643 (`80a687d0`) subsequently passed test 34778540239, Ubuntu
+34778540205 and Incus 34778540180. Windows 34778540191/job 103781180868 passed
+steps 13–20, including tunnel exit 0, but notification step 21 failed at
+`stage=activation, reason=unavailable`; native/child exit/duration were unrecorded.
+Fresh notification answers and actual Packer completion remain unverified.
+
+
+
+## Main cache foundation integration
+
+The main candidate reuses `2a0e9499`, `c4b7af50`, `094cc930`, `3a6e2bbc` and `2b3a5b56` over interactive-run source `7ed40fe5`. It preserves split lifecycle ownership and exact temporary-run identities, without adding old-version migration. Initial focused tests caught a missing generation-validation call during normalization and an imported old-schema acceptance fixture. The validation was restored and the fixture now tests preservation of current owned resources. All corruption-refusal cases then passed.
+
+Final focused tests (12.86s), uncapped changed-code lint (10.84s), maintained local tests (22.15s), related race (9.78s), CLI E2E (4.01s), docs/regressions (6.96s) and workflow policy (1.34s) passed with Go 1.27.1. Earlier lint found read-response closes, fixture writes and boolean simplifications; fixed before these results. Historical provider measurements above are not relabeled as new native acceptance. The old ambiguous fixture pool remains untouched. Public configuration, stopped-Env publication, history/clear and added-data snapshot/copy/transfer remain incomplete, so production enrollment is disabled.
 Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
+
+
+After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.

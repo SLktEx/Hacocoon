@@ -12,8 +12,15 @@ import (
 // RecoverCompletedCopy restores only a copy whose positive provider completion
 // was durably recorded by the canonical resource service. Existence is not proof.
 func (b *PersistentResourceBackend) RecoverCompletedCopy(ctx context.Context, source, target core.PersistentResource) error {
-	if target.State != "creating" || !target.CopyCompleted || target.CopySource != source.Ref() {
+	if source.Kind != target.Kind || target.State != "creating" || !target.CopyCompleted || target.CopySource != source.Ref() {
 		return core.ErrRecoveryRequired
+	}
+	// Cache copies never pause, inspect or restore trusted Host processes.
+	if source.Kind == CacheResourceKind {
+		if err := b.Verify(ctx, target); err != nil {
+			return err
+		}
+		return b.Verify(ctx, source)
 	}
 	unlock, err := lockHostOperation(ctx, b.Runtime.project)
 	if err != nil {

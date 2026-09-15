@@ -97,3 +97,8 @@ are outside the requested M0–M5 scope.
 canonical run lifecycle. Exact creation identities fence cleanup and same-name
 recreation; current split ownership and cleanup-outcome handling remain. Old-version
 migration/fallback cleanup is excluded. New local and native acceptance are separate.
+
+
+## Cache generation foundation
+
+**Partial:** atomic generation adoption, independent CoW resources, exact Env-owned disposable attachments and Host target selection are implemented components. Production selection is disabled until stopped collection and public configuration/cleanup are connected. Added attachments currently refuse snapshot/copy/transfer instead of dropping data. Existing Workspace/OCI retention is unchanged. See [cache generations](design/cache-generations.md).

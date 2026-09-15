@@ -72,6 +72,9 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 	if expected != nil && (lease.WorkspaceID != expected.ID || lease.SourcePath != expected.Path) {
 		return core.ErrIncompatibleState
 	}
+	if lease.RuntimeAbsent {
+		return s.finalizeAbsentEnvironment(ctx, name)
+	}
 	if lease.RuntimeRef == "" {
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)
 	}

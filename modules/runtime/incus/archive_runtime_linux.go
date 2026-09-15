@@ -14,6 +14,9 @@ import (
 // current sandbox configuration. Canonical lifecycle owns the instance receipt
 // and failed-instance cleanup; the transport adapter owns image cleanup.
 func (p *SandboxProvider) CreateEnvironmentFromArchive(ctx context.Context, spec core.EnvironmentRuntimeSpec, source io.ReadSeeker, privateRoot string, limit int64, record func(core.EnvironmentRuntime) error) (created core.EnvironmentRuntime, err error) {
+	if len(spec.Attachments) != 0 {
+		return created, core.ErrUnsupported
+	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.ResourceMaintenance || spec.Base != "" {
 		return created, core.ErrInvalidArgument
 	}

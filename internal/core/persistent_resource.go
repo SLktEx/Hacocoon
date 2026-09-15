@@ -6,13 +6,15 @@ import (
 )
 
 // PersistentResourceRef is an exact, controller-owned attachment identity.
-// This PoC allows one additional exclusive RW resource beside the Workspace.
+// Retained data and disposable Env children share exact ownership references.
 type PersistentResourceRef struct {
 	ID    string `json:"id,omitempty"`
 	Owner string `json:"owner,omitempty"`
 }
 
 type PersistentResource struct {
+	// EnvironmentInstance binds disposable data to one canonical Environment creation.
+	EnvironmentInstance string `json:"environment_instance,omitempty"`
 	// RestoreSource reserves immutable saved data until independent creation completes.
 	RestoreSource string      `json:"restore_source,omitempty"`
 	SourceOnly    bool        `json:"source_only,omitempty"`

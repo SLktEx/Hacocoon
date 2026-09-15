@@ -38,7 +38,7 @@ func TestStartRetainsOwnershipOnSuccessAndUncertainFailure(t *testing.T) {
 		if err := New(r, s).Start(context.Background(), "resume"); !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(s.environments["resume"], before) || s.leases["resume"] != lease || len(r.deleteRefs) != 0 {
+		if !reflect.DeepEqual(s.environments["resume"], before) || !s.leases["resume"].Equal(lease) || len(r.deleteRefs) != 0 {
 			t.Fatal("resume changed ownership")
 		}
 	}

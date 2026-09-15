@@ -130,7 +130,7 @@ func TestRealIncusResumeE2E(t *testing.T) {
 		t.Fatalf("lost contents: %q", got)
 	}
 	after, err := st.GetWorkspaceLease(ctx, name)
-	if err != nil || after != lease {
+	if err != nil || !after.Equal(lease) {
 		t.Fatalf("lease changed: %+v %v", after, err)
 	}
 	if err := svc.Delete(ctx, name); err != nil {

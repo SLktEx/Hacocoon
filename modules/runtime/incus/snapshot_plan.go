@@ -15,6 +15,9 @@ import (
 // PlanSnapshot enumerates the entire supported stopped aggregate without writes.
 // The caller must hold canonical Environment/Workspace locks through capture.
 func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, id string) ([]core.SnapshotComponent, error) {
+	if len(source.Environment.Attachments) != 0 {
+		return nil, core.ErrUnsupported
+	}
 	if !strings.HasPrefix(id, "snap-") || len(id) != 37 || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: strings.TrimPrefix(id, "snap-")}) || !core.ValidEnvironmentInstanceID(source.InstanceID) || !strings.HasPrefix(source.Environment.Workspace.Path, "managed:") || source.Environment.RuntimeRef == trustedHostName {
 		return nil, core.ErrInvalidArgument
 	}
