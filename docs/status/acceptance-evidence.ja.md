@@ -989,3 +989,14 @@ Windows DNS tunneling、VPN/NRPT、巨大レポの証拠ではない。初回の
 M0〜M5・実装状況の整理はローカルの維持されているdocs確認39.09秒と、その後のリンク確認が
 成功。古い候補の日誌を整理し、固有の失敗証拠を保持して日英の所有文書を更新した。
 製品コード・チェックポイントの変更はない。
+
+
+#690 head `b6dec8807e026bf9c765db0af16eea238186da06` はLinux4 CIが成功したが、
+Windows [job104373589771](https://github.com/SLktEx/Hacocoon/actions/runs/34966961367/job/104373589771)
+でtest_windows_environment_ssh.ps1:554のhost key変更確認が失敗。そこまでのSSH・エディタ、
+承認Webviewの古い要求拒否、保存選択の確認、setup、preview、import/再作成後の作業、
+Windows転送は成功。Linux/通常容量回収・native通知はSKIP。該当assertは終了値・
+禁止したstdout・host-key診断の欠落をまとめており、どの条件だったかはログだけでは不明。
+その後のPolicy後始末と切断ではWSLのCatastrophic failureが記録された。鍵照合の迂回が
+証明されたわけでも、拒否確認の成功でもない。原因を確認するまでこのheadは未マージとし、
+先の #687/#688 成功で失敗を消さない。

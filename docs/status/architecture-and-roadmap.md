@@ -22,7 +22,9 @@ These are implementation checkpoints, not M0–M5-wide acceptance or distributio
 [#690](https://github.com/SLktEx/Hacocoon/pull/690) is the development candidate for
 Japanese reclamation results and restored-tree comparison, including
 [#689](https://github.com/SLktEx/Hacocoon/pull/689). Its local and dedicated installed
-results are recorded separately; main integration awaits the current head's CI.
+results are recorded separately. Head `b6dec880` passed four Linux workflows but
+failed the Windows changed-host-key assertion; its precise cause is unproven.
+Main integration requires diagnosis and a successful exact-head CI result.
 The preceding stages do not need reimplementation simply because an Issue is open.
 
 ## M0–M5 remaining work

@@ -1169,3 +1169,16 @@ was used for the successful supported-server observation.
 The M0–M5/status consolidation passed the maintained local docs check39.09s and
 subsequent link checks. It removes stale candidate diaries, preserves unique failure
 evidence and updates paired owning contracts; no product code or checkpoint changes.
+
+
+At #690 head `b6dec8807e026bf9c765db0af16eea238186da06`, four Linux workflows passed,
+but Windows [job104373589771](https://github.com/SLktEx/Hacocoon/actions/runs/34966961367/job/104373589771)
+failed the changed-host-key assertion in test_windows_environment_ssh.ps1:554.
+Earlier SSH/editor, approval Webview stale refusal, saved-choice review, setup,
+preview, imported/recreated work and Windows tunnel checks passed. Linux/public
+reclamation and native notification review were skipped. The assertion combines
+exit status, unexpected stdout and missing host-key diagnostics; the log does not
+establish which predicate failed. Subsequent Policy cleanup/disconnect reported
+WSL Catastrophic failure. This is neither a proven host-key bypass nor a successful
+refusal test. Keep this head unmerged pending diagnosis; do not relabel it using
+the earlier #687/#688 successes.
