@@ -1404,3 +1404,5 @@ performance or authenticated installed Git acceptance. Single packs over 32 MiB
 remain unsupported. `d4c264a3` separately corrected the Incus fixture cleanup,
 with focused regression 23.41s (test execution 0.041s) and lint 17.36s passing.
 Both changes were integrated locally without conflicts at `5980d18f`.
+
+A focused Windows process regression also reproduced loss of completed stdout/stderr phases when the native acceptance wrapper timed out. The correction keeps bounded output on the timeout exception and emits it before failing, without increasing the 30-minute deadline or weakening required markers. The original regression failed with empty captured output; all seven native-runner tests then passed in 1.671s on Windows. This does not identify the running #699 Windows job's cause or establish its success. The integrated `77a4c8cc` normal ten-binary package built in 31.96s without installation or publication.
