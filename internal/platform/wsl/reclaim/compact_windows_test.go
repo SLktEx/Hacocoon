@@ -168,6 +168,18 @@ func TestNativeDetachedWaitReleasesVirtualHandle(t *testing.T) {
 			_ = windows.CloseHandle(probe)
 		}
 	}()
+	// Match the worker: file and directory pins stay open while all virtual
+	// observation handles are released. The ownership pins must remain usable
+	// after native detach; releasing them would hide a production-only conflict.
+	pin, err := pinDisk(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pin.Close()
+	before, err := pin.Allocation()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := windows.CloseHandle(owner); err != nil {
 		t.Fatal(err)
 	}
@@ -194,6 +206,9 @@ func TestNativeDetachedWaitReleasesVirtualHandle(t *testing.T) {
 	}()
 	if identity.Capacity != 256<<20 {
 		t.Fatal(identity)
+	}
+	if after, err := pin.Allocation(); err != nil || after.LogicalBytes != before.LogicalBytes {
+		t.Fatal("native detach changed the pinned file", before, after, err)
 	}
 	t.Logf("owned native disk detached with file intact: attempts=%d", attempts)
 }
