@@ -24,6 +24,12 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 		return fmt.Errorf("record managed Incus Environment ownership: %w", err)
 	}
 
+	if !spec.DNSMode.Valid() {
+		return core.ErrInvalidArgument
+	}
+	if err := p.setAndVerifyConfig(ctx, ref, environmentDNSModeKey, string(spec.DNSMode.Effective())); err != nil {
+		return err
+	}
 	// Incus must not restore a prior running state before volatile guards exist.
 	if err := p.setAndVerifyConfig(ctx, ref, "boot.autostart", "false"); err != nil {
 		return fmt.Errorf("disable automatic Environment startup: %w", err)

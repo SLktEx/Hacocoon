@@ -165,6 +165,16 @@ func leaseHasResource(lease core.WorkspaceLease, id string) bool {
 }
 
 func validateEnvironmentResources(data environmentFileState) error {
+	for _, environment := range data.Environments {
+		if !environment.DNSMode.Valid() {
+			return core.ErrIncompatibleState
+		}
+	}
+	for _, saved := range data.Snapshots {
+		if !saved.Source.Environment.DNSMode.Valid() {
+			return core.ErrIncompatibleState
+		}
+	}
 	held := map[string]string{}
 	for name, lease := range data.Leases {
 		if len(lease.Attachments) == 0 && !lease.RuntimeAbsent {

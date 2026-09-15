@@ -49,6 +49,13 @@ func writeEnvironmentStatusLanguage(out io.Writer, status core.EnvironmentStatus
 	if _, err := fmt.Fprint(out, language.Format("env.status.header", displayCell(env.Name), displayCell(string(status.State)), displayCell(env.Workspace.Path), displayCell(string(env.AccessMode)))); err != nil {
 		return 1
 	}
+	dnsLabel := language.Text("env.dns." + string(env.DNSMode.Effective()))
+	if !env.DNSMode.Valid() {
+		dnsLabel = language.Text("env.dns.unknown")
+	}
+	if _, err := fmt.Fprint(out, language.Format("env.status.dns", dnsLabel)); err != nil {
+		return 1
+	}
 	if env.Base != nil {
 		if _, err := fmt.Fprint(out, language.Format("env.status.base", displayCell(string(env.Base.Name)), displayCell(string(env.Base.Revision)))); err != nil {
 			return 1

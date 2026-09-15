@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.64**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.65**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -118,3 +118,5 @@ Cache completion recovery: implemented candidate for named, positively completed
 ## Client TCP access
 
 **Implemented candidate:** `haco env tunnel --target-port 8080 demo` opens a loopback listener for applications. Native Linux stays local; ordinary WSL/Host entry delegates to the installed Windows client, retaining the exact Env creation and WSL registration. Closing the foreground client closes its listener and connections. Shared parsing, process framing, cancellation and installer placement reuse existing development work. Fresh installed acceptance remains separate; DNS modes and VPN/NRPT acceptance remain incomplete. See [client transport](design/controller-client-transport.md#client-tcp-listeners).
+
+Resolver selection: implemented candidate. Environment creation accepts `--dns host|backend|disabled`, defaults to the Physical Host, and preserves the setting through snapshot/copy/transfer. Disabled mode refuses controller lookups even if guest tooling is restarted. Three-mode installed acceptance is pending; see [name resolution](design/name-resolution.md).
