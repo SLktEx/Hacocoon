@@ -957,3 +957,17 @@ network-finalは空だったため、内容復元の証拠には使っていな�
 再実行した。WSLは管理ユーザーのsystemd session警告を出したがHostへ入場できた。
 警告の原因は未調査。この読み取り成功は、新たな容量回収開始・圧縮や人のGUI回答の
 成功を意味しない。
+
+
+復元照合head `379f0b156e853d81b00a2933dbd6983f00718cc9` のWindows
+[run34964494309/job104365643144](https://github.com/SLktEx/Hacocoon/actions/runs/34964494309/job/104365643144)
+は導入・HTTPS・interop・SSH/エディタ/転送・Linux容量回収が成功した後、通常reclaimが
+失敗。Linux両段階complete、Windows停止要求済み、open attempts1、compact_attached、
+圧縮未試行・再開未成功。通知確認はSKIP。Linux側4 CIは成功した。このheadはmainへ
+マージせず、同じ実装を含む #690 でmainとの同内容の履歴重複を整理した。候補の
+ファイル内容は変えていない。Windows失敗の原因は未確定として保持する。
+
+導入済み `99522ebd` で3回目の通常・日本語reclaimを実行したが、91.11秒で
+準備/導入時の登録情報・Windowsエラー2となった。読み取りは成功し、その後も保存結果なし。
+新しい操作記録・停止・圧縮・自動再送は観測されていない。日本語の診断は機能したが、
+導入記録の見え方の差は未解決。

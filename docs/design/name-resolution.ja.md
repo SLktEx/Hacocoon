@@ -43,5 +43,5 @@ snapshot・copy・export/importでも設定を保持し、元の承認は持ち�
 実行基盤の操作はproviderが担当し、StandardにIncus専用分岐を置きません。
 [ADR0094](../adr/0094-environment-resolver-selection.ja.md)を参照してください。
 
-モード選択は開発候補へ実装中です。導入済み環境での3モードの確認、通常の
+モード選択はmainへ実装済みです。導入済み環境での3モードの確認、通常の
 ネットワーク以外の環境での変更確認は未実施。既存hostモードの証拠は元の範囲で保持します。

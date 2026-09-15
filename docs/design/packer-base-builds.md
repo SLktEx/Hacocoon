@@ -2,7 +2,7 @@
 
 [日本語](packer-base-builds.ja.md) | English
 
-Status: partial on the development candidate. Actual Packer execution is wired
+Status: partial on main. Actual Packer execution is wired
 through ordinary disposable Environments; installed acceptance remains separate.
 The existing [Base lifecycle](base-images-and-custom-environments.md) owns image
 publication, revisions, retention and reviewed deletion.

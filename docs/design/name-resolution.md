@@ -50,6 +50,6 @@ Source identity is checked before and after resolution. Backend mode has no
 fallback to Host or public DNS. The provider owns the bounded trusted operation;
 Standard has no Incus-specific branching. See [ADR0094](../adr/0094-environment-resolver-selection.md).
 
-Mode selection is implemented in the development candidate. Installed three-mode
+Mode selection is implemented on main. Installed three-mode
 acceptance and DNS changes on networks outside the ordinary configuration remain
 unverified; existing host-mode evidence above is retained at its original scope.

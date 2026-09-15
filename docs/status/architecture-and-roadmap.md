@@ -1,300 +1,107 @@
 # Architecture and roadmap
 
-Hacocoon is a **Secure Workspace Runtime**. It gives developer tools and agents
-freedom inside isolated Environments while keeping Host/external authority behind
-explicit boundaries. This page owns remaining work and direction, not a second
-feature-status table. Use [implementation status](../IMPLEMENTATION_STATUS.md) and
-[acceptance evidence](acceptance-evidence.md) for current scope and exact results.
+Hacocoon is a **Secure Workspace Runtime**. Developer tools and agents work inside
+isolated Environments; Host and external authority remain behind explicit boundaries.
+This page owns unfinished work. [Implementation status](../IMPLEMENTATION_STATUS.md)
+owns current features, and [acceptance evidence](acceptance-evidence.md) owns exact
+passes, failures and skips.
 
-## Product boundaries
+## Current scope and integration
+
+The active roadmap is M0–M5 on `main`, following the user's current instructions.
+Usable ordinary flows come first. Local checks are primary; independent development
+continues while hosted CI runs. Main merges are authorized only after all five
+required workflows succeed for the exact PR head. Tags and releases are separate.
+
+Main `2f421006` / [#687](https://github.com/SLktEx/Hacocoon/pull/687) integrates the
+previous Workspace, Git/GUI, network/DNS, Packer, cache, retained-data and notification
+work. Main `ee8bf7fb` / [#688](https://github.com/SLktEx/Hacocoon/pull/688) adds
+reclamation failure diagnostics. Both exact PR heads passed all five workflows.
+These are implementation checkpoints, not M0–M5-wide acceptance or distribution.
+
+[#690](https://github.com/SLktEx/Hacocoon/pull/690) is the development candidate for
+Japanese reclamation results and restored-tree comparison, including
+[#689](https://github.com/SLktEx/Hacocoon/pull/689). Its local and dedicated installed
+results are recorded separately; main integration awaits the current head's CI.
+The preceding stages do not need reimplementation simply because an Issue is open.
+
+## M0–M5 remaining work
+
+| Stage and useful outcome | Remaining implementation or acceptance |
+|---|---|
+| M0 — use existing improvements together | Integration is on main. Preserve the same-version ordinary installation → open/edit → stop/resume → retained-data cycle when changing connections. Existing Windows CI includes editor, cold SSH, forwarding and retained-data checks; wider configurations remain separate. |
+| M1 — understandable everyday use | Vertical help, OS/Host language handoff, repeated-failure grouping, installer final results and detailed daily guidance are integrated. Candidate #690 adds Japanese reclamation results. Remaining command families and original tool diagnostics are listed in the language contract. Fresh human GUI/layout answers, the observed managed-user systemd-session warning and broader Windows entry remain acceptance work. |
+| M2 — independent multi-repository work and reviewed Git | Selected membership in a new fork, independent checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and exact old/new reconciliation are integrated. Complete actual authenticated development and fresh Windows-notification/VS Code GUI answers. Keep main push approval independent of clone/fetch. In-place membership editing is not required for the implemented independent-fork flow. |
+| M3 — permitted communication outside ordinary networks | TCP/UDP, client loopback forwarding, interactive temporary execution and `host/backend/disabled` DNS selection are implemented. DNS selection survives snapshot/copy/import. Complete end-to-end guest DNS/Policy checks on the supported baseline and actual VPN/NRPT/restart combinations where available; name discovery never grants connection authority. |
+| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external-shell execution and Base archive import are wired. Actual Packer builds remain blocked at dependency downloads under the dedicated installation's default-deny Policy; use normal reviewed settings, not test overrides. Creation-time cache enrollment, generation reuse, collection/history/recovery/clear and Env-local emptying are implemented. Late enrollment and unknown native-copy cancellation remain separate follow-ups. Broader ordinary OCI use and real large-repository measurements remain. |
+| M5 — understand retained data and resume development elsewhere | Component-level snapshot deletion diagnosis, retained-object cleanup, export/import, reclamation diagnostics and current-data inventory/archive are implemented. Candidate #690 adds restored-tree comparison and has a limited actual-data restore pass. Complete required-current-data selection, appropriate guest-visible owner/attribute checks, restored editor/build/OCI/authenticated Git use, and the dedicated installation's reclaim-start diagnosis. Preserve unknown ownership and failed receipts. |
+
+[CLI language scope](../reference/cli-language.md),
+[Workspace input](../design/workspace-input.md),
+[Packer builds](../design/packer-base-builds.md),
+[cache generations](../design/cache-generations.md), and
+[data evacuation](../guides/data-evacuation.md) define the actual supported operations.
+Do not expand a pending acceptance item into an unrelated compatibility project.
+
+## Acceptance priorities and limits
+
+Complete ordinary Packer setup/download/build/publication and reuse first when the
+required communication configuration is available. The proposed three-source
+require-approval configuration awaits user input after automatic approval review
+refused its all-Environment scope; it has not been applied. Do not bypass that refusal
+with a test allow rule. Continue independent usability work while it is pending.
+
+Reclamation succeeded with measured allocation recovery in Windows CI, including
+retained Workspace/OCI verification. The dedicated local start previously failed
+at enrollment while a direct Windows observation passed; a later Japanese read-only
+status succeeded after normal installation. That does not explain the earlier
+failure or prove a new start. An attempted global WSL restart was stopped by the
+pre-action guard after an unrelated running distribution was observed; no global
+shutdown occurred. Human notification/VS Code answers remain unperformed.
+
+Current data was archived and restored to another WSL with content, raw Host owner,
+link and regular-file/directory-attribute comparison. This is a small real-data
+result, not guest-idmap acceptance, all-data restoration or a giant-repository claim.
+Authentication, external networks and visible desktop acceptance must be recorded
+as performed, failed or unperformed independently of repository tests.
+
+Large-repository performance, additional strict validation, broader OCI/runtime
+compatibility and larger Git transport are deferred until ordinary use works.
+The existing 32 MiB pack limit remains a known constraint. Measure representative
+large repositories before claiming the intended capacity/speed benefit; small
+fixtures do not prove it. LFS, submodules, force/delete/multi-ref push are not
+additional M2 completion conditions.
+
+## Architecture and retained data
 
 Core owns Workspace identity/leases, Environment lifecycle, Execution, resource
-budgets, Policy/Approval/Audit, narrow capabilities and client interaction contracts.
-Provider and client specifics stay behind adapters. Standard supplies maintained
-replaceable defaults; Plugins provide optional integrations.
+budgets, Policy/Approval/Audit and narrow client/capability contracts. Standard
+supplies replaceable implementations; optional integrations belong to Plugins.
+Provider and client details stay behind their boundaries. Hacocoon does not own
+AI orchestration, model routing, task graphs, code review or merge decisions.
 
-The Physical Host retains Incus and privileged platform authority. Persistent
-trusted `haco-host` is management infrastructure inside the TCB, not an untrusted
-Environment. Incus owns Btrfs backing, loop, mount, instance and volume lifetimes.
-Hacocoon adds data associations, ownership receipts and security guards.
+The Physical Host keeps Incus/platform authority. Trusted `haco-host` is management
+infrastructure inside the TCB. Ordinary Environments never receive management
+sockets, protected state or reusable Host credentials. Incus owns its backing
+storage; Hacocoon records associations and exact lifecycle ownership.
 
-IDE/AI chat, model routing, task DAGs, worktree orchestration, code review and merge
-decisions remain external. Cloud provider seams remain, but concrete cloud Environment
-implementation is deferred. Optional OCI tooling is not a Core dependency.
+Environment deletion retains contracted Workspace and OCI data. Cleanup releases
+ownership only after positive absence, including guard cleanup. Unknown copies
+and ambiguous cleanup retain ownership. Cache collection publishes complete
+numbered generations with comparison against the starting generation; it does not
+merge files or share writable sources. Snapshot rootfs/data is independent; Base
+is provenance. Preserve the [security boundary](../security/security-architecture.md)
+and [logging contract](../reference/logging.md) in every stage.
 
-## Roadmap model
+## Deferred and excluded work
 
-Checkpoints record chronological progress; earlier partial work does not block a
-later useful slice. Numbering policy/history is maintained only in
+Old-version compatibility, Seed migration readers, old-WSL reconstruction and
+replacement are outside the current request. Seed runtime/build/sampling retirement
+is integrated; code retirement does not authorize deleting existing application data.
+`switch-base` has no planned return: ordinary new-Env creation uses retained data.
+
+Management Web UI, another PC, cloud/VM/other infrastructure, DB volumes, mandatory
+local registry, live migration, simultaneous writable Store sharing, Packer AMI/QEMU
+and optional real AWS acceptance are future scope. They are not gates for M0–M5.
+Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
-Stages below group user outcomes and their **remaining** work. A stage label alone
-is never proof of implementation or acceptance.
-
-## User-facing development order
-
-| Stage / outcome | Remaining work and constraints |
-|---|---|
-| A — one managed repository development cycle | Preserve clone → independent Workspace → Env → SSH/Git → stop/reuse. Broader hosts and repositories need their own acceptance. |
-| B — multiple repositories, native Windows access and retained OCI | Preserve collection isolation and approved push. Complete broader trusted Host image preparation → independent Store copy → actual image use acceptance. Windows drive/executable breadth and interrupted-installation cases remain. |
-| C — convenient daily development | SSH setup/selection, Host recipes, DNS, project setup, restricted preview and scoped doctor now exist. Remaining acceptance includes recipe recreation/cancellation, default browser, VPN/NRPT/restart combinations and broader client workflows. |
-| Temporary execution — after basic editor development | Product noninteractive run and cleanup exist. Interactive stdin/TTY and populated OCI execution acceptance are separate work; explicit persistent Workspaces must survive. |
-| D — understandable permissions and optional AWS | Configuration editing, saved choices and review exist. Complete fresh OS notification decisions, Linux activation, broader saved-choice/provider acceptance and authenticated real AWS listing/download. Resolve ambiguous external outcomes without blind replay. |
-| E — retained data, snapshots, copy, Base and explicit cleanup | Keep new-Env restore/copy and reviewed deletion. Broader application consistency, build concurrency/history/import, partial collection/import recovery and full installed image-cleanup acceptance remain. |
-| F — allocation recovery and operability | Public Windows/WSL reclaim has measured CI acceptance. Existing-installation, actual interrupted-worker review, power-loss/session/Job breadth remain. Diagnostics, reinstall/upgrade and an optional management UI are separate scope. |
-| G1 — managed Env transfer | Public stopped export/import and projected Windows file route exist; stopped containerd image/writable-data transfer has native acceptance. Authenticated imported Git, broader OCI/application consistency and native Windows/direct DrvFS publication remain incomplete. |
-| G2 — inventory and readable-data evacuation | Read-only native/catalog/file inventory and explicit tree archives exist. [Native image retention](../guides/data-evacuation.md#retain-ordinary-incus-images) is partial G2/G3, with two split-image transfers accepted. Classify all data, resolve incomplete/unprojected references, coordinate writers and capture required settings/manual/external data. Snapshot failure must not prevent readable-file evacuation. |
-| G3 — reconstruct and compare elsewhere | One managed cross-WSL fixture and two native split-image imports passed. Unified-image import and new-Env boot from those images remain unverified. Whole-installation restore, guest-visible ownership/link/ACL/xattr comparisons, credentials/settings and broader application/client acceptance remain. |
-| G4 — reviewed replacement | Deferred outside current M0–M5: old-version compatibility and migration are unnecessary during the current test phase. Code retirement does not delete data. |
-
-`switch-base` is disabled and on hold, with no return scheduled. It does not block
-A–C. If future evidence justifies a convenience operation, reconsider its necessity,
-Workspace/OCI/snapshot semantics and UX first; ordinary delete/create already preserves
-retained data. Historical [ADR 0011](../adr/0011-managed-workspace-base-switch.md)
-does not reinstate a public command.
-
-## Persistent data and OCI direction
-
-The current [Store contract](../design/persistent-oci-store.md) uses independent,
-exclusively reserved data. Environment deletion releases attachment only after runtime
-absence; it does not delete the Store. Ordinary creation initializes/reuses the
-Workspace-bound Store automatically; `--no-oci` is the opt-out.
-
-Processes, sockets and `/run` remain disposable. No guest-populated Store is mounted
-into trusted Host, and no Host credentials or control socket enter an Env.
-Completed-copy recovery must prove exact native operation completion; unknown work
-continues blocking attachment/deletion. Do not propose catalog edits as a user flow.
-
-Docker Store compatibility, runtime-version migration, simultaneous writable sharing,
-large-image/performance breadth and live migration are deferred. Registry proxy,
-credential broker and local registry are optional future directions.
-**Local OCI Registry is not a required roadmap gate**; reconsider it only for measured
-bandwidth, rate limits, restricted-network or centralized-policy needs.
-Legacy Seed/distribution evidence is historical and does not define current B4.
-
-Snapshots retain independent rootfs and managed data. Base is provenance only.
-Automatic Base filesystem retention/backup was replaced by the
-[current snapshot model](../design/environment-snapshots.md).
-Do not build a generic recovery/storage platform or require exact old runtime/WSL
-reproduction when required data plus a new Env suffices. DB volumes are deferred.
-
-## Trusted Host and networking direction
-
-Preserve one controller and narrow management contracts. Installer/setup must not
-gain a second privileged lifecycle implementation or expose raw Incus authority in
-`haco-host`. Explicit Physical Host diagnosis remains available.
-
-Windows drive hotplug/removal/reconnection, additional executable families and
-interrupted upgrades remain unverified. Setup/entry repairs only an absent native
-WSL binfmt registration through WSL's own service; it does not monitor external
-changes continuously. The earlier disappearance trigger remains unconfirmed.
-
-Hostname-aware egress uses Core policy and Standard enforcement, with an Incus
-lower-layer guard. DNS lookup never grants a connection. VPN/NRPT and live
-firewall/network changes need actual supported-host evidence.
-[Incus support/version policy](https://github.com/SLktEx/Hacocoon/issues/479)
-remains a separate decision; do not infer it from a single installed version.
-
-Explicit [TCP/UDP relays](../design/network-connections.md) now preserve those
-boundaries with generation-bound authorization, expiry and revocation. Broader
-Windows outbound-service access and VPN remain unverified. [Workspace path entry
-and stopped data forks](../design/workspace-workflow.md) reuse canonical ownership;
-large-repository performance and automatic Windows/editor entry need separate acceptance.
-
-## Client and Git follow-ups
-
-Clients remain replaceable consumers of [client APIs](../reference/client-adapter.md)
-and [interaction events](../reference/interaction-events.md).
-Agent Host/AHP breadth, other IDEs, native Windows CLI and management UI are separate
-optional work, not reasons to add dependencies to Core.
-
-Automatic SSH proxy variables and ordinary `haco open` are implemented; the old
-manual-export and “SSH setup planned” follow-ups are obsolete. Current desktop
-acceptance is candidate-bound and does not prove every OS/editor combination.
-
-[Git interruption/results](https://github.com/SLktEx/Hacocoon/issues/470) includes
-ambiguous remote push completion, larger packs, additional auth methods, LFS,
-submodules and multiple refs. Workspace membership editing and general interrupted
-preparation/recovery also remain. Native caller-owned failures must preserve exact
-identities and reservations.
-
-## Operational confidence
-
-Maintain real Incus substrate checks independently from lifecycle/product acceptance.
-Ordinary-user and installed-package checks must not be replaced by privileged
-test fixtures that silently repair product gaps. Logging follows the
-[shared redaction contract](../reference/logging.md).
-
-Use [failed-run and acceptance evidence](acceptance-evidence.md) when prioritizing
-follow-ups. Do not erase unexplained failures because a later run passed, or turn
-a skipped external prerequisite into an implemented support claim. Old progress
-diaries and superseded numbering remain in Git history.
-
-## Current main integration order
-
-The user-authorized M0–M5 work now targets `main`. Reuse development-branch work
-in bounded, reviewed PRs without replacing current main improvements. Existing
-worktrees and unfinished changes remain separate; no main merge or distribution
-is implied by development-branch completion.
-
-Prioritize ordinary installation, help, SSH and approval use. The first candidate
-integrates #580/#583's daily bilingual presentation and vertical help; Windows
-language transport, notification grouping and installer final-screen integration
-follow. M2 Git/GUI, M3 transport/DNS, M4 cache/Packer and M5 Seed retirement
-remain active. Local regression checks are primary; continue independent work
-while required hosted checks run. Large-repository measurement and additional
-validation follow usable implementation and remain unverified until executed.
-Old-version compatibility and migration are outside M0–M5 by the latest user direction.
-Retained-data ownership and authority checks remain required throughout.
-
-
-The next M1 integration candidate includes repeated native failure grouping and
-BAT completion/failure/restart results with key wait. Local notification and native
-Windows BAT/ConPTY checks pass; the restricted PowerShell fixture wrapper and
-remaining installed/Explorer/SSH acceptance are explicitly recorded. The next candidate also integrates
-normalized Host-session language transport and read-only Windows UI-language
-selection. Its local regression/race and Windows installer components pass; the
-real Windows query returned Japanese. Full packaged language/GUI acceptance and
-remaining command translations stay open. M5 runtime/builder/sampling retirement
-is proceeding independently on current main. Per the user's 2026-09-15 scope
-correction, old-version compatibility and migration are outside M0–M5.
-
-## Current development scope
-
-The user confirmed on 2026-09-15 that the product is still under test and needs no
-old-version compatibility or migration layer. Those items are outside M0–M5;
-do not keep Seed catalog readers/converters or block current usability on old-data
-migration acceptance. Current-version Workspace/OCI retention, exact ownership and
-authorization remain product requirements. Performance and additional validation
-follow useful ordinary flows.
-
-The main-targeted M5 candidate reuses #655–#657's runtime/harvest/builder retirement,
-preserves current main's ordinary tooling and Base/OCI contracts, and removes
-remaining Seed sampling/recommendation and legacy deletion/re-enable state.
-No application data is removed. Local verification and PR/main status are recorded
-separately from implementation; M1 Windows integration and M2–M4 continue.
-
-## Git branch workflow integration
-
-All-head reads and reviewed new-branch/fast-forward pushes from #585/#587 are
-implemented in the main integration candidate. Keep main push approval independent
-from clone/fetch. Complete GUI answers and explicit unknown-result observation next.
-Authenticated installed use, 32 MiB transport replacement and large-repository
-measurements remain separate; ordinary local Git tests do not prove them.
-
-Main now includes #660 (`7e876bc1`), #661 (`44211fd2`) and Seed retirement #662
-(`119e3007`). Each final head passed all five CI workflows. The user explicitly
-authorized main merges after successful CI; tags/releases remain separate.
-PR #663 rebases the M2 Git slice on that main. GUI and M3 streaming continue;
-current data retention, DNS, cache/Packer and remaining M5 cleanup are still open.
-
-## Daily guidance follow-up
-
-Reuse #592/#593's detailed bilingual help and retained-data results while keeping
-current JSON, portless SSH and once-per-Host recipe behavior. Deletion confirmation
-stays common in the client; controller lifecycle remains canonical. Reuse #659 to
-remove duplicate preliminary Host tooling. M2 push reconciliation, M3 stream/TTY/DNS,
-M4 public cache/Packer and current-version M5 cleanup remain active. Old-version
-compatibility/migration are excluded; new installed acceptance remains distinct.
-
-
-## GUI approval integration
-
-The optional VS Code client now reuses #588 to show current requests and complete
-explicit allow/deny and saved-scope choices inside a local GUI. Fresh human answers
-and installed GUI acceptance remain separate. Windows notification-contained
-answers now reuse #611 and subsequent refusal/cancellation corrections; both
-clients use the existing common review and Policy services. Fresh installed
-answers and visible notification layout still require acceptance. Old-version compatibility/migration are outside M0–M5.
-
-
-## Temporary execution on main
-
-The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY
-streams in main's split lifecycle files. It preserves shared cleanup outcomes
-and requires current run identity rather than adding legacy migration. DNS modes
-and client-side forwarding remain independent work. Local regression and new
-native acceptance are recorded separately; large-repository performance remains deferred.
-
-The M2 reconciliation candidate reuses42aa706f for durable push receipts and exact-ref observation under fresh read authority. GUI answers remain in #664; authenticated installed acceptance and larger Git transport remain separate. No old-version compatibility is added.
-
-The M4 public cache candidate adds Host settings, creation-time enrollment, stopped collection and named status output. Next: complete history/clearing/recovery and added-data transfer, then installed ordinary workflow acceptance. Large-repository measurements follow usable flows and are not claimed by small fixtures.
-
-Named cache history and reviewed source clearing are implemented in the follow-up to #669. Next: recovery of positively completed copies, orphan-source browsing, existing-Env enrollment and additional-data transfer. Unknown completion remains owned; performance stays deferred.
-
-The cache recovery follow-up completes named positive-receipt recovery and current-generation adoption through shared ownership operations. Unknown native copy reconciliation, orphan-source access, existing-Env enrollment and added-data transfer remain; performance stays deferred.
-
-Client loopback TCP forwarding now reuses the shared controller sessions, framed WSL process transport, Windows companion placement and foreground-owned cancellation. Remaining M3 work is selectable DNS modes and actual use in environments other than ordinary networks; installed forwarding evidence is tracked separately.
-
-## Selected Workspace composition
-
-The M2 candidate adds selected membership to stopped independent forks using the
-existing restore transition. Local full/race and dedicated supported-Incus Git
-state/addition/restart/cleanup passed; see [evidence](acceptance-evidence.md#selected-workspace-membership).
-Independent checkout/linked-worktree input is implemented in the next candidate
-through the client/provider boundaries. Next: installed/authenticated acceptance
-and existing-Env cache enrollment. Retained-source history/recovery/cleanup now
-have --all entry points using the common ownership transitions. Source work is preserved;
-large-repository measurement remains deferred by the user.
-
-
-Native notification startup now waits for private WSL read readiness before COM
-presentation registration. Matching installed refusal/subscription passed; fresh
-human decisions and past CI activation/reclamation failures remain distinct.
-
-## Saved-data deletion diagnostics
-
-The M5 candidate adds read-only component inspection and safe delete retry guidance
-for #523. Provider observations and existing deletion ownership checks are shared;
-underlying Btrfs consistency remains uninspected. Installed current-data evacuation,
-Base archive import and late cache enrollment/local clearing remain separate work.
-Large-repository performance and extra validation follow ordinary usability.
-
-## Base archive input
-
-The M4 candidate implements explicit uncompressed Incus Base archive import through
-a temporary builder and the existing publication contract (#183), with finite
-builder resources. Existing cache enrollment/local clearing, installed notification
-reliability, current-data evacuation and broader input/recovery acceptance remain.
-Giant-repository measurements follow ordinary usability.
-
-The notification candidate now separates published presentation readiness from
-process ownership and uses the common cold-controller Ping wait before private
-requests. Installed refusal/subscription passed after ordinary matching installation;
-initial Host notification-service readiness remains separately observed. Fresh human
-answers, reclamation while the exact VHDX remains attached, current-data evacuation
-and Env-local cache maintenance are still open. Base archive import and snapshot
-inspection have supported-Incus evidence; giant performance remains deferred.
-
-## Env-local cache maintenance
-
-The M4 candidate adds reviewed single/all-area and all-Env emptying through the
-canonical lifecycle, retaining Workspace/OCI/common sources/saved copies. Explicit
-retry resolves a persisted interrupted clear; unknown-copy cancellation and late
-existing-Env enrollment remain. Current-data replacement, authenticated installed
-use and human GUI answers still need their own evidence. Performance follows usable
-flows. See [the contract](../design/cache-generations.md#empty-an-environments-cache).
-
-## Ordinary reclamation diagnosis
-
-The M5 candidate adds bounded bilingual preparation/launch diagnostics. Next: resolve
-the dedicated installation's pre-dispatch failure, then the independent Windows CI
-attached-disk failure. Keep failed receipts; do not force global WSL shutdown or treat
-a diagnostic as permission to replay. Current-data evacuation and authenticated
-restoration remain separate; giant performance stays deferred.
-
-PR #687 passed all five exact-head workflows and is on main at `2f421006`. This integrates the preceding candidate stack, including saved-data inspection, Base archive input, cache maintenance, Workspace composition and notification readiness. Human GUI answers and the dedicated installed reclamation failure remain separate from the successful Windows CI.
-
-## Restored-data comparison
-
-The M5 candidate provides read-only portable manifests and a difference report for
-ordinary restored trees. Next: select current required data from the preserved
-installation inventory, capture/restore and compare it in the appropriate ownership
-namespace, then exercise normal development and authentication. Readable fixture
-restoration is scoped evidence. Old-version reconstruction and replacement of the
-preserved old WSL remain outside the current request. Performance remains deferred.
-
-## Reclamation language
-
-The M1 follow-up covers ordinary reclamation/result-review guidance and capacity
-results in English/Japanese. Continue the separate installed enrollment diagnosis,
-Packer dependency access and current-data/authenticated use; defer performance.

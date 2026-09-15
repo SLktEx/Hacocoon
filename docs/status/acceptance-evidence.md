@@ -1133,3 +1133,19 @@ assertion despite successful product output; corrected before the second run.
 WSL reported a managed-user systemd-session warning while Host entry completed;
 its cause remains uninvestigated. This read-only success does not establish a new
 reclamation start/compaction or fresh human GUI answers.
+
+
+At restored-comparison head `379f0b156e853d81b00a2933dbd6983f00718cc9`, Windows
+[run34964494309/job104365643144](https://github.com/SLktEx/Hacocoon/actions/runs/34964494309/job/104365643144)
+passed installation, HTTPS, interop, SSH/editor/forwarding and Linux reclamation.
+Public reclamation failed: both Linux stages complete; Windows stop requested,
+open attempts1, compact_attached, compaction not attempted and resume unsuccessful.
+Notification review was skipped. Four Linux workflows passed. This head was not
+merged; #690 includes its code and merges the identical parent main tree without
+changing candidate file contents. The Windows failure remains unexplained.
+
+On installed `99522ebd`, a third dedicated ordinary Japanese reclaim attempt failed
+after91.11s at prepare/enrollment with Windows error2. Read-only status was successful
+and still returned none afterward; no new operation record, stop, compaction or
+automatic replay was observed. The new diagnostic presentation worked, while the
+previous enrolled-record visibility discrepancy remains unresolved.
