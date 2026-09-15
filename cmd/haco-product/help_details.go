@@ -39,6 +39,10 @@ func init() {
 		}
 	}
 	set([]string{"env list", "repo list", "workspace list", "plugin oci store list"}, nil, []cliui.HelpField{json})
+	set([]string{"cache settings"}, nil, []cliui.HelpField{json})
+	set([]string{"cache configure"}, []cliui.HelpField{field("<file>", "cache.file")}, []cliui.HelpField{json}, "cache.configured")
+	set([]string{"cache status"}, []cliui.HelpField{env}, []cliui.HelpField{json})
+	set([]string{"cache collect"}, []cliui.HelpField{field("<env>", "detail.stopped"), field("[area]", "cache.area_option")}, []cliui.HelpField{json}, "cache.next")
 	set([]string{"version"}, nil, []cliui.HelpField{json})
 	set([]string{"doctor"}, []cliui.HelpField{field("[environment]", "detail.doctor_env")}, []cliui.HelpField{json})
 	set([]string{"setup"}, []cliui.HelpField{field("[environment]", "detail.setup_env")}, []cliui.HelpField{field("--script <path>", "detail.setup_script"), field("--clear-script", "detail.setup_clear"), field("--reapply-script", "detail.setup_reapply"), field("--script-result", "detail.setup_result")})

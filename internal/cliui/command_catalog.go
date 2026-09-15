@@ -1,6 +1,8 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"cache.file":                    {"Host JSON settings file with named areas and compatibility (up to 64 KiB)", "領域名と互換条件を記したHostのJSON設定ファイル（64 KiB以内）"},
+	"cache.area_option":             {"configured area name; omit to collect all enrolled areas", "設定した領域名。省略すると登録済みの全領域を収集"},
 	"cache.state.cleanup-required":  {"candidate cleanup requires recovery", "収集中の領域の片付けに復旧が必要"},
 	"cache.setting":                 {"%s: %s; compatibility %s; %s", "%s: %s／互換条件 %s／%s"},
 	"cache.scope_workspace":         {"one Workspace", "Workspaceごとに分離"},

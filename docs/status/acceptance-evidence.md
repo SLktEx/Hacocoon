@@ -586,3 +586,5 @@ At #667 head `61aeff8f`, Windows 34916801756 / job104216088784 passed installati
 
 
 After integrating main `5e89597a` as `075fc746`, Packer and current detailed help passed full local tests (13.24s), CLI E2E (3.18s) and docs/regressions (4.79s). Final formatting changes only whitespace in the two help files. The parallel cold SSH refusal at `61aeff8f` remains unresolved; new CI cannot retroactively establish its cause.
+
+After integrating current main `5e89597a`, foundation `929346bf` and Packer `6ad776ad` as `25923518`, the v0.63 candidate passed maintained local tests (13.84s), CLI E2E (3.22s) and docs/regressions (4.93s). This combined check covers the public cache help and checkpoint; the native collection scope and remaining gaps above are unchanged.
