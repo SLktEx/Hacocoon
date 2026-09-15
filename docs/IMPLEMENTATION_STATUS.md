@@ -99,3 +99,7 @@ The network-guidance development follow-up adds English/Japanese registration,
 revocation, rule and listener outcomes with unchanged machine results and
 permission semantics. This completes another M1/M3 presentation slice; installed
 acceptance and overall CLI language coverage remain separately tracked.
+
+Configuration inspection/save and recovery guidance also use shared bilingual
+presentation on the development branch. Revision-bound edits, Policy values and
+JSON are unchanged; display failure never retries an edit.

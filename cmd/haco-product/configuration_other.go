@@ -8,6 +8,6 @@ import (
 )
 
 func runConfiguration([]string) int {
-	fmt.Fprintln(os.Stderr, "haco config is available in the trusted Linux/WSL Host")
+	_, _ = fmt.Fprintln(os.Stderr, cliMessage("config.host_required"))
 	return 1
 }

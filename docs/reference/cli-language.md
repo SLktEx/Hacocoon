@@ -135,3 +135,9 @@ notices distinguish a prepared listener or registered service from permission to
 connect. JSON, target identities, rule scope/expiry, error details and structured
 logs remain unchanged. Setup and network validation share the general logging
 configuration message instead of maintaining duplicate translations.
+
+## Configuration guidance
+
+`haco config` uses shared English/Japanese help, inspection/save guidance and
+unconfirmed-save/retained-editor notices. Policy values, JSON and original error
+details stay unchanged; a failed result write cannot replay the operation.
