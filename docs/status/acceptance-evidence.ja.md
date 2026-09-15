@@ -906,3 +906,31 @@ errcheckで失敗し、戻り値の扱いを修正した。導入済みの通常
 `detach-full-2` は対象回帰3.25秒、main差分lint 5.27秒、ローカル全体12.31秒、race 10.68秒、CLI E2E 2.88秒、docs 6.16秒、workflow policy 0.97秒、native build 1.11秒で成功した。
 
 候補 `97ffa2d66c223ebced04b195bc1d409d59b43829` を通常パッケージでbuild（21.54秒）し、専用の既存WSLへLinux/Windowsを揃えて導入（44.86秒）、インストーラのdoctorは成功した。`ordinary-reclaim-2` は端末開始から21.88秒で再び失敗したが、今回は準備/登録情報、Windowsエラー2と表示できた。同じ対象のWindows直接照合は成功しており、経路による差は未解決。見つからない登録の作り直しやワーカー再送はしていない。
+
+## 復元ツリーの照合
+
+実装 `9f946abc561393141df5d0ef9a081ab1949f6b6f` で、既存の読み取り一覧を使う
+持ち運び可能なツリー比較を追加。`compare-full-1` は対象ファイル/実tar回帰0.48秒、
+ローカル全体82.69秒、CLI E2E12.45秒、docs18.00秒、workflow policy2.71秒で成功。
+対象6試験は実際の復元、ツリー内リンク、symlinkをたどらない確認、xattr、
+内容/mode/所有者の差、未完了、差し替え、不正な一覧を確認した。
+
+`compare-native-1` は27.59秒で成功。保持中のhacocoon-secondの
+`/home/codex-second/fixtures/workflow`（26項目、ファイルlogical合計2,343 bytes）を
+既存のGNU tar手順で `/var/tmp/haco-reviewed-capture-md4e11_9` へ取得。
+51,200 bytesのarchiveをWSL外へ保持してSHA-256を照合し、
+Hacocoon-Roadmap-f68a8c6bの新しい非公開ツリー
+`/var/tmp/haco-reviewed-restore-8f9kdnr5/tree` へ復元した。
+Linux側の走査とWindows側の一覧比較が一致し、元データ・取得物・保持archive・
+復元先を残した。数値所有者はLinux Host側の名前空間で比較しており、guestのidmap対応、
+現行データ全体の移行、認証付き開発、巨大レポ性能の成功とはしない。先に確認した
+network-finalは空だったため、内容復元の証拠には使っていない。旧版の再構築・置換は対象外。
+
+保持側の読み取り一覧はnative照会がすべて成功し、hacocoon内の12 instance・
+48 custom volume項目・2 imageと別所有のcache volume 1件を観測した。
+所有関係の確認、手置きデータの分類、全体backup完了は一覧取得とは別の状態として保持する。
+
+別件の容量回収調査では、Windows直接と信頼済みHost経由が同じ所有者ハッシュ・64bitでも
+登録の見え方が異なった。最初の端末probeは位置照会でtimeoutし、修正した読み取りprobeで
+差を観測。保守目的のWSL再起動は、対象外のUbuntu-24.04稼働を検知して実施しなかった。
+全体停止・登録上書き・データ削除はしていない。実行経路差の原因は未確定。

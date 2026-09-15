@@ -1070,3 +1070,38 @@ corrected. These checks do not establish a successful installed public retry.
 `detach-full-2` passed focused tests (3.25 s), main-diff lint (5.27 s), maintained local tests (12.31 s), race (10.68 s), CLI E2E (2.88 s), docs (6.16 s), workflow policy (0.97 s) and native build (1.11 s).
 
 Candidate `97ffa2d66c223ebced04b195bc1d409d59b43829` was built through normal packaging (21.54 s) and installed with matching Linux/Windows companions into the dedicated existing WSL (44.86 s), with installer doctor passing. `ordinary-reclaim-2` failed again (21.88 s from terminal start), now reporting preparation/enrollment, Windows code 2. The same target passes direct Windows enrolled-target observation. This route-dependent discrepancy is unresolved; no missing binding was recreated and no worker was replayed.
+
+## Restored-tree comparison
+
+Implementation `9f946abc561393141df5d0ef9a081ab1949f6b6f` adds portable tree
+comparison using the existing read-only inventory. `compare-full-1` passed focused
+file/real-tar regressions (0.48 s), maintained local tests (82.69 s), CLI E2E
+(12.45 s), docs (18.00 s) and workflow policy (2.71 s). The six focused tests cover
+real restored data, internal links, symlinks without traversal, xattrs, changed
+content/mode/owner, incomplete reads, replacements and malformed manifests.
+
+`compare-native-1` passed in 27.59 s. The preserved
+`/home/codex-second/fixtures/workflow` tree (26 entries, 2,343 logical file bytes)
+was captured with the existing GNU tar workflow into
+`/var/tmp/haco-reviewed-capture-md4e11_9` on `hacocoon-second`. Its 51,200-byte archive
+was retained outside WSL and SHA-256 checked, then restored into a new private tree
+`/var/tmp/haco-reviewed-restore-8f9kdnr5/tree` on `Hacocoon-Roadmap-f68a8c6b`.
+Linux scans and Windows-side portable comparison matched; original data, capture,
+retained archive and restored tree remain. Numeric owners were compared in the raw
+Linux Host namespace. This does not establish guest idmap correspondence, full
+current-data migration, authenticated development or large-repository performance.
+The initially inspected network-final tree was empty and was not used as evidence
+of restored file contents. Old-version reconstruction/replacement remains out of scope.
+
+The retained installation inventory queried all native resources successfully:
+12 instances, 48 custom-volume entries and two images in `hacocoon`, plus one
+separately owned cache volume. Ownership review, manual data classification and
+whole-backup completion remain distinct from this read-only inventory.
+
+For the independent installed-reclamation investigation, direct and trusted-Host
+Windows reads used the same owner hash/64-bit process but saw different enrollment
+visibility. The first terminal probe timed out on a cursor-position query; the
+corrected read-only probe observed the discrepancy. A proposed maintenance WSL
+restart was NOT performed because its guard found an unrelated running
+`Ubuntu-24.04`. No global shutdown, binding overwrite or data deletion occurred.
+The cause of this execution-context difference is still unestablished.
