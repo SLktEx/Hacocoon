@@ -1656,3 +1656,13 @@ ordinary Packer dependency HTTP403 remains unresolved until reviewed scoped sett
 and actual download/build/publication/reuse succeed. The proposed all-Environment
 rule remains unapplied after automatic review refusal; named builders introduce no
 exception. Human approval/login acceptance remains post-release.
+
+On 2026-09-16, a bounded read of the [official Packer 1.16.0 distribution](https://releases.hashicorp.com/packer/1.16.0/) checksum list and
+ZIP central-directory metadata matched both pinned checksums in `prepare.py`.
+The amd64 archive/executable sizes were 34,785,580 / 108,318,882 bytes; arm64
+was 31,509,969 / 100,663,458 bytes. Both fit the existing 128 MiB limits. This
+checks distribution metadata only: no Packer executable was downloaded in full
+or run, and the earlier guest dependency HTTP403 is not resolved by this result.
+Read-only inspection found another active Go process in the dedicated local WSL
+and about 11 GB free on C:. Its installation, services and Policy were left intact;
+no new distribution, restart or broader communication rule was used for acceptance.
