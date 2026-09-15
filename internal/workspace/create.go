@@ -34,6 +34,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		)
 	}()
 
+	if !spec.DNSMode.Valid() {
+		return core.Environment{}, core.ErrInvalidArgument
+	}
 	name, err := validateEnvironmentName(spec.Name)
 	if err != nil {
 		return core.Environment{}, err
@@ -141,14 +144,23 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		State:              core.WorkspaceLeaseAcquiring,
 		AcquiredAt:         s.now().UTC(),
 	}
-	plans, planErr := s.planEnvironmentResources(ctx, spec, workspace, lease, saved != nil || creator != nil)
+	var plans []core.EnvironmentResourcePlan
+	var planErr error
+	if saved != nil {
+		plans, planErr = s.planSavedEnvironmentResources(ctx, spec, workspace, lease, *saved)
+	} else {
+		plans, planErr = s.planEnvironmentResources(ctx, spec, workspace, lease, creator != nil)
+	}
 	if planErr != nil {
 		return core.Environment{}, planErr
 	}
 	for _, plan := range plans {
 		lease.Attachments = append(lease.Attachments, plan.Attachment)
 	}
-	if len(plans) != 0 {
+	if len(plans) != 0 && saved != nil {
+		lease.SnapshotSource = saved.ID
+		err = s.store.(savedEnvironmentResourceCatalog).BeginEnvironmentCreateFromSnapshotWithResources(ctx, lease, *saved, plans)
+	} else if len(plans) != 0 {
 		err = s.store.(environmentResourceCatalog).BeginEnvironmentCreateWithResources(ctx, lease, plans)
 	} else if saved != nil {
 		lease.SnapshotSource = saved.ID
@@ -168,6 +180,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		}
 	}
 	runtimeSpec := core.EnvironmentRuntimeSpec{
+		DNSMode:             spec.DNSMode,
 		Attachments:         attachments,
 		InstanceID:          instanceID,
 		TemporaryWorkspace:  spec.TemporaryWorkspace != nil,
@@ -250,6 +263,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 
 	environment = core.Environment{
+		DNSMode:            spec.DNSMode,
 		Attachments:        lease.Attachments,
 		PersistentResource: persistent.Ref(),
 		Name:               name,

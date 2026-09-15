@@ -23,13 +23,17 @@ func reserveEnvironmentResources(data *environmentFileState, lease core.Workspac
 	}
 	for i, plan := range plans {
 		a, r := plan.Attachment, plan.Resource
-		if a != lease.Attachments[i] || !core.ValidEnvironmentResourceRef(r.Ref()) || r.Ref() != a.Resource || r.EnvironmentInstance != lease.InstanceID || r.State != "planned" || r.SourceOnly || r.WorkspaceID != "" || r.RestoreSource != "" || r.CopyCompleted || r.Kind != a.Origin.Kind || r.NativeRef == "" || r.CreatedAt.IsZero() {
+		if a != lease.Attachments[i] || !core.ValidEnvironmentResourceRef(r.Ref()) || r.Ref() != a.Resource || r.EnvironmentInstance != lease.InstanceID || r.State != "planned" || r.SourceOnly || r.WorkspaceID != "" || r.CopyCompleted || r.Kind != a.Origin.Kind || r.NativeRef == "" || r.CreatedAt.IsZero() {
 			return core.ErrInvalidArgument
 		}
-		if current, ok := data.ResourceGenerations[a.Origin.Name]; !ok || current != a.Origin {
+		if r.RestoreSource != "" {
+			if !matchesSavedEnvironmentResource(*data, lease, a, r) {
+				return core.ErrCapabilityStale
+			}
+		} else if current, ok := data.ResourceGenerations[a.Origin.Name]; !ok || current != a.Origin {
 			return core.ErrSourceGenerationStale
 		}
-		if r.CopySource != a.Origin.Current {
+		if r.RestoreSource == "" && r.CopySource != a.Origin.Current {
 			return core.ErrInvalidArgument
 		}
 		if _, ok := data.PersistentResources[r.ID]; ok {
@@ -165,6 +169,16 @@ func leaseHasResource(lease core.WorkspaceLease, id string) bool {
 }
 
 func validateEnvironmentResources(data environmentFileState) error {
+	for _, environment := range data.Environments {
+		if !environment.DNSMode.Valid() {
+			return core.ErrIncompatibleState
+		}
+	}
+	for _, saved := range data.Snapshots {
+		if !saved.Source.Environment.DNSMode.Valid() {
+			return core.ErrIncompatibleState
+		}
+	}
 	held := map[string]string{}
 	for name, lease := range data.Leases {
 		if len(lease.Attachments) == 0 && !lease.RuntimeAbsent {
@@ -179,7 +193,10 @@ func validateEnvironmentResources(data environmentFileState) error {
 		if lease.RuntimeAbsent && (len(lease.Attachments) == 0 || lease.State != core.WorkspaceLeaseCleanupRequired) {
 			return core.ErrIncompatibleState
 		}
-		if lease.SnapshotSource != "" || lease.WorkspaceID == "" || lease.SourcePath == "" || lease.Owner == "" || lease.AcquiredAt.IsZero() || (lease.AccessMode != core.WorkspaceReadOnly && lease.AccessMode != core.WorkspaceReadWrite) {
+		if lease.SnapshotSource != "" && !validSavedEnvironmentLease(data, lease) {
+			return core.ErrIncompatibleState
+		}
+		if lease.WorkspaceID == "" || lease.SourcePath == "" || lease.Owner == "" || lease.AcquiredAt.IsZero() || (lease.AccessMode != core.WorkspaceReadOnly && lease.AccessMode != core.WorkspaceReadWrite) {
 			return core.ErrIncompatibleState
 		}
 		for otherName, other := range data.Leases {
@@ -208,13 +225,16 @@ func validateEnvironmentResources(data environmentFileState) error {
 			if r.Ref() != a.Resource || r.EnvironmentInstance != lease.InstanceID || r.Kind != a.Origin.Kind {
 				return core.ErrIncompatibleState
 			}
-			if (r.State == "planned" || r.State == "creating") && r.CopySource != a.Origin.Current {
+			if (r.State == "planned" || r.State == "creating") && r.RestoreSource == "" && r.CopySource != a.Origin.Current {
 				return core.ErrIncompatibleState
 			}
-			if (r.State == "planned" && r.CopyCompleted) || (r.State == "created" && a.Origin.Current != (core.PersistentResourceRef{})) {
+			if (r.State == "planned" && r.CopyCompleted) || (r.State == "created" && r.RestoreSource == "" && a.Origin.Current != (core.PersistentResourceRef{})) {
 				return core.ErrIncompatibleState
 			}
 
+			if r.RestoreSource != "" && !matchesSavedEnvironmentResource(data, lease, a, r) {
+				return core.ErrIncompatibleState
+			}
 			if lease.State == core.WorkspaceLeaseActive && r.State != "ready" {
 				return core.ErrIncompatibleState
 			}
@@ -242,7 +262,7 @@ func validateEnvironmentResources(data environmentFileState) error {
 			}
 			continue
 		}
-		if data.Version < 16 || data.Version > environmentStateVersion || !core.ValidEnvironmentInstanceID(r.EnvironmentInstance) || !core.ValidEnvironmentResourceRef(r.Ref()) || held[id] != r.EnvironmentInstance || r.SourceOnly || r.WorkspaceID != "" || r.RestoreSource != "" {
+		if data.Version < 16 || data.Version > environmentStateVersion || !core.ValidEnvironmentInstanceID(r.EnvironmentInstance) || !core.ValidEnvironmentResourceRef(r.Ref()) || held[id] != r.EnvironmentInstance || r.SourceOnly || r.WorkspaceID != "" {
 			return core.ErrIncompatibleState
 		}
 		for otherID, other := range data.PersistentResources {

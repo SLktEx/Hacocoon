@@ -28,6 +28,9 @@ func TestEnvironmentDNSProvisioningRequiresOwnedTargetAndVerifiedCompanion(t *te
 					t.Fatal("unexpected Host executable")
 				}
 				if args[0] == "config" {
+					if args[3] == environmentDNSModeKey {
+						return host.Result{Stdout: "host"}, nil
+					}
 					marker := managedEnvironmentMarkerValue
 					if scenario == "foreign" {
 						marker = "foreign"

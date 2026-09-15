@@ -304,3 +304,18 @@ Workspace volume names may use their fresh owner when a long repository name
 would exceed the Incus-facing name limit; repository identity and Git provenance
 remain unchanged. Existing saved bindings and schema 13 records are retained.
 No manual saved-data migration is required for this public command.
+
+## Named disposable data
+
+Implemented: capture and independent copy include every enrolled
+named data volume. Exact source ownership, parent creation, mount path and the
+protected complete-data binding must agree. Running capture resumes through the
+same resource-aware path as ordinary start. Saved data volumes remain independent
+of their deleted source Env and are deleted with the snapshot.
+
+Restoration reserves new child identities together with the saved source and the
+new Env/Workspace. It copies the saved bytes, including uncollected changes, rather
+than substituting the current shared generation. Provenance remains subject to
+the ordinary generation comparison before later collection. Extended portable
+export/import is being implemented separately and continues to refuse unsupported
+extra components. See [ADR0095](../adr/0095-saved-environment-data.md).

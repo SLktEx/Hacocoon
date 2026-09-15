@@ -85,6 +85,9 @@ func (f *importFlow) CreateFromArchive(ctx context.Context, spec core.Environmen
 	if err != nil || string(data) != "native rootfs archive" || spec.Base != "" || spec.PersistentResource != f.resource.ID || spec.ExpectedResource != f.resource.Ref() {
 		f.t.Fatal("rootfs/binding mismatch", spec, err)
 	}
+	if spec.DNSMode != core.DNSDisabled {
+		f.t.Fatal("resolver mode lost on import")
+	}
 	if spec.SkipDefaultResource != (f.resource.ID == "") {
 		f.t.Fatal("implicit Host Store")
 	}
@@ -134,7 +137,7 @@ func (f *importFlow) DeleteWorkspace(ctx context.Context, id, owner string) erro
 
 func importBundle(t *testing.T, version, count int, oci bool) []byte {
 	t.Helper()
-	m := Manifest{Version: version, Source: "dev", HasOCI: oci}
+	m := Manifest{DNSMode: core.DNSDisabled, Version: version, Source: "dev", HasOCI: oci}
 	roles := []string{"rootfs"}
 	for i := 0; i < count; i++ {
 		role := workspaceRole(i)

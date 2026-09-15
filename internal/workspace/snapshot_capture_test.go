@@ -109,13 +109,16 @@ func (r *captureRuntime) DeleteSnapshotComponent(_ context.Context, c core.Snaps
 	}
 	return r.trace.step("delete:" + c.Role)
 }
-func captureFixture(t *testing.T) (*Service, *captureStore, *captureRuntime) {
+func captureFixture(t *testing.T, dnsMode ...core.DNSMode) (*Service, *captureStore, *captureRuntime) {
 	t.Helper()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "state.json")
 	s := &captureStore{state.NewEnvironmentJSONStore(path), &captureTrace{}, path}
 	fake, rt := snapshotFixture()
 	env := fake.environments["resume"]
+	if len(dnsMode) > 0 {
+		env.DNSMode = dnsMode[0]
+	}
 	lease := fake.leases["resume"]
 	lease.State = core.WorkspaceLeaseAcquiring
 	lease.RuntimeRef = ""

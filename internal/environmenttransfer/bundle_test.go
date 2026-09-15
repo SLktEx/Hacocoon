@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"io"
 	"testing"
 )
@@ -253,5 +254,27 @@ func TestWriterPreservesErrorAfterBytesWereDelivered(t *testing.T) {
 	// Complete-looking bytes do not overrule the failed producer operation.
 	if _, err := Inspect(bytes.NewReader(out.Bytes()), 1024); err != nil {
 		t.Fatal("fixture did not deliver all bytes", err)
+	}
+}
+
+func TestBundlePreservesResolverSelection(t *testing.T) {
+	for _, mode := range []core.DNSMode{core.DNSHost, core.DNSBackend, core.DNSDisabled, "invalid"} {
+		m, parts := fixture(false)
+		m.DNSMode = mode
+		var out bytes.Buffer
+		err := Write(&out, m, parts, 1024)
+		if !mode.Valid() {
+			if !errors.Is(err, ErrInvalidBundle) || out.Len() != 0 {
+				t.Fatal("invalid mode emitted bundle")
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := Inspect(bytes.NewReader(out.Bytes()), 1024)
+		if err != nil || got.DNSMode != mode {
+			t.Fatalf("lost mode: %+v %v", got, err)
+		}
 	}
 }

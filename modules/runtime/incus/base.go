@@ -110,6 +110,9 @@ func hasControlString(value string) bool {
 }
 
 func (p *BaseProvider) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	if spec.DNSMode.Effective() != core.DNSHost {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	if len(spec.Attachments) != 0 {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported
 	}

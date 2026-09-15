@@ -87,3 +87,5 @@ its result in JSON; inspect history before retrying. See [cache generations](../
 ## Local application tunnel
 
 Run `haco env tunnel --target-port 8080 demo` from ordinary Host entry and connect an application to the address it prints. The default port is automatic, the maximum duration is one hour, and Ctrl+C closes all connections. Native Linux listens locally; WSL entry uses the installed Windows client. Direct PowerShell use: `& <installed-haco-tunnel.exe> --distribution <WSL-name> --target-port 8080 demo`. The installer prints its location. See [transport and prerequisites](../design/controller-client-transport.md#client-tcp-listeners).
+
+Environment creation accepts `--dns host|backend|disabled` (default `host`); ordinary status displays the selected resolver. Snapshot/copy/transfer preserve the mode. See [name resolution](../design/name-resolution.md) for the Policy boundary and acceptance scope.

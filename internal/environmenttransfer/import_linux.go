@@ -175,7 +175,7 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 			return result, core.ErrRecoveryRequired
 		}
 	}
-	environment, err := s.Environments.CreateFromArchive(ctx, core.EnvironmentSpec{Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, ExpectedResource: resource.Ref(), SkipDefaultResource: resource.ID == ""}, rootfs, s.Root, limit)
+	environment, err := s.Environments.CreateFromArchive(ctx, core.EnvironmentSpec{DNSMode: manifest.DNSMode, Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, ExpectedResource: resource.Ref(), SkipDefaultResource: resource.ID == ""}, rootfs, s.Root, limit)
 	if err != nil {
 		return fail(err)
 	}

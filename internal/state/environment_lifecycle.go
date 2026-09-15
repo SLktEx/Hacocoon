@@ -26,7 +26,7 @@ func (s *EnvironmentJSONStore) BeginEnvironmentCreate(ctx context.Context, lease
 // BeginEnvironmentCreateFromSnapshot atomically reserves the immutable saved
 // source alongside the ordinary generation/data lease. It needs no source Env.
 func (s *EnvironmentJSONStore) BeginEnvironmentCreateFromSnapshot(ctx context.Context, lease core.WorkspaceLease, saved core.Snapshot) error {
-	if len(lease.Attachments) != 0 || validateSnapshot(saved) != nil || saved.State != "ready" || lease.SnapshotSource != saved.ID || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID {
+	if len(saved.Source.Environment.Attachments) != 0 || len(lease.Attachments) != 0 || validateSnapshot(saved) != nil || saved.State != "ready" || lease.SnapshotSource != saved.ID || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID {
 		return core.ErrInvalidArgument
 	}
 	return s.beginEnvironmentCreate(ctx, lease, &saved, nil)
@@ -321,6 +321,9 @@ func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 }
 
 func validateEnvironmentCreateCommit(environment core.Environment, lease core.WorkspaceLease) error {
+	if !environment.DNSMode.Valid() {
+		return core.ErrInvalidArgument
+	}
 	if environment.PersistentResource != lease.PersistentResource {
 		return core.ErrIncompatibleState
 	}

@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.64**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.66**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -33,7 +33,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。既定は出力取得、`-i/-it`で入力・対話端末に対応し実Incusで確認済み。Windowsの逐次実行は未確認。後始末失敗時は所有記録を保持。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
-| [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCIと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
+| [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCI、名前付き使い捨てデータと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
 | [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体、元リポジトリを確認して削除。参照とnative childが保持対象を保護。所有記録は不存在確認後のみ解放。 |
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
 | [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。既存環境と中断workerの実機レビューは未確認。 |
@@ -93,7 +93,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 ## キャッシュ世代管理の共通処理
 
-**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。既存Envへの後付け登録、履歴・クリア・復旧コマンド、追加領域を含むsnapshot/copy/transferは未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
+**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。既存Envへの後付け登録と追加領域のポータブル転送は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
 
 ## PackerによるBase作成の候補
 
@@ -109,3 +109,5 @@ Windows/SSH確認とExplorer操作は別の残件です。
 ## 手元のアプリからTCP接続
 
 **実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。
+
+名前解決の選択: 実装済み候補。Env作成時の`--dns host|backend|disabled`を受け付け、通常はPhysical Hostを使い、snapshot/copy/転送で設定を保持します。無効時はguestの処理を再起動してもcontrollerが問い合わせを拒否します。導入済み3モードの受入は未確認。[名前解決](design/name-resolution.ja.md)を参照。

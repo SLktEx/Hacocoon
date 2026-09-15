@@ -27,3 +27,21 @@ Policy・監査拒否、送信元ヘッダー偽装、接続許可を伴わな�
 サービス設定を変更する前にゲストの systemd 管理機構を最大30秒待ちます。再読み込み自体の失敗は再試行しません。検証済みの補助バイナリ・ユニットが変わった場合は再起動し、同じなら systemd 起動を使います。稼働中のサービスを継続し、停止中なら起動します。
 
 準備待ち、再読み込み、有効化、稼働・リゾルバー設定の確認、所有権、接続元識別、Policy の検査は維持します。導入済み環境での連続設定は `226991b` で成功しました。以前の準備待ちや起動回数制限の失敗は[検証証拠](../status/acceptance-evidence.ja.md#development)に残します。この成功を VPN／NRPT や再起動時の DNS 反映の証明とは扱いません。
+
+## Env作成時に名前解決を選ぶ
+
+`haco env create --workspace managed:work --dns host dev` はPhysical Hostの
+名前解決を使います。`--dns backend` は実行基盤側の通常の名前解決を選び、
+Incusでは所有を確認したtrusted tooling instanceを使います。`--dns disabled`
+はguestの管理対象DNSを停止し、controllerでも管理対象の問い合わせを拒否します。
+省略時は`host`。いずれも外向き接続の許可やPolicy・監査の省略にはなりません。
+
+設定はEnvの作成実体に固定し、JSON statusの`dns_mode`で確認できます。
+snapshot・copy・export/importでも設定を保持し、元の承認は持ち込みません。
+別の設定には新しいEnvを作成します。不明な設定値は作成前に拒否します。
+問い合わせの前後で所有実体を確認し、backendからHostや公開DNSへのfallbackはしません。
+実行基盤の操作はproviderが担当し、StandardにIncus専用分岐を置きません。
+[ADR0094](../adr/0094-environment-resolver-selection.ja.md)を参照してください。
+
+モード選択は開発候補へ実装中です。導入済み環境での3モードの確認、通常の
+ネットワーク以外の環境での変更確認は未実施。既存hostモードの証拠は元の範囲で保持します。

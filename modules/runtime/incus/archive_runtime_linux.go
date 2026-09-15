@@ -17,7 +17,7 @@ func (p *SandboxProvider) CreateEnvironmentFromArchive(ctx context.Context, spec
 	if len(spec.Attachments) != 0 {
 		return created, core.ErrUnsupported
 	}
-	if p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.ResourceMaintenance || spec.Base != "" {
+	if !spec.DNSMode.Valid() || p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.ResourceMaintenance || spec.Base != "" {
 		return created, core.ErrInvalidArgument
 	}
 	if err = validateManagedInstanceRef("haco-" + spec.Name); err != nil {
@@ -35,7 +35,7 @@ func (p *SandboxProvider) CreateEnvironmentFromArchive(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironmentFromImportedImage(ctx context.Context, spec core.EnvironmentRuntimeSpec, fingerprint string, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if !baseFingerprintPattern.MatchString(fingerprint) {
+	if !spec.DNSMode.Valid() || !baseFingerprintPattern.MatchString(fingerprint) {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	resources, err := core.ResolveResourceBudget(spec.Resources)

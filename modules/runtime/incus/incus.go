@@ -102,6 +102,9 @@ func (r *Runtime) Create(ctx context.Context, spec core.RuntimeSessionSpec) (cor
 }
 
 func (r *Runtime) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	if spec.DNSMode.Effective() != core.DNSHost {
+		return core.EnvironmentRuntime{}, core.ErrUnsupported
+	}
 	if len(spec.Attachments) != 0 {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported
 	}
