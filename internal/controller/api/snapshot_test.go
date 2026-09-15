@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -84,5 +85,12 @@ func TestSnapshotTransportKeepsOutcomeAndRejectsInvalidRequests(t *testing.T) {
 	}
 	if f.calls != before {
 		t.Fatal("invalid request reached service")
+	}
+}
+
+func TestSnapshotSummaryPreservesCaptureTime(t *testing.T) {
+	saved := core.Snapshot{ID: "saved", CreatedAt: time.Date(2026, 9, 15, 1, 2, 3, 4, time.UTC)}
+	if !summarizeSnapshot(saved).CreatedAt.Equal(saved.CreatedAt) {
+		t.Fatal("capture time missing from summary")
 	}
 }

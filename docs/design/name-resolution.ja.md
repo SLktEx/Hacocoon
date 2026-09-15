@@ -43,5 +43,7 @@ snapshot・copy・export/importでも設定を保持し、元の承認は持ち�
 実行基盤の操作はproviderが担当し、StandardにIncus専用分岐を置きません。
 [ADR0094](../adr/0094-environment-resolver-selection.ja.md)を参照してください。
 
-モード選択は開発候補へ実装中です。導入済み環境での3モードの確認、通常の
-ネットワーク以外の環境での変更確認は未実施。既存hostモードの証拠は元の範囲で保持します。
+モード選択はmainへ実装済みです。対応Incus 7.0.1と導入済み製品 `99522ebd` で、
+3モードの基盤上の準備・停止/再開・backend名前解決が成功しました。これはゲストからの
+Policy付き問い合わせ全体やVPN/NRPT/再起動の受入ではありません。
+[検証証拠](../status/acceptance-evidence.ja.md#supported-dns-modes)を参照してください。

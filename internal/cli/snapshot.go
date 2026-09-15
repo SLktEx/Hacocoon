@@ -120,6 +120,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 		commandHelp(diagnostic, "snapshot restore", cliLanguage())
 	}
 	machine := flags.Bool("json", false, cliMessage("flag.json"))
+	latest := flags.Bool("latest", false, cliMessage("snapshot.latest_flag"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -127,7 +128,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 		return 2
 	}
 	pos := flags.Args()
-	if len(pos) < 1 || len(pos) > 2 || !regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(pos[0]) {
+	if len(pos) < 1 || len(pos) > 2 || (!*latest && !regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(pos[0])) {
 		flags.Usage()
 		return 2
 	}
@@ -139,6 +140,24 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
+	}
+	if *latest {
+		saved, listErr := client.Snapshot(ctx, controlapi.SnapshotRequest{Operation: "list", Environment: pos[0]})
+		if listErr != nil {
+			_, _ = fmt.Fprintf(diagnostic, "haco: %v\n", listErr)
+			return 1
+		}
+		selected, selectionError := selectLatestSnapshot(saved.Snapshots, pos[0])
+		if selectionError != "" {
+			_, _ = fmt.Fprintln(diagnostic, cliMessage(selectionError))
+			return 1
+		}
+		req.ID = selected.ID
+		if !*machine {
+			if _, err := fmt.Fprintf(diagnostic, cliLanguage().Text("snapshot.latest_selected"), selected.Environment, selected.CreatedAt.Format(time.RFC3339Nano), selected.ID); err != nil {
+				return 1
+			}
+		}
 	}
 	response, err := client.RestoreSnapshot(ctx, req)
 	var writeErr error

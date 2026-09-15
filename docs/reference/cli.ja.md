@@ -34,7 +34,7 @@ help・versionにコントローラーは不要です。
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |
 | OCIイメージ一覧 | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [イメージ参照](../design/oci-image-deletion.ja.md)。既定はnerdctl。`--host`時は対象引数なし |
 | OCIイメージ削除 | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused`時はイメージ引数なし。タグ付きでも未使用候補になる場合あり |
-| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] <id> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
+| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] [--latest] <id\|source-env> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
 | コピー | `haco env copy [--json] <stopped-env> [new-env]` | 既定名は`<source>-copy`。[コピー](../design/environment-copy.md) |
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |
@@ -43,7 +43,7 @@ help・versionにコントローラーは不要です。
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の
 `create/exec/shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
 `env create`・`run`のCPU・memory・PID・root容量フラグはありません。
-旧インターフェースの廃止判断は [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)に記録しています。
+旧インターフェースの廃止判断は [ADR 0106](../adr/0106-responsibility-layout-and-cli-retirement.ja.md)に記録しています。
 
 通常の失敗は非ゼロ、構文誤りは多くの場合2です。一時実行は後始末確認後にゲストの終了値を返し、
 クライアントキャンセル時は130、後始末不明は失敗です。`reclaim`の開始受付は完了ではありません。

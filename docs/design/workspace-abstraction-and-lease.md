@@ -85,6 +85,13 @@ independent Git metadata or Incus-owned COW contract of managed Workspaces.
 
 ## Resume retained work
 
+Lifecycle exclusion is a required operation of the canonical Environment store.
+Linux/WSL uses owner-only locks beside that catalog, independent of shared `/tmp`
+names and temporary namespaces. Environment locks precede Workspace locks and
+remain distinct from short catalog transactions. Unsafe ownership or path objects
+fail closed; no permission repair occurs. See
+[catalog lifecycle locks](../adr/0105-catalog-lifecycle-locks.md).
+
 Status: implemented. `haco env start <name>` retains the Environment runtime,
 Workspace and optional persistent Store. Start requires a matching active lease;
 recovery-required aggregates cannot resume. Create/start/stop/delete serialize

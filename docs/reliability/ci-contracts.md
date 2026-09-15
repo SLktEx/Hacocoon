@@ -143,3 +143,5 @@ not immutable. Native failures require cause-specific fixes and new execution
 evidence, not relabelling as passes or moving out of PR. Consequently static
 policy and repository tests alone cannot establish Issue #615's full native
 repeatability criteria. Track exact candidate/run results in acceptance evidence.
+
+Native Windows acceptance keeps completed phase output when its child reaches the existing 30-minute limit. Each stream remains bounded at 4 MiB; timeout stays a failure even if earlier success markers exist. Truncation is explicit. The runner joins the child before returning diagnostics and never retries the product operation.

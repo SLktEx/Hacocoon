@@ -14,7 +14,7 @@ func (s *Service) PublishTemporaryBase(ctx context.Context, name string, work co
 	if !core.ValidTemporaryWorkspace(work) {
 		return core.BaseInfo{}, core.ErrInvalidArgument
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.BaseInfo{}, err
 	}
@@ -26,7 +26,7 @@ func (s *Service) PublishTemporaryBase(ctx context.Context, name string, work co
 	if env.Workspace != work || env.PersistentResource != (core.PersistentResourceRef{}) {
 		return core.BaseInfo{}, core.ErrCapabilityStale
 	}
-	release, err := lockWorkspace(ctx, work.ID)
+	release, err := s.lockWorkspace(ctx, work.ID)
 	if err != nil {
 		return core.BaseInfo{}, err
 	}

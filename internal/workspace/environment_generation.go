@@ -18,7 +18,7 @@ func (s *Service) CollectEnvironmentResource(ctx context.Context, name, key stri
 	if !ok {
 		return result, core.ErrUnsupported
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return result, err
 	}
@@ -30,7 +30,7 @@ func (s *Service) CollectEnvironmentResource(ctx context.Context, name, key stri
 	if err != nil {
 		return result, err
 	}
-	release, err := lockWorkspace(ctx, env.Workspace.ID)
+	release, err := s.lockWorkspace(ctx, env.Workspace.ID)
 	if err != nil {
 		return result, err
 	}

@@ -149,7 +149,8 @@ def absent_status_completed(output):
     if match[1] != "0":
         raise RuntimeError("Ordinary Host reclamation status failed")
     response = output[:match.start()]
-    if "No saved reclamation result. No operation was started by this status check." not in response:
+    if not any(text in response for text in ("No saved reclamation result. No operation was started by this status check.",
+                                            "容量回収の保存結果はありません。この確認で新しい操作は開始していません。")):
         raise RuntimeError("Ordinary Host did not report absent reclamation history")
     return True
 
@@ -190,8 +191,8 @@ def main():
             print("Public status before first reclamation: PASS; no operation record created", flush=True)
             process.write("haco reclaim --yes\r\n")
             stage, sent_at = 2, len(output)
-        elif stage == 2 and "Worker dispatched; reclamation is not yet confirmed." in fresh:
-            match = re.search(r"Operation: (\{[0-9a-fA-F-]{36}\})", fresh)
+        elif stage == 2 and any(text in fresh for text in ("Worker dispatched; reclamation is not yet confirmed.", "容量回収の処理を起動しました。完了はまだ確認できていません。")):
+            match = re.search(r"(?:Operation:|操作の記録:) (\{[0-9a-fA-F-]{36}\})", fresh)
             if not match:
                 raise RuntimeError("Dispatch identity unavailable; retain operation")
             operation = "{" + str(uuid.UUID(match[1])) + "}"
@@ -202,7 +203,8 @@ def main():
                 stage, sent_at = 4, len(output)
             else:
                 stage, sent_at = 3, len(output)
-        elif stage == 2 and ("could not be confirmed" in fresh or "Dispatch result unavailable" in fresh or "Managed Windows installation unavailable" in fresh):
+        elif stage == 2 and any(text in fresh for text in ("could not be confirmed", "Dispatch result unavailable", "Managed Windows installation unavailable",
+                                                          "Windowsの容量回収結果を確認できません。", "起動結果を確認できません。", "Windowsの導入情報を確認できません。")):
             raise RuntimeError("Public dispatch failed; no retry or WSL reentry")
         elif stage == 3 and driver.cmd_prompt_count(fresh):
             process.write("wsl -d Hacocoon\r\n")
@@ -211,7 +213,7 @@ def main():
             process.write("haco reclaim --status && test \"$(cat $HOME/.hacocoon-installer-acceptance)\" = kept-through-restart-and-rerun && printf 'PUBLIC_RECLAIM_STATUS_OK\\n'\r\n")
             stage, sent_at = 5, len(output)
         elif stage == 5 and re.search(r"(?m)^PUBLIC_RECLAIM_STATUS_OK\s*$", fresh):
-            if "Reclamation: complete" not in fresh:
+            if not any(text in fresh for text in ("Reclamation: complete", "容量回収: 完了")):
                 raise RuntimeError("Public result did not confirm combined completion")
             process.write("exit\r\n")
             stage, sent_at = 6, len(output)

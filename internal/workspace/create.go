@@ -44,7 +44,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if spec.EphemeralInstance != "" && !core.ValidEnvironmentInstanceID(spec.EphemeralInstance) {
 		return core.Environment{}, core.ErrInvalidArgument
 	}
-	unlockEnvironment, err := lockLifecycle(ctx, "environment", name)
+	unlockEnvironment, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.Environment{}, err
 	}
@@ -94,7 +94,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	if spec.ExpectedWorkspace != "" && workspace.ID != spec.ExpectedWorkspace {
 		return core.Environment{}, core.ErrCapabilityStale
 	}
-	unlock, err := lockWorkspace(ctx, workspace.ID)
+	unlock, err := s.lockWorkspace(ctx, workspace.ID)
 	if err != nil {
 		return core.Environment{}, fmt.Errorf("lock workspace: %w", err)
 	}

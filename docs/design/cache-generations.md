@@ -3,7 +3,7 @@
 [日本語](cache-generations.ja.md) | English
 
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
-collection and independent generation reuse are implemented in this candidate.
+collection and independent generation reuse are implemented on main.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
 unknown-copy recovery remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.

@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.67**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.68**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -21,27 +21,29 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [日常操作・setup診断](reference/daily-workflow.ja.md) | 実装済み | 制限付きの進捗・相関IDをstderrへ出力し、最終応答を検証。切断後も処理終了まで排他を保持し、非対話の確認は入力待ちしない。専用Linuxでの検証とWindows既定エントリー・IDEの確認は別。 |
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |
 | [TCP/UDP開発接続](design/network-connections.md) | 実装済み | ゲストの明示的なループバック待受、生成ID付きポリシー・承認、任意のルール期限、接続中の失効を実装。HTTP/SNI・送信元保護を維持。専用基盤の検証は限定範囲で、外部インターネット・VPN・Windows UI全体は未完了。 |
-| [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。現行P/PF修正と日本語Windows新規導入のパッケージ確認は残る。 |
-| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。構成メンバーの編集と準備中断からの一般的な復旧は未完了。 |
+| [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。WindowsパッケージCIで通常入口・native interopの候補版別の証拠あり。広い導入構成は別途確認。 |
+| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
 | [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
-| [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | 全head取得と各refの独立した読み取り確認、新規ブランチ一つまたは既存fast-forwardの内容固定push承認。clone/fetchはpush許可を与えず、mainへの承認を維持。packは32 MiBまでで、LFS/submodule、force・削除・複数ref、不明結果からの一般的な復旧は制限または非対応。認証付き実機利用と巨大レポは別途受入が必要。 |
+| [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | 全head取得と各refの独立した読み取り確認、新規ブランチ一つまたは既存fast-forwardの内容固定push承認。clone/fetchはpush許可を与えず、mainへの承認を維持。送信済みpushは正確なold/newとリモート観測を照合し、自動再送しない。fetchは検証した祖先履歴を再利用し、既存targetへのpushは手元にある旧履歴を省く。新規targetも正確なrefの新しい読み取り判断を通して利用可能な公開済み祖先を再利用する。複数headのfetchは個々のpackを順番に取り込み、batch合計32 MiB超に対応する。個々の全体packや差分自体は32 MiBまでで、LFS/submodule、force・削除・複数ref、不明結果からの一般的な復旧は制限または非対応。認証付き実機利用と巨大レポは別途受入が必要。 |
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
-| [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
+| [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。Envのhost/backend/disabled選択をsnapshot/copy/importで保持し、手元のTCP待受からcontroller経由で転送。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
 | [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host実体ごとの自動設定、明示的なscriptのみの再適用と非公開出力・終了値の記録、EnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
 | [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。既定は出力取得、`-i/-it`で入力・対話端末に対応し実Incusで確認済み。Windowsの逐次実行は未確認。後始末失敗時は所有記録を保持。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
-| [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
-| [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCI、名前付き使い捨てデータと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
+| [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。非圧縮のコンテナarchive取り込みも共通の公開・後始末を利用。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
+| [PackerによるBase作成](design/packer-base-builds.ja.md) | 部分実装 | 通常builder内で実Packer 1.16.0がHCL2と外部shellを評価し、公開・後始末を共通化。導入後の実ビルドは通常の依存取得権限で停止。独自plugin・arm64・再利用の実機確認は残る。 |
+| [キャッシュ世代管理](design/cache-generations.ja.md) | 部分実装 | Host設定による作成時の登録、停止中の領域単位収集、独立CoW再利用、履歴・完了証明による復旧・共通元削除・確認付きEnv内掃除を実装。snapshot/copy/transferで未収集データも保持。既存Envの追加登録、結果不明コピーの中止は未完了。巨大性能は後続。 |
+| [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCI、名前付き使い捨てデータと独立保存rootfsを対象に、新しいEnvと権限を作成。削除失敗時の構成要素・存在・参照・次の操作を表示。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
 | [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体、元リポジトリを確認して削除。参照とnative childが保持対象を保護。所有記録は不存在確認後のみ解放。 |
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
-| [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。既存環境と中断workerの実機レビューは未確認。 |
+| [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。準備・起動段階とWindowsエラーを日英で案内。手元の開始失敗と実際の中断worker確認は別の残件。 |
 | [Envのexport/import](design/environment-transfer.ja.md) | 部分実装 | 停止した管理bundle、検証済みLinux配備、導入済みコントローラー・Windows投影ファイル経路を実装。管理データのWSL間移送を一構成で確認し、停止したcontainerdのイメージ・書込みデータの移送も確認済み。稼働中の移行や環境全体のバックアップではなく、import後の認証Gitと広い実行基盤整合性は未完了。 |
-| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録を含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。環境全体の分類・取得・復元比較と最終置換は未完了。 |
+| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録を含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。現在必要なデータの選定と復元後開発は未完了。旧版の再構築・置換は現在のM0〜M5対象外。 |
 | [AWS S3](design/aws-operations.ja.md) | 部分実装 | 承認付きの制限ある一覧・検証済みobject取得、送信元を固定したゲスト要求を実装。リポジトリ・模擬native試験あり。認証を伴う実AWS検証はスキップ。EC2のEnv プロバイダーではない。 |
 | [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | 情報を絞ったeventと任意のadapter。VS Code GUIとWindows通知内のページで共通review/Policyを通して明示回答が完結。開くだけでは回答しない。新規の導入GUI・人の回答・Linux起動は未確認で、native/部品の証拠は別管理。 |
-| [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済みの候補 | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
+| [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済み | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
 | [クラウド・registry・管理UI](status/architecture-and-roadmap.md) | 延期 | 具体的なクラウドEnv プロバイダー、必須のlocal registry、管理UI、Storeの同時書込み共有、live 移行は現行機能ではない。プロバイダー境界と将来方針は保持。 |
 
 正規ライフサイクルは送信元保護を含む基盤の削除完了後だけ所有記録を解放します。
@@ -58,121 +60,43 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 古い開発日誌の全文はGit履歴に残ります。現在の判断に必要な固有の証拠・未解決事項は[検証証拠](status/acceptance-evidence.ja.md)に集約しています。
 
-## main向け日英CLI統合候補
+## mainの統合と開発候補
 
-**partial**：#580/#583の日常操作の日英表示と共通の縦型ヘルプを現在のmainへ
-再利用しています。明示的なJSON指定、ポート指定の不要なSSH、Git接続、
-Experimental VS Codeの既存動作を保持します。通常のWindows起動とHostセッションへの
-言語引き継ぎを実装し、インストーラはOS言語設定を保持します。結果表示の全文翻訳と
-新しい導入済み環境での確認は未完了です。
-[言語対応範囲](reference/cli-language.ja.md)と
-[検証記録](status/acceptance-evidence.ja.md#main-cli-language)を参照してください。
+main `2f421006`（#687）に日英の詳細・縦ヘルプ、Hostへの言語引継ぎ、通知連発抑制、
+インストーラ終了表示、Git/GUI、Workspace構成・入力、対話実行、DNS・転送、
+キャッシュ・Packer・保持データを統合済み。`ee8bf7fb`（#688）に容量回収の失敗診断を
+反映した。両PRとも対象commitの5 CIすべてが成功。[翻訳範囲](reference/cli-language.ja.md)
+はまだ部分的で、元のツールエラーや構造化データは翻訳しない。
 
-## 通知・インストーラの統合候補
+Windowsの通常経路では、導入済みSSH・エディタ・転送、Workspace/OCI保持、実測の
+容量回収が成功。native通知の拒否・購読も成功したが、人による新しい通知・VS Codeの
+回答と画面レイアウトは未確認。これらの成功で過去の原因未確定の失敗は消さない。
 
-**実装済みの候補**：#583の同種失敗通知の1分間の集約と、BATの結果表示・キー待ちを
-再利用します。承認・回復要求の通知、監査・再開位置、元の終了コードを保持します。
-ローカルの通知回帰とWindows BAT・ConPTY確認は成功しました。新しい配布パッケージの
-Windows/SSH確認とExplorer操作は別の残件です。
-[通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
-[インストーラの結果](design/installer.md#windows-final-result)を参照してください。
+**開発候補に実装済み:** [#690](https://github.com/SLktEx/Hacocoon/pull/690) は、#689の
+復元ツリーの読み取り専用manifest・照合と、容量回収結果・確認の日本語表示を含む。
+照合は内容・mode・数値所有者・内部hardlink・通常ファイル/ディレクトリxattrを対象とする。
+保持済みの小さなツリーを別WSLへ戻して一致を確認したが、必要データ全体・認証付き開発は
+未確認。同じ導入候補で日本語の通常入口・ヘルプ・結果の読み取りが成功。
+[復元照合](guides/data-evacuation.ja.md#復元したツリーを照合する)と
+[言語の証拠](status/acceptance-evidence.ja.md#reclamation-language)を参照。
 
-## 詳細案内とHost準備の共通化
+開発候補・main・配布物は区別し、新しいリリースは作成していない。
+本人ログインやGUI操作など人による確認はリリース後に行い、実装済み機能のmain反映を
+止める条件にはしない。未実施は未実施として記録し、既知のCI失敗はマージ前に解決する。
+性能・追加の厳密検証と、
+対象外の旧版再構築を、必要な現在データの保持とは分けて
+[M0〜M5ロードマップ](status/architecture-and-roadmap.md)に記録する。
 
-**実装済み候補:** #592/#593の日英の引数・オプション説明と保持データの結果を現在mainへ合わせました。
-削除確認はclientの共通処理を使い、controllerの所有権検査を維持します。#659の旧Hostツール二重準備も撤去します。
-ローカル試験と新規導入での受入は区別します。旧版互換・旧版移行は今回のM0〜M5の対象外です。
+開発ブランチの後続実装: `snapshot restore --latest <source-env> [new-env]` は
+保存開始日時から最新を選び、共通の復元処理を使います。日時不明・同時刻の場合はID指定が必要です。
+復元に失敗しても別の保存を選び直しません。ローカルと実機の確認は別に記録します。
 
+開発側の追加修正: 容量回収は接続中の仮想ディスク観測ハンドルを閉じてから、同じ固定pathを
+開き直します。実ファイル・親の所有固定は維持し、導入済み受入は別途確認します。
+[寿命の決定](adr/0103-virtual-disk-observation-lifetime.ja.md)を参照してください。
 
-## 対話一時実行の候補
-
-**実装済み候補:** `haco run -i/-it`を上限付きの双方向転送と共通runライフサイクルへ接続します。
-生成時の識別子を使い、同じ名前で作り直した別Envを片付けません。分割済みの責務と共通cleanup結果処理を維持します。
-旧版の移行・代替cleanupは対象外です。新しいローカル試験と実機受入は区別します。
-
-通知準備の後続: サービス準備の失敗操作を固定分類で表示し、Host入場に失敗した利用確認は待ち続けず終了する。現mainとGUI #664へ5a6fb54cを再利用。診断と無駄な待ち時間の改善であり、Windowsの通知起動・サービス起動の修復成功とは主張しない。
-
-
-
-## キャッシュ世代管理の共通処理
-
-**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。追加領域のポータブル転送は新しい所有権で取り込む実装済み候補で、対応Incusでの実機受入は未確認です。既存Envへの後付け登録は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
-
-## PackerによるBase作成の候補
-
-**部分実装:** 実際のPacker HCL2と外部スクリプトを通常のbuild用Envで実行します。追加adapterは既存のBase公開・cleanupを共有します。Packerの完走・download・導入済みWindowsの受入は未確認です。[Packerの操作](design/packer-base-builds.ja.md)を参照してください。
-
-キャッシュ履歴・クリアの後続: 実装済み候補。名前付き履歴で現在の再利用元と保持中の候補を分ける。
-確認時のrevisionで固定して再利用元をリセットし、共通の所有権付き削除を使う。
-既存Env・Workspace・OCIデータと結果不明のコピーは保持する。名前付き完了記録の復旧と追加データ転送は実装済み、全再利用元の一覧も実装済みです。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
-
-Git push照合の後続: 42aa706fを再利用した実装済み候補。送信前/確認後の永続記録と現所有権に基づく対象refの読み取りで、元の失敗とリモートの現状を分ける。書き込み再送や承認復元は行わず、mainのclone/fetchはpush許可にならない。新しい認証付き実機利用と巨大Git転送は別に確認する。
-
-キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合と既存Envへの追加は未完了。新しい実機復旧の受入は別に確認する。
-
-## 手元のアプリからTCP接続
-
-**実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。
-
-名前解決の選択: 実装済み候補。Env作成時の`--dns host|backend|disabled`を受け付け、通常はPhysical Hostを使い、snapshot/copy/転送で設定を保持します。無効時はguestの処理を再起動してもcontrollerが問い合わせを拒否します。導入済み3モードの受入は未確認。[名前解決](design/name-resolution.ja.md)を参照。
-
-Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Hostスレッドを識別する。[ADR0096](adr/0096-calling-thread-network-identity.ja.md)を参照。Host名前空間への接続拒否は維持し、スレッド実機回帰と導入後Windows再接続の受入を分ける。
-
-リポジトリ内追加データのsnapshot計画も、作成・再開・importと同じ配置照合でWorkspaceのstorage所有関係を保持する。対応Incus7.0.1で保存・コピー・持ち出しを確認した。範囲は受入記録を参照。
-
-## Workspaceのレポ選択
-
-実装済み候補: `workspace fork --repo first,third`で選んだ既存レポのGit状態を保持し、登録済みHostレポを独立追加します。
-共通の復元・削除処理を使い、元の作業とOCIは残します。独立したlinked worktree入力は下記に記録し、巨大レポの実測は後続に残します。
-[仕様](design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。
-
-## 既存Git作業場所の取り込み
-
-実装済み候補: `workspace import`でLinux/WSLのcheckoutまたはlinked worktreeを独立した管理Workspaceへコピーし、未コミット変更・選択HEAD/index・objectsを保持します。
-HostのGit config/hooksと別worktreeの管理情報は持ち込みません。既存の所有権・アップロード処理を共用し、結果不明時はローカル参照と復旧記録を残します。
-[入力契約](design/workspace-input.ja.md)を参照してください。sparse/partial clone、submodule、Windows直接入力、巨大レポ性能はこの範囲に含めません。
-
-
-キャッシュ台帳の整理は実装済み候補です。history/recover/clearの--allで、生成元Env削除後の再利用元も扱います。
-既存の確認/CAS/cleanupを使い、Env・Workspace・OCIの独立データと保護参照を残します。
-既存Envへの後付け登録と結果不明コピーの取り消しは未完です。
-
-
-通知起動はWSLの実際の読取応答を確認してからCOM受付を登録します。
-表示準備完了を別のeventで示し、起動・cleanup中の重複呼び出しを待たせます。
-起動50秒と前の処理の待機を分け、通常の読み取り・回答期限と再送禁止を維持します。
-人による新規回答と表示確認は別の残件です。[通知レビュー](design/pending-approval-review.ja.md)を参照してください。
-
-## 保存データの削除診断の開発候補
-
-**実装済み候補:** `haco snapshot inspect` は保存した各データの存在状態、
-所有関係、使用中の参照数と、安全な再試行手順を表示する。既存の所有確認と
-ロックを使い、削除動作は変えない。Btrfs内部の整合性は明示的に未確認とする。
-自動修復やM5全体の確認完了ではない。[削除診断](design/environment-snapshots.md#inspect-a-failed-deletion)を参照。
-
-## Baseアーカイブ取り込み候補
-
-**実装済み候補:** `haco base import` は非圧縮のIncusイメージを固定し、隔離した一時Envを
-作成して既存の不変Base公開・cleanupを使う。定義・Packer・取り込みの作成環境には
-有限の資源上限を設定する。圧縮・VM・分割イメージと自動的な中断再開は未対応。
-[Base入力](design/base-images-and-custom-environments.md#import-a-container-image-archive)を参照。
-リポジトリ内検証と実機確認は区別する。
-
-## Env内キャッシュの掃除
-
-**実装済み候補:** `cache empty`は単一/全領域/全Envを確認して空にします。停止中の正確な所有対象を
-共通処理で固定し、失敗時は永続状態を残して明示的再試行まで再開を止めます。
-Workspace・OCI・共通世代・保存コピーは保持します。後付け登録・結果不明コピーの取り消し・
-巨大レポ性能は未完です。[所有仕様](design/cache-generations.ja.md#env内のキャッシュを空にする)を参照。
-
-## 容量回収の失敗案内
-
-**実装済み候補:** インストール済みの準備・起動エラーに、サイズを制限した段階と
-Windowsエラー番号、日英の次の操作案内を追加。ディスク使用中の保存結果では保持データと
-明示的な確認手順を示す。専用導入環境での通常操作は記録作成前に失敗しており、
-この診断改善だけでは圧縮成功を確認したことにはならない。
-[仕様](design/storage-reclamation.ja.md#失敗箇所の案内)を参照。
+Envの作成・削除などの共通ロックを、共有一時領域からカタログ単位の状態管理へ移した。実機で確認した所有者の衝突への修正であり、[ADR 0105](adr/0105-catalog-lifecycle-locks.ja.md)に責務と排他条件を記載する。修正版の導入後確認は未実施。
 
 ## 構成整理と旧CLIの廃止
 
-製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0102-responsibility-layout-and-cli-retirement.ja.md)も参照してください。
+製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0106-responsibility-layout-and-cli-retirement.ja.md)も参照してください。

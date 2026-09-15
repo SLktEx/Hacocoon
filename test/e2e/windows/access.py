@@ -14,11 +14,20 @@ import tempfile
 from pathlib import Path
 
 
+class NativeAcceptanceTimeout(RuntimeError):
+    def __init__(self, stdout, stderr, truncated):
+        super().__init__('Native acceptance child timed out' +
+                         ('; captured output truncated' if truncated else ''))
+        self.stdout = stdout
+        self.stderr = stderr
+
+
 def run_acceptance(command, timeout=1800):
     # File-backed output cannot hold communicate() open through a surviving
     # WSL descendant after the immediate PowerShell process exits.
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         process = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+        timeout_error = None
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired as error:
@@ -29,7 +38,7 @@ def run_acceptance(command, timeout=1800):
             if process.poll() is None:
                 process.kill()
             process.wait(timeout=15)
-            raise RuntimeError('Native acceptance child timed out') from error
+            timeout_error = error
         finally:
             if process.poll() is None:
                 process.kill()
@@ -38,6 +47,13 @@ def run_acceptance(command, timeout=1800):
         stderr.seek(0)
         limit = 4 * 1024 * 1024
         out, err = stdout.read(limit + 1), stderr.read(limit + 1)
+        if timeout_error is not None:
+            # Preserve completed/failed phases even on timeout. The same output
+            # bound applies, and partial output never becomes a passing result.
+            raise NativeAcceptanceTimeout(
+                out[:limit].decode('utf-8', errors='replace'),
+                err[:limit].decode('utf-8', errors='replace'),
+                len(out) > limit or len(err) > limit) from timeout_error
         if len(out) > limit or len(err) > limit:
             raise RuntimeError('Native acceptance output exceeded its limit')
         return subprocess.CompletedProcess(command, process.returncode,
@@ -124,8 +140,12 @@ def main():
 
     def run_check(name):
         print(f'NATIVE ACCEPTANCE START: {name}', flush=True)
-        result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
-            '-ExecutionPolicy', 'Bypass', '-File', str(here.parents[2] / "tools" / name), *options[name]], timeout=1800)
+        try:
+            result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
+                '-ExecutionPolicy', 'Bypass', '-File', str(here.parents[2] / "tools" / name), *options[name]], timeout=1800)
+        except NativeAcceptanceTimeout as error:
+            print(error.stdout, error.stderr, flush=True)
+            raise
         print(result.stdout, result.stderr, flush=True)
         verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
 

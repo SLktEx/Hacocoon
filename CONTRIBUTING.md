@@ -67,7 +67,7 @@ feature services call those contracts and composition wires implementations.
 Core/Standard/Plugin are architectural roles, not directory trees. External operations
 stay behind adapters; optional integrations do not become Core prerequisites.
 `pkg/` is reserved for the actual public client and interaction APIs. See
-[the layout decision](docs/adr/0102-responsibility-layout-and-cli-retirement.md).
+[the layout decision](docs/adr/0106-responsibility-layout-and-cli-retirement.md).
 
 ## Design checks
 

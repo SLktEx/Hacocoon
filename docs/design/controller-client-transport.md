@@ -172,7 +172,7 @@ Both `haco` and the client-only `haco-host` companion use this API without direc
 
 Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; setup, diagnostics, repository/Workspace/Environment management, Git approval and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
-The installer invokes `haco setup` through the existing controller. The legacy CLI and its private orchestration were removed in [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.md).
+The installer invokes `haco setup` through the existing controller. The legacy CLI and its private orchestration were removed in [ADR 0106](../adr/0106-responsibility-layout-and-cli-retirement.md).
 
 ## `haco-host` transition surface
 

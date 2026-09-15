@@ -78,7 +78,7 @@ Physical Hostが保持する。[利用手順](../guides/git-workflow.md)と
 [ADR 0008](../adr/0008-managed-repository-workspaces.md)を参照。
 Windows drive・exe連携は通常installer/setupで構成する（上記参照）。
 
-現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。旧 CLI の廃止判断は [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)を参照する。
+現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。旧 CLI の廃止判断は [ADR 0106](../adr/0106-responsibility-layout-and-cli-retirement.ja.md)を参照する。
 
 現在のパッケージのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用コントローラー契約](controller-client-transport.ja.md#host診断)を使う。
 
@@ -181,7 +181,7 @@ Physical Host側元データは通常の executable、invoking effective UID所�
 
 これによりrepeated ensureを繰り返しても同じ結果になるにし、信頼された instance内の任意の既存バイナリをそのまま信頼しません。
 
-製品 `haco` はコントローラーを呼び、guest-local 構成を作りません。旧 CLI は新しい配布物と trusted-host 配備から削除しました。[ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)を参照してください。
+製品 `haco` はコントローラーを呼び、guest-local 構成を作りません。旧 CLI は新しい配布物と trusted-host 配備から削除しました。[ADR 0106](../adr/0106-responsibility-layout-and-cli-retirement.ja.md)を参照してください。
 
 このモード識別情報はauthorization 認証情報ではありません。`haco-host`自体が信頼されたであり、方針、状態、プロバイダー operationの権限は引き続きPhysical Host コントローラーです。
 
@@ -265,7 +265,7 @@ wsl -d Hacocoon -u root
 
 Repository テストでは所有権照合・調整、衝突拒否、状態復旧、正確なコントローラー proxy 検証、2本のクライアントバイナリ配備 / 再実行時の一貫性、client-mode 不一致拒否、CLI 経路選択、local 代替経路の安全側で拒否する、warning、login-mode identificationを確認します。
 
-維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。以前の gate は `b71f88e` で成功したが、ADR 0102 のディレクトリ・CLI 変更の実機検証を意味しない。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
+維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。以前の gate は `b71f88e` で成功したが、ADR 0106 のディレクトリ・CLI 変更の実機検証を意味しない。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の実機受入に限る。別hardware・別構成への互換性は未確認として扱う。
 

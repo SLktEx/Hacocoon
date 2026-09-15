@@ -170,7 +170,7 @@ Protocol mismatchは明示的なerrorとし、direct Incus accessへ代替経路
 
 製品 `haco` はWSL Physical Hostと信頼された `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、setup・診断・repo/Workspace/Environment管理・Git承認・WSL login aliasはコントローラーを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
-インストーラーは `haco setup` から既存コントローラーへ初期設定を依頼します。旧 CLI と専用 orchestration は [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)で削除しました。
+インストーラーは `haco setup` から既存コントローラーへ初期設定を依頼します。旧 CLI と専用 orchestration は [ADR 0106](../adr/0106-responsibility-layout-and-cli-retirement.ja.md)で削除しました。
 
 ## `haco-host` transition surface
 

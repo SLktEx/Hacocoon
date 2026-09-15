@@ -108,16 +108,20 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if _, err := ValidateHeads(requested); err != nil {
 				return err
 			}
-			total := 0
 			for _, head := range requested {
-				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}})
+				haves, err := helperHaves(ctx)
 				if err != nil {
 					return err
 				}
-				if len(response.Pack) == 0 || len(response.Pack) > MaxPack-total {
-					return fmt.Errorf("git batch exceeds supported pack size")
+				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: haves})
+				if err != nil {
+					return err
 				}
-				total += len(response.Pack)
+				// Each independently authorized response is indexed before the next
+				// request. Bound that pack, not the cumulative sequential transfer.
+				if len(response.Pack) == 0 || len(response.Pack) > MaxPack {
+					return fmt.Errorf("git response exceeds supported pack size")
+				}
 				if _, err := helperGit(ctx, response.Pack, "index-pack", "--stdin", "--strict"); err != nil {
 					return err
 				}
@@ -149,7 +153,14 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if !ValidOID(oid) || oid == ZeroOID {
 				return fmt.Errorf("invalid local commit")
 			}
-			pack, err := helperGit(ctx, []byte(oid+"\n"), "pack-objects", "--stdout", "--revs")
+			basis := oldOID
+			if oldOID == ZeroOID {
+				basis, err = helperNewBranchBasis(ctx, repo, oid, listed, exchange)
+				if err != nil {
+					return err
+				}
+			}
+			pack, err := helperPushPack(ctx, oid, basis)
 			if err != nil {
 				return err
 			}

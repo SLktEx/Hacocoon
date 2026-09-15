@@ -57,7 +57,9 @@ func runBase(args []string) int {
 			return 0
 		}
 		for _, base := range bases {
-			fmt.Fprintln(os.Stdout, base.Name)
+			if _, err := fmt.Fprintln(os.Stdout, base.Name); err != nil {
+				return 1
+			}
 		}
 		return 0
 	}
@@ -72,6 +74,8 @@ func runBase(args []string) int {
 		}
 		return 0
 	}
-	fmt.Fprintf(os.Stdout, "name: %s\nrevision: %s\n", info.Name, info.Revision)
+	if _, err := fmt.Fprintf(os.Stdout, "name: %s\nrevision: %s\n", info.Name, info.Revision); err != nil {
+		return 1
+	}
 	return 0
 }

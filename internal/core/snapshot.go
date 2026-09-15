@@ -1,5 +1,7 @@
 package core
 
+import "time"
+
 // SnapshotSource describes the entire logical aggregate to be captured.
 // It is inspection evidence, not a completed snapshot or permission to restore.
 type SnapshotSource struct {
@@ -17,6 +19,8 @@ type SnapshotComponent struct {
 	State     string `json:"state"`
 }
 type Snapshot struct {
+	// CreatedAt is capture reservation time, not a provider ordering or authority.
+	CreatedAt  time.Time           `json:"created_at,omitzero"`
 	ID         string              `json:"id"`
 	Source     SnapshotSource      `json:"source"`
 	State      string              `json:"state"`

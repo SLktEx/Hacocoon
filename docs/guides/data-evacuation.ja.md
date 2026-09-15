@@ -135,3 +135,40 @@ incus image list --project RESTORE_PROJECT --format=json
 import前に、記録した説明と`features.images`を一覧で検証します。単一アーカイブなら、その実際のパスだけをimportに渡します。移送後の完全なfingerprintとイメージ種別が元と一致すること、保持したファイルが変わっていないことを確認してください。
 
 失敗時は結果と作成済みの正確なリソースを記録し、削除対象を推測したり既存projectを置き換えたりしません。元データと退避アーカイブは保持します。この操作はHacocoonのBase登録、alias復元、旧権限の引継ぎ、Env作成や起動確認を行いません。分割イメージ2件の移送結果と未確認範囲は[検証証拠](../status/acceptance-evidence.ja.md#transfer)に記録しています。
+
+## 復元したツリーを照合する
+
+保守用の補助ツールで、Linux/WSLそれぞれの停止済みデータから照合用一覧を作成できます。
+出力は対象ツリーの外へ置き、非公開で保持してください。パスや内容のハッシュも機密情報に
+なり得ます。それぞれのHostで、実際の絶対パスを指定します。
+
+```bash
+umask 077
+python3 tools/evacuation_compare.py scan /absolute/source-tree --quiesced > /absolute/private/source.json
+python3 tools/evacuation_compare.py scan /absolute/restored-tree --quiesced > /absolute/private/restored.json
+```
+
+2つの一覧を同じ非公開の場所へ移し、LinuxまたはWindowsで比較します。
+
+```bash
+python3 tools/evacuation_compare.py compare source.json restored.json > comparison.json
+```
+
+終了コード0は選択した観測の一致、1は差分または走査未完了、2は比較を読み取れない状態です。
+JSONで追加・欠落した相対パスと変わった項目を確認できます。ファイル内容、たどらない
+symlinkの参照先、mode、数値UID/GID、ツリー内hardlinkの関係、通常ファイル・ディレクトリの
+ACL/xattrを比較します。リンク先やxattrの値そのものは出力せず、ハッシュで照合します。
+ツリー内のGit情報・未コミット・未追跡ファイルも通常のファイルとして含めます。
+
+所有者は同じ名前空間で比較してください。Incusのidmapが異なるとHost側の数値IDは正当に
+変わる場合があります。適切なguest側で比較するか対応を確認し、一致させるためだけに
+所有者を書き換えないでください。
+
+既存の安全な一覧処理を再利用し、ファイル・ディレクトリを開いて保持します。symlinkや
+別mountをたどらず、読み取り不能・途中変更は未完了として残します。既定の範囲は
+50,000項目・ファイル読み取り64 GiB・処理間で確認する900秒で、停止したfilesystem呼出しは
+期限を超える場合があります。書き込み停止は操作者が行う必要があり、原子的なsnapshotでは
+ありません。時刻精度、filesystem固有flags、symlinkのACL/xattr、ツリー外hardlink、
+実行中アプリの整合性は未確認です。一致は独立保存・認証の利用・元データの削除許可を
+意味しません。エディタ・ビルド・OCI・Gitでの通常利用も別に確認してください。
+この2つの操作はデータの修復・削除を行いません。

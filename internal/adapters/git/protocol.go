@@ -61,13 +61,14 @@ func ValidateRemote(s string) error {
 }
 
 type Request struct {
-	Heads      []Head `json:"heads,omitempty"`
-	Operation  string `json:"operation"`
-	Repository string `json:"repository"`
-	Ref        string `json:"ref,omitempty"`
-	OldOID     string `json:"old_oid,omitempty"`
-	NewOID     string `json:"new_oid,omitempty"`
-	Pack       []byte `json:"pack,omitempty"`
+	Haves      []string `json:"haves,omitempty"`
+	Heads      []Head   `json:"heads,omitempty"`
+	Operation  string   `json:"operation"`
+	Repository string   `json:"repository"`
+	Ref        string   `json:"ref,omitempty"`
+	OldOID     string   `json:"old_oid,omitempty"`
+	NewOID     string   `json:"new_oid,omitempty"`
+	Pack       []byte   `json:"pack,omitempty"`
 }
 
 type Response struct {
@@ -82,14 +83,15 @@ type Response struct {
 // AgentRequest is sent only from the controller to the verified trusted Host.
 // It is a separate type so guest requests cannot smuggle paths or upstreams.
 type AgentRequest struct {
-	Ref        string `json:"ref,omitempty"`
-	Heads      []Head `json:"heads,omitempty"`
-	Operation  string `json:"operation"`
-	Repository string `json:"repository"`
-	Workspace  string `json:"workspace,omitempty"`
-	Remote     string `json:"remote"`
-	Branch     string `json:"branch"`
-	OldOID     string `json:"old_oid,omitempty"`
-	NewOID     string `json:"new_oid,omitempty"`
-	Pack       []byte `json:"pack,omitempty"`
+	Haves      []string `json:"haves,omitempty"`
+	Ref        string   `json:"ref,omitempty"`
+	Heads      []Head   `json:"heads,omitempty"`
+	Operation  string   `json:"operation"`
+	Repository string   `json:"repository"`
+	Workspace  string   `json:"workspace,omitempty"`
+	Remote     string   `json:"remote"`
+	Branch     string   `json:"branch"`
+	OldOID     string   `json:"old_oid,omitempty"`
+	NewOID     string   `json:"new_oid,omitempty"`
+	Pack       []byte   `json:"pack,omitempty"`
 }

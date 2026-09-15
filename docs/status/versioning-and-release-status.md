@@ -90,8 +90,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.65 | Environment Resolver Selection | ✅ implemented |
 | v0.66 | Saved Environment data | ✅ implemented |
 | v0.67 | Portable Environment data | ✅ implemented |
+| v0.68 | Restore saved work by environment name | ✅ implemented |
 
-The current milestone position is **v0.67**. This declaration and the table mirror YAML.
+The current milestone position is **v0.68**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -190,3 +191,23 @@ M4/M5, create a tag or publish a release.
 Within v0.67, bounded failure stages and bilingual next actions improve the ordinary
 Windows reclamation path. This does not complete M5 or publish a release; existing
 attached-disk and installed pre-dispatch failures remain distinct acceptance gaps.
+
+## Restored-tree comparison
+
+The v0.67 M5 candidate adds portable file-tree comparison to the existing maintenance
+evacuation flow. It is a useful comparison step, not full migration acceptance or a release.
+
+## Reclamation language coverage
+
+Within v0.67, shared English/Japanese result and review presentation closes another
+daily-use gap. Protocols, consent and lifecycle are unchanged; no release is published.
+
+## Restore by environment name
+
+v0.68 adds latest-ready snapshot selection by recorded capture time. Canonical
+restore still creates independent data. Local regression and one installed
+Incus journey passed; this checkpoint does not complete M5 or publish a release.
+
+The catalog lifecycle-lock correction is a v0.68 usability fix, not a new checkpoint or release. Person-dependent login and GUI acceptance is explicitly post-release and does not gate integration of implemented work.
+
+Sequential multi-head fetch is another v0.68 usability correction: it removes a cumulative rejection without changing the per-pack or per-ref authority limits. It does not establish large-repository performance acceptance.

@@ -3,7 +3,7 @@
 Status: historical; superseded at the public contract by [ADR 0014](0014-persistent-managed-resources.md)  
 Date: 2026-09-06
 
-The unregistered implementation was removed by [ADR 0102](0102-responsibility-layout-and-cli-retirement.md).
+The unregistered implementation was removed by [ADR 0106](0106-responsibility-layout-and-cli-retirement.md).
 The CLI continues to refuse this command.
 
 The PoC product client offers `haco env switch-base --base <base> <environment>`.

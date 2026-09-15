@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,13 +56,14 @@ func (f *fakeEnvironmentRuntime) DeleteEnvironment(ctx context.Context, ref stri
 }
 
 type fakeEnvironmentStore struct {
-	environments map[string]core.Environment
-	leases       map[string]core.WorkspaceLease
-	getErr       error
-	putErr       error
-	deleteErr    error
-	leaseErr     error
-	deleted      []string
+	lifecycleGates sync.Map
+	environments   map[string]core.Environment
+	leases         map[string]core.WorkspaceLease
+	getErr         error
+	putErr         error
+	deleteErr      error
+	leaseErr       error
+	deleted        []string
 }
 
 func newFakeEnvironmentStore() *fakeEnvironmentStore {
@@ -391,5 +393,19 @@ func TestCreateSerializesConcurrentWorkspaceLeaseAcquisition(t *testing.T) {
 	}
 	if err := <-secondDone; !errors.Is(err, core.ErrWorkspaceBusy) {
 		t.Fatalf("second create error = %v", err)
+	}
+}
+
+func (f *fakeEnvironmentStore) LockLifecycle(ctx context.Context, domain, id string) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	value, _ := f.lifecycleGates.LoadOrStore(domain+":"+id, make(chan struct{}, 1))
+	gate := value.(chan struct{})
+	select {
+	case gate <- struct{}{}:
+		return func() { <-gate }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }

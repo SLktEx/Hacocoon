@@ -550,8 +550,12 @@ fi
     # A changed key must fail closed before any remote command is executed.
     $wrongKey = (Get-Content -Raw -LiteralPath $PublicKey).Trim() -split '\s+'
     [IO.File]::WriteAllText($KnownHosts, "haco-$EnvironmentName $($wrongKey[0]) $($wrongKey[1])`n", [Text.UTF8Encoding]::new($false))
-    $mismatch = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'echo MUST-NOT-EXECUTE')
-    if ($mismatch.ExitCode -eq 0 -or $mismatch.Stdout.Contains('MUST-NOT-EXECUTE') -or $mismatch.Stderr -notmatch 'HOST IDENTIFICATION HAS CHANGED|Host key verification failed') { throw 'Changed host key did not fail safely' }
+    $mismatch = Invoke-Captured $NativeSSH @('-v', '-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'echo MUST-NOT-EXECUTE')
+    $hostKeyOutcome = Get-SSHHostKeyCheckOutcome $mismatch.ExitCode $mismatch.Stdout $mismatch.Stderr
+    if ($hostKeyOutcome -cne 'refused') {
+        $progress = Get-SSHProgressEvidence $mismatch.Stdout $mismatch.Stderr
+        throw "Changed host-key check failed; outcome=$hostKeyOutcome exit=$($mismatch.ExitCode) ssh_progress=$progress"
+    }
     Write-Host "Native client: $NativeSSH"
     Write-Host "Route: Windows OpenSSH -> ProxyCommand -> wsl.exe -> controller UDS -> Environment sshd"
     Write-Host 'Private key remained in its Windows directory; only the .pub was passed to haco-host.'

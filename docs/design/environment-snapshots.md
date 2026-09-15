@@ -37,6 +37,20 @@ current Env/Workspace/OCI data, checks active restore reservations, and retains
 ownership records when cleanup cannot establish positive absence. This is the
 explicit removal operation for complete or incomplete saved data.
 
+## Restore by environment name
+
+`haco snapshot restore --latest dev restored-dev` selects the newest ready save
+for `dev` by its recorded capture-start time, then restores that exact saved ID
+through the ordinary independent-Environment lifecycle. The source Env may have
+been deleted. Incomplete saves are not selected. A deleted selected save or failed
+restore never causes fallback to an older save or an automatic second attempt.
+
+New captures persist `created_at` before creating any component. It is presentation
+metadata, not ownership evidence. Unknown times or equal newest times require an
+explicit ID from `haco snapshot list`; existing data is not rewritten to invent a
+date. Human output identifies the chosen save before restoration; `--json` retains
+the ordinary restore result. Source data and existing Environments are preserved.
+
 ## Inspect a failed deletion
 
 **Implemented candidate:** `haco snapshot inspect [--json] [--details] <id>` reads

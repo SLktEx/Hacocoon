@@ -109,3 +109,12 @@ Base, snapshot, repository, Workspace and OCI results use shared catalogs.
 Retained-data deletion shares one client confirmation helper. Failed warning or
 prompt delivery cannot authorize deletion, even with `--yes`; controller ownership
 and lifecycle checks remain authoritative. Original tool errors and JSON remain unchanged.
+
+## Reclamation results
+
+Reclamation start/confirmation, saved result, measured allocation, incomplete/failed
+stages and explicit review use the shared English/Japanese catalog. Protocol state
+values, byte counts, operation identities and confirmation scope remain unchanged.
+Numeric Windows errors remain diagnostic codes; the surrounding explanation and
+next action follow the selected language. The public Windows journey recognizes
+both presentations while still checking exact worker receipts for completion.

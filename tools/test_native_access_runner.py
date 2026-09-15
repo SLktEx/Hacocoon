@@ -113,6 +113,13 @@ class NativeRunnerTests(unittest.TestCase):
             runner.run_acceptance([sys.executable, '-c', 'import time;time.sleep(30)'], timeout=0.3)
         self.assertLess(time.monotonic() - started, 10)
 
+    def test_timeout_retains_completed_phase_output(self):
+        code = "import sys,time;print('completed-phase',flush=True);print('failure-detail',file=sys.stderr,flush=True);time.sleep(30)"
+        with self.assertRaisesRegex(RuntimeError, 'timed out') as raised:
+            runner.run_acceptance([sys.executable, '-c', code], timeout=1)
+        self.assertIn('completed-phase', getattr(raised.exception, 'stdout', ''))
+        self.assertIn('failure-detail', getattr(raised.exception, 'stderr', ''))
+
     def test_descendant_inherited_output_does_not_hold_parent(self):
         code = "import subprocess,sys;p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(15)']);print(p.pid,flush=True)"
         started = time.monotonic()

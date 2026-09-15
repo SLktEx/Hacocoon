@@ -2,7 +2,7 @@
 
 [日本語](pending-approval-review.ja.md) | English
 
-Status: **VS Code GUI and Windows notification review implemented on the development candidate; fresh installed-answer acceptance partial**.
+Status: **VS Code GUI and Windows notification review implemented on main; fresh installed-answer acceptance partial**.
 Repository tests are separate from installed network, desktop and GitHub acceptance.
 
 ## Ordinary use
@@ -93,7 +93,7 @@ actual result on failure but omit provider output and use fixed error categories
 
 ## VS Code GUI review
 
-Status: **implemented development candidate; installed GUI acceptance pending**.
+Status: **implemented on main; installed GUI acceptance pending**.
 The optional local UI extension opens a Webview from Review or **Hacocoon: Review
 Pending Approvals**. Inspect the complete current operation, choose whether to save
 Policy, then click **Allow this operation** or **Deny this operation**. No terminal
@@ -143,7 +143,7 @@ fresh answers remain a separate open part of Issue #568.
 
 ## Answering inside Windows notifications
 
-Status: **implemented on the development candidate; fresh installed answers and
+Status: **implemented on main; fresh installed answers and
 visual layout acceptance remain pending**.
 
 The Windows installer registers the hidden helper, protocol correlation entry,

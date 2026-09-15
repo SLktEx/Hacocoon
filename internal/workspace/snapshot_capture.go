@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -83,7 +84,7 @@ func (s *Service) captureSnapshotLocked(ctx context.Context, source core.Snapsho
 		if err != nil {
 			return err
 		}
-		planned := core.Snapshot{ID: id, Source: source, State: "capturing", Components: components}
+		planned := core.Snapshot{CreatedAt: time.Now().UTC(), ID: id, Source: source, State: "capturing", Components: components}
 		if err := catalog.BeginSnapshot(ctx, planned); err != nil {
 			return err
 		}

@@ -23,7 +23,7 @@ func (s *Service) ExecRunStream(ctx context.Context, name, instance string, requ
 	if _, err := validateEnvironmentName(name); err != nil {
 		return core.ExecutionResult{}, err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.ExecutionResult{}, err
 	}

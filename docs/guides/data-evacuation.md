@@ -149,3 +149,42 @@ incus image list --project RESTORE_PROJECT --format=json
 Verify the recorded project description and `features.images` before import. For a unified archive, supply only its actual archive path to `incus image import`. Require the imported full fingerprint and image type to match the source, then recheck the retained files. Record failures and exact resources already created; do not guess cleanup targets or replace an existing project. Keep the source and retained archives. Importing an image does not register a Hacocoon Base, restore aliases, adopt old authority, create an Env or prove it boots.
 
 See [scoped acceptance and limits](../status/acceptance-evidence.md#transfer).
+
+## Compare a restored tree
+
+The maintenance helper creates portable manifests for one reviewed, quiescent tree
+on each Linux/WSL side. Place output outside the scanned tree and protect it: paths
+and content fingerprints can be sensitive. For example, on each respective Host:
+
+```bash
+umask 077
+python3 tools/evacuation_compare.py scan /absolute/source-tree --quiesced > /absolute/private/source.json
+python3 tools/evacuation_compare.py scan /absolute/restored-tree --quiesced > /absolute/private/restored.json
+```
+
+Transfer both manifest files to one private location, then compare on Linux or Windows:
+
+```bash
+python3 tools/evacuation_compare.py compare source.json restored.json > comparison.json
+```
+
+Exit 0 means the selected observations match; 1 means differences or an incomplete
+scan; 2 means the comparison could not be read. JSON lists added/missing relative
+paths and changed fields. It compares file content, symlink targets without following
+them, modes, numeric UID/GID, internal hardlink groups and regular-file/directory
+ACLs/xattrs. Link targets and xattr values are hashed instead of included verbatim.
+Git metadata and dirty/untracked files inside the tree are ordinary compared files.
+
+Use the same ownership namespace on both sides. Across Incus idmaps, raw Host numeric
+IDs can differ legitimately: compare from the appropriate guest namespace or review
+the mapping explicitly; do not change ownership merely to make the report match.
+
+The scanner reuses the existing safe inventory, holds directory/file handles, avoids
+symlink traversal and separate mounts, and reports unreadable/changing trees as
+incomplete. Default budgets are 50,000 entries, 64 GiB of file reads and 900 seconds
+checked between operations; a blocked filesystem call can exceed the deadline.
+Writers must be stopped by the operator; this is not an atomic snapshot. Timestamp
+precision, filesystem flags, symlink ACLs/xattrs, external hardlink targets and live
+application consistency remain unreviewed. A match does not prove independent
+retention, usable credentials or permission to delete the source. Check ordinary
+editor/build/OCI/Git operation separately. Neither command repairs or deletes data.

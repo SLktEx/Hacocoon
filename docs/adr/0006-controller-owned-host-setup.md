@@ -4,7 +4,7 @@ Status: accepted
 Date: 2026-09-06
 
 The controller-owned setup decision remains current. Its legacy CLI refusal entry
-was subsequently removed by [ADR 0102](0102-responsibility-layout-and-cli-retirement.md).
+was subsequently removed by [ADR 0106](0106-responsibility-layout-and-cli-retirement.md).
 
 ## Context
 
