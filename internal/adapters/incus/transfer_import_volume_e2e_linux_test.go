@@ -337,7 +337,7 @@ func TestRealIncusOwnedVolumeImportE2E(t *testing.T) {
 			if _, err := failedWorks.Get("work", failedID); !errors.Is(err, core.ErrNotFound) {
 				t.Fatal("completed cleanup kept registry", err)
 			}
-			observed, err := workBackend.workspaceVolumeForDeletion(ctx, failedBackend.last)
+			observed, err := workBackend.managedVolumeForDeletion(ctx, failedBackend.last, "")
 			must(err)
 			if observed != nil {
 				t.Fatal("cleanup reported success with native volume remaining")

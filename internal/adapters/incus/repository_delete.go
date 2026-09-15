@@ -8,15 +8,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/git"
 )
 
-// workspaceVolumeForDeletion verifies exact native ownership and all users.
+// managedVolumeForDeletion verifies exact native ownership and all users.
 // A missing volume is positively observed from the complete native collection.
-func (b *RepositoryBackend) workspaceVolumeForDeletion(ctx context.Context, target gitrepo.Object) (*persistentVolumeObservation, error) {
-	if target.Kind != "work" {
-		return nil, core.ErrInvalidArgument
-	}
-	return b.managedVolumeForDeletion(ctx, target, "")
-}
-
 func (b *RepositoryBackend) managedVolumeForDeletion(ctx context.Context, target gitrepo.Object, allowedUser string) (*persistentVolumeObservation, error) {
 	if target.Kind != "work" && target.Kind != "repo" {
 		return nil, core.ErrInvalidArgument

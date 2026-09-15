@@ -87,13 +87,13 @@ func TestRealIncusWorkspaceDeletionE2E(t *testing.T) {
 		if child == nil {
 			t.Fatal("native saved child missing")
 		}
-		if present, err := backend.workspaceVolumeForDeletion(ctx, object); err != nil || present == nil {
+		if present, err := backend.managedVolumeForDeletion(ctx, object, ""); err != nil || present == nil {
 			t.Fatal("parent lost", err)
 		}
 		query("DELETE", path+"/"+kind+"/keep?project="+r.project, nil, nil)
 	}
 	must(backend.DeleteWorkspaceVolume(ctx, object))
-	if present, err := backend.workspaceVolumeForDeletion(ctx, object); err != nil || present != nil {
+	if present, err := backend.managedVolumeForDeletion(ctx, object, ""); err != nil || present != nil {
 		t.Fatal("owned volume remains", err)
 	}
 	t.Log("PASS real Incus/Btrfs snapshot and backup refusal, child/parent retention, exact child deletion, owned volume deletion and positive absence; metadata receipt retained")
