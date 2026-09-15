@@ -71,3 +71,11 @@ haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <
 ```
 
 フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。
+
+### キャッシュの履歴とクリア
+
+信頼されたHostで `haco cache history [--json] <env> <area>` を使うと、残っている収集データを確認できる。
+`haco cache clear [--yes] [--json] <env> <area>` は対象を確認して再利用元をリセットし、
+削除可能な確認済みデータを片付ける。既存Envのコピー・Workspace・OCIデータは保持する。
+共有設定ではグループ全体の今後のEnvに影響する。部分的な削除失敗では非0で終了し、
+JSONにも実行済みの結果を残す。再試行前に履歴を確認する。[キャッシュ世代](../design/cache-generations.ja.md#収集データの確認とクリア)を参照。

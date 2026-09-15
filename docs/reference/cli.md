@@ -72,3 +72,12 @@ haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <
 ```
 
 The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.
+
+### Cache history and clear
+
+On the trusted Host, use `haco cache history [--json] <env> <area>` to inspect
+retained collection attempts. `haco cache clear [--yes] [--json] <env> <area>`
+reviews and resets that reuse source, then removes eligible reviewed source data.
+Existing Environment copies, Workspace and OCI data remain. Shared scope affects
+the whole group's future Environments. Partial cleanup returns nonzero and retains
+its result in JSON; inspect history before retrying. See [cache generations](../design/cache-generations.md#inspect-and-clear-collected-data).

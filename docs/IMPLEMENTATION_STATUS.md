@@ -106,3 +106,9 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 ## Packer Base build candidate
 
 **Partial:** actual Packer HCL2 and external scripts run inside an ordinary builder Env. The optional adapter shares canonical Base publication and cleanup. Full Packer/download/installed Windows acceptance remains pending; see [Packer builds](design/packer-base-builds.md).
+
+Cache history/clear follow-up: implemented candidate. Named history separates
+current selection from retained attempts. Revision-bound clear resets reuse and
+uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
+uncertain copies. Self-service copy recovery, orphan-source browsing and added-data
+transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).

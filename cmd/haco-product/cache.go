@@ -28,6 +28,13 @@ func runCache(args []string) int {
 	return runCacheWith(args, client, os.Stdout, os.Stderr)
 }
 func runCacheWith(args []string, client cacheClient, out, diagnostic io.Writer) int {
+	if len(args) > 0 && (args[0] == "history" || args[0] == "clear") {
+		maintenance, ok := client.(cacheMaintenanceClient)
+		if !ok {
+			return 1
+		}
+		return runCacheMaintenance(args, maintenance, os.Stdin, out, diagnostic)
+	}
 	if len(args) == 0 {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.usage", "haco cache <settings|configure|status|collect>"))
 		return 2

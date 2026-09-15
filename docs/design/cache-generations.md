@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-history/clear/recovery commands and added-data snapshot/transfer remain incomplete.
+copy recovery commands and added-data snapshot/transfer remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -157,7 +157,7 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Existing-Env enrollment, user-facing history/clearing/recovery and added-data
+Existing-Env enrollment, complete copy recovery and added-data
 snapshot/copy/transfer remain incomplete. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
 These remaining operations must use canonical lifecycle ownership. Workspace and
@@ -251,3 +251,28 @@ If collection reports `recovery-required`, source and candidate stay owned and t
 producer cannot resume or be deleted through Hacocoon. Keep it stopped. Complete
 self-service recovery is still pending; retry cannot convert an unknown native copy
 into success. See [the lifecycle decision](../adr/0090-stopped-cache-collection.md).
+
+## Inspect and clear collected data
+
+`haco cache history <env> <area>` lists retained collection attempts by configured
+name, path, creation time, original generation and state. `retained` means not
+currently selected; it does not assert that an interrupted candidate was ever
+published. An existing enrolled Environment identifies the source, including old
+epochs. Listing orphaned sources after removing all identifying Environments is
+not yet a public operation.
+
+`haco cache clear [--yes] [--json] <env> <area>` displays that exact scope and uses
+the common client deletion confirmation. A revision binds the Environment, source
+and full candidate ownership. A changed review is refused. The canonical generation
+CAS resets the source epoch before common exact-owner deletion removes only the
+reviewed source candidates. It never deletes Env children, Workspace or OCI data.
+New candidates outside the review are not swept. Current selections, snapshots and
+in-flight copies retain their existing catalog/provider fences. Shared sources
+affect new Environments throughout the configured group.
+
+Existing Env copies remain usable. New Environments start empty until a producer
+created after reset collects again. Creating/uncertain candidates stay owned and
+report recovery-required; busy or failed cleanup reports cleanup-required. The
+result preserves a successful reset separately from partial cleanup. Inspect
+history and repeat clear after in-flight copies finish; unknown copy completion
+still needs recovery. This is logical source cleanup, not physical disk reclamation.

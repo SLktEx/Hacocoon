@@ -72,7 +72,7 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 		}
 		return selector.Select(ctx, request)
 	})
-	workflow := &cacheapp.Workflow{Settings: settings, Catalog: store, Collector: svc}
+	workflow := &cacheapp.Workflow{Settings: settings, Catalog: store, Collector: svc, Cleaner: resources}
 	cleaned, createdOK := false, false
 	defer func() {
 		// Create owns failed-creation cleanup. A name collision is not authority
@@ -153,13 +153,23 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 		}
 	}
 	run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "printf changed > /root/.cache/haco-e2e-compiler/probe")
-	must(svc.Delete(ctx, nextName))
-	// Selection reset and exact source cleanup affect only this fixture's sources.
+	// Review and clear source generations while independent consumer data stays live.
 	for _, a := range next.Attachments {
-		_, err := store.ResetResourceGeneration(ctx, a.Origin, a.Origin.Compatibility)
+		history, err := workflow.History(ctx, nextName, a.Key)
 		must(err)
-		must(resources.DeleteUnselectedGeneration(ctx, a.Origin.Current))
+		if len(history.Entries) != 1 || history.Entries[0].State != "current" {
+			t.Fatal("missing named source history", history)
+		}
+		cleared, err := workflow.Clear(ctx, nextName, a.Key, history.Revision)
+		must(err)
+		if !cleared.Reset || len(cleared.Entries) != 1 || cleared.Entries[0].State != "deleted" {
+			t.Fatal("source cleanup incomplete", cleared)
+		}
 	}
+	if got := run("exec", next.RuntimeRef, "--project", r.project, "--", "cat", "/root/.cache/haco-e2e-compiler/probe", "/root/.cache/haco-e2e-packages/probe", "/workspace/probe"); got != "changedpackage-datakeep-work" {
+		t.Fatal("clear changed consumer data")
+	}
+	must(svc.Delete(ctx, nextName))
 	for _, a := range env.Attachments {
 		if _, err := store.GetPersistentResource(ctx, a.Resource.ID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("child ownership was not released", err)

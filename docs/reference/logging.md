@@ -189,3 +189,5 @@ enter structured logs, progress-stage fields or audit data.
 
 
 Cache management returns named area results separately from diagnostics. Its failure boundary logs only the fixed operation name and classified failure code with component `cache`; settings documents, paths, native responses and raw errors are not logged.
+
+Cache maintenance uses the same `component=cache` boundary with fixed operations `cache.history` and `cache.clear`, and a fixed `failure_code`. Review revisions, native resource locations and raw provider errors are not logged.

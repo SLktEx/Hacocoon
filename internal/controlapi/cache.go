@@ -80,7 +80,7 @@ func RegisterCache(server *control.Server, workflow *cache.Workflow) error {
 			return err
 		}
 	}
-	return nil
+	return registerCacheMaintenance(server, workflow)
 }
 func decodeCacheRequest(data []byte, target any) bool {
 	if len(data) > cache.MaxConfigurationBytes+1024 {

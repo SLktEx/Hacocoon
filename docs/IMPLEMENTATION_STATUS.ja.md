@@ -98,3 +98,8 @@ Windows/SSH確認とExplorer操作は別の残件です。
 ## PackerによるBase作成の候補
 
 **部分実装:** 実際のPacker HCL2と外部スクリプトを通常のbuild用Envで実行します。追加adapterは既存のBase公開・cleanupを共有します。Packerの完走・download・導入済みWindowsの受入は未確認です。[Packerの操作](design/packer-base-builds.ja.md)を参照してください。
+
+キャッシュ履歴・クリアの後続: 実装済み候補。名前付き履歴で現在の再利用元と保持中の候補を分ける。
+確認時のrevisionで固定して再利用元をリセットし、共通の所有権付き削除を使う。
+既存Env・Workspace・OCIデータと結果不明のコピーは保持する。コピー復旧・孤立した再利用元の一覧・
+追加データ転送は部分実装。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。

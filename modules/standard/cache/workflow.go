@@ -17,6 +17,7 @@ type Workflow struct {
 	Settings  Settings
 	Catalog   WorkflowCatalog
 	Collector Collector
+	Cleaner   GenerationCleaner
 }
 
 type AreaStatus struct {
