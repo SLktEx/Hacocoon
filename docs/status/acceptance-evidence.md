@@ -1220,3 +1220,23 @@ The exact fresh Env, two saves, both Workspaces and source registration were the
 cleaned through ordinary product commands; all six cleanup operations passed.
 Native receipt: `latest-b61bbc62`, restored Workspace `restore-5dbfe05afd5db0c4`,
 source commit `e1ec08947e8ae2c7db5d0251f246cdc9403446a5`.
+
+## Windows integration retry and interop observation
+
+PR #692 head `4e7a45a75047c8d372da1ab889eb7d2796f4370b` passed four Linux
+workflows. Windows34970515521/job104385385746 failed VS Code extension installation
+with HTTP503. Ordinary SSH, cold parallel sessions, changed-host-key refusal,
+DNS/Policy, setup, preview, transfer and restored work passed. Linux/public
+reclamation and native notifications were skipped. The failed Windows jobs were
+retried once for that external dependency failure; there is no successful merge
+claim and the earlier unexplained #690 failure remains unresolved.
+
+The local enrollment visibility difference survived restarting only the dedicated
+WSL after confirming no ordinary Envs or reclamation operation. Doctor passed.
+Windows direct and the physical WSL's normal invocation see enrollment; both
+Physical Host and trusted Host using `/run/WSL/1_interop` do not. All observed
+processes reported the same Windows owner hash, 64-bit execution and no package
+identity. This isolates the observed difference to the init interop route, not to
+an absent enrollment or only the Incus boundary. Its underlying Windows cause is
+unproven. No registration/history mutation, socket substitution in the product,
+global WSL shutdown or extra reclamation attempt was made.

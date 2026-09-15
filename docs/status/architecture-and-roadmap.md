@@ -19,13 +19,17 @@ work. Main `ee8bf7fb` / [#688](https://github.com/SLktEx/Hacocoon/pull/688) adds
 reclamation failure diagnostics. Both exact PR heads passed all five workflows.
 These are implementation checkpoints, not M0–M5-wide acceptance or distribution.
 
-[#690](https://github.com/SLktEx/Hacocoon/pull/690) is the development candidate for
-Japanese reclamation results and restored-tree comparison, including
-[#689](https://github.com/SLktEx/Hacocoon/pull/689). Its local and dedicated installed
-results are recorded separately. Head `b6dec880` passed four Linux workflows but
-failed the Windows changed-host-key assertion; its precise cause is unproven.
-Main integration requires diagnosis and a successful exact-head CI result.
-The preceding stages do not need reimplementation simply because an Issue is open.
+[#692](https://github.com/SLktEx/Hacocoon/pull/692) includes #689–#691 and adds
+bounded Windows SSH failure classification. Exact head `4e7a45a7` passed four Linux
+workflows. Its Windows run failed at an external VS Code extension HTTP503 after
+SSH/transfer checks passed; the failed jobs are being retried once. Earlier
+unexplained Windows failures remain separate. Main integration still needs all
+five successful workflows for the exact candidate.
+
+[#693](https://github.com/SLktEx/Hacocoon/pull/693), implementation `e1ec0894`, adds
+latest-ready restore by environment name. Local tests and an installed two-save,
+source-deletion, latest-restore and exact-fixture cleanup journey passed. It is a
+stacked draft during #692 CI, with main as the final target. Neither PR is a release.
 
 ## M0–M5 remaining work
 
@@ -59,7 +63,9 @@ at enrollment while a direct Windows observation passed; a later Japanese read-o
 status succeeded after normal installation. That does not explain the earlier
 failure or prove a new start. An attempted global WSL restart was stopped by the
 pre-action guard after an unrelated running distribution was observed; no global
-shutdown occurred. Human notification/VS Code answers remain unperformed.
+shutdown occurred. Later, restarting only the dedicated WSL preserved the failure.
+Read-only comparisons isolate enrollment visibility to the init interop route;
+the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 
 Current data was archived and restored to another WSL with content, raw Host owner,
 link and regular-file/directory-attribute comparison. This is a small real-data

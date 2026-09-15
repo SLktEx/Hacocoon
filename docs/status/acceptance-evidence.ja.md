@@ -1033,3 +1033,19 @@ v0.68更新後の生成識別子・通常docs確認も成功。
 新しく作ったEnv・2つのsnapshot・2つのWorkspace・取得元登録のみ、通常CLIの6操作で後片付けも成功。
 実機記録: `latest-b61bbc62`、復元Workspace `restore-5dbfe05afd5db0c4`、
 実装 `e1ec08947e8ae2c7db5d0251f246cdc9403446a5`。
+
+## Windows統合の再実行とinterop観測
+
+PR #692 head `4e7a45a75047c8d372da1ab889eb7d2796f4370b` はLinux4 CI成功。
+Windows34970515521/job104385385746はVS Code拡張導入のHTTP503で失敗。
+通常SSH・cold並行接続・鍵変更拒否・DNS/Policy・setup・preview・転送・復元後の作業は成功。
+Linux/通常容量回収とnative通知はSKIP。外部依存の503に対してWindows失敗ジョブのみ
+1回再実行した。成功・マージ済みとはせず、以前の#690の原因不明失敗も保持する。
+
+手元は通常Envと容量回収操作がないことを確認し、専用WSLだけ再起動。doctor成功後も
+登録の見え方は変わらなかった。Windows直接と物理WSLの通常呼び出しは登録ありだが、
+`/run/WSL/1_interop` を使うと物理WSLでも信頼Hostでも登録なしになる。
+同じWindows所有者・64bit・package identityなしを観測した。
+登録そのものの欠落やIncus境界だけの問題ではなく、init interop経路で差が生じることまで
+切り分けた。Windows側の原因は未確定。登録/操作履歴の変更・製品の接続口置換・
+WSL全体停止・新しい容量回収開始は行っていない。
