@@ -61,6 +61,13 @@ Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
 
+M5's named current-data selection and aggregate comparison helper is implemented
+on a development branch for [#703](https://github.com/SLktEx/Hacocoon/issues/703).
+It reuses the existing portable manifest comparer and preserves partial/unreviewed
+outcomes. The remaining selection work is choosing the operator's actual required
+data and checking independent retention, owner namespaces and ordinary resumed use.
+No old-version reconstruction or automatic deletion is added.
+
 Complete ordinary Packer setup/download/build/publication and reuse first when the
 required communication configuration is available. The proposed three-source
 require-approval configuration awaits user input after automatic approval review

@@ -65,6 +65,14 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
+The current-data selection follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703))
+is **implemented on a development branch**: the checkout maintenance helper names
+required data, preserves retain/recreate/exclude decisions and aggregates existing
+restored-tree comparisons. Unreviewed categories, missing manifests and failed
+items stay visible. See [usage and limits](guides/data-evacuation.md). It does not
+complete actual current-data selection, independent retention, guest-owner or
+authenticated development acceptance, and is not an installed `haco` command.
+
 Previous main checkpoint `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
 #689–#693 and #696–#698 on top of #687/#688. Restored-tree comparison,
 Japanese reclamation results, bounded SSH failure classification, latest-ready
