@@ -140,9 +140,6 @@ func (a *StdioApproval) decide(ctx context.Context, req core.ApprovalRequest, pe
 
 func terminalSafe(value string) string {
 	quoted := strconv.QuoteToGraphic(value)
-	if len(quoted) < 2 {
-		return quoted
-	}
 	return quoted[1 : len(quoted)-1]
 }
 
