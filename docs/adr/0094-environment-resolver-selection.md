@@ -1,6 +1,6 @@
 # Environment resolver selection
 
-Status: accepted design; implementation in progress. [日本語](0094-environment-resolver-selection.ja.md)
+Status: accepted; implemented in the development candidate. [日本語](0094-environment-resolver-selection.ja.md)
 
 ## Decision
 

@@ -559,3 +559,9 @@ v0.64と導入案内の更新後も表示/ビルド情報2.81秒、architecture/
 修正済み復旧c35f6610へ合わせたc682faaaは、集中4.22秒、main差分lint16.99秒、全ローカル104.53秒、race36.42秒、CLI18.56秒、文書19.60秒、workflow2.66秒が成功しました。その後#671は5つのCIに通りmaindf22a1a5へ反映されました。c35f6610と全ファイル一致するため、転送を11823e02として載せ替えても内容は変わっていません。
 
 DNS選択候補: 最初の集中72.65秒がPASS。snapshot作成・import設定保持の回帰追加後は集中30.07秒、変更範囲lint23.44秒、全ローカル45.48秒、race14.76秒、CLI35.53秒、文書・回帰13.46秒、workflow5.91秒がPASS。最終の状態表示とnative adapter回帰追加は別途確認します。この部品検証は3モードの実Incus受入ではありません。
+
+最終候補の集中確認は27.69秒でFAIL。英語statusの完全一致fixtureが、新しく表示する名前解決の行を含んでいませんでした。期待表示を更新し、既存の日英データ・escaping確認を保持します。その試行の後続確認は未実施です。
+
+hacocoon-secondの実Incusでab98e0ccのTestRealIncusDNSModesE2EがPASS（コマンド84.63秒/テスト75.10秒）。host24.12秒、backend13.09秒、disabled37.89秒。新しく所有するEnvと現行companionで共通の作成・停止・再開・削除、loopback resolverとservice状態を確認し、backendは正確な所有関係のtooling adapter経由でexample.comの解決も確認しました。catalogは/var/lib/haco-dns-modes-905851288/state.json、-4084255079/state.json、-70566286/state.json。全Envの共通削除が成功。Policy許可・guest管理権限・別DNS fallbackは追加していません。native構成と再開・backend解決の証拠であり、guestからPolicyを通す全経路・VPN/NRPT変化・Windows再起動・GUI回答の受入ではありません。
+
+期待するstatus表示を直した最新main上の最終ソースは、集中34.86秒、PR全差分lint52.03秒、全ローカル33.57秒、race20.05秒、CLI8.60秒、文書13.53秒、workflow2.47秒がPASS。以前の期待表示に合わせるための製品動作変更はしていません。

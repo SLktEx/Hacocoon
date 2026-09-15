@@ -17,12 +17,13 @@ type PlatformResolver interface {
 	LookupNetIP(context.Context, string, string) ([]netip.Addr, error)
 }
 
-// Provider uses the Physical Host resolver, including WSL DNS tunneling when
-// configured. No public DNS address, guest-selected upstream or Windows exe is used.
+// EnvironmentCatalog binds resolver selection to the current ready creation.
 type EnvironmentCatalog interface {
 	GetEnvironment(context.Context, string) (core.Environment, error)
 	EnvironmentInstance(context.Context, core.Environment) (string, error)
 }
+// Provider selects the current Environment resolver after Policy and audit.
+// Host mode uses the Physical Host; backend details remain behind its seam.
 type Provider struct {
 	Resolver     PlatformResolver
 	Environments EnvironmentCatalog

@@ -28,7 +28,7 @@ func TestEnvironmentStatusLocalizedWithoutChangingValues(t *testing.T) {
 			t.Fatal("resource or stable state value changed", out.String())
 		}
 		if language == cliui.English {
-			want := "Environment: dev\nState:       stopped\nWorkspace:   /work-日本語\nAccess:      \nWorkspace retained; this Environment is stopped.\n"
+			want := "Environment: dev\nState:       stopped\nWorkspace:   /work-日本語\nAccess:      \nName resolution: Host (normal)\nWorkspace retained; this Environment is stopped.\n"
 			if out.String() != want {
 				t.Fatalf("English output changed: %q", out.String())
 			}
