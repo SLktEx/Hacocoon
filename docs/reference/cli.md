@@ -64,3 +64,11 @@ See [language coverage](cli-language.md).
 ## Cache commands
 
 On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/recovery and additional-data transfer remain incomplete. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
+
+## Build a Base with Packer
+
+```sh
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+```
+
+The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.

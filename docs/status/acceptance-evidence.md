@@ -569,3 +569,20 @@ remain incomplete. The old ambiguous pool `haco-cache-15c4cf3cbcded3c0` was unto
 
 
 The final named-area presentation (including compatibility/shared scope and cleanup-required) passed focused CLI/UI/controller tests (2.61s) and docs/regressions (4.74s). This presentation change does not alter the native collection implementation exercised above.
+
+<a id="main-packer-builds"></a>
+## Packer HCL2 builds on main
+
+The candidate reuses `1103505b` on main `9da3ec8f`: actual guest-local Packer, HCL2 context and external scripts, optional composition, canonical Base lifecycle and private failed-stage output. Focused tests (31.91s), changed-code lint (38.45s), maintained local tests (45.78s), related race (12.70s), CLI E2E (11.78s), docs/regressions (8.50s) and workflow policy (1.88s) passed with Go 1.27.1. Initial lint found unchecked read-handle closes, one error string and a switch simplification; corrected before these passes. Initial patch application targeted help catalogs absent from main and was refused without changing files; current main metadata was adapted instead.
+
+These results do not execute Packer or establish installed acceptance. The source candidate's earlier whole-suite PTY timeout and Ubuntu dependency downloads rejected by the installed proxy with HTTP 403 remain unresolved historical failures, not a successful build. Full guest download/fmt/init/validate/build, Base publication/reuse, arm64, custom plugin failures and Windows entry remain unverified. No test-only policy grant or Host-side HCL execution is introduced. The existing simple JSON shell definition remains a current feature, not an old-version migration requirement.
+
+
+After integrating #666 at `629f33ed` as `068c8106`, the canonical checkpoint tool advanced this candidate to v0.62 (Packer HCL2 Base builds). Combined local tests (34.93s), CLI E2E (5.34s) and docs/regressions (6.95s) passed. Both Packer and interactive run are included; this is not a release or full M4 acceptance.
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
+
+
+At #667 head `61aeff8f`, Windows 34916801756 / job104216088784 passed installation, HTTPS, Windows interop, Base creation and initial strict SSH/desktop alias, then failed parallel cold reconnect after fixture WSL termination: exit255, ssh_progress=stream_denied. Reclamation and notification steps were skipped. The root cause remains unresolved; no actual Packer build is established by this run. Other four workflows passed.
+
+
+After integrating main `5e89597a` as `075fc746`, Packer and current detailed help passed full local tests (13.24s), CLI E2E (3.18s) and docs/regressions (4.79s). Final formatting changes only whitespace in the two help files. The parallel cold SSH refusal at `61aeff8f` remains unresolved; new CI cannot retroactively establish its cause.

@@ -33,6 +33,7 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
+	packerplugin "github.com/SLktEx/Hacocoon/modules/plugin/packer"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
 	"github.com/SLktEx/Hacocoon/modules/standard/cache"
@@ -272,7 +273,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,
-		BaseBuild:           &basebuild.Service{Environments: environments},
+		BaseBuild:           &basebuild.Service{Environments: environments, Packer: packerplugin.Runner{}},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,

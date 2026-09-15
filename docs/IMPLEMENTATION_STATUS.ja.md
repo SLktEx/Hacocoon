@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.61**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.62**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -94,3 +94,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 ## キャッシュ世代管理の共通処理
 
 **部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。既存Envへの後付け登録、履歴・クリア・復旧コマンド、追加領域を含むsnapshot/copy/transferは未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
+
+## PackerによるBase作成の候補
+
+**部分実装:** 実際のPacker HCL2と外部スクリプトを通常のbuild用Envで実行します。追加adapterは既存のBase公開・cleanupを共有します。Packerの完走・download・導入済みWindowsの受入は未確認です。[Packerの操作](design/packer-base-builds.ja.md)を参照してください。
