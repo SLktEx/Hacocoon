@@ -162,6 +162,9 @@ func Setup(ctx context.Context, c Controller, d Desktop, name string) (alias str
 		}
 		for _, actual := range connections {
 			if actual.Port == 0 && sameConnection(actual, previous.Connection) {
+				if actual.HostPublicKey != previous.Connection.HostPublicKey {
+					return "", fmt.Errorf("SSH host key changed for the same Environment")
+				}
 				text, known, err := render(name, previous)
 				if err != nil {
 					return "", err
@@ -246,7 +249,7 @@ func identity(ctx context.Context, f *files, d Desktop) (string, error) {
 	const pub = "hacocoon/identity.pub"
 	b, err := f.read(pub)
 	if err == nil {
-		private, err := f.root.OpenFile("hacocoon/identity", os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		private, err := f.root.OpenFile("hacocoon/identity", os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 		if err != nil {
 			return "", err
 		}

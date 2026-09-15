@@ -97,7 +97,8 @@ func (f *files) close() {
 	}
 }
 func (f *files) read(name string) ([]byte, error) {
-	file, err := f.root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	// Inspect the opened descriptor without waiting for a hostile FIFO writer.
+	file, err := f.root.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
