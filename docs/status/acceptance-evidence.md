@@ -1522,3 +1522,30 @@ languages; exact Policy and revision inputs, conflict retention, original errors
 and one apply on output failure are covered. The first lint attempt found five
 unhandled diagnostic writes; they were made explicit before the full pass.
 These checks do not change a live Policy or establish installed/human acceptance.
+
+## Forwarding fixture readiness correction
+
+The one #700 retry at the same head also failed: Windows run `34993511328`,
+job `104476272439`, stopped in ordinary native TCP forwarding. The application
+was ready at 187 ms, the Host at 26,577 ms, the listener at 28,015 ms and native
+ownership at 38,859 ms. Failure at 41,375 ms included application `accept`
+`TimeoutError` and a mismatched binary response. The fixture's 40-second accept
+wait started before Host preparation, so almost all its budget was consumed
+before the actual exchange. Subsequent Linux/public reclamation and notification
+steps were skipped; evidence job `104483624401` failed. This neither resolves
+nor erases the first attempt's separate `compact_attached` failure.
+
+The #701 follow-up arms the shared application only after listener readiness
+and Windows native-owner confirmation. An independent 180-second startup bound
+fails on missing readiness; the original 40-second accept budget, eight binary
+exchanges, half-close, product lifetime and cancellation assertions remain.
+The real-process/TCP regression delays preparation beyond the accept budget, then
+checks all eight exact responses; missing clients, no arming and EOF still fail.
+It runs in the maintained local and repository CI entries.
+
+Local validation passed: application regression 1.80s, Windows observer regression
+1.44s, focused tests 11.36s, changed-code lint 34.51s, full tests 96.28s, race
+15.82s, CLI E2E 4.50s, docs 9.54s, workflow policy 1.47s and native-test compile
+1.73s. This is component evidence; the updated installed Windows journey remains
+pending. #701 contains #700's exact head and is the combined main candidate;
+#700 stays open until that integration is proven.

@@ -20,7 +20,7 @@ import sys
 import threading
 import time
 
-from test_client_forward_native import SERVER
+from test_client_forward_native import SERVER, arm_application
 
 
 def exchange(port):
@@ -68,7 +68,7 @@ def main():
                           "phase": name, "duration_ms": int((time.monotonic() - started) * 1000)}), flush=True)
     phase("application_start")
     application = subprocess.Popen(["wsl.exe", "-d", args.distro, "-u", "root", "--exec", "incus", "exec", "haco-" + args.env,
-                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER], stdout=subprocess.PIPE)
+                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     readiness = queue.Queue(maxsize=1)
     def read_ready():
         readiness.put(application.stdout.readline(4096))
@@ -104,6 +104,8 @@ def main():
                     port = int(match.group(1))
                     assert_native_owner(port)
                     phase("native_owner_confirmed")
+                    arm_application(application)
+                    phase("application_armed")
                     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as workers:
                         list(workers.map(exchange, [port] * 8))
                     phase("exchange_completed")
@@ -136,6 +138,8 @@ def main():
     finally:
         if terminal is not None and terminal.proc.isalive():
             terminal.proc.terminate(force=True)
+        if not application.stdin.closed:
+            application.stdin.close()
         if application.poll() is None:
             application.terminate()
             try:

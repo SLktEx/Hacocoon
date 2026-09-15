@@ -103,3 +103,9 @@ acceptance and overall CLI language coverage remain separately tracked.
 Configuration inspection/save and recovery guidance also use shared bilingual
 presentation on the development branch. Revision-bound edits, Policy values and
 JSON are unchanged; display failure never retries an edit.
+
+The combined main candidate [#701](https://github.com/SLktEx/Hacocoon/pull/701)
+includes #700 setup guidance, network/configuration guidance and a correction
+to the installed TCP fixture's readiness timing. Local tests pass; its final
+installed CI is pending. #700's two distinct Windows failures remain in
+[acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).

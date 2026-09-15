@@ -13,10 +13,15 @@ import socket
 import subprocess
 import time
 
-SERVER = r'''
-import socket,threading
-s=socket.socket();s.bind(("127.0.0.1",0));s.listen(16);s.settimeout(40)
+_SERVER = r'''
+import select,socket,sys,threading
+s=socket.socket();s.bind(("127.0.0.1",0));s.listen(16)
 print(s.getsockname()[1],flush=True)
+# This is application-fixture control, not a product command or permission.
+# Host entry and native listener observation must not consume accept's budget.
+if not select.select([sys.stdin],[],[],STARTUP_SECONDS)[0] or sys.stdin.buffer.read(1)!=b'G':
+    raise SystemExit('application fixture was not armed')
+s.settimeout(ACCEPT_SECONDS)
 def handle(c):
     with c:
         c.settimeout(10)
@@ -32,6 +37,23 @@ for i in range(8):
 for t in workers: t.join()
 s.close()
 '''
+
+
+def server_source(startup_seconds=180, accept_seconds=40):
+    # Small budgets let the regression exercise delayed preparation faithfully.
+    # Production acceptance always uses the constants above, without overrides.
+    if not 0 < startup_seconds <= 180 or not 0 < accept_seconds <= 40:
+        raise ValueError("invalid application fixture deadline")
+    return f"STARTUP_SECONDS={float(startup_seconds)!r}\nACCEPT_SECONDS={float(accept_seconds)!r}\n" + _SERVER
+
+
+SERVER = server_source()
+
+
+def arm_application(process):
+    process.stdin.write(b'G')
+    process.stdin.flush()
+    process.stdin.close()
 
 def line(process, timeout=20):
     with selectors.DefaultSelector() as selector:
@@ -62,7 +84,7 @@ def main():
     processes = []
     try:
         server = subprocess.Popen(["incus", "exec", a.ref, "--project", a.project,
-                                   "--", "python3", "-c", SERVER], stdout=subprocess.PIPE,
+                                   "--", "python3", "-c", SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   start_new_session=True)
         processes.append(server)
         target = line(server)
@@ -77,6 +99,7 @@ def main():
         if not match:
             raise RuntimeError("CLI listener readiness missing")
         port = int(match.group(1))
+        arm_application(server)
         data = bytes(range(256)) * 8192
         def exchange(_):
             with socket.create_connection(("127.0.0.1", port), timeout=15) as s:
@@ -100,6 +123,8 @@ def main():
         print("client stream forwarding: PASS installed controller, 8 concurrent 2MiB round trips, half-close, cancellation and listener cleanup")
     finally:
         for process in reversed(processes):
+            if process.stdin is not None and not process.stdin.closed:
+                process.stdin.close()
             stop(process)
 
 if __name__ == "__main__":
