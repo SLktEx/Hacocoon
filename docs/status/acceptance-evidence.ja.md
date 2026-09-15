@@ -846,3 +846,34 @@ WSL起動時にcontrollerの接続口がまだ無いことを確認しました�
 [Windows run 34951609643](https://github.com/SLktEx/Hacocoon/actions/runs/34951609643)のjob
 `104323633089`はcompact_attachedで失敗しました。Linux回収は完了、Windows圧縮は未実行、再開成功、
 通知受け入れはSKIPです。失敗したheadはマージせず、以前のCOM作成・dispatch失敗も保持します。
+
+## Env内キャッシュの掃除
+
+候補 `2ca6af59c16b49d499c8c557f589934c1fcb33ad` の`empty-full-1`は対象回帰19.93秒、
+main全差分lint40.76秒、通常の全体テスト102.05秒、race50.65秒、CLI E2E6.73秒、
+docs14.90秒、workflow policy2.46秒、native build4.97秒で成功しました。
+台帳への直接snapshot/収集も掃除中に止める追加後、`empty-final-guards`は対象22.16秒、
+lint13.25秒、race27.00秒、docs9.49秒、native build2.15秒で成功しています。
+保存済みsnapshotの保持、台帳再読込後の停止継続、新規snapshot拒否、同じ所有者への明示的再試行を確認しました。
+
+先行`empty-local-2`は追加テストの依存不足と非端末を模したメモリreaderの使い方で失敗しました。
+`empty-local-3`では既存の非端末拒否が期待した1ではなく終了コード2を返しました。
+fixtureを直した`empty-local-4`は29.89秒、native build2.31秒で成功し、製品の権限や確認は緩和していません。
+整形処理ではWSLのroot user-session起動警告も出ましたが、整形自体は成功しています。
+
+専用Incus7.0.1の`empty-native-1`は34.00秒（試験33.96秒）で成功しました。
+fixtureは`data-e2e-ee7f06d38f566742`、台帳は
+`/var/lib/haco-data-placement-3790057143/state.json`です。
+通常Env作成・収集・独立再利用、単一領域と全Envの掃除、入れ子ファイル、Workspaceへのリンクを
+たどらない削除、別領域・共通元・Workspaceの保持、通常再開と共通cleanupを確認しました。
+導入済みCLI、実OCI/snapshot保持、人によるUI回答、巨大レポ性能の受入はこの結果に含みません。
+
+最終の台帳側ガードを含む`empty-native-2`も26.36秒（試験26.31秒）で成功しました。
+fixtureは`data-e2e-37c63c45b570dc31`、台帳は
+`/var/lib/haco-data-placement-605572226/state.json`で、確認範囲は同じです。
+
+親[PR #686](https://github.com/SLktEx/Hacocoon/pull/686)の`935c0752`はLinux4 workflow成功です。
+[Windows run 34955347257](https://github.com/SLktEx/Hacocoon/actions/runs/34955347257)の
+job `104335936830`はpublic reclaimで`compact_attached`となりました。
+Linux完了・停止要求済み・open1回・Windows圧縮未実施・resume成功で、通知試験はSKIPです。
+ローカル通知成功とこの失敗を分け、このheadはmainへマージしていません。

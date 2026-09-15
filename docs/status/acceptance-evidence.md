@@ -999,3 +999,41 @@ after reclamation passed. [PR #685](https://github.com/SLktEx/Hacocoon/pull/685)
 failed job `104323633089` at `compact_attached`; Linux reclamation completed,
 Windows compaction was not attempted, resume succeeded and notification acceptance
 was SKIP. No failed head was merged. Earlier COM creation/dispatch failures remain.
+
+## Env cache emptying
+
+Candidate `2ca6af59c16b49d499c8c557f589934c1fcb33ad` adds reviewed cache emptying.
+`empty-full-1` passed focused tests (19.93 s), full main-diff lint (40.76 s),
+maintained local tests (102.05 s), race checks (50.65 s), CLI E2E (6.73 s), docs
+(14.90 s), workflow policy (2.46 s) and native build (4.97 s). After adding direct
+catalog snapshot/collection fences, `empty-final-guards` passed focused tests
+(22.16 s), main-diff lint (13.25 s), race (27.00 s), docs (9.49 s) and native build
+(2.15 s). Tests retain saved snapshots across a catalog reload, refuse another
+snapshot while clearing, and require explicit same-owner recovery.
+
+Earlier `empty-local-2` failed in newly added test fixtures: missing workflow
+dependencies and using an in-memory confirmation reader as a nonterminal.
+`empty-local-3` exposed the existing nonterminal refusal exit code 2 rather than
+the expected 1. Corrected fixtures passed in `empty-local-4` (29.89 s; native build
+2.31 s). No product permission or confirmation was weakened. Formatting also
+reported a WSL root user-session startup warning while completing successfully.
+
+On dedicated Incus 7.0.1, `empty-native-1` passed in 34.00 s (test 33.96 s),
+fixture `data-e2e-ee7f06d38f566742`, catalog
+`/var/lib/haco-data-placement-3790057143/state.json`. It exercised ordinary Env
+creation/collection/reuse, reviewed single-area and all-Env emptying, nested files,
+an outside Workspace symlink without traversal, sibling contents, common-source
+retention, normal restart and canonical cleanup. The fixture's Workspace remained.
+This is provider/lifecycle acceptance, not installed CLI, native OCI/snapshot
+retention, human UI or giant-repository performance evidence.
+
+The final catalog guards were included in `empty-native-2`, also PASS (26.36 s,
+test 26.31 s), fixture `data-e2e-37c63c45b570dc31`, catalog
+`/var/lib/haco-data-placement-605572226/state.json`, with the same bounded scope.
+
+Parent [PR #686](https://github.com/SLktEx/Hacocoon/pull/686), `935c0752`, passed four
+Linux workflows. [Windows run 34955347257](https://github.com/SLktEx/Hacocoon/actions/runs/34955347257),
+job `104335936830`, failed at public reclaim with `compact_attached`: Linux stages
+complete, stop requested, one open attempt, compaction not attempted, resume
+succeeded. Notifications were SKIP. This failure remains distinct from local
+notification acceptance; that head was not merged.

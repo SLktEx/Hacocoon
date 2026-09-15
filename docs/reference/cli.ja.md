@@ -63,7 +63,7 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 
 ## キャッシュ操作
 
-信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用、履歴・クリア・復旧、追加領域を含む転送は未完成です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
+信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用は未完成です。履歴・クリア・完了記録のある復旧・追加領域転送は実装済み候補です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
 
 ## Packerでひな形を作る
 
