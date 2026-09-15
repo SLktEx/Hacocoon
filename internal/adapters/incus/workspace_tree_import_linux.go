@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/workspace/input"
 	"gopkg.in/yaml.v2"
@@ -20,6 +21,9 @@ func (b *RepositoryBackend) ImportWorkspaceTreeVolume(ctx context.Context, objec
 	pool, name, err := volumeRef(object)
 	if err != nil {
 		return err
+	}
+	if source == nil {
+		return core.ErrInvalidArgument
 	}
 	archive, err := captureNativeArchive(ctx, b.ImportRoot, b.ImportLimit, func(output string) (err error) {
 		f, err := os.OpenFile(output, os.O_WRONLY, 0)
