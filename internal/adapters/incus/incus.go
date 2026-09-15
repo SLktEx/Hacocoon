@@ -58,8 +58,6 @@ func New(runner host.Runner) *Runtime {
 	}
 }
 
-func (*Runtime) ID() string { return "runtime.incus" }
-
 func (r *Runtime) DeleteEnvironment(ctx context.Context, ref string) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
@@ -100,14 +98,6 @@ func (r *Runtime) Stop(ctx context.Context, ref string) error {
 		return err
 	}
 	_, err := r.runner.Run(ctx, "incus", "stop", ref, "--project", r.project)
-	return err
-}
-
-func (r *Runtime) Delete(ctx context.Context, ref string) error {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return err
-	}
-	_, err := r.runner.Run(ctx, "incus", "delete", ref, "--project", r.project, "--force")
 	return err
 }
 

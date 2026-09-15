@@ -19,6 +19,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/adapters/network/proxy"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/env"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	egressapp "github.com/SLktEx/Hacocoon/internal/network/egress"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
@@ -154,7 +155,7 @@ func TestRealIncusEgressProxyE2E(t *testing.T) {
 		t.Fatalf("compose egress capability boundary: %v", err)
 	}
 	egressBroker := egressapp.NewBroker(capabilities)
-	sources, err := egressapp.NewPersistedSourceResolver(runtimeAdapter.ID(), runtimeAdapter, store)
+	sources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, runtimeAdapter, store)
 	if err != nil {
 		t.Fatalf("compose persisted egress source resolver: %v", err)
 	}
