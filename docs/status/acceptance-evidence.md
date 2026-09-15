@@ -926,3 +926,33 @@ failed native review in job `104306922882`: activation creation HRESULT
 transfer, public reclamation and detached Workspace/OCI/snapshot restore passed.
 The local installed review pass does not erase this COM activation failure or the
 earlier dispatch timeout. #683 includes the change and needs its own acceptance.
+
+## Base archive import candidate
+
+At implementation `35a0c496`, `base-full-3` passed focused tests (23.08 s), full
+main-diff lint (18.20 s), maintained full tests (33.10 s), staging/build/transfer/
+lifecycle/API race tests (18.88 s), CLI E2E (4.51 s), docs (8.78 s), workflow policy
+(1.57 s), CLI build (0.71 s) and native compilation (1.93 s). The added temporary
+Workspace boundary regressions then passed with race detection (24.29 s), complete
+diff lint (39.84 s) and docs (9.49 s). `base-full-1` failed the existing maximum
+staging-budget regression; the extraction was corrected to preserve that valid
+boundary. `base-full-2` passed focused tests but failed three new errcheck findings;
+those were corrected. The formatter/final checks on the build WSL reported a
+systemd root user-session startup warning while commands and tests succeeded;
+that warning is not a new Windows acceptance pass.
+
+On dedicated WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1, `base-native-1`
+passed the actual `haco base import` CLI/controller stream in 165.94 s (test
+165.89 s), private catalog `/var/lib/haco-base-import-1372522241/state.json`.
+It exported its owned source rootfs, deleted the source, imported the archive
+through an isolated temporary builder, published immutable Base
+`sha256:6fbaf82f1e891f16d32da5186119908cd1499614018eeb2646f7828fd74986b8`, and used its
+tool in a fresh Env. Normal exact-owned Env/image cleanup passed and the input
+archive remained. This is native CLI/provider acceptance, not a packaged Windows
+entry, authenticated Git, Packer dependencies or giant-repository measurement.
+
+[PR #683](https://github.com/SLktEx/Hacocoon/pull/683), `bda75b67`, passed four Linux
+workflows but [Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actions/runs/34947135337)
+failed job `104309115278` with the same COM activation creation HRESULT
+`-2146959355` as #682, after public reclamation passed. These heads are not
+qualified for main merge; local notification acceptance does not erase the failure.

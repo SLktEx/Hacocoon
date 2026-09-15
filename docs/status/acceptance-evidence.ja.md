@@ -788,3 +788,29 @@ job `104306922882` の通知起動で失敗。COM生成のHRESULTは `-214695935
 その前のインストール、厳格なSSH/editor、転送、公開reclaim、切り離したWorkspace/OCI/snapshot
 の復元は成功している。ローカルのインストール済み通知確認成功で、この失敗や以前のdispatch
 タイムアウトは消さない。#683はこの変更を含み、候補自身の確認が必要。
+
+## Baseアーカイブ取り込み候補
+
+実装 `35a0c496` の `base-full-3` で、対象回帰23.08秒、main差分全体のlint
+18.20秒、保守対象の全体テスト33.10秒、一時保存/build/転送/ライフサイクル/APIの
+race検査18.88秒、CLI E2E 4.51秒、文書8.78秒、workflow policy 1.57秒、CLIビルド
+0.71秒、実機試験ビルド1.93秒が成功。追加した一時Workspace境界の回帰もrace付き
+24.29秒、差分lint 39.84秒、文書9.49秒で成功した。初回は既存の一時保存上限値の
+回帰で失敗し、共通化によって有効な境界値を拒否しないよう修正した。2回目は対象
+回帰成功後、新規3件のerrcheckで失敗して修正した。ビルド用WSLの整形と最終検査には
+systemdのrootユーザーセッション起動警告が出たが、コマンドとテストは成功した。
+この警告をWindows利用の新しい確認成功とは数えない。
+
+専用WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1 の `base-native-1` は実際の
+`haco base import` CLI/controller転送を165.94秒（試験165.89秒）で完了した。
+専用台帳は `/var/lib/haco-base-import-1372522241/state.json`。所有する元rootfsを
+書き出して元Envを削除し、アーカイブを隔離した一時作成環境で取り込み、不変Base
+`sha256:6fbaf82f1e891f16d32da5186119908cd1499614018eeb2646f7828fd74986b8` を公開。
+新しいEnvで取り込んだツールを使えた。通常の所有確認によるEnv・イメージ整理も成功し、
+入力アーカイブは保持した。native CLI/providerの確認であり、配布済みWindows入口、
+認証付きGit、Packer依存物、巨大レポの性能確認ではない。
+
+[PR #683](https://github.com/SLktEx/Hacocoon/pull/683)、`bda75b67` はLinux系4項目成功。
+[Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actions/runs/34947135337) の
+job `104309115278` は公開reclaim成功後、#682と同じCOM生成HRESULT `-2146959355` で失敗。
+このheadはmainマージ条件を満たさない。ローカルの通知成功で失敗を消さない。
