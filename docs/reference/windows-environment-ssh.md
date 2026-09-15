@@ -128,3 +128,15 @@ and command sessions can use the same policy-controlled proxy as Incus exec.
 This does not permit a domain or inherit an old Env grant; configure current
 network Policy as usual. See [ADR 0058](../adr/0058-ssh-session-egress-environment.md).
 Installed SSH package and transfer acceptance passed at `684e411`; `7517c27` failed before this fix. See [the bounded evidence](../status/acceptance-evidence.md#transfer).
+
+
+## Host-key refusal evidence
+
+The maintained native-client check requires a nonzero exit, no forbidden command
+marker and the original host-key refusal diagnostic. Its outcome distinguishes
+`exit_zero`, `command_marker` and `refusal_unconfirmed`; all fail the check.
+An unrelated connection failure is not proof that the client accepted a changed key.
+Verbose native SSH output is reduced through the existing fixed progress allowlist;
+raw peer/key/output content is not printed by the new failure path. A recorded WSL
+`E_UNEXPECTED` is a diagnostic observation only, never an alternate PASS or retry.
+The same component test runs locally and in the existing Windows installer workflow.

@@ -1182,3 +1182,13 @@ establish which predicate failed. Subsequent Policy cleanup/disconnect reported
 WSL Catastrophic failure. This is neither a proven host-key bypass nor a successful
 refusal test. Keep this head unmerged pending diagnosis; do not relabel it using
 the earlier #687/#688 successes.
+
+
+## Windows host-key refusal diagnosis
+
+The follow-up to #690 preserves the three existing host-key refusal requirements
+but records which one failed, with existing allowlisted SSH progress. It recognizes
+the NUL-interleaved WSL E_UNEXPECTED seen in job104373589771 without emitting raw
+child output. Local PowerShell regression and real child timeout/nonzero checks
+passed. This improves evidence for the next ordinary run; it does not establish
+a cause or resolve that prior failure. No extra permission, restart or retry is added.
