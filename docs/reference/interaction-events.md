@@ -184,6 +184,11 @@ staging file/directory and reports recovery-required if cleanup fails.
 
 Normal `haco setup` refreshes an already enabled notification service after companion publication. It preserves a disabled service and does not create one before Windows desktop registration.
 
+A failed refresh reports the fixed service operation through
+[setup diagnostics](../design/trusted-host.md#setup-progress-and-failure-diagnostics).
+It still fails setup; it does not erase cursor state, grant approval, repair
+Windows notification settings or claim that notification delivery was accepted.
+
 ## Repeated native failure notifications
 
 Implemented on the development candidate: native notifications group repeated

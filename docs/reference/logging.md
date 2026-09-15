@@ -210,3 +210,5 @@ execution or approval, and never overrides a timeout or cancellation.
 
 
 COM activation failures include `activation_stage` (initialize/register/create/dispatch) and numeric `activation_error` (signed HRESULT). Read-only activation deadlines/cancellation retain their context classification across COM and private peer shutdown. No raw native error or private request is logged.
+
+Notification refresh failures now preserve fixed service-operation reasons (`notification_enable_state_failed`, `notification_activity_failed`, `notification_disable_failed`, `notification_reload_failed`, `notification_failure_state_failed`, `notification_reset_failed`, `notification_enable_failed`, `notification_restart_failed`) at the existing setup boundary. Private helper exits 50–57 are recognized only for refresh. Raw output is not forwarded and cancellation retains precedence.

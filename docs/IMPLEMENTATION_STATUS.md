@@ -97,3 +97,5 @@ are outside the requested M0–M5 scope.
 canonical run lifecycle. Exact creation identities fence cleanup and same-name
 recreation; current split ownership and cleanup-outcome handling remain. Old-version
 migration/fallback cleanup is excluded. New local and native acceptance are separate.
+
+Notification setup follow-up: service refresh identifies fixed failing operations and user-path observers stop when Host entry has already failed. Reuses `5a6fb54c` on current main and GUI #664. This improves diagnosis and avoids idle waits; it does not establish that Windows activation or service startup is fixed.

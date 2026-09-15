@@ -479,3 +479,7 @@ Linux側回収完了後、Windows停止を要求しましたが、`compact_attac
 
 
 main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。
+
+#664のhead aef58798、Windows34918511743/job104221234323は導入・厳密SSH・Linux回収に成功。公開回収のHost再入場で02:08:10 UTCにstage=notification_setup reason=failedとなり、観測側が02:37:51まで待ってタイムアウトした。公開reclaim本体には到達せず、通知step20はSKIP。他4CIは成功。以前のclear/COM起動失敗とは別の失敗として保持する。後続は5a6fb54cの分類と入場失敗検出を再利用し、原因修復の成功とは主張しない。
+
+通知準備のmain統合はGUI aef58798とmain5e89597aへ5a6fb54cを再利用。集中4.37秒、通知Python回帰0.69秒、変更範囲lint30.66秒、全ローカル117.79秒、race20.22秒、CLI11.78秒、文書17.46秒、workflow2.88秒がPASS。初回はmainにない将来のstream受入scriptのimportでFAIL。無関係なimportを除き、既存の通常入場回帰を保持した。Windows上のnative観測回帰6件も0.555秒でPASS。新しい導入済み通知の成功は主張しない。

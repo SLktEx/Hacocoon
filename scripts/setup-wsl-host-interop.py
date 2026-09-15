@@ -312,7 +312,27 @@ def notification_unit(paths, distribution, revision):
             '[Install]\nWantedBy=multi-user.target\n')
 
 
+class NotificationServiceFailure(RuntimeError):
+    # Exit codes are the private installed-helper contract. Never forward a
+    # subprocess message, command line or environment through setup diagnostics.
+    codes = {'is-enabled': 50, 'is-active': 51, 'disable': 52, 'daemon-reload': 53,
+             'is-failed': 54, 'reset-failed': 55, 'enable': 56, 'restart': 57}
+
+    def __init__(self, operation):
+        self.exit_code = self.codes[operation]
+        super().__init__('notification service operation failed: ' + operation)
+
+
 def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system'), run=subprocess.run):
+    def command(operation, *args, check=True):
+        try:
+            result = run(['systemctl', operation, *args], check=check)
+        except subprocess.CalledProcessError:
+            raise NotificationServiceFailure(operation) from None
+        if check and result.returncode != 0:
+            raise NotificationServiceFailure(operation)
+        return result
+
     marker = '# Hacocoon managed native notifications\n'
     if not unit.startswith(marker) or enabled is not None and not isinstance(enabled, bool):
         raise ValueError('invalid notification service request')
@@ -332,23 +352,23 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
     if enabled is None:
         if not exists:
             return
-        state = run(['systemctl', 'is-enabled', '--quiet', 'hacocoon-notify.service'], check=False)
+        state = command('is-enabled', '--quiet', 'hacocoon-notify.service', check=False)
         if state.returncode == 1:
             return
         if state.returncode != 0:
-            raise subprocess.CalledProcessError(state.returncode, 'inspect notification service')
+            raise NotificationServiceFailure('is-enabled')
         enabled = True
     if not enabled:
         if exists:
-            run(['systemctl', 'disable', '--now', 'hacocoon-notify.service'], check=True)
+            command('disable', '--now', 'hacocoon-notify.service')
         return
     if previous == unit:
-        active = run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=False)
+        active = command('is-active', '--quiet', 'hacocoon-notify.service', check=False)
         if active.returncode == 0:
-            run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
+            command('enable', 'hacocoon-notify.service')
             return
         if active.returncode != 3:
-            raise subprocess.CalledProcessError(active.returncode, 'inspect notification activity')
+            raise NotificationServiceFailure('is-active')
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False) as stream:
@@ -361,26 +381,34 @@ def install_notification_unit(unit, enabled, directory=Path('/etc/systemd/system
     finally:
         if temporary and os.path.exists(temporary):
             os.unlink(temporary)
-    run(['systemctl', 'daemon-reload'], check=True)
+    command('daemon-reload')
     # A new/inactive unit can be garbage-collected between systemctl calls.
     # Only a retained failed unit has failure state to reset.
-    failed = run(['systemctl', 'is-failed', '--quiet', 'hacocoon-notify.service'], check=False)
+    failed = command('is-failed', '--quiet', 'hacocoon-notify.service', check=False)
     if failed.returncode == 0:
-        run(['systemctl', 'reset-failed', 'hacocoon-notify.service'], check=True)
+        command('reset-failed', 'hacocoon-notify.service')
     elif failed.returncode != 1:
-        raise subprocess.CalledProcessError(failed.returncode, 'inspect notification failure state')
-    run(['systemctl', 'enable', 'hacocoon-notify.service'], check=True)
-    run(['systemctl', 'restart', 'hacocoon-notify.service'], check=True)
-    run(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=True)
+        raise NotificationServiceFailure('is-failed')
+    command('enable', 'hacocoon-notify.service')
+    command('restart', 'hacocoon-notify.service')
+    command('is-active', '--quiet', 'hacocoon-notify.service')
 
 
 def configure_notifications(incus, paths, distribution, enabled):
     unit = notification_unit(paths, distribution, notification_executable_revision())
-    program = ('from pathlib import Path\nimport os, stat, tempfile, subprocess\n' +
+    program = ('from pathlib import Path\nimport os, stat, tempfile, subprocess, sys\n' +
+               inspect.getsource(NotificationServiceFailure) + '\n' +
                inspect.getsource(install_notification_unit) +
-               '\ninstall_notification_unit(' + repr(unit) + ', ' + repr(enabled) + ')\n')
-    subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', 'python3', '-I', '-'],
-                   input=program, text=True, check=True)
+               '\ntry:\n    install_notification_unit(' + repr(unit) + ', ' + repr(enabled) + ')\n'
+               'except NotificationServiceFailure as error:\n    print(str(error), file=sys.stderr)\n    raise SystemExit(error.exit_code)\n')
+    try:
+        subprocess.run(incus + ['exec', 'haco-host', '--disable-stdin=false', '--', 'python3', '-I', '-'],
+                       input=program, text=True, check=True)
+    except subprocess.CalledProcessError as error:
+        for operation, code in NotificationServiceFailure.codes.items():
+            if error.returncode == code:
+                raise NotificationServiceFailure(operation) from None
+        raise
 
 
 def main():
@@ -448,6 +476,9 @@ def cli_main():
         main()
     except NativeBinfmtIncompatible:
         raise SystemExit(42)
+    except NotificationServiceFailure as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(error.exit_code)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit("WSL Host setup: " + str(error))
 
