@@ -1549,3 +1549,29 @@ Local validation passed: application regression 1.80s, Windows observer regressi
 1.73s. This is component evidence; the updated installed Windows journey remains
 pending. #701 contains #700's exact head and is the combined main candidate;
 #700 stays open until that integration is proven.
+
+## Streaming Git pack candidate
+
+The development candidate removes whole-pack JSON/base64 buffering on the helper
+and trusted-agent boundaries. A 40 MiB random-data ordinary Git fixture fails on
+old product `e4cbd257` during `git pull --ff-only` (10.02s command / 9.19s test).
+Only the large-data fixture was added to that archived product; its transport and
+Policy were unchanged. The new implementation passes the same ordinary pull and
+separate denied/approved fixed-content push journey with 40 MiB new data in both
+directions. The Host-agent framing is exercised through pipes as well as the
+actual Unix HTTP broker; this is not a native Incus or authenticated remote test.
+A separately measured single fetch pack transferred **41,956,043 bytes**.
+
+Local final checks passed: Git/Incus component tests 38.62s, changed-code lint
+15.73s, maintained full tests 56.13s, Git race 71.11s, CLI E2E 6.89s, docs 12.96s,
+workflow policy 2.12s and native compilation 1.84s. The first compile found one
+remaining reconciliation reference to the removed byte-slice field; the first
+full lint found seven unchecked closes and thirteen style findings. All were
+corrected before this full pass. Follow-up documentation checks also pass.
+
+Regressions retain exact-ref read decisions, push denial, changed-local-content
+approval pinning, new-branch expected-absent leases and incremental history reuse.
+Malformed frames, excess lengths, missing EOF/receipts, trailing bytes, wrong byte
+counts and output failures remain failures. Forty MiB streaming does not prove
+representative giant-repository speed/capacity; those measurements and installed
+provider acceptance remain separate. See [ADR 0106](../adr/0106-streaming-git-packs.md).

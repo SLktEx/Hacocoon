@@ -12,6 +12,12 @@ import (
 )
 
 func TestFetchBatchIndexesIndependentPacksBeyondSinglePackLimit(t *testing.T) {
+	testFetchBatch(t, 17<<20, []string{"main", "topic"})
+}
+func TestFetchStreamsOnePackBeyondOldLimit(t *testing.T) {
+	testFetchBatch(t, 40<<20, []string{"main"})
+}
+func testFetchBatch(t *testing.T, blobSize int, branches []string) {
 	if _, err := os.Stat("/usr/bin/git"); err != nil {
 		t.Skip("Linux Git is required")
 	}
@@ -26,8 +32,7 @@ func TestFetchBatchIndexesIndependentPacksBeyondSinglePackLimit(t *testing.T) {
 	testGit(t, seed, "init", "--initial-branch=main")
 	testGit(t, guest, "init", "--initial-branch=main")
 	var heads []Head
-	const blobSize = 17 << 20
-	for _, branch := range []string{"main", "topic"} {
+	for _, branch := range branches {
 		if branch != "main" {
 			testGit(t, seed, "switch", "--orphan", branch)
 		}
@@ -50,19 +55,21 @@ func TestFetchBatchIndexesIndependentPacksBeyondSinglePackLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(guest)
-	total, calls := 0, 0
+	var total int64
+	calls := 0
 	exchange := func(ctx context.Context, request Request) (Response, error) {
 		next := agent
 		next.Operation, next.Heads, next.Haves = request.Operation, request.Heads, request.Haves
+		next.PackOutput = request.PackOutput
 		response, err := RunAgent(ctx, next, repos, "")
 		if request.Operation == "fetch" {
 			if len(request.Heads) != 1 {
 				t.Fatal("fetch combined separately authorized heads")
 			}
-			if len(response.Pack) <= 0 || len(response.Pack) > MaxPack {
-				t.Fatal("invalid per-head pack", len(response.Pack), err)
+			if response.PackBytes <= 0 || response.PackBytes > maxTransferBytes {
+				t.Fatal("invalid per-head pack", response.PackBytes, err)
 			}
-			total += len(response.Pack)
+			total += response.PackBytes
 			calls++
 		}
 		return response, err
@@ -76,7 +83,7 @@ func TestFetchBatchIndexesIndependentPacksBeyondSinglePackLimit(t *testing.T) {
 	if err := Helper(ctx, []string{"origin", "haco://demo"}, strings.NewReader(input), &output, &output, exchange); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 || total <= MaxPack {
+	if calls != len(branches) || total <= legacyPackLimit {
 		t.Fatal("fixture did not exceed old aggregate bound", calls, total)
 	}
 	for _, head := range heads {
@@ -84,5 +91,5 @@ func TestFetchBatchIndexesIndependentPacksBeyondSinglePackLimit(t *testing.T) {
 			t.Fatal("missing fetched content", got)
 		}
 	}
-	t.Logf("two separately indexed packs: %d total bytes; each below %d bytes", total, MaxPack)
+	t.Logf("sequentially indexed packs: %d total bytes; old pack limit %d bytes", total, legacyPackLimit)
 }

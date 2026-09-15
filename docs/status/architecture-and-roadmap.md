@@ -49,7 +49,7 @@ their respective main integration.
 | M1 — understandable everyday use | Vertical help, language handoff, repeated-failure grouping, installer results and bilingual reclamation are on main. #700 completes the setup-result guidance slice; other command families remain in the language contract. Human GUI/layout checks are post-release. The dedicated managed-user systemd-session warning remains a separate observation. |
 | M2 — independent multi-repository work and reviewed Git | Independent multi-repository forks, checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and result reconciliation are on main. Incremental history and sequential bounded fetch are integrated. Authenticated development and fresh notification/VS Code answers remain post-release acceptance. Main push approval stays independent of clone/fetch. |
 | M3 — permitted communication outside ordinary networks | TCP/UDP, loopback forwarding, interactive temporary execution and persistent host/backend/disabled DNS selection are implemented. Supported-baseline DNS/Policy and ordinary Windows forwarding have scoped evidence. Actual VPN/NRPT/restart combinations remain unperformed; name discovery never grants connection authority. |
-| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred; the single-pack 32 MiB functional limit remains explicit. |
+| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred; the streaming candidate removes the 32 MiB single-pack restriction with local real-Git evidence; installed acceptance remains pending. |
 | M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. Windows CI passed public reclaim plus retained Workspace/OCI/snapshot restore. Required-current-data selection, guest-visible owner checks, restored authenticated development and the dedicated local reclaim-start observation remain distinct acceptance/follow-up items. Preserve unknown ownership and failed receipts. |
 
 [CLI language scope](../reference/cli-language.md),
@@ -87,9 +87,11 @@ Large-repository performance, additional strict validation, broader OCI/runtime
 compatibility are deferred until ordinary use works. Functional Git transfer
 limits remain M4 work: the incremental candidate avoids resending known history
 for fetch and existing-target push. The later new-branch candidate also reuses one
-advertised ancestor through an independent exact-ref read. The 32 MiB new-pack
-limit and complete packs without an available advertised ancestor remain known
-constraints, not completed giant-repository support. Measure representative
+advertised ancestor through an independent exact-ref read. The streaming development candidate replaces the 32 MiB new-pack
+restriction with bounded frames and a finite 16 GiB per-pack transfer limit,
+without whole-pack JSON/base64 buffering. It preserves separate push approval;
+local 40 MiB real-Git acceptance is functional evidence, not completed
+giant-repository performance acceptance. Installed Incus validation is pending. Measure representative
 large repositories before claiming the intended capacity/speed benefit; small
 fixtures do not prove it. LFS, submodules, force/delete/multi-ref push are not
 additional M2 completion conditions.

@@ -41,3 +41,6 @@ branches, unavailable common tips and large new packs can still hit the limit.
 Partial/shallow clone, LFS, submodules and full large-repository transport are not
 implemented by this change. A 33 MiB regression is not representative performance
 acceptance. See [read and push authority](0081-git-read-and-push-authority.md).
+
+The later [ADR 0106](0106-streaming-git-packs.md) replaces the whole-pack
+transport and its 32 MiB limit; the history and authority rules above remain.

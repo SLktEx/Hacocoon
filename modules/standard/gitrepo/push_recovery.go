@@ -185,7 +185,7 @@ func (b *Broker) ReconcilePush(ctx context.Context, environment, requestID strin
 		if err != nil {
 			return Response{}, err
 		}
-		if response.Ref != status.Ref || !ValidOID(response.OID) || response.Error != "" || len(response.Pack) != 0 || len(response.Heads) != 0 {
+		if response.Ref != status.Ref || !ValidOID(response.OID) || response.Error != "" || response.PackBytes != 0 || len(response.Heads) != 0 {
 			return Response{}, core.ErrRecoveryRequired
 		}
 		observed := started

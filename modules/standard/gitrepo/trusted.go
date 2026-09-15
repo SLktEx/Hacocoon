@@ -3,7 +3,6 @@ package gitrepo
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -29,26 +28,33 @@ func (b *cappedBuffer) Write(p []byte) (int, error) {
 // Agent executes one controller-selected operation. It has no server socket
 // and cannot create Environments, change Policy or approve a push.
 func Agent(ctx context.Context, input io.Reader, output io.Writer) error {
+	return agentStream(ctx, input, output, RepositoryRoot, WorkspaceRoot)
+}
+func agentStream(ctx context.Context, input io.Reader, output io.Writer, repos, workspaces string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	var req AgentRequest
-	decoder := json.NewDecoder(io.LimitReader(input, MaxMessage+1))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
-		return fmt.Errorf("invalid trusted Git request")
+	req, err := ReadAgentRequest(input)
+	if err != nil {
+		return err
 	}
-	result, err := RunAgent(ctx, req, RepositoryRoot, WorkspaceRoot)
+	stream := &transferWriter{target: output}
+	req.PackOutput = stream
+	result, err := RunAgent(ctx, req, repos, workspaces)
 	if err != nil {
 		result = Response{Error: err.Error()}
 	}
-	return json.NewEncoder(output).Encode(result)
+	return finishResponse(stream, result)
+
 }
 
 func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (Response, error) {
+	if req.Pack != nil && req.Operation != "prepare" {
+		return Response{}, fmt.Errorf("pack is only valid for preparation")
+	}
 	if !validHaves(req.Operation, req.Haves) {
 		return Response{}, fmt.Errorf("invalid Git history hints")
 	}
-	if !ValidID(req.Repository) || !ValidBranch(req.Branch) || ValidateRemote(req.Remote) != nil || len(req.Pack) > MaxPack {
+	if !ValidID(req.Repository) || !ValidBranch(req.Branch) || ValidateRemote(req.Remote) != nil {
 		return Response{}, fmt.Errorf("invalid trusted Git request")
 	}
 	dir := filepath.Join(repos, req.Repository)
@@ -61,7 +67,7 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 		return Response{}, fmt.Errorf("target ref is only valid for push preparation or execution")
 	}
 	if req.Operation == "fetch" {
-		if _, err := validateHeads(req.Heads); err != nil || req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 {
+		if _, err := validateHeads(req.Heads); err != nil || req.OldOID != "" || req.NewOID != "" || req.Pack != nil {
 			return Response{}, fmt.Errorf("invalid fetch heads")
 		}
 	}
@@ -91,19 +97,24 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 		return Response{}, fmt.Errorf("trusted repository is unavailable")
 	}
 	if req.Operation == "list" || req.Operation == "fetch" {
-		return readHeads(git, req)
+		return readHeads(git, req, func(input []byte) (int64, error) {
+			return runPack(trustedCommand(ctx, dir, "pack-objects", "--stdout", "--revs"), bytes.NewReader(input), req.PackOutput)
+		})
 	}
 	if req.Operation == "observe" {
-		if req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 || req.Workspace != "" {
+		if req.OldOID != "" || req.NewOID != "" || req.Pack != nil || req.Workspace != "" {
 			return Response{}, fmt.Errorf("invalid remote observation")
 		}
 		oid, err := observeHead(git, req.Remote, req.Ref)
 		return Response{OID: oid, Ref: req.Ref}, err
 	}
-	return pushOperation(git, req)
+	return pushOperation(git, req, func(input io.Reader) error {
+		_, err := runPack(trustedCommand(ctx, dir, "index-pack", "--stdin", "--strict", fmt.Sprintf("--max-input-size=%d", maxTransferBytes)), input, io.Discard)
+		return err
+	})
 }
 
-func trustedGit(ctx context.Context, dir string, input []byte, args ...string) ([]byte, error) {
+func trustedCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
 	options := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.attributesFile=/dev/null", "-c", "core.pager=cat", "-c", "color.ui=false", "-c", "credential.helper=", "-c", "credential.helper=!/usr/bin/gh auth git-credential", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.file.allow=always", "-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true", "-c", "gc.auto=0", "-c", "maintenance.auto=false"}
 	if dir != "" {
 		options = append(options, "-C", dir)
@@ -112,13 +123,16 @@ func trustedGit(ctx context.Context, dir string, input []byte, args ...string) (
 	// Only the trusted Host's gh store is consulted. No caller environment,
 	// global Git configuration, replace refs, hooks or external diff is loaded.
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=/root", "LANG=C.UTF-8", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_TERMINAL_PROMPT=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_ATTR_NOSYSTEM=1"}
-	cmd.Stdin = bytes.NewReader(input)
-	var out cappedBuffer
-	out.limit = MaxPack
-	cmd.Stdout = &out
 	cmd.Stderr = io.Discard
 	cmd.WaitDelay = time.Second
-	if err := cmd.Run(); err != nil {
+	return cmd
+}
+
+func trustedGit(ctx context.Context, dir string, input []byte, args ...string) ([]byte, error) {
+	var out cappedBuffer
+	out.limit = maxCommandOutput
+	_, err := runPack(trustedCommand(ctx, dir, args...), bytes.NewReader(input), &out)
+	if err != nil {
 		return nil, fmt.Errorf("trusted Git %s failed", args[0])
 	}
 	return out.Bytes(), nil
