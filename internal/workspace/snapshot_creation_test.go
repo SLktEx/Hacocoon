@@ -13,6 +13,9 @@ type snapshotCreateRuntime struct {
 }
 
 func (r *snapshotCreateRuntime) CreateEnvironmentFromSnapshot(ctx context.Context, spec core.EnvironmentRuntimeSpec, saved core.Snapshot, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if spec.DNSMode != saved.Source.Environment.DNSMode || spec.DNSMode != core.DNSDisabled {
+		r.t.Fatal("snapshot resolver mode lost")
+	}
 	lease, err := r.store.GetWorkspaceLease(ctx, spec.Name)
 	if err != nil || lease.SnapshotSource != saved.ID || lease.InstanceID != spec.InstanceID || lease.InstanceID == saved.Source.InstanceID {
 		r.t.Fatal("source/generation not reserved", lease, err)
@@ -32,7 +35,7 @@ func TestSnapshotCanonicalCreationOwnsSourceAndFailureCleanup(t *testing.T) {
 	for _, mode := range []string{"ok", "before", "uncertain", "configuration", "cleanup"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
-			capture, st, _ := captureFixture(t)
+			capture, st, _ := captureFixture(t, core.DNSDisabled)
 			saved, err := capture.CaptureSnapshot(ctx, "resume")
 			if err != nil {
 				t.Fatal(err)
@@ -49,7 +52,7 @@ func TestSnapshotCanonicalCreationOwnsSourceAndFailureCleanup(t *testing.T) {
 			lease, leaseErr := st.GetWorkspaceLease(ctx, "demo")
 			held := mode == "uncertain" || mode == "cleanup"
 			if mode == "ok" {
-				if err != nil || env.RuntimeRef != "haco-demo" || leaseErr != nil || lease.SnapshotSource != "" {
+				if err != nil || env.DNSMode != core.DNSDisabled || env.RuntimeRef != "haco-demo" || leaseErr != nil || lease.SnapshotSource != "" {
 					t.Fatal("publication", env, lease, err, leaseErr)
 				}
 			} else if err == nil {

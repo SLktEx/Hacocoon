@@ -25,7 +25,11 @@ func TestEnvironmentResourcesUnsupportedEntriesNeverSilentlyDropData(t *testing.
 	}
 	for name, call := range calls {
 		t.Run(name, func(t *testing.T) {
-			if err := call(); !errors.Is(err, core.ErrUnsupported) {
+			expected := core.ErrUnsupported
+			if name == "snapshot-plan" || name == "snapshot-create" {
+				expected = core.ErrInvalidArgument
+			}
+			if err := call(); !errors.Is(err, expected) {
 				t.Fatal(err)
 			}
 		})

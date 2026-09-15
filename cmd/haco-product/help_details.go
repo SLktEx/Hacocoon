@@ -54,7 +54,7 @@ func init() {
 	set([]string{"config"}, nil, []cliui.HelpField{field("--edit", "detail.config_edit"), field("--file <file>", "detail.config_file")})
 	set([]string{"approve"}, []cliui.HelpField{field("[request-id]", "detail.approve_request")}, []cliui.HelpField{field("--list", "approval.flag_list"), field("--json", "approval.flag_json")})
 	set([]string{"reclaim"}, nil, []cliui.HelpField{field("--yes", "detail.reclaim_yes"), field("--status", "detail.reclaim_status"), field("--review", "detail.reclaim_review")}, "detail.reclaim_before")
-	set([]string{"env create"}, []cliui.HelpField{field("<name>", "detail.env_new")}, []cliui.HelpField{field("--workspace <workspace>", "detail.workspace_required"), base, field("--resource oci:<store>", "flag.resource"), noOCI}, "detail.retention")
+	set([]string{"env create"}, []cliui.HelpField{field("<name>", "detail.env_new")}, []cliui.HelpField{field("--workspace <workspace>", "detail.workspace_required"), base, field("--resource oci:<store>", "flag.resource"), field("--dns <mode>", "flag.dns"), noOCI}, "detail.retention")
 	set([]string{"env status"}, []cliui.HelpField{env}, []cliui.HelpField{json})
 	set([]string{"env start", "env stop", "env delete", "env ssh-config", "git connect"}, []cliui.HelpField{env}, nil, "detail.retention")
 	set([]string{"env ssh"}, []cliui.HelpField{env}, []cliui.HelpField{field("--key <public-key-file>", "flag.ssh_key")})

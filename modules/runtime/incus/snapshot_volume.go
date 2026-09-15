@@ -56,6 +56,11 @@ func (p snapshotVolumePlan) validate() error {
 		if p.Source != "haco-persistent-"+p.SourceOwner || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: p.SourceID, Owner: p.SourceOwner}) || p.Role != "oci" {
 			return core.ErrInvalidArgument
 		}
+	case CacheResourceKind:
+		key := strings.TrimPrefix(p.Role, "data:")
+		if p.Role != "data:"+key || !strings.HasPrefix(p.Role, "data:") || !core.ValidResourceGenerationSpec(key, CacheResourceKind, strings.Repeat("0", 64)) || !core.ValidEnvironmentResourceRef(core.PersistentResourceRef{ID: p.SourceID, Owner: p.SourceOwner}) || p.Source != "haco-persistent-"+p.SourceOwner || p.Device != environmentDataDevicePrefix+key || !validEnvironmentDataTarget(p.Path) {
+			return core.ErrInvalidArgument
+		}
 	default:
 		return core.ErrUnsupported
 	}
@@ -100,7 +105,10 @@ func (r *Runtime) snapshotVolumeObservation(ctx context.Context, p snapshotVolum
 				expected["user.hacocoon.role"] = "work"
 				expected["user.hacocoon.repository"] = p.SourceID
 			} else {
-				expected["user.hacocoon.kind"] = OCIStoreKind
+				expected["user.hacocoon.kind"] = p.SourceKind
+				if p.SourceKind == CacheResourceKind {
+					expected[environmentInstanceKey] = p.SourceInstanceID
+				}
 				expected["user.hacocoon.resource"] = p.SourceID
 				if !matchesSourceOnlyMarker(v.Config["user.hacocoon.source-only"], false) {
 					return nil, core.ErrIncompatibleState

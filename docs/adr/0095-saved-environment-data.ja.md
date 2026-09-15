@@ -1,0 +1,30 @@
+# 保存するEnv追加データ
+
+状態: 採用済み。snapshot/copyは実装済み、ポータブル転送は実装中。[English](0095-saved-environment-data.md)
+
+## 決定
+
+snapshotとcopyはrootfs・Workspace・OCIに加え、名前付きの追加データ領域を
+全て保持します。既存snapshotの一部として独立所有のnative volume copyを記録し、
+共通のEnv/Workspaceロックと作成実体で収集・削除との競合を排除します。
+実行中のcapture後も、共通の全データを含む再開処理を使います。
+
+復元は保存元・Workspace・新しいEnvの子データを同じライフサイクル遷移で予約し、
+nativeコピー完了を検査前に記録します。片付けが不明なら親の予約も保持します。
+作成・commit・存在しないことを確認した削除を共通化し、呼び出し側でEnvとleaseを
+別々に公開しません。
+
+保存キャッシュはデータであり、現在の共通元への公開許可ではありません。
+由来を保持しても、その後の収集には既存の世代比較が必要です。importは元の
+インストールの所有IDや承認を再利用せず、新しい所有実体と配置検査を使います。
+Env削除後もWorkspaceとOCIを保持する契約は継続し、子データは新Envと共に削除、
+保存コピーはsnapshotの明示削除まで残します。同名の置換対象を掃除しません。
+
+## 採用しない方式
+
+追加データを落として成功扱いにすると退避として使えません。現在の共通世代への
+差し替えは未収集の書き込みを失います。元のmount構成や所有権の流用、別の復元
+状態管理の追加は、権限の混同や結果不明での早期解放につながります。
+
+[snapshot](../design/environment-snapshots.md)、[転送](../design/environment-transfer.ja.md)、
+[キャッシュ](../design/cache-generations.ja.md)を参照してください。

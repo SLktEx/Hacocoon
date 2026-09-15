@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"io"
 	"regexp"
 )
@@ -28,11 +29,12 @@ var ErrInvalidBundle = errors.New("invalid or incomplete Environment transfer bu
 // Manifest is an internal transport format, not a catalog, lease or approval.
 // It deliberately has no provider paths, credentials or source management IDs.
 type Manifest struct {
-	Version    int         `json:"version"`
-	Source     string      `json:"source"`
-	HasOCI     bool        `json:"has_oci"`
-	Components []Component `json:"components"`
-	Workspaces []Workspace `json:"workspaces,omitempty"`
+	DNSMode    core.DNSMode `json:"dns_mode,omitempty"`
+	Version    int          `json:"version"`
+	Source     string       `json:"source"`
+	HasOCI     bool         `json:"has_oci"`
+	Components []Component  `json:"components"`
+	Workspaces []Workspace  `json:"workspaces,omitempty"`
 }
 type Component struct {
 	Role   string `json:"role"`
@@ -41,7 +43,7 @@ type Component struct {
 }
 
 func (m Manifest) validate(limit int64) error {
-	if (m.Version != 1 && m.Version != 2) || !sourceName.MatchString(m.Source) || !validLimit(limit) {
+	if !m.DNSMode.Valid() || (m.Version != 1 && m.Version != 2) || !sourceName.MatchString(m.Source) || !validLimit(limit) {
 		return ErrInvalidBundle
 	}
 	count := len(m.Components) - 1

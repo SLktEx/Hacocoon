@@ -620,3 +620,24 @@ v0.64と導入案内の更新後も表示/ビルド情報2.81秒、architecture/
 修正済み復旧c35f6610へ合わせたc682faaaは、集中4.22秒、main差分lint16.99秒、全ローカル104.53秒、race36.42秒、CLI18.56秒、文書19.60秒、workflow2.66秒が成功しました。その後#671は5つのCIに通りmaindf22a1a5へ反映されました。c35f6610と全ファイル一致するため、転送を11823e02として載せ替えても内容は変わっていません。
 
 mainの転送2f995027を14b8fb9aへ統合後、Git/GUI/通知候補は全ローカル53.41秒、CLI8.88秒、文書・回帰19.00秒、workflow2.79秒がPASS。両方の非公開入口とWindows client試験を保持し、通知プロセス動作は実Windows8.22秒成功時から変更していません。
+
+DNS選択候補: 最初の集中72.65秒がPASS。snapshot作成・import設定保持の回帰追加後は集中30.07秒、変更範囲lint23.44秒、全ローカル45.48秒、race14.76秒、CLI35.53秒、文書・回帰13.46秒、workflow5.91秒がPASS。最終の状態表示とnative adapter回帰追加は別途確認します。この部品検証は3モードの実Incus受入ではありません。
+
+最終候補の集中確認は27.69秒でFAIL。英語statusの完全一致fixtureが、新しく表示する名前解決の行を含んでいませんでした。期待表示を更新し、既存の日英データ・escaping確認を保持します。その試行の後続確認は未実施です。
+
+hacocoon-secondの実Incusでab98e0ccのTestRealIncusDNSModesE2EがPASS（コマンド84.63秒/テスト75.10秒）。host24.12秒、backend13.09秒、disabled37.89秒。新しく所有するEnvと現行companionで共通の作成・停止・再開・削除、loopback resolverとservice状態を確認し、backendは正確な所有関係のtooling adapter経由でexample.comの解決も確認しました。catalogは/var/lib/haco-dns-modes-905851288/state.json、-4084255079/state.json、-70566286/state.json。全Envの共通削除が成功。Policy許可・guest管理権限・別DNS fallbackは追加していません。native構成と再開・backend解決の証拠であり、guestからPolicyを通す全経路・VPN/NRPT変化・Windows再起動・GUI回答の受入ではありません。
+
+期待するstatus表示を直した最新main上の最終ソースは、集中34.86秒、PR全差分lint52.03秒、全ローカル33.57秒、race20.05秒、CLI8.60秒、文書13.53秒、workflow2.47秒がPASS。以前の期待表示に合わせるための製品動作変更はしていません。
+
+
+## 名前付きデータの保存とコピー
+
+実装26939f1bは集中13.10秒、main差分lint11.93秒、全ローカル24.72秒、race10.61秒、CLI4.84秒、文書7.51秒、workflow1.36秒PASS。catalog回帰は再利用元の世代変更、全子領域の予約、検証前のコピー完了記録、保存元削除の排除、結果不明と削除失敗時の保持を確認。初期の集中確認は旧unsupported期待と保存元lease拒否の残りで失敗し、修正後focused-3が17.32秒PASS。SKIPにはしていない。
+
+hacocoon-secondの実Incus、Btrfs pool haco-local-default、cached Ubuntu image b36d486c9412aee50d36c8875437070014bebd94d2207e0f703cd1b235c63033でdata-native-rootfs-1は52.97秒PASS（test46.52秒、build7.33秒）。fixture saved-data-9fa8a00cd2833843、catalog /var/lib/haco-saved-data-2533260138/state.json。rootfsの2領域と2レポWorkspaceで、稼働中保存と全領域付き再開、停止中独立copy、未収集の内容、新しい所有権、独立変更、元Env削除、複製の再開、共通の所有対象cleanupを確認。世代公開やPolicy許可は追加していない。性能・レポ配下配置の成功ではない。
+
+先行data-native-1はbuild8.99秒成功後、試験compileで失敗。data-native-2は14.54秒（test7.17秒）で、レポ配下配置に必要なfile_storage_volumeが実機Incusにないため保存前に失敗。fixture saved-data-9cb00c708dc5ace0とcatalog /var/lib/haco-saved-data-1321951232/state.jsonを記録し、作成したWorkspace試験volumeは正確なcleanupのため保持。rootfs試験は対応済みの別配置であり、迂回やレポ配置の成功とは扱わない。
+
+DNS #674 head a44c0cc5はLinux4CI成功、Windows34930836374/job104258506823は導入・HTTPS・SSH・Linux回収成功後、公開回収がcompact_attachedで失敗（open1回、圧縮未開始、未再開）。通知SKIP。Git/GUI #672 head7454efabもLinux4CI成功、Windows34931359363/job104260056333は並行cold SSH再接続でstream_denied/exit255。回収・通知SKIP。いずれもmain未マージであり、以前の成功や通知失敗と区別して保持する。DNSは98c0ddd2としてこの候補へ統合し、追加データ検査とDNS検査の重なりだけ競合解消した。
+
+DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒、全ローカル29.81秒、race11.90秒、CLI4.77秒、文書8.15秒、workflow1.50秒PASS。上記の実機追加データの証拠は変更していないライフサイクル/provider処理を対象とする。新しいWindows成功とは扱わない。

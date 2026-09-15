@@ -104,6 +104,7 @@ func (s *Service) createReserved(ctx context.Context, r core.PersistentResource,
 		return r, err
 	}
 	r.State = "ready"
+	r.RestoreSource = ""
 	return r, nil
 }
 

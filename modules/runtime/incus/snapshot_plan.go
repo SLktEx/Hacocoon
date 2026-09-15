@@ -15,8 +15,8 @@ import (
 // PlanSnapshot enumerates the entire supported stopped aggregate without writes.
 // The caller must hold canonical Environment/Workspace locks through capture.
 func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, id string) ([]core.SnapshotComponent, error) {
-	if len(source.Environment.Attachments) != 0 {
-		return nil, core.ErrUnsupported
+	if !core.ValidEnvironmentAttachments(source.Environment.Attachments) {
+		return nil, core.ErrInvalidArgument
 	}
 	if !strings.HasPrefix(id, "snap-") || len(id) != 37 || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: strings.TrimPrefix(id, "snap-")}) || !core.ValidEnvironmentInstanceID(source.InstanceID) || !strings.HasPrefix(source.Environment.Workspace.Path, "managed:") || source.Environment.RuntimeRef == trustedHostName {
 		return nil, core.ErrInvalidArgument
@@ -155,6 +155,29 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if err := addVolume(p); err != nil {
 			return nil, err
 		}
+	}
+	areas := make([]core.EnvironmentRuntimeAttachment, 0, len(source.Environment.Attachments))
+	for _, area := range source.Environment.Attachments {
+		if area.Origin.Kind != CacheResourceKind || !validEnvironmentDataTarget(area.Target) {
+			return nil, core.ErrUnsupported
+		}
+		targetOwner, err := owner()
+		if err != nil {
+			return nil, err
+		}
+		plan := snapshotVolumePlan{Pool: pool, Source: "haco-persistent-" + area.Resource.Owner, SourceOwner: area.Resource.Owner, SourceKind: CacheResourceKind, SourceID: area.Resource.ID, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "data:" + area.Key, Device: environmentDataDevicePrefix + area.Key, Path: area.Target}
+		if err := addVolume(plan); err != nil {
+			return nil, err
+		}
+		resource := core.PersistentResource{ID: area.Resource.ID, Owner: area.Resource.Owner, Kind: area.Origin.Kind, NativeRef: pool + "/" + plan.Source, State: "ready", EnvironmentInstance: source.InstanceID}
+		areas = append(areas, core.EnvironmentRuntimeAttachment{Attachment: area, Resource: resource})
+	}
+	binding, err := environmentDataBinding(source.InstanceID, areas)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Config[environmentDataKey] != binding {
+		return nil, core.ErrCapabilityStale
 	}
 	for name, d := range instance.ExpandedDevices {
 		if d["type"] == "disk" && d["path"] != "/" && !expected[name] {

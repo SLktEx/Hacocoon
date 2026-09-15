@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.64**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.66**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -27,7 +27,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Temporary execution](design/temporary-execution.md) | implemented | `haco run` creates an ephemeral Env and always requests cleanup, retaining explicit Workspaces. Captured output by default; `-i/-it` enables bounded stdin/TTY with real Incus acceptance. Windows streamed use remains unverified. Failed cleanup retains ownership. |
 | [Persistent OCI](design/persistent-oci-store.md) | partial | Automatic per-Workspace Store initialization/reuse, exclusive attach and independent stopped copies; optional `--no-oci`. Host area copy boundary and bounded completed-copy recovery exist. Broader installed runtime/version acceptance and Docker Store compatibility remain. |
 | [Base build](design/base-images-and-custom-environments.md) | implemented | Definition-driven build, logical identity/revision inspect and reviewed image cleanup. Base selects initial rootfs; it is provenance, not a retained filesystem dependency of snapshots. |
-| [Snapshots / restore / copy](design/environment-snapshots.md) | implemented | Stopped managed Workspace/OCI and independently saved rootfs; restore/copy creates a new Env and fresh authority. External Workspace capture, in-place replacement and arbitrary live application consistency are unsupported. |
+| [Snapshots / restore / copy](design/environment-snapshots.md) | implemented | Stopped managed Workspace/OCI, named disposable data and independently saved rootfs; restore/copy creates a new Env and fresh authority. External Workspace capture, in-place replacement and arbitrary live application consistency are unsupported. |
 | [Retained-object cleanup](guides/data-lifetime.md) | implemented | Reviewed Workspace, built Base, whole Store and source-repository deletion; references/native children protect retained objects. Positive absence is required before releasing ownership. |
 | [Individual OCI images](design/oci-image-deletion.md) | partial | Attached, Host and detached nerdctl image list/delete, including reviewed unused candidates. Detached delivery is Linux amd64 only; full installed-controller acceptance and detached Docker remain incomplete. |
 | [Storage / reclamation](design/storage-reclamation.md) | implemented | Incus-owned Btrfs pool (`compress=zstd:3`), managed rootfs/data routing and enrolled Windows/WSL reclaim with measured CI recovery. Absent current history yields a read-only no-result response; malformed history still fails. Existing-installation and real interrupted-worker review remain unverified. |
@@ -104,7 +104,7 @@ Notification setup follow-up: service refresh identifies fixed failing operation
 
 ## Cache generation foundation
 
-**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Existing-Env enrollment, history/clear/recovery commands and added-data snapshot/copy/transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
+**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Named history/clear and positive-completion recovery are implemented. Snapshot/copy preserve uncollected data; existing-Env enrollment and added-data portable transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
 
 ## Packer Base build candidate
 
@@ -123,3 +123,5 @@ Cache completion recovery: implemented candidate for named, positively completed
 ## Client TCP access
 
 **Implemented candidate:** `haco env tunnel --target-port 8080 demo` opens a loopback listener for applications. Native Linux stays local; ordinary WSL/Host entry delegates to the installed Windows client, retaining the exact Env creation and WSL registration. Closing the foreground client closes its listener and connections. Shared parsing, process framing, cancellation and installer placement reuse existing development work. Fresh installed acceptance remains separate; DNS modes and VPN/NRPT acceptance remain incomplete. See [client transport](design/controller-client-transport.md#client-tcp-listeners).
+
+Resolver selection: implemented candidate. Environment creation accepts `--dns host|backend|disabled`, defaults to the Physical Host, and preserves the setting through snapshot/copy/transfer. Disabled mode refuses controller lookups even if guest tooling is restarted. Three-mode installed acceptance is pending; see [name resolution](design/name-resolution.md).

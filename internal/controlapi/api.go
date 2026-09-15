@@ -32,6 +32,7 @@ const (
 )
 
 type EnvironmentCreateRequest struct {
+	DNSMode             core.DNSMode             `json:"dns_mode,omitempty"`
 	SkipDefaultResource bool                     `json:"skip_default_resource,omitempty"`
 	PersistentResource  string                   `json:"persistent_resource,omitempty"`
 	Name                string                   `json:"name"`
@@ -125,6 +126,7 @@ func Register(server *control.Server, environments environmentService, clients c
 			return nil, control.NewStatusError("invalid_argument", "name and workspace_path are required")
 		}
 		environment, err := environments.Create(ctx, core.EnvironmentSpec{
+			DNSMode:             request.DNSMode,
 			PersistentResource:  request.PersistentResource,
 			SkipDefaultResource: request.SkipDefaultResource,
 			Name:                request.Name,

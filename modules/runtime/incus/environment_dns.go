@@ -34,8 +34,22 @@ func (r *Runtime) provisionEnvironmentDNS(ctx context.Context, ref string) error
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(marker.Stdout) != managedEnvironmentMarkerValue {
+	if marker.StdoutTruncated || strings.TrimSpace(marker.Stdout) != managedEnvironmentMarkerValue {
 		return core.ErrIncompatibleState
+	}
+	modeResult, err := r.runner.Run(ctx, "incus", "config", "get", ref, environmentDNSModeKey, "--project", r.project)
+	if err != nil || modeResult.StdoutTruncated {
+		return core.ErrRuntimeUnavailable
+	}
+	mode := core.DNSMode(strings.TrimSpace(modeResult.Stdout))
+	if !mode.Valid() {
+		return core.ErrIncompatibleState
+	}
+	if mode.Effective() == core.DNSDisabled {
+		if _, err := r.runner.Run(ctx, "incus", "exec", ref, "--project", r.project, "--", "/bin/sh", "-ec", environmentDNSDisable); err != nil {
+			return fmt.Errorf("disable Environment name resolution: %w", core.ErrRuntimeUnavailable)
+		}
+		return nil
 	}
 	source, digest, err := trustedClientSource(r.environmentDNS)
 	if err != nil {
@@ -144,4 +158,23 @@ stage=resolver
 test ! -d /etc/resolv.conf
 rm -f /etc/resolv.conf
 printf 'nameserver 127.0.0.1\noptions timeout:2 attempts:2\n' > /etc/resolv.conf
+`
+
+// Even a guest that starts its own stub is denied by the controller's mode check.
+// The resolver file has no external fallback after disabling the managed unit.
+const environmentDNSDisable = `attempt=0
+until systemctl show --property=Version --value >/dev/null 2>&1; do
+ attempt=$((attempt + 1)); test "$attempt" -lt 60; sleep 0.5
+done
+load_state=$(systemctl show --property=LoadState --value hacocoon-dns.service)
+case "$load_state" in
+ loaded) systemctl disable --now hacocoon-dns.service ;;
+ not-found) ;;
+ *) exit 1 ;;
+esac
+active_state=$(systemctl show --property=ActiveState --value hacocoon-dns.service)
+case "$active_state" in inactive|failed) ;; *) exit 1 ;; esac
+test ! -d /etc/resolv.conf
+rm -f /etc/resolv.conf
+printf 'nameserver 127.0.0.1\noptions timeout:1 attempts:1\n' > /etc/resolv.conf
 `
