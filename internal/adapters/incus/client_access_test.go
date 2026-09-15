@@ -35,7 +35,7 @@ func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
 	}
 }
 
-func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
+func TestPrepareSSHAccessRecordsGrantBeforeProvisioning(t *testing.T) {
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
 			return host.Result{Stdout: testHostPublicKey}, nil
@@ -43,7 +43,7 @@ func TestPrepareSSHDelegatesToTransactionalAccessLifecycle(t *testing.T) {
 		return host.Result{}, nil
 	}}
 	key := "ssh-ed25519 AAAATEST comment with spaces"
-	connection, err := New(runner).PrepareSSH(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key})
+	connection, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key})
 	if err != nil {
 		t.Fatal(err)
 	}

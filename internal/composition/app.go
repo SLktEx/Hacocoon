@@ -73,7 +73,7 @@ type App struct {
 	Capabilities        *capabilityapp.Service
 	Runner              *runapp.Service
 	Events              *eventsapp.Service
-	Bases               *environmentapp.BaseRouter
+	Bases               *environmentapp.Router
 	Runtime             *incus.Runtime
 	EgressProxy         *egressproxy.Proxy
 	Repositories        *gitrepo.RepositoryService
@@ -129,14 +129,13 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		return nil, err
 	}
 
-	router, err := environmentapp.NewRouter(
+	runtime, err := environmentapp.NewRouter(
 		envOr("HACO_RUNTIME_PROVIDER", environmentapp.ProviderIncus),
 		environmentapp.Register(environmentapp.ProviderIncus, incusProvider),
 	)
 	if err != nil {
 		return nil, err
 	}
-	runtime := environmentapp.NewBaseRouter(router)
 
 	environmentStatePath := filepath.Join(stateDir, "environments.json")
 	store := state.NewEnvironmentJSONStore(environmentStatePath)
@@ -171,7 +170,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		audit,
 		capabilityapp.LocalEcho{},
 		egressapp.Provider{},
-		dnsproxy.Provider{Environments: store, Backend: router},
+		dnsproxy.Provider{Environments: store, Backend: runtime},
 		networkrelay.Provider{},
 		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython, Stream: incusRuntime.RunTrustedHostPythonStream},
 		gitBroker,

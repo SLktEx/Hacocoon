@@ -128,7 +128,7 @@ def wait_for_worker(helper, registration, operation):
 
 
 def load_driver(name, filename):
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).parent / filename)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -160,13 +160,13 @@ def main():
     args = parser.parse_args()
     if os.name != "nt":
         raise RuntimeError("requires installed Windows acceptance without overrides")
-    driver = load_driver("reclamation_user_driver", "windows-installer-user-path-e2e.py")
-    installed = load_driver("reclamation_registration", "windows-reclamation-linux-e2e.py")
+    driver = load_driver("reclamation_user_driver", "install.py")
+    installed = load_driver("reclamation_registration", "reclamation_worker.py")
     reg = installed.registration()
     helper = Path(os.environ["LOCALAPPDATA"]) / "Hacocoon/reclamation" / uuid.UUID(reg).hex / "haco-wsl.exe"
     if not helper.is_file():
         raise RuntimeError("Installed helper missing")
-    import reclamation_retention
+    reclamation_retention = load_driver("reclamation_retention", Path(__file__).resolve().parents[3] / "tools/reclamation_retention.py")
     retention = reclamation_retention.load_manifest(args.retention_manifest)
     require_absent_history(read_json([str(helper), "_status", reg]))
     terminal = driver.TerminalProcess()

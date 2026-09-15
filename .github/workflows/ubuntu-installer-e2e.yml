@@ -154,13 +154,13 @@ jobs:
 
       - name: "[product] Exercise installed product CLI lifecycle"
         shell: bash
-        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/tools/installer-product-lifecycle-e2e.sh"
+        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/test/e2e/installed/lifecycle.sh"
 
       - name: "[product] Verify installed network isolation and spoofing guards"
         shell: bash
         run: |
           set -euo pipefail
-          sudo env HACO_BIN=/usr/local/bin/haco-host bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
+          sudo env HACO_BIN=/usr/local/bin/haco-host bash "$GITHUB_WORKSPACE/test/e2e/installed/network_security.sh"
 
       - name: "[fixture] Collect diagnostics"
         if: failure()

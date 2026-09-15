@@ -10,8 +10,8 @@ type savedRuntimeCreator interface {
 }
 
 // Route by saved rootfs, never by the deleted source Base or the current default.
-func (r *BaseRouter) CreateEnvironmentFromSnapshot(ctx context.Context, spec core.EnvironmentRuntimeSpec, saved core.Snapshot, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if r == nil || r.Router == nil || record == nil || saved.State != "ready" || spec.Base != "" || spec.TemporaryWorkspace {
+func (r *Router) CreateEnvironmentFromSnapshot(ctx context.Context, spec core.EnvironmentRuntimeSpec, saved core.Snapshot, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if r == nil || record == nil || saved.State != "ready" || spec.Base != "" || spec.TemporaryWorkspace {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	var root *core.SnapshotComponent

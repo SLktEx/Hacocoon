@@ -8,6 +8,7 @@ never prepare, repair, restart, remount, attach, detach, create, or delete state
 
 from __future__ import annotations
 
+import argparse
 import json
 import ctypes
 import os
@@ -239,14 +240,17 @@ def inspect_root(*args: str) -> str:
     return observe("wsl.exe", "-d", INSTANCE, "-u", "root", "--exec", *args)
 
 
-def run_bat(package_root: Path) -> None:
+def run_bat(package_root: Path, *, use_cached_wsl_image: bool = False) -> None:
     terminal = TerminalProcess(cwd=package_root)
     sent_bat = sent_exit = False
 
     def drive(output: str, process: TerminalProcess) -> None:
         nonlocal sent_bat, sent_exit
         if not sent_bat and cmd_prompt_count(output):
-            process.write("install-windows.bat\r\n")
+            command = "install-windows.bat"
+            if use_cached_wsl_image:
+                command += " -UseCachedWslImage"
+            process.write(command + "\r\n")
             sent_bat = True
         elif sent_bat and not sent_exit and INSTALL_COMPLETE_RE.search(output):
             process.write("exit\r\n")
@@ -271,8 +275,7 @@ def host_session(*, create: bool) -> None:
     terminal = TerminalProcess()
     stage = 0
     sent_at = 0
-    # Only the currently implemented product CLI is used. Environment/SSH
-    # commands remain a separate gate until the reset CLI implements them.
+    # Environment lifecycle and SSH acceptance run in their own installed gates.
     commands = ["haco version --json", "haco help", "haco doctor --json && printf '%s\\n' HACO_DOCTOR_OK",
                 "printf 'HACO_HOST_UI:%s\\n' \"$HACO_UI_LANGUAGE\""]
     # Exercise the installer-created trusted-host network in the ordinary
@@ -415,7 +418,11 @@ def boot_guard_namespace() -> dict:
     return namespace
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--use-cached-wsl-image", action="store_true",
+                        help="invoke the shipped installer's -UseCachedWslImage option")
+    args = parser.parse_args(argv)
     if os.name != "nt":
         raise RuntimeError("this gate requires Windows")
     inherited_child_environment()
@@ -425,7 +432,7 @@ def main() -> None:
     package_root = Path.cwd()
     if not (package_root / "install-windows.bat").is_file():
         raise RuntimeError("run from the extracted candidate ZIP")
-    run_phase("initial-install", run_bat, package_root)
+    run_phase("initial-install", run_bat, package_root, use_cached_wsl_image=args.use_cached_wsl_image)
     run_phase("installed-host-assertions", assert_host)
     run_phase("initial-host-entry", host_session, create=True)
     previous_namespace = boot_guard_namespace()
@@ -439,7 +446,7 @@ def main() -> None:
                         "-path", "*/networks/haco-host0/dnsmasq.pid"):
         raise RuntimeError("previous dnsmasq PID record was not retained in the boot archive")
     policy_before = sudo_policy_digest()
-    run_phase("reinstall", run_bat, package_root)
+    run_phase("reinstall", run_bat, package_root, use_cached_wsl_image=args.use_cached_wsl_image)
     run_phase("reinstalled-host-entry", host_session, create=False)
     run_phase("reinstalled-host-assertions", assert_host)
     if sudo_policy_digest() != policy_before:

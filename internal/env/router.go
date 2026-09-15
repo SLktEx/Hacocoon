@@ -14,9 +14,9 @@ const (
 	refPrefix     = "haco-runtime-v1:"
 )
 
-// Provider is the v0.7 EnvironmentProvider seam. Provider-specific configuration
-// and authority stay in the adapter. The stable Workspace/Environment lifecycle
-// continues to depend only on the pre-existing Environment runtime contract.
+// Provider defines the required Environment runtime operations. Provider-specific
+// configuration and authority stay in the adapter; additional capabilities use
+// separate interfaces without changing the Workspace lifecycle contract.
 type Provider interface {
 	CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error)
 	ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
@@ -35,10 +35,6 @@ type LocalPortProvider interface {
 
 type ConnectionListProvider interface {
 	ListClientConnections(context.Context, string) ([]core.ClientConnection, error)
-}
-
-type SSHProvider interface {
-	PrepareSSH(context.Context, string, core.SSHAccessRequest) (core.ClientConnection, error)
 }
 
 type SSHAccessProvider interface {
@@ -68,7 +64,7 @@ func NewRouter(defaultProvider string, registrations ...Registration) (*Router, 
 	registered := make(map[string]Provider, len(registrations))
 	for _, registration := range registrations {
 		id := strings.TrimSpace(registration.ID)
-		if id == "" || id != registration.ID || strings.ContainsAny(id, "\r\n\x00") || registration.Provider == nil {
+		if id == "" || id != registration.ID || strings.ContainsAny(id, ":\r\n\x00") || registration.Provider == nil {
 			return nil, fmt.Errorf("invalid environment provider %q: %w", registration.ID, core.ErrInvalidArgument)
 		}
 		if _, exists := registered[id]; exists {
@@ -83,6 +79,9 @@ func NewRouter(defaultProvider string, registrations ...Registration) (*Router, 
 }
 
 func (r *Router) CreateEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
+	if r == nil {
+		return core.EnvironmentRuntime{}, core.ErrRuntimeUnavailable
+	}
 	provider, err := r.provider(r.defaultProvider)
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
@@ -97,7 +96,8 @@ func (r *Router) CreateEnvironment(ctx context.Context, spec core.EnvironmentRun
 	if strings.TrimSpace(created.Ref) == "" {
 		return core.EnvironmentRuntime{}, fmt.Errorf("provider %q returned empty runtime ref: %w", r.defaultProvider, core.ErrIncompatibleState)
 	}
-	return core.EnvironmentRuntime{Ref: encodeRouteRef(r.defaultProvider, created.Ref)}, nil
+	created.Ref = encodeRouteRef(r.defaultProvider, created.Ref)
+	return created, nil
 }
 
 func (r *Router) ExecEnvironment(ctx context.Context, rawRef string, req core.ExecutionRequest) (core.ExecutionResult, error) {
@@ -203,23 +203,8 @@ func (r *Router) RemoveClientConnection(ctx context.Context, rawRef, connectionI
 	return ports.RemoveClientConnection(ctx, ref, connectionID)
 }
 
-// PrepareSSH preserves the v0.3 access contract used by older clients.
-func (r *Router) PrepareSSH(ctx context.Context, rawRef string, req core.SSHAccessRequest) (core.ClientConnection, error) {
-	provider, ref, id, err := r.resolveWithID(rawRef)
-	if err != nil {
-		return core.ClientConnection{}, err
-	}
-	if ssh, ok := provider.(SSHProvider); ok {
-		return ssh.PrepareSSH(ctx, ref, req)
-	}
-	if ssh, ok := provider.(SSHAccessProvider); ok {
-		return ssh.PrepareSSHAccess(ctx, ref, req)
-	}
-	return core.ClientConnection{}, fmt.Errorf("environment provider %q SSH: %w", id, core.ErrUnsupported)
-}
-
-// PrepareSSHAccess and RevokeSSHAccess satisfy the hardened client contract on
-// current main without making SSH a required EnvironmentProvider capability.
+// PrepareSSHAccess and RevokeSSHAccess share the client grant/revocation contract
+// without making SSH a required Environment provider capability.
 func (r *Router) PrepareSSHAccess(ctx context.Context, rawRef string, req core.SSHAccessRequest) (core.ClientConnection, error) {
 	provider, ref, id, err := r.resolveWithID(rawRef)
 	if err != nil {
@@ -227,9 +212,6 @@ func (r *Router) PrepareSSHAccess(ctx context.Context, rawRef string, req core.S
 	}
 	if ssh, ok := provider.(SSHAccessProvider); ok {
 		return ssh.PrepareSSHAccess(ctx, ref, req)
-	}
-	if ssh, ok := provider.(SSHProvider); ok {
-		return ssh.PrepareSSH(ctx, ref, req)
 	}
 	return core.ClientConnection{}, fmt.Errorf("environment provider %q SSH: %w", id, core.ErrUnsupported)
 }
@@ -317,31 +299,6 @@ func decodeRouteRef(raw string) (string, string, error) {
 		return "", "", core.ErrIncompatibleState
 	}
 	return provider, string(decoded), nil
-}
-
-type DisabledProvider struct {
-	ID     string
-	Reason string
-}
-
-func (p DisabledProvider) blocked() error {
-	reason := p.Reason
-	if reason == "" {
-		reason = "environment provider is disabled"
-	}
-	return fmt.Errorf("%s: %w", reason, core.ErrPolicyDenied)
-}
-
-func (p DisabledProvider) CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error) {
-	return core.EnvironmentRuntime{}, p.blocked()
-}
-func (p DisabledProvider) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
-	return core.ExecutionResult{}, p.blocked()
-}
-func (p DisabledProvider) ShellEnvironment(context.Context, string) error  { return p.blocked() }
-func (p DisabledProvider) DeleteEnvironment(context.Context, string) error { return p.blocked() }
-func (p DisabledProvider) InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
-	return core.EnvironmentRuntimeStatus{}, p.blocked()
 }
 
 // VerifyEnvironmentIdentity routes exact creation evidence to the owning provider.

@@ -40,10 +40,6 @@ func (r *Runtime) RemoveClientConnection(ctx context.Context, ref, connectionID 
 	return err
 }
 
-func (r *Runtime) PrepareSSH(ctx context.Context, ref string, req core.SSHAccessRequest) (core.ClientConnection, error) {
-	return r.PrepareSSHAccess(ctx, ref, req)
-}
-
 func (r *Runtime) addLoopbackProxy(ctx context.Context, ref, id string, hostPort, targetPort int) error {
 	return r.addLoopbackProtocolProxy(ctx, ref, id, "tcp", hostPort, targetPort)
 }

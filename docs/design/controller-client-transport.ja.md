@@ -14,7 +14,7 @@ Status: **部分実装**。Local Unix domain プロトコル、Physical Host コ
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
 
-製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。typed管理APIに `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を追加した。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)、残る旧コマンドは[CLI移行](../reference/cli.md)を参照。
+製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
 
 WSLは有効なコントローラーサービスがソケットをbindする前にlogin シェルを開くことがある。login aliasは読み取り専用pingで最大2分待ち、通信未準備だけを再試行する。プロトコル・operationの拒否は再試行せず、クライアントが第二のコントローラーを起動したりサービス状態を変更したりしない。この起動待ち期限は対話セッションの寿命を制限しない。
 
@@ -423,7 +423,7 @@ CLIはEnvの正確な作成世代を準備し、controllerから読み取り専�
 Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所有するCLIが受けてpipe経由で中断します。
 親による直接の終了待ちは維持し、子の非zero終了を成功へ置換しません。
 委譲しても元の期限を延ばしません。結果と診断出力を分離します。実Windowsの構成要素試験と、
-`tools/windows-tunnel-entry-e2e.py`の通常導入経路は別の証拠です。
+`test/e2e/windows/tunnel.py`の通常導入経路は別の証拠です。
 [ADR 0093](../adr/0093-windows-tunnel-delegation.ja.md)を参照してください。
 
 通知のprivate reviewとWindowsの固定stdio接続も、要求や転送データを読む前に

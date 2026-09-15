@@ -107,7 +107,7 @@ def main():
     parser.add_argument('--reclamation-manifest')
     args = parser.parse_args()
     here = Path(__file__).resolve().parent
-    spec = importlib.util.spec_from_file_location('native_access_driver', here / 'windows-installer-user-path-e2e.py')
+    spec = importlib.util.spec_from_file_location('native_access_driver', here / 'install.py')
     driver = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = driver
     spec.loader.exec_module(driver)
@@ -125,7 +125,7 @@ def main():
     def run_check(name):
         print(f'NATIVE ACCEPTANCE START: {name}', flush=True)
         result = run_acceptance([powershell, '-NoLogo', '-NoProfile', '-NonInteractive',
-            '-ExecutionPolicy', 'Bypass', '-File', str(here / name), *options[name]], timeout=1800)
+            '-ExecutionPolicy', 'Bypass', '-File', str(here.parents[2] / "tools" / name), *options[name]], timeout=1800)
         print(result.stdout, result.stderr, flush=True)
         verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
 

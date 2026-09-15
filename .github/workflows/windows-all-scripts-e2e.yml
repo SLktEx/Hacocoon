@@ -146,7 +146,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           python -m pip install --disable-pip-version-check --no-input "pywinpty==3.0.2"
           if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
-          python -m py_compile ./tools/windows-installer-user-path-e2e.py ./tools/windows-installer-restart-e2e.py ./tools/windows-installer-cached-restart-e2e.py
+          python -m py_compile ./test/e2e/windows/install.py
           if ($LASTEXITCODE -ne 0) { throw "Windows user-path drivers failed syntax validation." }
           python ./tools/test_installed_source_guard.py
           if ($LASTEXITCODE -ne 0) { throw "Source guard observer regressions failed." }
@@ -189,8 +189,8 @@ jobs:
       #   inspect the resulting WSL/systemd/Incus/Btrfs/loop state. Assertions may
       #   use root when required to observe state, but must never create, repair,
       #   restart, remount, attach, detach, delete, or otherwise mutate product
-      #   state. Product haco exposes help/version and setup/doctor. Trusted-host file
-      #   retention here does not establish Environment/Workspace retention or SSH.
+      #   state. Trusted-host file retention here does not establish
+      #   Environment/Workspace retention or SSH.
       - name: "[product] Exercise cached install, terminate/restart, and reinstall user path"
         id: installed
         shell: pwsh
@@ -206,7 +206,7 @@ jobs:
             $ErrorActionPreference = "Continue"
             try {
               Write-Host "=== Exact user-path live log ==="
-              python "$env:GITHUB_WORKSPACE\tools\windows-installer-cached-restart-e2e.py" 2>&1 | Tee-Object -FilePath $logPath
+              python "$env:GITHUB_WORKSPACE\test\e2e\windows\install.py" --use-cached-wsl-image 2>&1 | Tee-Object -FilePath $logPath
               $driverExit = $LASTEXITCODE
             } finally {
               $ErrorActionPreference = $previousPreference
@@ -230,12 +230,12 @@ jobs:
 
       - name: "[product] Verify native Windows interop and strict OpenSSH through ordinary Host entry"
         shell: pwsh
-        run: python ./tools/windows-native-access-e2e.py --reclamation-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+        run: python ./test/e2e/windows/access.py --reclamation-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
       - name: "[product] Verify installed Linux reclamation stages"
         id: reclamation_linux
         shell: pwsh
-        run: python ./tools/windows-reclamation-linux-e2e.py
+        run: python ./test/e2e/windows/reclamation_worker.py
 
       - name: "[product] Verify public reclamation through ordinary Host entry"
         id: reclamation
@@ -245,7 +245,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
           python ./tools/test_reclamation_user_path.py
           if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
-          python ./tools/windows-reclamation-user-path-e2e.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+          python ./test/e2e/windows/reclamation.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
 
       # A failed launch may still have a live worker; do not restart WSL then.
       - name: "[product] Verify installed native notification review route"

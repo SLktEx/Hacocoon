@@ -59,7 +59,8 @@ and [VS Code notifications](clients/vscode-notify/README.md).
 | Windows / WSL identity and workers | `internal/platform/wsl`; command parsing in `internal/cli/wsl` and `internal/cli/tunnel` |
 | Notifications / public clients | `internal/client/notify`, `pkg/clientadapter`, `pkg/interaction`, `pkg/interactionhttp`; extensions in `clients/` |
 | Optional AWS / Packer / OCI tooling | `internal/adapters/{aws,packer,oci}` |
-| Installer / release / cross-process tests | `install/`, `tools/`, `test/e2e/` |
+| Installer / release tooling | `install/`, `tools/` |
+| Process and installed user-journey tests | `test/e2e/`; packaged Linux in `installed/`, Windows/WSL in `windows/` |
 
 `cmd/` only enters the owning implementation. `internal/core` holds domain contracts;
 feature services call those contracts and composition wires implementations.

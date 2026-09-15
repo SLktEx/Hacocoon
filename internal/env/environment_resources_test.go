@@ -25,7 +25,7 @@ func TestEnvironmentResourcesRouteToExactProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := NewBaseRouter(r)
+	base := r
 	if !base.SupportsEnvironmentResources() {
 		t.Fatal("support lost")
 	}

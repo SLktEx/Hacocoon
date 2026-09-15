@@ -49,7 +49,7 @@ func TestPersistedSourceResolverBindsCreatedRoutedReference(t *testing.T) {
 			}
 			// Use the same Base router as production creation, rather than a
 			// hand-written provider-local ref in persisted Environment state.
-			created, err := environmentapp.NewBaseRouter(router).CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo"})
+			created, err := router.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo"})
 			if err != nil {
 				t.Fatal(err)
 			}

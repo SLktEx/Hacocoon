@@ -11,8 +11,8 @@ type receiptCreator interface {
 	CreateEnvironmentWithReceipt(context.Context, core.EnvironmentRuntimeSpec, func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error)
 }
 
-func (r *BaseRouter) CreateEnvironmentWithReceipt(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if r == nil || r.Router == nil || record == nil {
+func (r *Router) CreateEnvironmentWithReceipt(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if r == nil || record == nil {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
 	}
 	p, err := r.provider(r.defaultProvider)

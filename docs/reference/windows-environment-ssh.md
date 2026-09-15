@@ -114,7 +114,7 @@ it also installs the managed Include and tests parallel cold reconnect and stand
 VS Code Remote-SSH. Local manual runs preserve the operator's SSH configuration.
 
 After a fresh candidate ZIP passes the ordinary Windows installer gate, run
-`python tools/windows-native-access-e2e.py --require-non-c` on a machine with
+`python test/e2e/windows/access.py --require-non-c` on a machine with
 a writable additional drive. The maintained ConPTY driver checks native interop
 in ordinary trusted Host terminals before and after the complete SSH lifecycle.
 It closes the first terminal before intentional WSL shutdown and opens a new one

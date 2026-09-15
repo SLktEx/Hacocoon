@@ -544,7 +544,7 @@ fi
 
     # Reuse this exact test-owned Env; the ordinary terminal chooses its
     # installed Windows client without a helper path or distribution flag.
-    & python (Join-Path $PSScriptRoot 'windows-tunnel-entry-e2e.py') --env $EnvironmentName --distro $Distro
+    & python (Join-Path $PSScriptRoot '../test/e2e/windows/tunnel.py') --env $EnvironmentName --distro $Distro
     if ($LASTEXITCODE -ne 0) { throw 'Ordinary Windows tunnel acceptance failed.' }
 
     # A changed key must fail closed before any remote command is executed.

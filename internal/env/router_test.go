@@ -75,18 +75,6 @@ func TestRouterTreatsPreV07BareRefsAsIncus(t *testing.T) {
 	}
 }
 
-func TestDisabledProviderFailsClosed(t *testing.T) {
-	disabled := DisabledProvider{ID: testProvider, Reason: "test provider is disabled"}
-	router, err := NewRouter(testProvider, Register(ProviderIncus, &fakeProvider{}), Register(testProvider, disabled))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = router.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/work"})
-	if !errors.Is(err, core.ErrPolicyDenied) {
-		t.Fatalf("err=%v", err)
-	}
-}
-
 func TestRouterRejectsUnknownDefaultAndMalformedWrappedRef(t *testing.T) {
 	if _, err := NewRouter("runtime.unknown", Register(ProviderIncus, &fakeProvider{})); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("err=%v", err)

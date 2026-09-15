@@ -172,7 +172,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(store.CommitEnvironmentCreate(ctx, env, lease))
 	router, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, r))
 	must(err)
-	runtime := environmentapp.NewBaseRouter(router)
+	runtime := router
 	service := workspace.New(runtime, store)
 	if os.Getenv("HACO_E2E_SNAPSHOT_DELETE_IMAGE") == "1" {
 		var project struct {
@@ -471,7 +471,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	resumedRouter, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, sandbox))
 	must(err)
-	resumedService := workspace.NewWithProvider(environmentapp.NewBaseRouter(resumedRouter), reopened, aggregateWorkspaceResolver{reopenedRepositories})
+	resumedService := workspace.NewWithProvider(resumedRouter, reopened, aggregateWorkspaceResolver{reopenedRepositories})
 	resumedEnv, err := resumedService.CreateFromSnapshot(ctx, core.EnvironmentSpec{Name: resumedName, WorkspacePath: resumedPath, PersistentResource: restoredOCI.ID}, snap.ID)
 	must(err)
 	resumedID, err := reopened.EnvironmentInstance(ctx, resumedEnv)

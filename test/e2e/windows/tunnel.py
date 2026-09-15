@@ -19,7 +19,10 @@ import subprocess
 import sys
 import threading
 
-from test_client_forward_native import SERVER
+forward_spec = importlib.util.spec_from_file_location("installed_forward", Path(__file__).resolve().parents[1] / "installed/forward.py")
+forward = importlib.util.module_from_spec(forward_spec)
+forward_spec.loader.exec_module(forward)
+SERVER = forward.SERVER
 
 
 def exchange(port):
@@ -73,7 +76,7 @@ def main():
         target = readiness.get(timeout=25).decode("utf-8").strip()
         if not target.isdecimal() or not 1 <= int(target) <= 65535:
             raise RuntimeError("application fixture readiness missing")
-        spec = importlib.util.spec_from_file_location("tunnel_terminal", Path(__file__).with_name("windows-installer-user-path-e2e.py"))
+        spec = importlib.util.spec_from_file_location("tunnel_terminal", Path(__file__).with_name("install.py"))
         driver = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = driver
         spec.loader.exec_module(driver)

@@ -18,11 +18,33 @@ Core・Standard・Plugin は設計上の役割であり、並立するディレ�
 controller API、通知、client adapter はそれぞれ保持する。
 汎用 capability・event API には現在のclient・通知からの利用があるため保持する。
 
+Env作成は一つのRouterが担当し、providerが返すBase識別情報、実効資源上限、
+所有権の作成記録を保持する。BaseRouterの重複した作成処理を撤去し、Base一覧と
+snapshot・archive操作も同じRouterを使う。参照元のない無効化用・資源上限未対応用
+providerラッパーと、provider側の旧`PrepareSSH`別名も削除する。
+現行clientは`PrepareSSHAccess`と対応する失効契約を使う。公開client-adapter APIと、
+保持中の所有対象を安全に削除するための読み取り処理は維持する。
+
+保存する経路の形式は`haco-runtime-v1:<provider>:<base64url-native-ref>`とする。
+解析時に`:`を所有providerの区切りとして使うため、この文字を含むprovider IDは
+登録時に拒否する。受け入れると、作成後に解決できない所有記録が生じる。
+native参照の内容は解釈しない。Base公開では、経路を外す前にEnvとleaseの保存参照が
+一致することを要求する。Envだけを基に両方を書き換えると、providerのlease検証前に
+不一致が消えてしまう。正常な経路、未対応・曖昧な登録、lease側のproviderまたは
+native所有先が異なる公開を回帰テストで確認する。
+
 インストーラーのソースは `scripts/` から `install/` へ移る。
 ソースを直接取得するURLは変更し、転送用スクリプトを残さない。
 配布アーカイブ名とバンドル内のファイル名は同じ。
 旧バイナリを含むアーカイブはインストーラーが拒否する。
 この変更は既存導入のファイルや保存データを自動削除しない。
+
+導入済みLinuxとWindows/WSLの利用手順を検証するドライバーは、
+`test/e2e/installed`と`test/e2e/windows`へ置く。ビルド・配布・診断・検証用観測の
+ツールは`tools/`に保持する。Windows再起動の転送専用スクリプト二つを削除し、
+初回導入・再起動・再導入を一つのドライバーが担当する。キャッシュ利用は明示的な
+引数で製品の`-UseCachedWslImage`を選び、端末の書込み処理の差替えやテスト専用の
+製品セットアップを追加しない。
 
 ## 維持する境界
 

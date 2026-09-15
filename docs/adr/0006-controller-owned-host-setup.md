@@ -3,6 +3,9 @@
 Status: accepted  
 Date: 2026-09-06
 
+The controller-owned setup decision remains current. Its legacy CLI refusal entry
+was subsequently removed by [ADR 0102](0102-responsibility-layout-and-cli-retirement.md).
+
 ## Context
 
 The installer started the Physical Host controller but still called

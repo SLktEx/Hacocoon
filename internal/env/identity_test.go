@@ -24,7 +24,7 @@ func TestIdentityVerificationUsesPersistedProviderRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := "env-11111111111111111111111111111111"
-	err = NewBaseRouter(router).VerifyEnvironmentIdentity(context.Background(), encodeRouteRef(testProvider, "owned-native"), id)
+	err = router.VerifyEnvironmentIdentity(context.Background(), encodeRouteRef(testProvider, "owned-native"), id)
 	if !errors.Is(err, core.ErrCapabilityStale) || chosen.ref != "owned-native" || chosen.id != id || other.ref != "" {
 		t.Fatal("identity routed to wrong provider", err)
 	}
@@ -34,5 +34,18 @@ func TestIdentityVerificationUsesPersistedProviderRoute(t *testing.T) {
 	}
 	if !errors.Is(unsupported.VerifyEnvironmentIdentity(context.Background(), encodeRouteRef(testProvider, "owned-native"), id), core.ErrUnsupported) {
 		t.Fatal("provider without identity accepted")
+	}
+	chosen.ref = ""
+	for _, tc := range []struct {
+		ref, instance string
+		want          error
+	}{
+		{encodeRouteRef(testProvider, "owned-native"), "spoofed-instance", core.ErrInvalidArgument},
+		{"", id, core.ErrIncompatibleState},
+		{encodeRouteRef("missing", "owned-native"), id, core.ErrUnsupported},
+	} {
+		if err := router.VerifyEnvironmentIdentity(context.Background(), tc.ref, tc.instance); !errors.Is(err, tc.want) || chosen.ref != "" || other.ref != "" {
+			t.Fatal("invalid identity reached provider", err)
+		}
 	}
 }

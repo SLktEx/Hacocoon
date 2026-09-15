@@ -22,7 +22,7 @@ func TestArchiveReceiptRoutesAndRejectsProtocolDrift(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			result, err := NewBaseRouter(router).CreateEnvironmentFromArchive(context.Background(), core.EnvironmentRuntimeSpec{}, strings.NewReader("native archive"), t.TempDir(), 1024, func(v core.EnvironmentRuntime) error {
+			result, err := router.CreateEnvironmentFromArchive(context.Background(), core.EnvironmentRuntimeSpec{}, strings.NewReader("native archive"), t.TempDir(), 1024, func(v core.EnvironmentRuntime) error {
 				calls++
 				if v.Ref != encodeRouteRef(ProviderIncus, "haco-demo") {
 					t.Fatal(v)
@@ -53,12 +53,12 @@ func TestArchiveRoutesTemporaryWorkspaceWithoutHostPath(t *testing.T) {
 	}
 	spec := core.EnvironmentRuntimeSpec{TemporaryWorkspace: true, WorkspacePath: work.Path}
 	recorded := 0
-	_, err = NewBaseRouter(router).CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
+	_, err = router.CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
 	if err != nil || recorded != 1 {
 		t.Fatal("temporary archive not routed", err, recorded)
 	}
 	spec.WorkspacePath = "/host/private"
-	_, err = NewBaseRouter(router).CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
+	_, err = router.CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
 	if err == nil || recorded != 1 {
 		t.Fatal("Host path accepted as temporary", err, recorded)
 	}

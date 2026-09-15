@@ -20,10 +20,34 @@ OCI Store/image operations, controller APIs, notifications and client adapters
 remain separate supported implementations. Generic capability/event APIs remain
 because current client and notification consumers use them.
 
+Environment creation has one Router implementation that preserves the provider's
+Base identity, effective resource budget and ownership receipt. The separate
+BaseRouter creation override is removed; Base catalog and snapshot/archive
+operations use the same Router. Unreferenced disabled/no-finite-resource provider
+wrappers and the provider-level `PrepareSSH` compatibility alias are removed.
+Current clients use `PrepareSSHAccess` and its paired revocation contract; public
+client-adapter APIs and readers needed to clean up retained ownership stay intact.
+
+The stored route format is `haco-runtime-v1:<provider>:<base64url-native-ref>`.
+Provider IDs containing `:` are rejected during registration because the parser
+uses that separator to identify the owner; accepting one would create an
+unresolvable ownership record. Native references remain opaque. Base publication
+requires equal persisted Env and lease routes before either is unwrapped. Rewriting
+both from the Env alone would erase a mismatch before the provider validates the
+lease. Regressions cover valid routes, unsupported and ambiguous registrations,
+and publication with a different provider or native owner in the lease.
+
 Installer source moves from `scripts/` to `install/`. Direct source URLs change;
 there are no forwarding scripts. Release archive names and installer bundle
 filenames stay the same. The installer rejects archives containing the retired
 binary. This change does not erase an old installation's files or data.
+
+Installed Linux and Windows/WSL journey drivers live under `test/e2e/installed`
+and `test/e2e/windows`. Build, packaging, diagnostics and test-observer tools stay
+in `tools/`. The two Windows restart forwarding scripts are removed: one install
+driver owns initial install, restart and reinstall, with an explicit argument
+selecting the shipped `-UseCachedWslImage` option. It does not monkey-patch terminal
+writes or add product provisioning to the test path.
 
 ## Boundaries retained
 

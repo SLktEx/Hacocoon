@@ -42,7 +42,7 @@ func TestSnapshotRoutingPreservesProviderAndOpaqueOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := NewBaseRouter(r)
+	router := r
 	source := core.SnapshotSource{Environment: core.Environment{RuntimeRef: encodeRouteRef(testProvider, "source-native")}, InstanceID: "env-11111111111111111111111111111111"}
 	cs, err := router.PlanSnapshot(context.Background(), source, "snapshot")
 	if err != nil {

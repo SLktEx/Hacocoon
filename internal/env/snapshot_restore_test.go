@@ -40,7 +40,7 @@ func TestRestoreRouterRequiresSingleExactProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved := core.Snapshot{Source: core.SnapshotSource{Environment: core.Environment{RuntimeRef: encodeRouteRef(testProvider, "old-env")}}, Components: []core.SnapshotComponent{{NativeRef: encodeRouteRef(testProvider, "instance/saved"), Binding: "immutable"}}}
-	cs, err := NewBaseRouter(r).PlanSnapshotRestore(context.Background(), saved, "restore")
+	cs, err := r.PlanSnapshotRestore(context.Background(), saved, "restore")
 	if err != nil {
 		t.Fatal(err)
 	}
