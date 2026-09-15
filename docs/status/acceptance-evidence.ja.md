@@ -736,3 +736,25 @@ fixture data-e2e-25cadfe2239e648b、台帳 /var/lib/haco-data-placement-24466710
 #681の809bfb33はLinux側4 CIが成功しました。
 Windows34943936799/job104298802478は導入・SSH/editor・tunnel・公開容量回収に成功後、失効通知起動のdispatchが10秒期限とHRESULT -2147220990でFAILしました。
 通知後続や人の回答の成功は確立していません。起動準備は#682で対応し、この過去の失敗は保持します。
+
+
+## 通知の起動準備
+
+Hacocoon-Roadmap-f68a8c6bを通常インストーラで809bfb33へ揃えました。
+最初の確認はPowerShell5.1のため、7が必要なfixture本体は未実施です。
+PowerShell7のnative-review-matching-2はreview timeoutでFAILしました。
+同じWSL起動・環境・非公開パイプによる読取probeは13.56秒で空のpending一覧を返し、以前の初回review上限10秒を超えました。
+ローカルの起動待ち失敗の根拠であり、過去の全CI失敗の原因確定とはしません。
+
+809bfb33を基にした準備確認候補はfocused5.32秒、main全差分lint20.03秒PASS。
+Windows部品は0.83秒PASSで通知表示は当初SKIP。別途有効にした実通知表示・履歴・削除は2.64秒/test2.63秒PASSし、日英XMLの受入を確認しました。
+人のclick・見た目の確認ではありません。先行のPowerShellによる-test.v解釈は試験前に失敗し、構造化引数へ直したfixture実行と区別します。
+
+通常のWindows helper導入処理で候補を専用WSLへ適用しました。Linux側809bfb33のprotocol実装は変更していません。
+installed-review-1は実COM登録・所有再開/反復・別所有者/activator不一致拒否・失効/不正入力拒否・Host通知controller購読・listener cleanupがPASS。
+人のtoast click・新しいGUI回答は明示的SKIPです。Policy/認証の変更・回答の再送はありません。
+#678 CIのactivation timeout、#680のcompact_attachedは別の未解決観測として保持します。
+
+
+最終の準備確認候補も全ローカル26.41秒、focused5.11秒、main全差分lint19.06秒、race2.30秒、CLI4.14秒、docs/regressions8.03秒、workflow1.54秒が成功しました。
+未実施の人の回答を受入済みにするものではありません。

@@ -153,3 +153,10 @@ Cache catalog maintenance is implemented in the candidate: history/recover/clear
 accept --all to cover retained sources after producer deletion. It uses existing
 review/CAS/cleanup; independent Env/Workspace/OCI data and protected references
 remain. Existing-Env enrollment and unknown-copy cancellation remain incomplete.
+
+
+Notification startup now waits for a real private WSL read response before COM
+registration. Clear/readiness/first review share the existing 20-second launch
+budget; normal 10/8-second operations and no-replay rules remain. Matching installed
+stale/malformed refusal and Host notification subscription passed; human answers
+and visual layout remain separate.

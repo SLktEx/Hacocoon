@@ -73,7 +73,7 @@ func reviewFailureFields(err error) (string, string) {
 	var failure *nativeReviewFailure
 	if errors.As(err, &failure) {
 		switch failure.stage {
-		case "registration", "session_plan", "ownership", "activation", "clear", "peer_start", "review", "events":
+		case "registration", "session_plan", "ownership", "activation", "clear", "peer_start", "peer_ready", "review", "events":
 			stage = failure.stage
 		}
 	}

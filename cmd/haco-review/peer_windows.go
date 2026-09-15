@@ -58,6 +58,19 @@ func startReviewPeer(ctx context.Context, plan desktopreview.Invocation, own str
 func (p *processReviewPeer) Close() {
 	p.closeOnce.Do(func() { p.cancel(); p.input.Close(); p.output.Close(); <-p.done })
 }
+
+// Ready never selects or answers a request. It shares the startup deadline and
+// existing cancellation/reaping with normal exchanges; no failed read is retried.
+func (p *processReviewPeer) Ready(ctx context.Context) error {
+	reply, err := p.Exchange(ctx, desktopreview.Message{Action: "list"})
+	if err != nil {
+		return err
+	}
+	if reply.Type != "pending" || reply.Error != "" {
+		return errors.New("private review unavailable")
+	}
+	return nil
+}
 func (p *processReviewPeer) Exchange(ctx context.Context, m desktopreview.Message) (desktopreview.Reply, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

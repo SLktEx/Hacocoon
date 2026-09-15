@@ -235,3 +235,8 @@ through the client/provider boundaries. Next: installed/authenticated acceptance
 and existing-Env cache enrollment. Retained-source history/recovery/cleanup now
 have --all entry points using the common ownership transitions. Source work is preserved;
 large-repository measurement remains deferred by the user.
+
+
+Native notification startup now waits for private WSL read readiness before COM
+presentation registration. Matching installed refusal/subscription passed; fresh
+human decisions and past CI activation/reclamation failures remain distinct.
