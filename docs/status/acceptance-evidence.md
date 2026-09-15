@@ -1432,3 +1432,22 @@ Quality, test, Ubuntu and Windows are successful for this head, but Incus remain
 failed at the completed fixture's persistent lock directory described above.
 Follow-up `d4c264a3` fixes that fixture locally. Main is still `ee8bf7fb`; this
 receipt does not authorize merging a different unverified head.
+
+## Setup outcome language
+
+`e5a4e1e8` moves Host/project setup outcomes and next actions into the shared
+English/Japanese catalog and reuses vertical help. Local checks passed: focused
+8.62s, lint 18.14s, whole test entry 34.72s, race 13.73s, CLI 4.84s, docs 8.58s,
+workflow policy 1.91s and native-test compilation 1.55s. Final lint including new
+files passed in 22.42s; all nine approval-runner regressions passed on Linux in
+0.57s. Windows ran the six applicable runner tests, with three Linux terminal
+checks explicitly skipped (0.021s test time). The runner still requires the exact
+success marker and exactly one valid English/Japanese completion line.
+
+An initial harness invocation failed before tests because Linux Git could not
+resolve Windows worktree metadata; the patch is now generated on Windows.
+The first focused run caught double-formatting of Host result fields, which was
+corrected before the successful suite; the first changed-line lint also rejected
+unchecked output returns. Existing exit status, script output, private-result
+access, explicit replay and structured diagnostic boundaries are preserved.
+This is repository/component evidence, not a new installed or human-GUI pass.

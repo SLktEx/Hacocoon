@@ -150,3 +150,10 @@ post-release/skipped. Its Incus Btrfs failure was after the product operations,
 when fixture cleanup met persistent catalog locks; follow-up `d4c264a3` retains
 those locks and has local regression coverage. Revalidate the final PR head
 before main integration; do not erase #697's unexplained earlier tunnel failure.
+
+The setup-language follow-up (`e5a4e1e8`) closes M1's Host/project setup result
+and recovery-guidance gap with shared English/Japanese presentation and vertical
+help. Local full checks and the bounded bilingual approval-runner regression
+passed. It is a development-branch implementation until its main integration;
+person-dependent acceptance remains post-release. At #699 head `51ba4f24`,
+quality/test/Ubuntu and all Incus jobs succeeded; Windows is still running.
