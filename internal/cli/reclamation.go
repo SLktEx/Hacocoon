@@ -39,11 +39,7 @@ func reclaimLinuxClient(ctx context.Context, args []string, stdout, stderr io.Wr
 		fmt.Fprintln(stderr, "Invalid logging configuration.")
 		return 2
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		logger.Error("Cannot open reclamation controller", "component", "cli", "operation", "reclaim_storage")
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	readyCtx, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
 	err = waitForController(readyCtx, func(ctx context.Context) error { _, err := client.Ping(ctx); return err })
 	cancel()

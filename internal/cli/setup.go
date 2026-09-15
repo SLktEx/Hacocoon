@@ -80,11 +80,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		logging.Root().ErrorContext(ctx, message, "component", "cli", "operation", "setup")
 		return 1
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, cliMessage("setup.client_failed"))
-		return fail("Cannot open the Physical Host controller client; rerun the installer")
-	}
+	client := controlapi.NewDefaultClient()
 	if flags.NArg() == 1 {
 		response, err := client.SetupProject(ctx, flags.Arg(0), update)
 		if err != nil {

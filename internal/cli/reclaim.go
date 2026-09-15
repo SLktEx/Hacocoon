@@ -24,10 +24,7 @@ func runReclaim(args []string) int {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
 	defer cancel()
 	target := func(ctx context.Context) (reclamation.WSLTarget, error) {
-		client, err := controlapi.NewDefaultClient()
-		if err != nil {
-			return reclamation.WSLTarget{}, err
-		}
+		client := controlapi.NewDefaultClient()
 		ready, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
 		defer cancel()
 		if err := waitForController(ready, func(ctx context.Context) error { _, err := client.Ping(ctx); return err }); err != nil {

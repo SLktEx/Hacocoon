@@ -27,16 +27,11 @@ func runAWS(args []string) int {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 	var client awsClient
-	var err error
 	executable, executableErr := os.Executable()
 	if executableErr == nil && executable == "/usr/local/libexec/hacocoon-dns" {
 		client = awsplugin.NewGuestClient()
 	} else {
-		client, err = controlapi.NewDefaultClient()
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: cannot open controller client")
-		return 1
+		client = controlapi.NewDefaultClient()
 	}
 	return awsCommand(ctx, client, args, os.Stdout, os.Stderr)
 }

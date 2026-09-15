@@ -39,11 +39,7 @@ func hostCommandClient(t *testing.T, configure func(*control.Server)) *controlap
 	t.Cleanup(func() { cancel(); <-done })
 	t.Setenv("HACO_CONTROL_SOCKET", socket)
 	t.Setenv("HACO_UI_LANGUAGE", "en")
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client
+	return controlapi.NewDefaultClient()
 }
 
 func captureHostCommand(t *testing.T, run func() error) (string, string, error) {

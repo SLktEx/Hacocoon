@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -102,12 +103,34 @@ func TestClientConstructionUsesSelectedController(t *testing.T) {
 		}
 	})
 	t.Setenv("HACO_CONTROL_SOCKET", path)
-	client, err := NewDefaultClient()
-	if err != nil {
-		t.Fatal(err)
-	}
+	client := NewDefaultClient()
 	response, err := client.Ping(context.Background())
 	if err != nil || response.ProtocolVersion != control.ProtocolVersion {
 		t.Fatal("default client did not contact selected controller", response, err)
+	}
+}
+
+func TestDefaultClientDoesNotFallbackAfterEndpointSelection(t *testing.T) {
+	path := doctorTestSocket(t, func(s *control.Server) {
+		if err := Register(s, &fakeEnvironments{}, fakeClients{}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Setenv("HACO_CONTROL_SOCKET", filepath.Join(t.TempDir(), "missing.sock"))
+	missing := NewDefaultClient()
+	// A later environment change cannot redirect an already selected client to
+	// a different authority, even when its original controller is unavailable.
+	t.Setenv("HACO_CONTROL_SOCKET", path)
+	if response, err := missing.Ping(context.Background()); !errors.Is(err, control.ErrUnavailable) || response.ProtocolVersion != 0 {
+		t.Fatal("unavailable endpoint returned a receipt or changed authority", response, err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := missing.Ping(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatal("connection attempt lost cancellation", err)
+	}
+	current := NewDefaultClient()
+	if response, err := current.Ping(context.Background()); err != nil || response.ProtocolVersion != control.ProtocolVersion {
+		t.Fatal("new client did not use the newly selected endpoint", response, err)
 	}
 }

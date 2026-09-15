@@ -42,11 +42,7 @@ func exportEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 	if len(pos) == 2 {
 		destination = pos[1]
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	result, err := saveEnvironmentExport(ctx, client, pos[0], destination)
 	if err != nil {
 		_, _ = fmt.Fprint(diagnostic, language.Format("env.export.failed", err))

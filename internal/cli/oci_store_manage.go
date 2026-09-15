@@ -23,11 +23,7 @@ type ociStoreClient interface {
 func runOCIStoreManage(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	c, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	c := controlapi.NewDefaultClient()
 	return ociStoreManageCommand(ctx, c, args, os.Stdin, os.Stdout, os.Stderr)
 }
 func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string, in io.Reader, out, diagnostic io.Writer) int {

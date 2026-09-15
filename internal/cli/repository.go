@@ -37,11 +37,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 2
 	}
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
-		c, err := controlapi.NewDefaultClient()
-		if err != nil {
-			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
-			return 1
-		}
+		c := controlapi.NewDefaultClient()
 		return sourceManageCommand(ctx, c, args, os.Stdin, out, diagnostic)
 	}
 	if namespace == "workspace" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
@@ -107,12 +103,9 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 			return usage()
 		}
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	var result any
+	var err error
 	switch operation {
 	case "repo clone":
 		result, err = client.CloneRepository(ctx, controlapi.RepositoryCloneRequest{ID: pos[0], Remote: pos[1], Branch: branch})

@@ -31,11 +31,7 @@ type configurationClient interface {
 func runConfiguration(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	return configurationCommand(ctx, client, args, os.Stdout, os.Stderr, editConfiguration)
 }
 

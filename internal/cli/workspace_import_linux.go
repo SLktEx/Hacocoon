@@ -75,11 +75,7 @@ func workspaceImportCommand(ctx context.Context, args []string, out, diagnostic 
 		commandHelp(diagnostic, "workspace import", cliLanguage())
 		return 2
 	}
-	c, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
-		return 1
-	}
+	c := controlapi.NewDefaultClient()
 	ref, err := importWorkspacePath(ctx, c, flags.Arg(0), *path, *name, *repo, *base, *oci)
 	if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
 		return 1

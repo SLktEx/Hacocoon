@@ -132,10 +132,7 @@ func TestPublicControllerAdapterOwnsLoopbackConnectionThroughRestartAndRevoke(t 
 			return nil, nil
 		},
 	})
-	first, err := NewController()
-	if err != nil {
-		t.Fatal(err)
-	}
+	first := NewController()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	status, err := first.Status(ctx, "demo")

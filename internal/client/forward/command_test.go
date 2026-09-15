@@ -71,17 +71,18 @@ func TestClientListenerThroughControllerConcurrentBinaryAndCancellation(t *testi
 	serverDone := make(chan error, 1)
 	go func() { serverDone <- server.Serve(ctx, management) }()
 	defer func() { cancel(); <-serverDone }()
-	connect := func() (*controlapi.Client, error) {
-		return controlapi.NewClientWithDialer(func(ctx context.Context) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "tcp", management.Addr().String())
-		})
+	client, err := controlapi.NewClientWithDialer(func(ctx context.Context) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", management.Addr().String())
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	ready := make(readyOutput, 1)
 	var diagnostic bytes.Buffer
 	commandDone := make(chan int, 1)
 	go func() {
-		commandDone <- Command(ctx, []string{"--target-port", "8080", "demo"}, ready, &diagnostic, cliui.English, connect, nil)
+		commandDone <- Command(ctx, []string{"--target-port", "8080", "demo"}, ready, &diagnostic, cliui.English, client, nil)
 	}()
 	var text string
 	select {
@@ -137,11 +138,17 @@ func TestClientListenerThroughControllerConcurrentBinaryAndCancellation(t *testi
 	}
 }
 
-func TestInvalidTargetNeverCreatesControllerClient(t *testing.T) {
+func TestInvalidTargetNeverContactsController(t *testing.T) {
+	client, err := controlapi.NewClientWithDialer(func(context.Context) (net.Conn, error) {
+		t.Fatal("invalid input reached controller")
+		return nil, errors.New("unexpected controller connection")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, args := range [][]string{{"--target-port", "0", "demo"}, {"--target-port", "80", "--listen", "0.0.0.0:0", "demo"}, {"--target-port", "80", "--address", "192.0.2.1", "demo"}} {
 		var out bytes.Buffer
-		connect := func() (*controlapi.Client, error) { t.Fatal("invalid input reached controller"); return nil, nil }
-		if code := Command(context.Background(), args, &out, &out, cliui.English, connect, nil); code != 2 {
+		if code := Command(context.Background(), args, &out, &out, cliui.English, client, nil); code != 2 {
 			t.Fatal(args, code)
 		}
 	}

@@ -36,11 +36,7 @@ func runNetwork(args []string) int {
 	if len(args) > 0 && (args[0] == "tcp" || args[0] == "udp") {
 		return networkListenCommand(ctx, args, os.Stdout, os.Stderr)
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	return networkCommand(ctx, client, args, os.Stdout, os.Stderr)
 }
 func networkUsage(out io.Writer) {

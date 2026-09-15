@@ -33,11 +33,7 @@ func copyEnvironment(ctx context.Context, args []string, out, diagnostic io.Writ
 	if len(pos) == 2 {
 		req.Target = pos[1]
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	response, err := client.CopyEnvironment(ctx, req)
 	var outputErr error
 	if *machine {

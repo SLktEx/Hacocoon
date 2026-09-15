@@ -21,6 +21,12 @@ The package is a **client integration boundary**, not a new UI and not an author
 | `Delete` | Delete the Environment and its Hacocoon lifecycle state |
 | `InteractionBatch` | Read minimized, resumable `pkg/interaction` events |
 
+`NewController() *Adapter` selects the configured endpoint without opening a
+connection. `NewControllerAt(path string) (*Adapter, error)` also validates an
+explicit, nonempty socket path. Connection and protocol failures are reported
+by the requested operation. Callers of `NewController` no longer receive an
+unused constructor error.
+
 Every Environment returned to an adapter reports the in-guest workspace as:
 
 ```text

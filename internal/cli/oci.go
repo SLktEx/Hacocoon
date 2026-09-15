@@ -36,11 +36,7 @@ func runPlugin(args []string) int {
 	if !ok {
 		return usage()
 	}
-	c, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	c := controlapi.NewDefaultClient()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Minute)

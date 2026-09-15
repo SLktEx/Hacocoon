@@ -18,8 +18,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/streamio"
 )
 
-func Command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, connect func() (*controlapi.Client, error), usage func()) int {
-	return command(ctx, args, out, diagnostic, language, connect, usage, runPrepared)
+func Command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, client *controlapi.Client, usage func()) int {
+	return command(ctx, args, out, diagnostic, language, client, usage, runPrepared)
 }
 
 type prepared struct {
@@ -38,7 +38,7 @@ func validListener(address string) bool {
 	return err == nil && portErr == nil && ip != nil && ip.IsLoopback() && port >= 0 && port <= 65535
 }
 
-func command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, connect func() (*controlapi.Client, error), usage func(), run preparedRunner) int {
+func command(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, client *controlapi.Client, usage func(), run preparedRunner) int {
 	message := language.Format
 	f := flag.NewFlagSet("env tunnel", flag.ContinueOnError)
 	f.SetOutput(diagnostic)
@@ -61,11 +61,6 @@ func command(ctx context.Context, args []string, out, diagnostic io.Writer, lang
 	}
 	ctx, cancel := context.WithTimeout(ctx, *duration)
 	defer cancel()
-	client, err := connect()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, message("error.controller"))
-		return 1
-	}
 	target, err := client.PrepareEnvironmentForward(ctx, f.Args()[0], *address, *port)
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, message("operation.failed"), err)

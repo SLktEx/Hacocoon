@@ -27,11 +27,7 @@ type approvalClient interface {
 func runApproval(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, cliMessage("approval.host_required"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	return approvalCommand(ctx, client, args, os.Stdin, os.Stdout, os.Stderr)
 }
 

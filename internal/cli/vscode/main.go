@@ -58,14 +58,8 @@ func runAdapter(ctx context.Context, args []string) error {
 	if *name == "" {
 		*name = defaultEnvironmentName(path)
 	}
-	adapter, err := clientadapter.NewController()
-	if err != nil {
-		return err
-	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		return err
-	}
+	adapter := clientadapter.NewController()
+	client := controlapi.NewDefaultClient()
 	desktop, err := sshclient.ResolveDesktop(ctx)
 	if err != nil {
 		return err

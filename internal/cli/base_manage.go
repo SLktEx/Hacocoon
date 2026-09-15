@@ -24,11 +24,7 @@ type baseImageClient interface {
 func runBaseManage(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	return baseManageCommand(ctx, client, args, os.Stdin, os.Stdout, os.Stderr)
 }
 func baseManageCommand(ctx context.Context, client baseImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {

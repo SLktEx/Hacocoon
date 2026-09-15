@@ -27,11 +27,7 @@ func runStream(args []string) int {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: controller unavailable")
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	ready, stop := context.WithTimeout(ctx, controllerStartupTimeout)
 	err = waitForController(ready, func(ctx context.Context) error { _, err := client.Ping(ctx); return err })
 	stop()

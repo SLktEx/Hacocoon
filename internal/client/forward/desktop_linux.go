@@ -22,12 +22,12 @@ import (
 // DesktopCommand keeps native Linux local and delegates an ordinary WSL/trusted
 // Host entry to its installed Windows companion. WSL hints select UX only;
 // discovery and the native controller independently validate installation identity.
-func DesktopCommand(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, connect func() (*controlapi.Client, error), usage func()) int {
+func DesktopCommand(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language, client *controlapi.Client, usage func()) int {
 	run := runPrepared
 	if os.Getenv("WSL_INTEROP") != "" || os.Getenv("WSL_DISTRO_NAME") != "" {
 		run = runWindows
 	}
-	return command(ctx, args, out, diagnostic, language, connect, usage, run)
+	return command(ctx, args, out, diagnostic, language, client, usage, run)
 }
 
 func runWindows(ctx context.Context, client *controlapi.Client, request prepared, out, diagnostic io.Writer) int {

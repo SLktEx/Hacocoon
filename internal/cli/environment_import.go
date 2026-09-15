@@ -44,11 +44,7 @@ func importEnvironment(ctx context.Context, args []string, out, diagnostic io.Wr
 		flags.Usage()
 		return 2
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, language.Text("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	result, err := loadEnvironmentImport(ctx, client, pos[0], name)
 	if *jsonOutput {
 		if e := json.NewEncoder(out).Encode(result); e != nil {

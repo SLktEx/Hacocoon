@@ -73,11 +73,7 @@ func temporaryCommandWithInput(ctx context.Context, args []string, stdin io.Read
 	if *readOnly {
 		mode = core.WorkspaceReadOnly
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	spec := runapp.Spec{
 		WorkspacePath: *workspace, Base: core.BaseName(*base), SkipDefaultResource: *noOCI,
 		AccessMode: mode, Argv: flags.Args(),

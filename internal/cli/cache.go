@@ -20,11 +20,7 @@ type cacheClient interface {
 }
 
 func runCache(args []string) int {
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, cliMessage("cache.failed"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	return runCacheWith(args, client, os.Stdout, os.Stderr)
 }
 func runCacheWith(args []string, client cacheClient, out, diagnostic io.Writer) int {

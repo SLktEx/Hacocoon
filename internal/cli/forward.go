@@ -9,5 +9,5 @@ import (
 )
 
 func forwardClientCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
-	return clientforward.DesktopCommand(ctx, args, out, diagnostic, cliLanguage(), controlapi.NewDefaultClient, func() { commandHelp(diagnostic, "env tunnel", cliLanguage()) })
+	return clientforward.DesktopCommand(ctx, args, out, diagnostic, cliLanguage(), controlapi.NewDefaultClient(), func() { commandHelp(diagnostic, "env tunnel", cliLanguage()) })
 }

@@ -52,8 +52,12 @@ func run(ctx context.Context, args []string) int {
 		writeHelp(os.Stdout, language)
 		return 0
 	}
-	connect := func() (*controlapi.Client, error) { return controlapi.NewClientWithDialer(dial) }
-	code := clientforward.Command(ctx, args[2:], os.Stdout, os.Stderr, language, connect, usage)
+	client, err := controlapi.NewClientWithDialer(dial)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, language.Format("operation.failed"), err)
+		return 1
+	}
+	code := clientforward.Command(ctx, args[2:], os.Stdout, os.Stderr, language, client, usage)
 	if code == 1 {
 		fmt.Fprintln(os.Stderr, language.Format("forward.windows_next", args[1]))
 	}

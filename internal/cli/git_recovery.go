@@ -32,12 +32,7 @@ func gitRecoveryWithClient(ctx context.Context, client gitRecoveryClient, args [
 		return 2
 	}
 	if client == nil {
-		c, err := controlapi.NewDefaultClient()
-		if err != nil {
-			_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-			return 1
-		}
-		client = c
+		client = controlapi.NewDefaultClient()
 	}
 	result, err := client.GitPushStatus(ctx, controlapi.GitStatusRequest{Environment: flags.Arg(0), RequestID: *requestID}, args[0] == "reconcile")
 	if err != nil {

@@ -138,11 +138,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		commandHelp(diagnostic, "workspace "+args[0], cliLanguage())
 		return 2
 	}
-	c, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
-		return 1
-	}
+	c := controlapi.NewDefaultClient()
 	if args[0] == "prepare" {
 		h, e := workflow.LockReference(ctx, *path)
 		if e != nil {

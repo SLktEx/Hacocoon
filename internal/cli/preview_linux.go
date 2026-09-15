@@ -85,11 +85,7 @@ func preview(ctx context.Context, c previewController, name string, port int, cl
 func openPreview(name string, port int, closeConnection, noBrowser bool, out, diagnostic io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	url, err := preview(ctx, client, name, port, closeConnection)
 	if err != nil {
 		fmt.Fprintln(diagnostic, "haco: preview:", err)

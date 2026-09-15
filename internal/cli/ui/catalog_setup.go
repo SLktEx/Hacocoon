@@ -26,7 +26,6 @@ var setupCatalog = map[string]translation{
 	"setup.host_cleared":           {"Saved Host script removed; previous effects and last result retained.", "Hostの保存手順を解除しました。これまでの変更内容と最後の実行結果は保持しています。"},
 	"setup.host_completed":         {"Host script completed.", "Hostの保存手順の実行が完了しました。"},
 	"setup.ready":                  {"Host resources prepared. Run haco doctor to verify readiness.", "Hostの準備が完了しました。haco doctorで利用できる状態か確認してください。"},
-	"setup.client_failed":          {"haco: cannot connect to setup; rerun the installer.", "haco: セットアップの接続を準備できません。インストーラを再実行してください。"},
 	"setup.project_request_failed": {"haco: project setup could not be confirmed. Run haco doctor <environment> before retrying.", "haco: プロジェクトのセットアップを確認できません。再実行する前にhaco doctor <environment>で状態を確認してください。"},
 	"setup.project_failed":         {"haco: project setup failed. Correct the script or Environment and rerun haco setup.", "haco: プロジェクトのセットアップに失敗しました。スクリプトまたは環境を修正してhaco setupを再実行してください。"},
 	"setup.busy":                   {"Another setup is running. Wait and inspect its diagnostics.", "別のセットアップが実行中です。完了を待ち、その診断ログを確認してください。"},

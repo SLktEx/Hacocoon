@@ -70,11 +70,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 			req.Environment = pos[0]
 		}
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	response, err := client.Snapshot(ctx, req)
 	var writeErr error
 	if machine {
@@ -136,11 +132,7 @@ func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic 
 	if len(pos) == 2 {
 		req.Environment = pos[1]
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	if *latest {
 		saved, listErr := client.Snapshot(ctx, controlapi.SnapshotRequest{Operation: "list", Environment: pos[0]})
 		if listErr != nil {

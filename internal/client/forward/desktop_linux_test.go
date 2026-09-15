@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/cli/ui"
-	"github.com/SLktEx/Hacocoon/internal/controller/api"
 )
 
 func TestWindowsDesktopFailureDoesNotOpenLinuxListener(t *testing.T) {
@@ -18,6 +17,10 @@ func TestWindowsDesktopFailureDoesNotOpenLinuxListener(t *testing.T) {
 	t.Setenv("WSL_INTEROP", "")
 	d := testDelegation()
 	connect := delegationController(t, d.Installation, "")
+	client, err := connect(d.Installation)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// No native PowerShell in this isolated Linux fixture: ordinary automatic
 	// dispatch must refuse, not silently claim a listener in this namespace.
 	t.Setenv("PATH", t.TempDir())
@@ -25,7 +28,7 @@ func TestWindowsDesktopFailureDoesNotOpenLinuxListener(t *testing.T) {
 	for _, lang := range []cliui.Language{cliui.English, cliui.Japanese} {
 		out.Reset()
 		diagnostic.Reset()
-		code := DesktopCommand(context.Background(), []string{"--target-port", "8080", "demo"}, &out, &diagnostic, lang, func() (*controlapi.Client, error) { return connect(d.Installation) }, nil)
+		code := DesktopCommand(context.Background(), []string{"--target-port", "8080", "demo"}, &out, &diagnostic, lang, client, nil)
 		if code != 1 || out.Len() != 0 || !bytes.Contains(diagnostic.Bytes(), []byte("haco doctor")) {
 			t.Fatalf("%s code %d out %q diagnostic %q", lang, code, out.String(), diagnostic.String())
 		}

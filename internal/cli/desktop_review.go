@@ -20,10 +20,8 @@ func runDesktopReview() int {
 	defer cancel()
 	// Unblock a reader on cancellation/expiry. This process owns its stdin.
 	go func() { <-ctx.Done(); _ = os.Stdin.Close() }()
-	client, err := controlapi.NewDefaultClient()
-	if err == nil {
-		err = serveDesktopReview(ctx, client, os.Stdin, os.Stdout)
-	}
+	client := controlapi.NewDefaultClient()
+	err := serveDesktopReview(ctx, client, os.Stdin, os.Stdout)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "Local review ended without a confirmed result. Inspect current requests and Policy before retrying.")
 		return 1

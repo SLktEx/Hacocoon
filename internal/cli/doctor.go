@@ -53,10 +53,7 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		logging.Root().ErrorContext(ctx, message, "component", "cli", "operation", "doctor")
 		return 1
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		return fail("Cannot open the Physical Host controller client")
-	}
+	client := controlapi.NewDefaultClient()
 	if target != "" {
 		report, err := diagnoseEnvironment(ctx, client, target)
 		if err != nil {

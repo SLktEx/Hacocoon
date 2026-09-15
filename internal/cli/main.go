@@ -192,10 +192,7 @@ func runLoginShim(args []string) error {
 		return execProcess("/bin/bash", []string{"bash", "--login"})
 	}
 
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		return fmt.Errorf("open Hacocoon controller client: %w", err)
-	}
+	client := controlapi.NewDefaultClient()
 	ctx := context.Background()
 	if err := waitForControllerClient(ctx, client); err != nil {
 		return fmt.Errorf("wait for Physical Host controller: %w", err)

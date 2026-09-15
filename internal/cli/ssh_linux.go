@@ -22,10 +22,7 @@ func runSSH(args []string) int {
 	if len(args) == 1 && args[0] == "cleanup" {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		client, err := controlapi.NewDefaultClient()
-		if err != nil {
-			return 1
-		}
+		client := controlapi.NewDefaultClient()
 		desktop, err := sshclient.ResolveDesktop(ctx)
 		if err == nil {
 			err = sshclient.Cleanup(ctx, client, desktop)
@@ -96,11 +93,7 @@ func runOpen(args []string) int {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
-		client, e := controlapi.NewDefaultClient()
-		if e != nil {
-			fmt.Fprintln(os.Stderr, "haco:", e)
-			return 1
-		}
+		client := controlapi.NewDefaultClient()
 		result, e := openWorkspacePath(ctx, client, pathOpenOptions{Path: selectedArgs[0], Name: *workName, Repositories: *repos, Base: *base, OCI: *oci})
 		if e != nil {
 			fmt.Fprintln(os.Stderr, "haco:", e)
@@ -136,11 +129,7 @@ func setupDesktopSSH(args []string, launch string) int {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	name := ""
 	var selectedEnvironment *core.Environment
 	if len(args) == 1 {

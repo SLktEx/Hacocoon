@@ -21,6 +21,11 @@ Hacocoon は `github.com/SLktEx/Hacocoon/pkg/clientadapter` を通じて、clien
 | `Delete` | EnvironmentとHacocoon ライフサイクル状態を削除 |
 | `InteractionBatch` | minimized/resumableな `pkg/interaction` eventを読む |
 
+`NewController() *Adapter` は接続を開かず、設定済みの接続先を選択します。
+`NewControllerAt(path string) (*Adapter, error)` は明示した socket path が空でないことも検証します。
+接続やプロトコルの失敗は、要求した操作から返されます。
+`NewController` は、使われていなかった生成時のエラーを返さなくなりました。
+
 アダプターへ返すEnvironment内Workspace パスは常に次です。
 
 ```text

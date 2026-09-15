@@ -37,8 +37,13 @@ func NewClientWithDialer(dial control.Dialer) (*Client, error) {
 	return &Client{wire: wire}, nil
 }
 
-func NewDefaultClient() (*Client, error) {
-	return NewClient(control.SocketPath())
+// NewDefaultClient selects the configured management endpoint without I/O.
+// Connection and protocol failures are returned by the requested operation.
+func NewDefaultClient() *Client {
+	// SocketPath always returns a nonempty path, and UnixDialer always supplies
+	// a nonnil dialer; the explicit constructor's argument errors cannot occur.
+	client, _ := NewClient(control.SocketPath())
+	return client
 }
 
 func (c *Client) Ping(ctx context.Context) (PingResponse, error) {

@@ -93,10 +93,7 @@ func NewReader(root string) (*Reader, error) {
 func NewDefaultReader() (*Reader, error) {
 	switch strings.TrimSpace(os.Getenv("HACO_CLIENT_MODE")) {
 	case "controller":
-		client, err := controlapi.NewDefaultClient()
-		if err != nil {
-			return nil, err
-		}
+		client := controlapi.NewDefaultClient()
 		return &Reader{events: controllerSource{client: client}}, nil
 	case "":
 	default:

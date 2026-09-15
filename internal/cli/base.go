@@ -37,11 +37,7 @@ func runBase(args []string) int {
 		commandHelp(os.Stderr, "base", cliLanguage())
 		return 2
 	}
-	c, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	c := controlapi.NewDefaultClient()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if args[0] == "list" {

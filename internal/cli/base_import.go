@@ -44,11 +44,7 @@ func baseImportCommand(ctx context.Context, args []string, out, diagnostic io.Wr
 		flags.Usage()
 		return 2
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	result, err := loadBaseImport(ctx, client, flags.Arg(0), req)
 	if *machine {
 		if writeErr := json.NewEncoder(out).Encode(result); writeErr != nil {

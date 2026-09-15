@@ -40,10 +40,7 @@ func Main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fail(err)
-	}
+	client := controlapi.NewDefaultClient()
 	if err := dispatch(ctx, client, os.Args[1:]); err != nil {
 		fail(err)
 	}

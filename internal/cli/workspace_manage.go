@@ -44,11 +44,7 @@ func managedWorkspaceCommand(ctx context.Context, args []string, in io.Reader, o
 		flags.Usage()
 		return 2
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	all, err := client.ListManagedWorkspaces(ctx)
 	if err != nil {
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)

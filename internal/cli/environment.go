@@ -111,11 +111,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	if len(pos) != n || (args[0] == "create" && (workspace == "" || !core.DNSMode(dnsMode).Valid())) || (args[0] == "ssh" && keyPath == "") {
 		return usage()
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	mutating := args[0] == "create" || args[0] == "start" || args[0] == "stop" || args[0] == "delete" || args[0] == "ssh" || args[0] == "disconnect"
 	if args[0] == "delete" {
 		if _, err := fmt.Fprintf(diagnostic, cliLanguage().Text("daily.delete"), pos[0]); err != nil {
@@ -126,6 +122,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		fmt.Fprintf(diagnostic, "[running] environment_%s target=%q\n", args[0], pos[0])
 	}
 	var result any
+	var err error
 	switch args[0] {
 	case "forward":
 		result, err = client.ForwardEnvironment(ctx, pos[0], core.LocalPortRequest{Protocol: protocol, HostPort: port, TargetPort: targetPort})

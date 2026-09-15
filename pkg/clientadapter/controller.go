@@ -28,19 +28,16 @@ type controllerClientService struct {
 	client controllerClient
 }
 
-// NewController opens the client-neutral adapter through the Physical Host
-// controller. It is safe to use from trusted haco-host because it never
+// NewController selects the Physical Host controller for the client-neutral
+// adapter. It does not connect; each operation reports connection failures.
+// It is safe to use from trusted haco-host because it never
 // initializes guest-local composition or requires raw Incus authority.
 //
 // InteractionBatch is intentionally not provided by this constructor yet;
 // this slice exposes only Environment and client-connection lifecycle needed by
 // product clients such as `haco open`.
-func NewController() (*Adapter, error) {
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		return nil, translateError(controllerError(err))
-	}
-	return newControllerAdapter(client), nil
+func NewController() *Adapter {
+	return newControllerAdapter(controlapi.NewDefaultClient())
 }
 
 // NewControllerAt is equivalent to NewController but uses an explicit Unix

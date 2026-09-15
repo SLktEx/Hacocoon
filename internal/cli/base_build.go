@@ -84,11 +84,7 @@ func runBaseBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 2
 	}
-	client, err := controlapi.NewDefaultClient()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
-		return 1
-	}
+	client := controlapi.NewDefaultClient()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
