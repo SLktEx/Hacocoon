@@ -407,3 +407,18 @@ no native HRESULT. Installation, strict SSH and both reclamation stages passed
 before it. The root cause remains unknown; component success does not erase it.
 The follow-up adds bounded fixed progress observations without extending deadlines
 or bypassing notification history. Fresh validation is recorded below.
+
+The follow-up on main `119e3007` (`ffb31f2b`) passed focused checks 2.48s, lint
+3.49s, full local tests 10.53s, race 6.15s, CLI E2E 2.91s, docs 4.83s and workflow
+policy 1.04s. Windows test/GUI builds and vet passed; actual Windows review tests
+(11.41s), desktop tests (0.42s) and isolated registration (2.38s) also passed.
+Fixed progress parsing covers partial reads, unrelated/oversized output and child
+failure; the ordinary initial clear/show/history/remove path was exercised again.
+The installed CI clear timeout still needs a result from this updated candidate.
+
+A preceding validation archive was captured while the merge commit was completing
+and incorrectly retained a removed Seed fixture. Its full test run failed on that
+fixture's source-guard mismatch. This is retained as an invalid-source validation
+failure, not evidence for the merged candidate. Archive creation now pins one
+commit and rejects a moving source before validation; a fresh exact archive
+produced the results above. No product guard or timeout was relaxed.
