@@ -904,3 +904,5 @@ reclaimclient 3.83秒、haco-wsl 0.45秒で成功。導入識別の読み取り5
 errcheckで失敗し、戻り値の扱いを修正した。導入済みの通常操作の再試行成功は未確認。
 
 `detach-full-2` は対象回帰3.25秒、main差分lint 5.27秒、ローカル全体12.31秒、race 10.68秒、CLI E2E 2.88秒、docs 6.16秒、workflow policy 0.97秒、native build 1.11秒で成功した。
+
+候補 `97ffa2d66c223ebced04b195bc1d409d59b43829` を通常パッケージでbuild（21.54秒）し、専用の既存WSLへLinux/Windowsを揃えて導入（44.86秒）、インストーラのdoctorは成功した。`ordinary-reclaim-2` は端末開始から21.88秒で再び失敗したが、今回は準備/登録情報、Windowsエラー2と表示できた。同じ対象のWindows直接照合は成功しており、経路による差は未解決。見つからない登録の作り直しやワーカー再送はしていない。
