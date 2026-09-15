@@ -101,3 +101,29 @@ func TestNativeProgressLogAcceptsOnlyFixedStages(t *testing.T) {
 		}
 	}
 }
+
+func TestActivationFailureLogsFixedPhaseAndHRESULT(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, stage := range []string{"initialize", "register", "create", "dispatch", "private-token"} {
+		var output bytes.Buffer
+		reportReviewFailure(&output, &nativeReviewFailure{stage: "activation", cause: &nativeActivationFailure{stage: stage, status: -2147220990}})
+		var entry map[string]any
+		if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+			t.Fatal(err)
+		}
+		wantReason := "unavailable"
+		if stage == "dispatch" {
+			wantReason = "timeout"
+		}
+		if entry["reason"] != wantReason || strings.Contains(output.String(), "private") {
+			t.Fatal(entry)
+		}
+		if stage == "private-token" {
+			if _, found := entry["activation_error"]; found {
+				t.Fatal("unknown COM phase escaped")
+			}
+		} else if entry["activation_stage"] != stage || entry["activation_error"] != float64(-2147220990) {
+			t.Fatal(entry)
+		}
+	}
+}

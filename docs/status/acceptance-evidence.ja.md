@@ -369,3 +369,9 @@ Windows試験・GUI形式の構築とvetに加え、実Windows review11.41秒、
 失敗として残し、統合候補の証拠には使いません。作成時のcommitを固定し途中の変更を
 拒否するようにした新しい正確なアーカイブで、上記が成功しました。製品の保護や期限は
 緩和していません。
+
+
+#664 head `38dc1ffe`のWindows run34914309433 / job104208480202は導入・厳密SSH・公開reclaimまでPASSし、通知review step20でFAILしました。固定診断は`stage=activation, reason=unavailable`、HRESULT・child所要時間・renderer進捗は未観測。約10秒で、存在しない要求への期待された「承認待ちではない」拒否に到達しませんでした。これは先行clear timeoutとは別の未解決activation失敗で、以前の問題の修復とは扱いません。新しい人のGUI回答は未確認です。
+
+
+起動診断の追補はCOMのinitialize/register/create/dispatchと数値HRESULTを記録し、読み取り専用の期限切れ・中止をCOM応答と非公開peer終了後も保持します。集中1.22秒、文書と回帰10.37秒、実Windows通知4.75秒、desktop0.44秒、専用登録2.81秒、Windows build/vet、PowerShell probe構文がPASS。最後の整形は空白のみです。導入済み起動失敗の修復とは主張せず、上記の失敗runを保持します。

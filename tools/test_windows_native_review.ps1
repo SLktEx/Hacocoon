@@ -47,11 +47,13 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
             if ($receipt -match 'reason=(timeout|canceled|unavailable)\b') { $reason = $Matches[1] }
             $native = 'unrecorded'
             if ($receipt -match 'native_stage=(runtime|xml|create|identity|show|history) native_error=(-?[0-9]{1,11})\b') { $native = $Matches[1] + ':' + $Matches[2] }
+            $activation = 'unrecorded'
+            if ($receipt -match '\bactivation_stage=(initialize|register|create|dispatch) activation_error=(-?[0-9]{1,11})\b') { $activation = $Matches[1] + ':' + $Matches[2] }
             $childExit = 'unrecorded'; $duration = 'unrecorded'; $progress = 'unobserved'
             if ($receipt -match '\bexit_code=(-?[0-9]{1,11})\b') { $childExit = $Matches[1] }
             if ($receipt -match '\bduration_ms=([0-9]{1,12})\b') { $duration = $Matches[1] }
             if ($receipt -match '\bnative_progress=(runtime|input|decode|winrt|xml|create|identity|show|history|complete|unobserved)\b') { $progress = $Matches[1] }
-            throw ('Native review response did not match the expected refusal: exit={0}, expected_exit={1}, expected_text={2}, stage={3}, reason={4}, native={5}, child_exit={6}, duration_ms={7}, native_progress={8}' -f $process.ExitCode, $ExitCode, $receipt.Contains($Expected), $stage, $reason, $native, $childExit, $duration, $progress)
+            throw ('Native review response did not match the expected refusal: exit={0}, expected_exit={1}, expected_text={2}, stage={3}, reason={4}, native={5}, child_exit={6}, duration_ms={7}, native_progress={8}, activation={9}' -f $process.ExitCode, $ExitCode, $receipt.Contains($Expected), $stage, $reason, $native, $childExit, $duration, $progress, $activation)
         }
     } finally {
         if ($started -and -not $process.HasExited) { $process.Kill($true); $process.WaitForExit() }

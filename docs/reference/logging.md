@@ -207,3 +207,6 @@ observed from at most 512 bytes: runtime, input, decode, winrt, xml, create,
 identity, show, history or complete. Missing, partial, oversized or unrelated
 diagnostics become unobserved. This observation cannot confirm rendering,
 execution or approval, and never overrides a timeout or cancellation.
+
+
+COM activation failures include `activation_stage` (initialize/register/create/dispatch) and numeric `activation_error` (signed HRESULT). Read-only activation deadlines/cancellation retain their context classification across COM and private peer shutdown. No raw native error or private request is logged.

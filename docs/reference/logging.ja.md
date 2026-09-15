@@ -139,3 +139,6 @@ native通知描画の失敗は数値`exit_code`と`duration_ms`も記録しま�
 値はruntime／input／decode／winrt／xml／create／identity／show／history／completeです。
 未取得、途中の行、上限超過、その他の出力はunobservedになります。この観測は表示・実行・
 承認の成功を示さず、期限切れやキャンセルの結果も変更しません。
+
+
+COM起動の失敗は固定の`activation_stage`（initialize/register/create/dispatch）と数値`activation_error`（符号付きHRESULT）を記録します。読み取り専用の起動での期限・中止をCOM応答と非公開peer終了後も区別し、生のnativeエラーや要求内容は記録しません。

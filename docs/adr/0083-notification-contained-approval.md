@@ -63,3 +63,6 @@ and [unpackaged registration implementation](https://github.com/microsoft/Window
 The renderer reports bounded fixed progress stages to distinguish process startup,
 stdin/decode, WinRT loading and history/display stalls. These diagnostics never
 act as a receipt. Existing timeout and cancellation outcomes remain unchanged.
+
+
+COM creation/dispatch diagnostics preserve only the fixed phase and numeric HRESULT. Read-only activation timeout/cancellation has a distinct refusal code, without converting unavailability into a missing request or retrying an answer.

@@ -17,6 +17,27 @@ type nativeReviewFailure struct {
 func (e *nativeReviewFailure) Error() string { return "native notification review failed" }
 func (e *nativeReviewFailure) Unwrap() error { return e.cause }
 
+// HRESULT and stage come from fixed COM calls, never free-form native output.
+type nativeActivationFailure struct {
+	stage  string
+	status int64
+}
+
+func (e *nativeActivationFailure) Error() string { return "native notification activation failed" }
+func (e *nativeActivationFailure) Unwrap() error {
+	if e.stage != "dispatch" {
+		return nil
+	}
+	switch uint32(e.status) {
+	case 0x80040202:
+		return context.DeadlineExceeded
+	case 0x80040203:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+
 type nativeToastProcessFailure struct {
 	cause      error
 	exitCode   int
@@ -82,6 +103,13 @@ func reportReviewFailure(out io.Writer, err error) {
 		switch native.stage {
 		case "runtime", "xml", "create", "identity", "show", "history":
 			fields = append(fields, "native_stage", native.stage, "native_error", native.status)
+		}
+	}
+	var activation *nativeActivationFailure
+	if errors.As(err, &activation) {
+		switch activation.stage {
+		case "initialize", "register", "create", "dispatch":
+			fields = append(fields, "activation_stage", activation.stage, "activation_error", activation.status)
 		}
 	}
 	logger.Error("Windows notification review failed", fields...)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"runtime"
 	"strings"
@@ -26,6 +27,8 @@ type nativeActivation struct {
 // Private read-only acknowledgement: an absent request is different from a
 // failed display or unavailable controller. Neither status authorizes an answer.
 const eNoLongerPending uintptr = 0x80040201
+const eReadDeadline uintptr = 0x80040202
+const eReadCanceled uintptr = 0x80040203
 
 type notificationInput struct{ key, value *uint16 }
 type comFactory struct {
@@ -227,9 +230,15 @@ func activatorActivate(this *comActivator, appID, args *uint16, data *notificati
 			if errors.Is(err, desktopreview.ErrNoLongerPending) {
 				return eNoLongerPending
 			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				return eReadDeadline
+			}
+			if errors.Is(err, context.Canceled) {
+				return eReadCanceled
+			}
 			return eFail
 		case <-time.After(10 * time.Second):
-			return eFail
+			return eReadDeadline
 		}
 	default:
 		return eFail
@@ -240,7 +249,7 @@ func activatorActivate(this *comActivator, appID, args *uint16, data *notificati
 func startToastCOM(class windows.GUID, appID string, events chan<- nativeActivation) (func(), error) {
 	hr, _, _ := coInitializeEx.Call(0, 0) // COINIT_MULTITHREADED
 	if int32(hr) < 0 {
-		return nil, errors.New("initialize native notification activation")
+		return nil, &nativeActivationFailure{stage: "initialize", status: int64(int32(hr))}
 	}
 	comTables.Do(func() {
 		factoryTable = [5]uintptr{syscall.NewCallback(factoryQuery), syscall.NewCallback(factoryAddRef), syscall.NewCallback(factoryRelease), syscall.NewCallback(factoryCreate), syscall.NewCallback(factoryLock)}
@@ -261,7 +270,7 @@ func startToastCOM(class windows.GUID, appID string, events chan<- nativeActivat
 		factoryRelease(&s.factory)
 		activatorRelease(&s.activator)
 		coUninitialize.Call()
-		return nil, errors.New("register native notification activation")
+		return nil, &nativeActivationFailure{stage: "register", status: int64(int32(hr))}
 	}
 	return func() {
 		s.stopped.Store(true)
@@ -279,13 +288,13 @@ func startToastCOM(class windows.GUID, appID string, events chan<- nativeActivat
 func wakeToastCOM(class windows.GUID, appID string, request ...string) error {
 	hr, _, _ := coInitializeEx.Call(0, 0)
 	if int32(hr) < 0 {
-		return errors.New("initialize notification refresh")
+		return &nativeActivationFailure{stage: "initialize", status: int64(int32(hr))}
 	}
 	defer coUninitialize.Call()
 	var object unsafe.Pointer
 	hr, _, _ = coCreateInstance.Call(uintptr(unsafe.Pointer(&class)), 0, 4, uintptr(unsafe.Pointer(&iidNotification)), uintptr(unsafe.Pointer(&object)))
 	if int32(hr) < 0 || object == nil {
-		return errors.New("notification review is unavailable")
+		return &nativeActivationFailure{stage: "create", status: int64(int32(hr))}
 	}
 	table := *(*[4]uintptr)(*(*unsafe.Pointer)(object))
 	defer syscall.SyscallN(table[2], uintptr(object))
@@ -302,7 +311,7 @@ func wakeToastCOM(class windows.GUID, appID string, request ...string) error {
 		return desktopreview.ErrNoLongerPending
 	}
 	if int32(hr) < 0 {
-		return errors.New("notification refresh was refused")
+		return &nativeActivationFailure{stage: "dispatch", status: int64(int32(hr))}
 	}
 	return nil
 }

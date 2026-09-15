@@ -66,5 +66,9 @@ func (p *processReviewPeer) Exchange(ctx context.Context, m desktopreview.Messag
 	}
 	stop := context.AfterFunc(ctx, p.Close)
 	defer stop()
-	return p.peer.Exchange(m)
+	reply, err := p.peer.Exchange(m)
+	if ctx.Err() != nil {
+		return desktopreview.Reply{}, ctx.Err()
+	}
+	return reply, err
 }

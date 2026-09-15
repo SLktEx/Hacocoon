@@ -422,3 +422,9 @@ fixture's source-guard mismatch. This is retained as an invalid-source validatio
 failure, not evidence for the merged candidate. Archive creation now pins one
 commit and rejects a moving source before validation; a fresh exact archive
 produced the results above. No product guard or timeout was relaxed.
+
+
+At #664 head `38dc1ffe`, Windows run 34914309433 / job 104208480202 passed installation, strict SSH and public reclaim, then failed native review step 20. The new fixed report was `stage=activation, reason=unavailable`; native HRESULT, child duration and renderer progress were unobserved. After about ten seconds, the missing-request probe did not receive the expected no-longer-pending refusal. This is a separate unresolved activation failure, not proof of repair of earlier clear timeouts. Fresh human answers remain unverified.
+
+
+The activation diagnostic follow-up records fixed COM initialize/register/create/dispatch HRESULTs and preserves read-only timeout/cancellation across COM and private peer shutdown. Focused regressions (1.22s), docs/regressions (10.37s), native Windows review (4.75s), desktop (0.44s), isolated registration (2.81s), Windows build/vet and PowerShell probe parsing passed. Final formatting only changes whitespace. This does not establish that the installed activation failure is fixed; its failing run remains above.

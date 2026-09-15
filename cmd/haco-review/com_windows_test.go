@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -78,6 +79,8 @@ func TestNativeCOMActivationRoundTripWithoutRegistrationWrites(t *testing.T) {
 		{"no longer pending", desktopreview.ErrNoLongerPending, true},
 		{"wrapped no longer pending", errors.Join(desktopreview.ErrNoLongerPending), true},
 		{"controller failure", errors.New("private controller failure"), false},
+		{"read deadline", context.DeadlineExceeded, false},
+		{"read canceled", context.Canceled, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			go func() {
@@ -97,6 +100,11 @@ func TestNativeCOMActivationRoundTripWithoutRegistrationWrites(t *testing.T) {
 			err := <-opened
 			if err == nil || errors.Is(err, desktopreview.ErrNoLongerPending) != tc.stale {
 				t.Fatalf("read-only refusal classification: %v", err)
+			}
+			for _, reason := range []error{context.DeadlineExceeded, context.Canceled} {
+				if errors.Is(tc.result, reason) != errors.Is(err, reason) {
+					t.Fatal("read failure reason lost", err)
+				}
 			}
 		})
 	}
