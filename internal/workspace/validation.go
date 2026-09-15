@@ -4,16 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-var environmentNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
-
 func validateEnvironmentName(name string) (string, error) {
-	if !environmentNamePattern.MatchString(name) {
-		return "", fmt.Errorf("environment name %q must use lowercase letters, digits, and internal hyphens: %w", name, core.ErrInvalidArgument)
+	if err := core.ValidateEnvironmentName(name); err != nil {
+		return "", err
 	}
 	return name, nil
 }

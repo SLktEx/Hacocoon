@@ -368,6 +368,8 @@ jobs:
           python3 tools/test_evacuation_associations.py
           python3 tools/test_evacuation_capture.py
           python3 tools/test_evacuation_files.py
+          python3 tools/test_evacuation_compare.py
+          python3 tools/test_evacuation_selection.py
           python3 tools/package_vscode_notifications.py "$RUNNER_TEMP/hacocoon-notifications.vsix"
       - name: "[fixture] Test VS Code agent workspace client"
         run: |

@@ -22,6 +22,10 @@ additional snapshots merely to force the migration path.
 
 ## Read-only inventory
 
+The current roadmap preserves required current data; reconstructing old versions or
+replacing old WSL installations is outside scope. The procedures below remain useful
+for individually reviewed data without requiring whole-installation migration.
+
 Run from a checkout on the Physical Host with its existing Incus administration
 access. Protect the output because paths and ownership metadata can be sensitive.
 Use the actual configured controller root when it differs:
@@ -68,6 +72,51 @@ changes and the 50,000-entry / 64-level / 60-second limits retain partial result
 An all-file listing is neither content capture nor permission to delete the old WSL.
 
 ## Capture a reviewed tree
+
+### Keep a named selection
+
+After inventory, record what must survive in a private selection file. From the checkout
+on Linux or Windows, print a template (use UTF-8 when saving on Windows):
+
+```bash
+umask 077
+python3 tools/evacuation_selection.py template > selection.json
+```
+
+Edit the JSON before using it. Review each category: `managed-data`, `host-settings`,
+`manual-files`, `external-data`. Set its `status` to `listed` when items are listed,
+or `none` with a reason when no data in that category is needed. `pending` stays
+unreviewed. Add an item for each selected tree, using a unique descriptive `name`
+and a `source` description/location. Choose `retain`, `recreate` or `exclude`;
+recreation and exclusion require a reason and remain visible in the result.
+Do not put credentials or configuration contents into this file.
+
+For each retained item, capture/restore using the existing procedures and scan both
+trees with `evacuation_compare.py scan` below. Set `source_manifest` and
+`restored_manifest` to the resulting files. Paths are relative to `selection.json`
+unless absolute; the two Hosts need not be online together. Then run:
+
+```bash
+python3 tools/evacuation_selection.py report selection.json > selection-report.json
+```
+
+The report groups results by your names and provides the next action: `matching`,
+`different`, `incomplete`, missing/unreadable manifests, unreviewed items, recreation
+or exclusion. A broken item does not hide other comparisons. One item is processed
+at a time using the existing bounded manifest reader/comparer. The plan is limited
+to 1 MiB and 4,096 items. It never executes commands from the plan or reads source trees.
+
+Exit 0 means all categories and decisions were reviewed and at least one retained
+item exists with all selected retained observations matching. Exit 1 means that
+condition is not met; exit 2 means the selection could not be read. Recreated or
+excluded items do not become verified backups on exit 0. Supplying the same manifest
+file for both sides is refused; separate files can still be copies and are not proof
+of independent captures. The report always retains `authority: false` and
+`backup_complete: false`. Check selection completeness, owner namespaces, retention
+and ordinary application use separately. This helper is available from the checkout,
+not an installed `haco` command, and neither captures nor restores nor deletes data.
+
+### Capture the selected source
 
 Stop all writers first. Select a new empty mode-0700 destination owned by the caller,
 outside the source and on storage that will survive replacement. Run from the

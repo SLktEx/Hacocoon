@@ -18,39 +18,36 @@ are post-release acceptance items, not conditions for merging implemented work
 into main. Keep their unperformed status explicit without holding implementation
 delivery for them. This does not turn a known CI failure into a pass.
 
-Main `2f421006` (#687) and `ee8bf7fb` (#688) integrated the earlier M0–M5
-implementation and reclamation diagnostics. Main `e4d99700` /
-[#699](https://github.com/SLktEx/Hacocoon/pull/699) now also contains #689–#693
-and #696–#698: restored-tree comparison, bilingual reclamation, SSH failure
-classification, restore by source name, incremental/sequential Git transfer,
-catalog-scoped lifecycle locking and virtual-disk observation lifetime fixes.
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) includes
+the earlier M0–M5 implementation, retained-data and lifecycle corrections from
+#687–#699, shared bilingual setup/network/configuration guidance from
+[#701](https://github.com/SLktEx/Hacocoon/pull/701) (including #700), and bounded
+Git pack streaming. Each merged checkpoint passed all five exact-head workflows.
+Earlier HTTP503, attached-disk, TCP and #700 rerun failures remain in
+[acceptance evidence](acceptance-evidence.md); later success does not rewrite them.
 
-All five required workflows succeeded for exact #699 head `51ba4f24`, including
-installed Windows and real Incus/Btrfs. Earlier HTTP503, attached-disk and
-unexplained TCP failures remain in [acceptance evidence](acceptance-evidence.md);
-later success does not rewrite those receipts. No release was published.
-
-[#700](https://github.com/SLktEx/Hacocoon/pull/700) is the next main-targeted
-slice: Host/project setup outcomes and next actions use shared English/Japanese
-presentation and vertical help. Local full checks and normal installer-package
-generation passed. Four exact-head workflows passed; the first Windows attempt
-failed at public reclamation with an attached disk, without starting compaction.
-One failed-jobs rerun is pending; retain the failure separately from main #699's
-success. [#701](https://github.com/SLktEx/Hacocoon/pull/701) adds network result
-guidance and corrects stale cache-maintenance scope descriptions, with local
-checks and normal package generation passed. Both remain development work until
-their respective main integration.
+This checkout also implements named current-data selection in
+[#704](https://github.com/SLktEx/Hacocoon/pull/704) and named Base builders in
+[#705](https://github.com/SLktEx/Hacocoon/pull/705). Their PRs track integration;
+local validation and ordinary installer-package generation are recorded in the
+acceptance evidence. No release has been published for these changes.
 
 ## M0–M5 remaining work
 
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) now contains
+the Git streaming correction after all five exact-head workflows passed. The
+single-pack functional limit is resolved within the documented 16 GiB budget;
+representative huge-repository performance remains deferred. Installed acceptance
+of the new large-pack path is separate from the successful ordinary Git CI paths.
+
 | Stage and useful outcome | Remaining implementation or acceptance |
 |---|---|
-| M0 — use existing improvements together | Main integrates #687–#688 and #699. The same-version installation, ordinary SSH/editor/forwarding, stop/resume and retained-data cycle passed packaged Windows and Incus CI. Broader configurations remain separate. |
-| M1 — understandable everyday use | Vertical help, language handoff, repeated-failure grouping, installer results and bilingual reclamation are on main. #700 completes the setup-result guidance slice; other command families remain in the language contract. Human GUI/layout checks are post-release. The dedicated managed-user systemd-session warning remains a separate observation. |
+| M0 — use existing improvements together | Main integrates the earlier implementation through #702. The same-version installation, ordinary SSH/editor/forwarding, stop/resume and retained-data cycle passed packaged Windows and Incus CI. Broader configurations remain separate. |
+| M1 — understandable everyday use | Vertical help, language handoff, repeated-failure grouping, installer results, bilingual reclamation and setup/network/configuration results are on main. Other command families remain in the language contract. Human GUI/layout checks are post-release. The dedicated managed-user systemd-session warning remains a separate observation. |
 | M2 — independent multi-repository work and reviewed Git | Independent multi-repository forks, checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and result reconciliation are on main. Incremental history and sequential bounded fetch are integrated. Authenticated development and fresh notification/VS Code answers remain post-release acceptance. Main push approval stays independent of clone/fetch. |
 | M3 — permitted communication outside ordinary networks | TCP/UDP, loopback forwarding, interactive temporary execution and persistent host/backend/disabled DNS selection are implemented. Supported-baseline DNS/Policy and ordinary Windows forwarding have scoped evidence. Actual VPN/NRPT/restart combinations remain unperformed; name discovery never grants connection authority. |
-| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred; the streaming candidate removes the 32 MiB single-pack restriction with local real-Git evidence; installed acceptance remains pending. |
-| M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. Windows CI passed public reclaim plus retained Workspace/OCI/snapshot restore. Required-current-data selection, guest-visible owner checks, restored authenticated development and the dedicated local reclaim-start observation remain distinct acceptance/follow-up items. Preserve unknown ownership and failed receipts. |
+| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented; #705 adds a named build target for scoped configuration. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred. Main's streaming implementation removes the 32 MiB single-pack restriction with local real-Git evidence; installed large-pack acceptance remains pending. |
+| M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. #704 adds named selection and aggregate comparison. Windows CI passed public reclaim plus retained Workspace/OCI/snapshot restore. Choosing the operator's actual required data, independent retention, guest-visible owner checks, restored authenticated development and the dedicated local reclaim-start observation remain distinct acceptance/follow-up items. Preserve unknown ownership and failed receipts. |
 
 [CLI language scope](../reference/cli-language.md),
 [Workspace input](../design/workspace-input.md),
@@ -61,11 +58,26 @@ Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
 
+M5's named current-data selection and aggregate comparison helper is implemented
+in this checkout for [#703](https://github.com/SLktEx/Hacocoon/issues/703).
+It reuses the existing portable manifest comparer and preserves partial/unreviewed
+outcomes. The remaining selection work is choosing the operator's actual required
+data and checking independent retention, owner namespaces and ordinary resumed use.
+No old-version reconstruction or automatic deletion is added.
+
 Complete ordinary Packer setup/download/build/publication and reuse first when the
-required communication configuration is available. The proposed three-source
-require-approval configuration awaits user input after automatic approval review
-refused its all-Environment scope; it has not been applied. Do not bypass that refusal
-with a test allow rule. Continue independent usability work while it is pending.
+required communication configuration is available. Automatic approval review
+refused the proposed all-Environment require-approval configuration; it has not
+been applied. Prepare a concrete, named-builder scope through the ordinary Policy
+path before requesting any input that is still required. Do not bypass the refusal
+with a test allow rule. Continue independent work while setup is pending.
+
+The implemented `--builder <env>` option allows naming one build target for
+ordinary administrator rules, without adopting an existing Env or changing Policy.
+This removes the need to know a random name in advance. The rejected broad rule
+has not been applied; the new scoped configuration and actual installed Packer
+build/reuse still need their own review and evidence. It is a usability improvement
+within M4, not proof that dependency downloads have succeeded.
 
 Reclamation succeeded with measured allocation recovery in Windows CI, including
 retained Workspace/OCI verification. The dedicated local start previously failed
@@ -74,6 +86,14 @@ status succeeded after normal installation. That does not explain the earlier
 failure or prove a new start. An attempted global WSL restart was stopped by the
 pre-action guard after an unrelated running distribution was observed; no global
 shutdown occurred. Later, restarting only the dedicated WSL preserved the failure.
+Later #704/#705 Windows runs again refused compaction because the disk remained
+attached after the bounded wait. Preserve those failures alongside earlier recovery
+success. Windows-only process-count observations now support distinguishing the
+shutdown/detachment interval without restarting WSL, changing the product timeout
+or weakening refusal. The first installed result (#706, `38aeae56`) showed WSL
+processes disappearing and later returning, but still failed with `compact_attached`.
+Fixed parent-chain categories now narrow the next investigation; the restart source
+and detachment cause remain pending under #381. Counts never authorize compaction.
 Read-only comparisons isolate enrollment visibility to the init interop route;
 the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 
@@ -85,9 +105,9 @@ as performed, failed or unperformed independently of repository tests.
 
 Large-repository performance, additional strict validation, broader OCI/runtime
 compatibility are deferred until ordinary use works. Functional Git transfer
-limits remain M4 work: the incremental candidate avoids resending known history
-for fetch and existing-target push. The later new-branch candidate also reuses one
-advertised ancestor through an independent exact-ref read. The streaming development candidate replaces the 32 MiB new-pack
+limits have been addressed on main: incremental transfer avoids resending known
+history for fetch and existing-target push. New-branch push also reuses one
+advertised ancestor through an independent exact-ref read. Streaming replaces the 32 MiB new-pack
 restriction with bounded frames and a finite 16 GiB per-pack transfer limit,
 without whole-pack JSON/base64 buffering. It preserves separate push approval;
 local 40 MiB real-Git acceptance is functional evidence, not completed
@@ -129,12 +149,3 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
-
-The network-language follow-up (`0387258d`) adds M1/M3 result and next-action
-guidance while keeping JSON, source/target authority and rule scope unchanged.
-Local full checks passed, including real local TCP/UDP listener cancellation;
-installed/upstream acceptance is separate. The cache contract also removes stale
-claims that retained-source maintenance and added-data transfer are unimplemented.
-Existing native cache collection/reuse/emptying evidence is reused; late enrollment
-and unknown-copy cancellation remain follow-ups rather than being confused with
-the already working creation-time workflow.
