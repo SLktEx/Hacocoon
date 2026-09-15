@@ -29,7 +29,7 @@ func (s WorkspaceStores) Resolve(ctx context.Context, work core.Workspace) (core
 			return core.PersistentResource{}, core.ErrAlreadyExists
 		}
 		if existing.State == "creating" && existing.CopyCompleted {
-			return s.Resources.RecoverCopy(ctx, id)
+			return s.Resources.RecoverCopy(ctx, existing.Ref())
 		}
 		if existing.State != "ready" || !core.ValidPersistentResourceRef(existing.Ref()) {
 			return core.PersistentResource{}, fmt.Errorf("automatic Store %s: %w", id, core.ErrRecoveryRequired)

@@ -82,3 +82,5 @@ reviews and resets that reuse source, then removes eligible reviewed source data
 Existing Environment copies, Workspace and OCI data remain. Shared scope affects
 the whole group's future Environments. Partial cleanup returns nonzero and retains
 its result in JSON; inspect history before retrying. See [cache generations](../design/cache-generations.md#inspect-and-clear-collected-data).
+
+`haco cache recover [--json] <env> <area>` resumes positively completed collection through exact ownership and provider verification. It does not prompt for deletion or copy data again. A current source is reusable; stale completed candidates remain retained. Unknown completion remains an error. See [recovery](../design/cache-generations.md#recover-completed-collection).

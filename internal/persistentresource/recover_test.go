@@ -73,13 +73,13 @@ func TestCompletedCopyRecoversAfterReopeningStateWithoutRecopying(t *testing.T) 
 				if err := b.store.CommitPersistentResourceCreate(ctx, target); !errors.Is(err, core.ErrRecoveryRequired) {
 					t.Fatal("copy published without completion receipt", err)
 				}
-				if _, err := svc.RecoverCopy(ctx, target.ID); !errors.Is(err, core.ErrRecoveryRequired) || b.recoveries != 0 {
+				if _, err := svc.RecoverCopy(ctx, target.Ref()); !errors.Is(err, core.ErrRecoveryRequired) || b.recoveries != 0 {
 					t.Fatal("unknown completion resumed")
 				}
 				return
 			}
 			b.rejectRecovery = true
-			if _, err := svc.RecoverCopy(ctx, target.ID); !errors.Is(err, core.ErrRecoveryRequired) {
+			if _, err := svc.RecoverCopy(ctx, target.Ref()); !errors.Is(err, core.ErrRecoveryRequired) {
 				t.Fatal(err)
 			}
 			held, _ := b.store.GetPersistentResource(ctx, target.ID)
@@ -87,12 +87,12 @@ func TestCompletedCopyRecoversAfterReopeningStateWithoutRecopying(t *testing.T) 
 				t.Fatal("failed recovery released reservation")
 			}
 			b.rejectRecovery = false
-			recovered, err := svc.RecoverCopy(ctx, target.ID)
+			recovered, err := svc.RecoverCopy(ctx, target.Ref())
 			if err != nil || recovered.State != "ready" || recovered.CopyCompleted || recovered.CopySource != (core.PersistentResourceRef{}) || recovered.Owner != target.Owner || recovered.WorkspaceID != "work" || b.copies != 1 {
 				t.Fatalf("recovery: %+v %v copies=%d", recovered, err, b.copies)
 			}
 			b.fail = "verify" // An already published copy may now be attached.
-			if again, err := svc.RecoverCopy(ctx, target.ID); err != nil || again != recovered {
+			if again, err := svc.RecoverCopy(ctx, target.Ref()); err != nil || again != recovered {
 				t.Fatal("retry not idempotent")
 			}
 			b.fail = ""

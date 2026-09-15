@@ -18,6 +18,7 @@ type Workflow struct {
 	Catalog   WorkflowCatalog
 	Collector Collector
 	Cleaner   GenerationCleaner
+	Recoverer GenerationRecoverer
 }
 
 type AreaStatus struct {

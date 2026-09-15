@@ -57,6 +57,10 @@ func (s *Service) PublishGeneration(ctx context.Context, expected core.ResourceG
 
 // Both prepared sources and stopped-Environment copies use one CAS/cleanup path.
 func (s *Service) adoptGeneration(ctx context.Context, expected core.ResourceGeneration, result core.ResourceGenerationPublication) (core.ResourceGenerationPublication, error) {
+	return s.selectGeneration(ctx, expected, result, true)
+}
+
+func (s *Service) selectGeneration(ctx context.Context, expected core.ResourceGeneration, result core.ResourceGenerationPublication, cleanupRefused bool) (core.ResourceGenerationPublication, error) {
 	store, ok := s.Store.(generationStore)
 	if !ok {
 		return result, core.ErrUnsupported
@@ -71,6 +75,20 @@ func (s *Service) adoptGeneration(ctx context.Context, expected core.ResourceGen
 		// Persistence may be ambiguous. Never delete a candidate on this path.
 		result.State = "recovery-required"
 		return result, errors.Join(err, core.ErrRecoveryRequired)
+	}
+	if !cleanupRefused {
+		// Recovery may revisit a previously selected candidate after another
+		// publisher or reset. It cannot prove that such data was never selected.
+		current, readErr := store.GetResourceGeneration(ctx, expected.Name)
+		result.Generation, result.State = current, "retained"
+		if readErr != nil {
+			result.State = "recovery-required"
+			return result, errors.Join(readErr, core.ErrRecoveryRequired)
+		}
+		if current.Current == candidate.Ref() {
+			result.State = "published"
+		}
+		return result, nil
 	}
 	// CAS refusal proves that this candidate was not adopted. Delete only its
 	// exact ready owner through the common backend/absence/finalization sequence.

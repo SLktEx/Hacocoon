@@ -42,6 +42,7 @@ func init() {
 	set([]string{"cache settings"}, nil, []cliui.HelpField{json})
 	set([]string{"cache configure"}, []cliui.HelpField{field("<file>", "cache.file")}, []cliui.HelpField{json}, "cache.configured")
 	set([]string{"cache status"}, []cliui.HelpField{env}, []cliui.HelpField{json})
+	set([]string{"cache recover"}, []cliui.HelpField{field("<env>", "detail.env"), field("<area>", "cache.recover")}, []cliui.HelpField{json}, "cache.recovered")
 	set([]string{"cache history"}, []cliui.HelpField{field("<env>", "detail.env"), field("<area>", "cache.history")}, []cliui.HelpField{json}, "cache.history")
 	set([]string{"cache clear"}, []cliui.HelpField{field("<env>", "detail.env"), field("<area>", "cache.clear")}, []cliui.HelpField{json, field("--yes", "cache.clear_yes")}, "cache.clear_warning")
 	set([]string{"cache collect"}, []cliui.HelpField{field("<env>", "detail.stopped"), field("[area]", "cache.area_option")}, []cliui.HelpField{json}, "cache.next")

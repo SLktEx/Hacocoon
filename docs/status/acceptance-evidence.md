@@ -685,3 +685,13 @@ After merging main4cd0c7dc as611bedaf, the combined Git/GUI/Packer/cache source 
 At dca688f6, Windows34926634572/job104245971260 again failed initial clear with reason=timeout, child_exit=1, duration_ms=8019, native_progress=decode; previous SSH/public-reclaim steps passed. The product process ceiling is now30 seconds for cold PowerShell/WinRT initialization, while existing shorter caller deadlines and exact child cancellation remain. This is a bounded startup correction to verify, not proof of the underlying CI slowdown or successful GUI acceptance.
 
 The corrected source passed the full native Windows review test suite on this PC in 8.22s, including actual English/Japanese ToastGeneric display, history and removal (6.90s), activation callbacks, redaction and exact child cancellation. This is native component evidence; human clicks, visual layout acceptance and the CI cold-start outcome remain unverified.
+
+## Named cache completion recovery
+
+The follow-up to #670 passed focused lifecycle/cache/OCI/CLI/controller tests19.10s, changed-code lint15.71s, full local39.78s, race14.61s, CLI7.25s, docs/regressions10.41s and workflow2.00s. A real catalog with staged provider failure proves completed copies recover without recopy, original source pins are released only after verification, reset candidates remain retained, and unknown/provider-refused/wrong-owner cases remain blocked. Common OCI recovery now passes the exact owned reference. This is component evidence, not new native recovery or Windows acceptance. The earlier native maintenance timeout remains unresolved.
+
+Final recovery usage text and bilingual help passed CLI/UI/controller tests9.40s and docs/regressions12.72s; ownership/recovery code is unchanged from the full validation above.
+
+At recovery head3ac51f91, quality34924782288 failed QF1003 in cache_maintenance.go:41; test34924782199, Ubuntu34924782166 and Incus34924782231 passed. The dispatch is now a tagged switch with unchanged behavior. This failure remains distinct from local changed-patch lint success.
+
+The dispatch correction passed focused control/cache/workspace tests11.23s, uncapped lint against current main18.59s and documentation/regressions8.48s. Reparenting onto main4cd0c7dc (the exact tree of tested parent1ee2962b) changed no files.

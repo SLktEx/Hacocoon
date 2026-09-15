@@ -117,3 +117,5 @@ uncertain copies. Self-service copy recovery, orphan-source browsing and added-d
 transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
 
 Push reconciliation follow-up: implemented candidate reusing42aa706f. Durable dispatch/confirmation records and current-owner exact-ref reads distinguish original failure from current remote state, without replaying writes or restoring approval. Main clone/fetch grants no push authority. Fresh authenticated installed use and larger Git transport remain separate.
+
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery, existing-Env enrollment and added-data transfer remain incomplete; new real-host recovery acceptance is separate.

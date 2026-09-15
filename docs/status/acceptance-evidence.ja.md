@@ -594,3 +594,13 @@ main4cd0c7dcを611bedafへ統合し、Git/GUI/Packer/キャッシュを合わせ
 dca688f6のWindows34926634572/job104245971260も最初のclearでtimeout、child_exit=1、8019ms、progress=decodeとなりました。直前のSSH/公開reclaimは成功しています。製品のPowerShell/WinRT初回起動上限を30秒にし、呼び出し側の短い期限と正確な子の中断は維持します。これは検証対象の起動上限修正であり、CI遅延の根因やGUI受入の成功を確認したという意味ではありません。
 
 修正ソースのWindows通知テスト全体は、このPCで8.22秒でPASS。実際の日英ToastGeneric表示・履歴・削除（6.90秒）、activation callback、秘匿化、正確な子の中断を含みます。実機componentの証拠であり、人のクリック・見た目の受入・CIのcold起動結果は未確認です。
+
+## 名前付きキャッシュ完了復旧
+
+#670の後続はライフサイクル/キャッシュ/OCI/CLI/controller集中19.10秒、変更範囲lint15.71秒、全ローカル39.78秒、race14.61秒、CLI7.25秒、文書・回帰10.41秒、workflow2.00秒がPASS。実catalogと段階的provider失敗の試験で、完了記録からコピーし直さず復旧し、検査後に元データの保持を解除すること、リセット後の候補を保持し、不明・provider拒否・所有権違いは拒否することを確認。OCIの共通復旧も正確な所有参照を渡す。部品検証であり、新しいnative復旧やWindows受入ではない。先行の実機保守timeoutは未解決。
+
+最後の復旧の使い方案内と日英ヘルプはCLI/UI/controller9.40秒、文書・回帰12.72秒がPASS。所有権・復旧コードは上記全体確認から変更していない。
+
+復旧3ac51f91のquality34924782288はcache_maintenance.go:41のQF1003で失敗しました。test34924782199、Ubuntu34924782166、Incus34924782231は成功しました。分岐を同じ挙動のswitchへ整理しています。この失敗は先の変更差分lint成功と区別します。
+
+分岐修正後、control/cache/workspaceの集中テスト11.23秒、現在mainに対する件数上限なしlint18.59秒、文書・回帰8.48秒が通りました。確認済み親1ee2962bと全ファイル一致するmain4cd0c7dcへ載せ替え、内容は変更していません。
