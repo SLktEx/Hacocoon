@@ -11,7 +11,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 13 // 9 was an unpublished replacement prototype; reject it.
+const environmentStateVersion = 14 // 9 was an unpublished replacement prototype; reject it.
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
@@ -93,6 +93,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func (s *EnvironmentJSONStore) writeEnvironments(data environmentFileState) error {
+	if err := validateEphemeralIdentities(data); err != nil {
+		return err
+	}
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create environment state directory: %w", err)

@@ -390,3 +390,49 @@ main `119e3007`取り込み後の案内・準備の統合候補`3c2d4c5c`は、�
 
 
 PR #665のhead `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa`はWindows34900315650を含む全5CIがPASS。main `9da3ec8f`を`35d5ea81`へ統合後、全ローカル13.58秒、CLI E2E3.22秒、文書と回帰4.65秒がPASSしました。先行するnative protocol起動timeoutの原因は未解明のまま保持し、後の成功で消しません。新しい人のデスクトップ操作の受入とは扱いません。
+
+
+<a id="main-interactive-run"></a>
+## main向け一時実行の対話操作
+
+M3候補はmainの責務分割を保って #590/#591 を再利用しました。`acd61022`では、
+集中試験5.37秒、変更部分lint4.28秒、標準ローカル全体11.55秒、関連race10.71秒、
+CLI E2E6.47秒、文書5.58秒、workflow policy1.17秒がPASS。実際のローカルPTYや
+バイナリ入力の試験は部品の証拠で、導入済みWindows・Incusの受入とは区別します。
+
+最初のWSL起動は試験開始前に`0x800705b4`で失敗し、後続は再起動せず起動できました。
+初期試験はfixtureの作成ID欠落・古いschema固定で失敗し、現行形式へ修正しました。
+移行用処理は追加していません。存在しないEnvironmentのfield参照によるコンパイル失敗も
+修正し、作成IDはWorkspace leaseを正本としました。初回lintの未確認write/closeも修正後に
+上記の検証が成功しています。先行する失敗は保持します。
+
+現在はmain `119e3007`上のGit PR #663（`ddb03e85`）へ積み、対話実行をv0.61へ記録します。
+mainには既に前景処理の開始を待つPTY resize回帰があるため、適用検査で競合した
+#594の古い方法は適用していません。統合後の検証と導入実機の受入は別に記録します。
+旧版移行や所有権を確認しないcleanupは追加していません。
+
+統合後の`8b4d00a2`と標準ツールで更新したv0.61の候補は、集中4.37秒、
+件数制限なしの変更部分lint2.53秒、全ローカル試験10.68秒、race8.51秒、
+CLI E2E2.95秒、文書と回帰4.95秒、workflow policy1.02秒がすべてPASS。
+Gitと一時実行の両方を含む結果です。新しい実Incus・Windowsの逐次実行の受入は
+通常の環境確認として別に残ります。
+
+
+PR #666のhead `7ed40fe53850747ebd06231c09f9df9fc4a87959`はtest、quality、
+Ubuntu installer、実IncusがPASS。Incus run34900137450 / job104163854329で、
+製品の一時実行を通したバイナリ入力、実PTYの編集・サイズ変更、終了17、端末復元、
+中止時cleanup、Workspace保持が成功しました。既存snapshot/copy/transferもfixtureの
+範囲内でPASS。これは実Incusの逐次実行の受入です。
+
+Windows run34900137466 / job104163854107のstep19は公開reclaimでFAIL。
+Linux側回収完了後、Windows停止を要求しましたが、`compact_attached`で接続中VHDを拒否。
+圧縮・再開は未試行、native errorは未記録です。通知stepはSKIP。Windows回収の未解決失敗であり、
+逐次実行の受入やworker修復とは扱いません。接続中ディスクの保護は緩めません。
+人のGUI回答、Windows逐次実行、認証Git、巨大レポ性能は未確認です。
+
+#663がmain `9da3ec8f`へ反映された後、#666を`18073ee7`へrebaseしました。
+`7ed40fe5`と全ファイルが同一で、その後は本記録と状態の要約だけを更新しています。
+既存のソース別成功は保持し、新headのCI成功へ読み替えません。
+
+
+main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。

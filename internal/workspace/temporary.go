@@ -11,5 +11,14 @@ func (s *Service) DeleteTemporary(ctx context.Context, name string, work core.Wo
 	if !core.ValidTemporaryWorkspace(work) {
 		return core.ErrInvalidArgument
 	}
-	return s.delete(ctx, name, &work)
+	return s.delete(ctx, name, &work, "")
+}
+
+// DeleteRun keeps the generation check and deletion under the same lifecycle
+// lock. A run marker or a run-* name cannot select a replacement Environment.
+func (s *Service) DeleteRun(ctx context.Context, name, instance string) error {
+	if !core.ValidEnvironmentInstanceID(instance) {
+		return core.ErrInvalidArgument
+	}
+	return s.delete(ctx, name, nil, instance)
 }

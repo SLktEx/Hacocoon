@@ -76,7 +76,7 @@ func recoveryService(env *fakeEnvironments, store *fakeRunStore) *Service {
 }
 
 func TestReconcileSkipsEphemeralRunOwnedByLiveProcess(t *testing.T) {
-	run := core.EphemeralRun{EnvironmentID: "run-live", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+	run := core.EphemeralRun{InstanceID: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EnvironmentID: "run-live", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
 	store := newFakeRunStore(run)
 	env := &fakeEnvironments{}
 	service := recoveryService(env, store)
@@ -99,7 +99,7 @@ func TestReconcileSkipsEphemeralRunOwnedByLiveProcess(t *testing.T) {
 }
 
 func TestReconcileDeletesOnlyMarkedRunAfterOwnershipIsFree(t *testing.T) {
-	run := core.EphemeralRun{EnvironmentID: "ordinary-looking-name", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+	run := core.EphemeralRun{InstanceID: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EnvironmentID: "ordinary-looking-name", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
 	store := newFakeRunStore(run)
 	env := &fakeEnvironments{}
 	service := recoveryService(env, store)
@@ -144,7 +144,7 @@ func TestReconcileNeverUsesRunNameAsDeletionAuthority(t *testing.T) {
 
 func TestReconcileKeepsMarkerWhenCleanupFails(t *testing.T) {
 	cleanupErr := errors.New("runtime delete failed")
-	run := core.EphemeralRun{EnvironmentID: "run-stale", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+	run := core.EphemeralRun{InstanceID: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EnvironmentID: "run-stale", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
 	store := newFakeRunStore(run)
 	env := &fakeEnvironments{deleteErr: cleanupErr}
 	service := recoveryService(env, store)
@@ -215,7 +215,7 @@ type markerCheckingEnvironment struct {
 
 func (e *markerCheckingEnvironment) Create(_ context.Context, spec core.EnvironmentSpec) (core.Environment, error) {
 	marker, ok := e.store.runs[spec.Name]
-	e.markerSeenDuringCreate = ok && marker.State == core.EphemeralRunCreating
+	e.markerSeenDuringCreate = ok && marker.State == core.EphemeralRunCreating && core.ValidEnvironmentInstanceID(marker.InstanceID) && marker.InstanceID == spec.EphemeralInstance
 	return core.Environment{Name: spec.Name}, nil
 }
 
@@ -224,3 +224,20 @@ func (*markerCheckingEnvironment) Exec(context.Context, string, core.ExecutionRe
 }
 
 func (*markerCheckingEnvironment) Delete(context.Context, string) error { return nil }
+func (e *markerCheckingEnvironment) DeleteRun(_ context.Context, name, instance string) error {
+	if e.store.runs[name].InstanceID != instance {
+		return core.ErrCapabilityStale
+	}
+	return nil
+}
+
+func TestLegacyRetainedRunNeverAdoptsCurrentEnvironment(t *testing.T) {
+	run := core.EphemeralRun{EnvironmentID: "run-legacy", State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+	store := newFakeRunStore(run)
+	env := &fakeEnvironments{}
+	service := recoveryService(env, store)
+	service.acquireOwnership = func(string, string, bool) (runOwnershipLock, bool, error) { return &fakeOwnershipLock{}, true, nil }
+	if err := service.Reconcile(context.Background()); !errors.Is(err, core.ErrRecoveryRequired) || len(env.calls) != 0 || store.runs[run.EnvironmentID].InstanceID != "" {
+		t.Fatal("legacy ownership was guessed", err, env.calls)
+	}
+}

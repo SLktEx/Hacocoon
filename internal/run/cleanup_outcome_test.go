@@ -30,7 +30,7 @@ func TestCleanupFailuresAlwaysRemainRecoveryRequired(t *testing.T) {
 				}
 				var err error
 				if reconcile {
-					store.runs[name] = core.EphemeralRun{EnvironmentID: name, State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
+					store.runs[name] = core.EphemeralRun{InstanceID: "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EnvironmentID: name, State: core.EphemeralRunActive, CreatedAt: time.Now().UTC()}
 					err = service.Reconcile(context.Background())
 				} else {
 					var result Result

@@ -81,8 +81,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.58 | Daily CLI Entry and Setup Diagnostics | 実装済み |
 | v0.59 | Host customization lifecycle and results | 実装済み |
 | v0.60 | Git branch read and push authority | 実装済み |
+| v0.61 | Interactive temporary execution | 実装済み |
 
-現在のmilestone位置は **v0.60**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.61**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -121,3 +122,9 @@ v0.60は #585/#587 をmainへ再利用した全head取得と、新規branch/fast
 明示的なpush権限を記録します。M2全体の完了や配布を意味しません。
 GUI、認証付きの導入実機、大容量packは別に残ります。
 [検証範囲](acceptance-evidence.ja.md#main-git-branches)を参照してください。
+
+## 一時実行の対話操作
+
+v0.61は標準入力・TTY・逐次出力と、作成IDに固定したcleanupを記録します。
+main向けGitの節目（#663）に続く開発上の進捗であり、M3全体やWindows・Incusの
+受入完了、配布を意味しません。[確認範囲](acceptance-evidence.ja.md#main-interactive-run)を参照してください。

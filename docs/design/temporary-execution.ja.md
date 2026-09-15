@@ -2,7 +2,7 @@
 
 日本語 | [English](temporary-execution.md)
 
-状態: **product CLI は実装済み、実 Incus の検証は 4adfe19 で成功**。
+状態: **候補では通常出力・対話実行を実装済み。新しいstreamの実機確認は未完了**。以前の通常実行の実Incus成功は4adfe19の範囲に限定します。
 
 Environment の命名や事前作成なしに、コマンドを1回実行します。
 
@@ -33,10 +33,10 @@ lease を持つ場合は、その Environment を削除してから貸し出し�
 実イメージ利用の残件は [実装状態](../IMPLEMENTATION_STATUS.ja.md) と区別します。
 
 コマンドの stdout/stderr と終了コードを返します。出力は既存の上限付きで収集し、
-対話的なストリーミングではありません。切り詰めは明示します。
+切り詰めは明示します。`-i`でパイプ入力とstdout/stderrを逐次転送し、`-it`で端末の入力・編集・サイズ変更を使えます。
 --json は execution と cleaned_up を返します。コマンドの非ゼロ終了は、
 片付け成功時にも失敗です。片付け失敗を別に報告し、成功扱いにしません。
---rm=false と対話 stdin/TTY は未対応です。
+`--rm=false`は未対応です。対話転送と`--json`は併用できません。JSONの実行結果が必要な場合は通常出力を使います。
 
 Ctrl+C はコントローラーに中断を要求し、130 を返します。クライアントは切断済みなので、
 削除を確認できたとは報告しません。haco env list と haco env status <name> で残件を確認します。
@@ -85,3 +85,20 @@ JSON 形式と guest 終了コードは変わりません。cleaned_up は runti
 完了を表し、マーカー削除の失敗は引き続きエラーです。リポジトリ回帰テストでマーカー削除の
 再試行、activation 失敗、キャンセル、保持 Workspace／Store の境界、scratch の途中失敗を
 検証します。
+
+## 対話操作と片付け対象の固定
+
+```sh
+printf 'input\n' | haco run -i -- cat
+haco run -it --workspace managed:dev -- bash
+```
+
+`-it`には実際の端末が必要です。PTYでは出力を統合し、`-i`ではstdout/stderrを分けます。
+入力終了と接続切断を区別し、終了値と片付けの完了が確認できたときだけ成功を返します。
+応答が不明な操作を自動で再送しません。明示したWorkspaceとOCIは保持します。
+
+作成前の永続記録にEnvの生成時の識別子を固定し、共通作成処理でその予約を照合します。
+削除時もライフサイクルのロック内で照合するため、同じ名前で作り直した別Envを片付けません。
+mainで分割済みの責務と共通cleanup結果処理を維持します。所有権が欠けた記録は拒否し、
+旧版の移行や代替cleanupは追加しません。[所有権の判断](../adr/0084-ephemeral-run-creation-ownership.md)と
+[転送の契約](../adr/0085-bounded-process-streams.md)を参照してください。

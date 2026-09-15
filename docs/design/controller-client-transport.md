@@ -350,3 +350,12 @@ EOF is not success. The CLI does not fall back to another mutation. Disconnect
 retains server-side lifecycle ownership until the bounded operation returns.
 There is no guest endpoint registration or new management authority. See
 [setup diagnostics](trusted-host.md#setup-progress-and-failure-diagnostics).
+
+## Temporary process streams
+
+The negotiated `run.process` stream carries bounded stdin/stdout/stderr, explicit
+input EOF/credit and a final receipt after canonical cleanup. Disconnect cancels;
+receipt/frame or session-completion failure remains unconfirmed. It reuses existing
+TTY sizing and optional provider process contracts; clients receive no Incus
+authority. See [temporary execution](temporary-execution.md) and
+[ADR 0085](../adr/0085-bounded-process-streams.md).

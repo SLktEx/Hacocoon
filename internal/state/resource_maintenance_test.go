@@ -34,7 +34,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 			if err := s.CommitPersistentResourceCreate(ctx, r); err != nil {
 				t.Fatal(err)
 			}
-			run := core.EphemeralRun{EnvironmentID: "maintenance", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
+			run := core.EphemeralRun{InstanceID: "env-" + strings.Repeat("c", 32), EnvironmentID: "maintenance", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
 			switch mode {
 			case "other-work":
 				other, _ := core.NewTemporaryWorkspace()
@@ -49,7 +49,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			lease := core.WorkspaceLease{WorkspaceID: work.ID, SourcePath: work.Path, EnvironmentID: "maintenance", Owner: "maintenance", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: r.Ref()}
+			lease := core.WorkspaceLease{Ephemeral: true, InstanceID: run.InstanceID, WorkspaceID: work.ID, SourcePath: work.Path, EnvironmentID: "maintenance", Owner: "maintenance", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC(), PersistentResource: r.Ref()}
 			switch mode {
 			case "host-path":
 				lease.SourcePath = "/original"
@@ -87,6 +87,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 			}
 			// Ordinary original-Workspace use and explicit Store deletion stay excluded.
 			other := lease
+			other.Ephemeral = false
 			other.EnvironmentID = "ordinary"
 			other.Owner = "ordinary"
 			other.WorkspaceID = "original"

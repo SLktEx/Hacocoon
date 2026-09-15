@@ -83,8 +83,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.58 | Daily CLI Entry and Setup Diagnostics | ✅ implemented |
 | v0.59 | Host customization lifecycle and results | ✅ implemented |
 | v0.60 | Git branch read and push authority | ✅ implemented |
+| v0.61 | Interactive temporary execution | ✅ implemented |
 
-The current milestone position is **v0.60**. This declaration and the table mirror YAML.
+The current milestone position is **v0.61**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -125,3 +126,10 @@ v0.60 records all-head reads and explicit new-branch/fast-forward push authority
 reused from #585/#587 on main. It does not mark all of M2 complete or publish a
 release. GUI, authenticated installed use and large-pack transport remain separate;
 see [verification scope](acceptance-evidence.md#main-git-branches).
+
+## Interactive temporary execution
+
+v0.61 records stdin/TTY and streamed output with exact creation-bound cleanup.
+It follows the main-targeted Git checkpoint in #663. This is development progress,
+not all of M3 or Windows/Incus acceptance and not a release. See
+[verification](acceptance-evidence.md#main-interactive-run).

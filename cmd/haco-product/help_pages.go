@@ -16,7 +16,7 @@ var helpPages = []helpPage{
 	{Path: "doctor", Syntax: "[--json] [environment]", Message: "help.doctor", Example: "haco doctor dev"},
 	{Path: "reclaim", Syntax: "[--yes | --status | --review [--yes]]", Message: "help.reclaim", Example: "haco reclaim --status"},
 	{Path: "version", Syntax: "[--json]", Message: "help.version", Example: "haco version --json"},
-	{Path: "run", Syntax: "[--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] [--rm] -- <command...>", Message: "help.run", Example: "haco run -- make test"},
+	{Path: "run", Syntax: "[-i | -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] [--rm] -- <command...>", Message: "run.help", Example: "haco run -it -- bash"},
 	{Path: "env", Syntax: "<command>", Message: "command.env", Example: "haco env list"},
 	{Path: "env list", Syntax: "[--json]", Message: "command.env.list", Example: "haco env list"},
 	{Path: "env create", Syntax: "--workspace <workspace> [--base <base>] [--resource oci:<store>] [--no-oci] [--json] <name>", Message: "command.env.create", Example: "haco env create --workspace managed:work dev"},

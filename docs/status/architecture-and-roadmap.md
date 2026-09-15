@@ -195,3 +195,12 @@ stays common in the client; controller lifecycle remains canonical. Reuse #659 t
 remove duplicate preliminary Host tooling. M2 push reconciliation, M3 stream/TTY/DNS,
 M4 public cache/Packer and current-version M5 cleanup remain active. Old-version
 compatibility/migration are excluded; new installed acceptance remains distinct.
+
+
+## Temporary execution on main
+
+The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY
+streams in main's split lifecycle files. It preserves shared cleanup outcomes
+and requires current run identity rather than adding legacy migration. DNS modes
+and client-side forwarding remain independent work. Local regression and new
+native acceptance are recorded separately; large-repository performance remains deferred.
