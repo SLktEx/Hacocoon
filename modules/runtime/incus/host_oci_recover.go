@@ -20,6 +20,13 @@ func (b *PersistentResourceBackend) RecoverCompletedCopy(ctx context.Context, so
 		if err := b.Verify(ctx, target); err != nil {
 			return err
 		}
+		if source.EnvironmentInstance != "" {
+			observed, err := b.observe(ctx, source)
+			if err != nil {
+				return err
+			}
+			return b.verifyEnvironmentGenerationSource(ctx, source, target, observed)
+		}
 		return b.Verify(ctx, source)
 	}
 	unlock, err := lockHostOperation(ctx, b.Runtime.project)

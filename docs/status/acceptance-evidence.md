@@ -619,3 +619,63 @@ After merging current main5121b205 as ac145abc, the combined GUI/notification ca
 ## Git push reconciliation integration
 
 The main candidate reuses 42aa706f over GUI/notification source 8d509399. Focused tests (9.31s), changed-code lint (12.57s), maintained local tests (25.06s), race (28.69s), CLI E2E (4.44s), documentation/regressions (8.66s), and workflow policy (1.50s) passed with Go 1.27.1. The first lint attempt found an unchecked audit-fixture close; the fixture was fixed before the complete pass. Tests exercise real Git repositories and read-only remote observation, including ambiguous receipts and replaced Environment identity. Authenticated remote Git and human approval acceptance were not run. Reconciliation never repeats a push or infers its original success from current branch equality.
+
+<a id="ordinary-cache-collection"></a>
+## Ordinary cache collection candidate
+
+The public follow-up to #668 adds `haco cache settings/configure/status/collect`,
+Host configuration persistence and stopped, creation-bound generation publication.
+Full local tests (10.17s), focused tests (4.53s), changed-code lint (3.11s), related
+race (6.02s), CLI E2E (2.73s), docs/regressions (4.82s) and workflow policy (0.93s)
+passed on the verified source. An earlier full attempt stopped at 16 unchecked
+CLI writer results in lint, after focused tests passed; output errors now return
+failure. Subsequent presentation-only changes are checked separately.
+
+Real Incus on WSL `hacocoon-second` passed the ordinary data-placement/collection
+fixture in 15.35s (command 18.12s), using existing Btrfs pool `haco-local-default`
+and cached Ubuntu 26.04 fingerprint
+`b36d486c9412aee50d36c8875437070014bebd94d2207e0f703cd1b235c63033`.
+Two cache directories were written inside an ordinary Env, stopped and collected.
+After producer deletion, another Base name using the same cached image received
+independent copies with the expected bytes; child cleanup, selection reset,
+exact source cleanup and retained Workspace bytes passed. Native drift/ref-only
+resume refusal and client-triggered resume also passed. The fixture used no
+permission relaxation, proxy override, Host management socket in the guest or
+manual catalog repair. A first PowerShell launch failed in the harness parser
+before WSL/test execution; correcting its command text was the only launch change.
+
+This proves the named rootfs-area functional slice, not different image contents,
+installed CLI delivery, human Windows operations or giant-repository performance.
+Existing-Env enrollment, history/clear/recovery commands and added-data transfer
+remain incomplete. The old ambiguous pool `haco-cache-15c4cf3cbcded3c0` was untouched.
+
+
+
+The final named-area presentation (including compatibility/shared scope and cleanup-required) passed focused CLI/UI/controller tests (2.61s) and docs/regressions (4.74s). This presentation change does not alter the native collection implementation exercised above.
+
+<a id="main-packer-builds"></a>
+## Packer HCL2 builds on main
+
+The candidate reuses `1103505b` on main `9da3ec8f`: actual guest-local Packer, HCL2 context and external scripts, optional composition, canonical Base lifecycle and private failed-stage output. Focused tests (31.91s), changed-code lint (38.45s), maintained local tests (45.78s), related race (12.70s), CLI E2E (11.78s), docs/regressions (8.50s) and workflow policy (1.88s) passed with Go 1.27.1. Initial lint found unchecked read-handle closes, one error string and a switch simplification; corrected before these passes. Initial patch application targeted help catalogs absent from main and was refused without changing files; current main metadata was adapted instead.
+
+These results do not execute Packer or establish installed acceptance. The source candidate's earlier whole-suite PTY timeout and Ubuntu dependency downloads rejected by the installed proxy with HTTP 403 remain unresolved historical failures, not a successful build. Full guest download/fmt/init/validate/build, Base publication/reuse, arm64, custom plugin failures and Windows entry remain unverified. No test-only policy grant or Host-side HCL execution is introduced. The existing simple JSON shell definition remains a current feature, not an old-version migration requirement.
+
+
+After integrating #666 at `629f33ed` as `068c8106`, the canonical checkpoint tool advanced this candidate to v0.62 (Packer HCL2 Base builds). Combined local tests (34.93s), CLI E2E (5.34s) and docs/regressions (6.95s) passed. Both Packer and interactive run are included; this is not a release or full M4 acceptance.
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
+
+
+At #667 head `61aeff8f`, Windows 34916801756 / job104216088784 passed installation, HTTPS, Windows interop, Base creation and initial strict SSH/desktop alias, then failed parallel cold reconnect after fixture WSL termination: exit255, ssh_progress=stream_denied. Reclamation and notification steps were skipped. The root cause remains unresolved; no actual Packer build is established by this run. Other four workflows passed.
+
+
+After integrating main `5e89597a` as `075fc746`, Packer and current detailed help passed full local tests (13.24s), CLI E2E (3.18s) and docs/regressions (4.79s). Final formatting changes only whitespace in the two help files. The parallel cold SSH refusal at `61aeff8f` remains unresolved; new CI cannot retroactively establish its cause.
+
+After integrating current main `5e89597a`, foundation `929346bf` and Packer `6ad776ad` as `25923518`, the v0.63 candidate passed maintained local tests (13.84s), CLI E2E (3.22s) and docs/regressions (4.93s). This combined check covers the public cache help and checkpoint; the native collection scope and remaining gaps above are unchanged.
+
+## Named cache history and clearing
+
+The follow-up to #669 passed focused tests (15.58s), changed-code lint (4.08s), full local tests (14.83s), related race (6.28s), CLI E2E (3.66s), docs/regressions (5.57s) and workflow policy (4.23s). The first focused run failed because a synthetic string reader was mistaken for a real nonterminal input in the test; using an actual pipe fixed the fixture without changing product confirmation.
+
+The new real Incus maintenance attempt FAILED: `TestRealIncusEnvironmentDataPlacementE2E`, command251.40s/test243.38s, Env `data-e2e-c78cf57de85ce050`, catalog `/var/lib/haco-data-placement-529644104/state.json`. The four-minute context expired during existing resume/access steps before collection or the new history/clear assertions, reporting `signal: killed`. This is not a maintenance pass or a SKIP. Earlier ordinary collection success remains scoped to its own source; native clearing still needs acceptance. Cleanup outcome is being checked from the owned catalog.
+
+Read-only follow-up confirmed no Environments, leases or persistent resources remain in that exact failed-fixture catalog, and the native name query returned no instance. Only two empty generation entries remain. The original timeout is unresolved.

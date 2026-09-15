@@ -540,3 +540,51 @@ main `5e89597a`を`3d8c2877`へ統合後、キャッシュ基盤の全ローカ�
 ## Git push照合の統合確認
 
 GUI・通知の8d509399へ既存42aa706fを再利用しました。Go 1.27.1で集中テスト9.31秒、変更コードのlint12.57秒、標準ローカル25.06秒、race28.69秒、CLI E2E4.44秒、文書・回帰8.66秒、workflow1.50秒が成功しました。最初のlintでは監査テストのClose結果未処理が見つかり、修正後に全項目が通りました。実Gitリポジトリと読み取り専用のリモート照合で、結果不明の送信記録やEnv作成実体の置換も確認しています。認証付きリモートGitと人による承認操作は未実施です。照合はpushを再送せず、現在のブランチ一致から元の送信成功を推定しません。
+
+<a id="ordinary-cache-collection"></a>
+## 通常Envからのキャッシュ収集候補
+
+#668の追補は`haco cache settings/configure/status/collect`、Host設定保存、停止した生成元の所有関係付き世代公開を追加します。
+照合済みソースで全ローカル10.17秒、集中4.53秒、変更部分lint3.11秒、関連race6.02秒、CLI E2E2.73秒、文書と回帰4.82秒、workflow policy0.93秒がPASS。
+先行の全体試行は集中PASS後にCLI出力結果16件の未確認でlintがFAILし、後続は未実施。出力失敗を終了値へ反映するよう修正しました。その後の表示だけの変更は別途確認します。
+
+WSL `hacocoon-second`の実Incusでも通常のデータ配置・収集fixtureが15.35秒（コマンド18.12秒）でPASSしました。
+既存Btrfsプール`haco-local-default`とUbuntu 26.04のキャッシュ済みイメージ
+`b36d486c9412aee50d36c8875437070014bebd94d2207e0f703cd1b235c63033`を使用しました。
+通常Env内で2領域へ書き込み、停止して収集し、生成元を削除した後、同じイメージを別のBase名で選ぶ新規Envが正しい内容の独立コピーを取得しました。
+子領域の片付け・世代選択のreset・正確な共通元の片付け・Workspace内容の保持がPASS。nativeの配置変更と参照だけの再開は拒否し、client経由再開も確認しました。
+権限緩和、proxyの抜け道、guestへのHost管理socket、カタログ手修正は使っていません。初回起動文だけはPowerShell構文エラーでWSL・試験に到達せず、起動文を直して実行しました。
+
+これは名前付きのEnv本体内領域の機能確認で、異なるイメージ内容、導入済みCLI、人のWindows操作、巨大レポ性能の受入ではありません。
+既存Envの登録、履歴・クリア・復旧コマンド、追加領域を含む転送は未完成です。以前の不明なプール`haco-cache-15c4cf3cbcded3c0`は操作していません。
+
+
+
+互換条件・共有範囲・cleanup-requiredを含む最後の領域表示は、CLI/UI/controllerの集中2.61秒と文書・回帰4.74秒がPASSしました。上記で実行した実機の収集処理は変更していません。
+
+<a id="main-packer-builds"></a>
+## main向けPacker HCL2によるBase作成
+
+候補はmain `9da3ec8f`へ`1103505b`の実Packer・HCL2入力と外部スクリプト、任意adapter、共通Baseライフサイクル、失敗段階の非公開出力を再利用しました。Go1.27.1で集中31.91秒、変更部分lint38.45秒、標準ローカル全体45.78秒、関連race12.70秒、CLI E2E11.78秒、文書と回帰8.50秒、workflow policy1.88秒がPASS。初回lintのread handle終了未確認・エラー表現・switchを修正後の結果です。初回patchはmainにないヘルプcatalogで拒否されファイル未変更、現行の共通表示へ合わせました。
+
+これらはPacker完走や導入済み受入ではありません。元候補の全体試験PTY timeoutと導入済みproxyによるUbuntu依存package取得のHTTP403は未解決の履歴として保持します。通常Envでのdownload/fmt/init/validate/build完走、Base公開・再利用、arm64、独自plugin失敗、Windows入口は未確認です。試験専用の権限付与やHost上のHCL実行は追加していません。既存の単純なJSON shell定義は現行機能で、旧版移行の要求ではありません。
+
+
+#666の`629f33ed`を`068c8106`へ統合後、標準ツールで本候補をv0.62（Packer HCL2 Base builds）へ進めました。Packerと対話実行を含む全ローカル34.93秒、CLI E2E5.34秒、文書と回帰6.95秒がPASS。配布やM4全体の受入ではありません。
+main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。
+
+
+#667 head `61aeff8f`のWindows34916801756 / job104216088784は導入・HTTPS・Windows相互運用・Base作成・初回の厳密SSHと通常aliasまでPASSし、fixture WSL終了後の並列cold reconnectでexit255、ssh_progress=stream_deniedによりFAIL。後続reclaimと通知はSKIPです。原因は未解明で、Packerの実ビルド完走の証拠にはしません。他の4workflowはPASSしました。
+
+
+main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを含む全ローカル13.24秒、CLI E2E3.18秒、文書と回帰4.79秒がPASS。最後の整形はヘルプ2ファイルの空白だけです。`61aeff8f`の並列cold SSH拒否は原因未解明として保持し、新CIの成功で消しません。
+
+現main `5e89597a`、基盤 `929346bf`、Packer `6ad776ad` を `25923518` へ統合した v0.63 候補で、ローカル全体テスト（13.84秒）、CLI E2E（3.22秒）、文書・回帰確認（4.93秒）が成功した。公開キャッシュの詳細ヘルプとチェックポイントを含む統合確認であり、上記の実Incus確認範囲と残件は変わらない。
+
+## 名前付きキャッシュ履歴とクリア
+
+#669の後続は集中15.58秒、変更範囲lint4.08秒、全ローカル14.83秒、race6.28秒、CLI E2E3.66秒、文書・回帰5.57秒、workflow4.23秒がPASS。最初の集中試験は文字列readerを実際の非端末入力と誤認したテストでFAIL。実pipeを使うfixtureへ修正し、製品の確認条件は変更していない。
+
+新しい実Incus保守確認はFAIL。TestRealIncusEnvironmentDataPlacementE2E、command251.40秒/test243.38秒、Env data-e2e-c78cf57de85ce050、catalog /var/lib/haco-data-placement-529644104/state.json。既存の再開・access確認で4分の期限に達しsignal: killedとなり、収集・新しい履歴/クリア確認には未到達。成功でもSKIPでもない。前の通常収集の成功はそのソースの範囲で保持し、実機クリアは未確認。正確な所有catalogで片付け結果を確認中。
+
+読み取り確認で、失敗fixtureの正確なcatalogにEnv・lease・永続領域が残っておらず、nativeの名前照会も該当なしと確認した。空の世代項目2件だけが残る。元のタイムアウトは未解決。

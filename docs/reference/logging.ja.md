@@ -146,3 +146,7 @@ COM起動の失敗は固定の`activation_stage`（initialize/register/create/di
 通知準備の失敗は既存のsetup境界で固定のサービス操作理由（notification_enable_state_failed、notification_activity_failed、notification_disable_failed、notification_reload_failed、notification_failure_state_failed、notification_reset_failed、notification_enable_failed、notification_restart_failed）を保持する。非公開helperの終了値50〜57は通知refreshだけで解釈し、生の出力は転送しない。中止を優先する。
 
 Git照合は共通の同期済みCapability監査を使う。固定git-push-started/confirmed/observed記録へ要求・Env作成・取得元所有権・登録済みremote・ref・旧新OIDを保存し、照合は読み取り要求を別に記録する。これは監査上の事実であり、認証情報・subprocessの生出力・Git設定全体をログへ出さない。
+
+キャッシュ管理は領域別の結果と診断を分けます。失敗を報告する境界ではcomponentを`cache`とし、固定した操作名と分類済み失敗コードだけを記録します。設定文書、パス、基盤の応答、生のエラーはログへ出しません。
+
+キャッシュ保守も共通の `component=cache` 境界を使い、固定操作名 `cache.history` / `cache.clear` と固定 `failure_code` を記録する。確認revision・providerの保存場所・生のエラーはログに出さない。

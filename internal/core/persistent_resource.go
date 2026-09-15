@@ -13,6 +13,12 @@ type PersistentResourceRef struct {
 }
 
 type PersistentResource struct {
+	// PublicationOrigin and Producer are immutable receipts for whole-generation
+	// publication recovery and history. They never keep the producer alive after
+	// copy completion; CopySource alone is the in-flight reservation.
+	PublicationOrigin ResourceGeneration    `json:"publication_origin,omitzero"`
+	Producer          PersistentResourceRef `json:"producer,omitzero"`
+
 	// EnvironmentInstance binds disposable data to one canonical Environment creation.
 	EnvironmentInstance string `json:"environment_instance,omitempty"`
 	// RestoreSource reserves immutable saved data until independent creation completes.

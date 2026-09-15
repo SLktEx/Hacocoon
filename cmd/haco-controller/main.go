@@ -53,6 +53,9 @@ func main() {
 	if err := controlapi.RegisterReviews(server, app.Reviews); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterCache(server, app.Cache); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterConfiguration(server, app.Configuration); err != nil {
 		fail(err)
 	}

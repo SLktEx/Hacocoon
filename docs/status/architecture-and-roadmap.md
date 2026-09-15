@@ -216,3 +216,7 @@ and client-side forwarding remain independent work. Local regression and new
 native acceptance are recorded separately; large-repository performance remains deferred.
 
 The M2 reconciliation candidate reuses42aa706f for durable push receipts and exact-ref observation under fresh read authority. GUI answers remain in #664; authenticated installed acceptance and larger Git transport remain separate. No old-version compatibility is added.
+
+The M4 public cache candidate adds Host settings, creation-time enrollment, stopped collection and named status output. Next: complete history/clearing/recovery and added-data transfer, then installed ordinary workflow acceptance. Large-repository measurements follow usable flows and are not claimed by small fixtures.
+
+Named cache history and reviewed source clearing are implemented in the follow-up to #669. Next: recovery of positively completed copies, orphan-source browsing, existing-Env enrollment and additional-data transfer. Unknown completion remains owned; performance stays deferred.

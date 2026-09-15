@@ -61,3 +61,24 @@ copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
 
 `haco git status [--json] [--request <request-id>] <environment>` shows the latest or selected recorded push. `haco git reconcile` accepts the same arguments and requests a fresh Policy-controlled read. Neither repeats a push. See [Git recovery](../guides/git-workflow.md).
+
+## Cache commands
+
+On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/recovery and additional-data transfer remain incomplete. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
+
+## Build a Base with Packer
+
+```sh
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+```
+
+The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.
+
+### Cache history and clear
+
+On the trusted Host, use `haco cache history [--json] <env> <area>` to inspect
+retained collection attempts. `haco cache clear [--yes] [--json] <env> <area>`
+reviews and resets that reuse source, then removes eligible reviewed source data.
+Existing Environment copies, Workspace and OCI data remain. Shared scope affects
+the whole group's future Environments. Partial cleanup returns nonzero and retains
+its result in JSON; inspect history before retrying. See [cache generations](../design/cache-generations.md#inspect-and-clear-collected-data).

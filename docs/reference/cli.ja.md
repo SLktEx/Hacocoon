@@ -60,3 +60,23 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
 
 `haco git status [--json] [--request <request-id>] <environment>` は最新または指定したpushの保存記録を表示する。`haco git reconcile` も同じ引数で、現Policyに従った新しい読み取りを要求する。どちらもpushを再送しない。[Gitの案内](../guides/git-workflow.ja.md)を参照。
+
+## キャッシュ操作
+
+信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用、履歴・クリア・復旧、追加領域を含む転送は未完成です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
+
+## Packerでひな形を作る
+
+```sh
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+```
+
+フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。
+
+### キャッシュの履歴とクリア
+
+信頼されたHostで `haco cache history [--json] <env> <area>` を使うと、残っている収集データを確認できる。
+`haco cache clear [--yes] [--json] <env> <area>` は対象を確認して再利用元をリセットし、
+削除可能な確認済みデータを片付ける。既存Envのコピー・Workspace・OCIデータは保持する。
+共有設定ではグループ全体の今後のEnvに影響する。部分的な削除失敗では非0で終了し、
+JSONにも実行済みの結果を残す。再試行前に履歴を確認する。[キャッシュ世代](../design/cache-generations.ja.md#収集データの確認とクリア)を参照。
