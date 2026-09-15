@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
 func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {

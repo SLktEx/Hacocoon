@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
+	"github.com/SLktEx/Hacocoon/internal/env/transfer"
 	"github.com/SLktEx/Hacocoon/internal/state"
 )
 

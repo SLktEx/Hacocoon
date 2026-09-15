@@ -36,11 +36,11 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.11 | Base Images & Custom Environments | implemented — see current feature limits |
 | v0.12 | Sandbox Resource Limits | implemented — see current feature limits |
 | v0.13 | Managed Sandbox Network | implemented — see current feature limits |
-| v0.14 | Git Fetch Plugin | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
+| v0.14 | Git Fetch Plugin | historical — legacy CLI implementation retired |
 | v0.15 | OCI Seed Recommendation | historical — Seed implementation removed |
 | v0.16 | OCI Image Deletion | historical — current managed image deletion replaces Seed state |
 | v0.17 | OCI Seed Builder & Btrfs/COW | historical — Seed implementation removed |
-| v0.18 | Docker Compatibility Plugin | implemented legacy slice — temporary hacoq; not the ordinary Store workflow |
+| v0.18 | Docker Compatibility Plugin | historical — legacy CLI implementation retired |
 | v0.19 | Domain-aware Egress Authorization | implemented — see current feature limits |
 | v0.20 | Managed Btrfs Rootfs Storage | implemented — see current feature limits |
 | v0.21 | Managed Btrfs Transparent Compression | implemented — see current feature limits |

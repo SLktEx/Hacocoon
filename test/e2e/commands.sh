@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Assertions below use the English catalog, independent of the invoking locale.
+export HACO_UI_LANGUAGE=en
+
 for command in go grep mktemp sleep; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
@@ -42,12 +45,11 @@ INCUS
 chmod +x "$bin/incus"
 export PATH="$bin:$PATH"
 
-go build -o "$bin/haco" ./cmd/haco-product
-go build -o "$bin/hacoq" ./cmd/haco
+go build -o "$bin/haco" ./cmd/haco
 for name in haco-controller haco-vscode haco-agent-host haco-notify; do
   go build -o "$bin/$name" "./cmd/$name"
 done
-for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify; do
+for name in haco haco-controller haco-vscode haco-agent-host haco-notify; do
   test -x "$bin/$name"
 done
 
@@ -94,8 +96,7 @@ set -e
 [[ ! -s "$root/haco-invalid.out" ]]
 grep -Fq 'command "definitely-not-a-command" is not available yet' "$root/haco-invalid.err"
 
-# Existing controller-backed functionality stays reachable only through the
-# temporary migration CLI. This is compatibility coverage, not a product API.
+# Exercise the installed controller-backed product commands.
 haco_start_test_controller \
   "$bin/haco-controller" \
   "$root/control.sock" \
@@ -176,42 +177,6 @@ set -e
 [[ "$product_missing_code" == "1" ]]
 [[ ! -e "$root/product-missing-root/state" ]]
 
-"$bin/hacoq" base list >"$root/hacoq-base.out" 2>"$root/hacoq-base.err"
-grep -Fxq 'haco/ubuntu-24.04' "$root/hacoq-base.out"
-grep -Fxq 'haco/ubuntu-26.04' "$root/hacoq-base.out"
-[[ ! -s "$root/hacoq-base.err" ]]
-
-# Legacy controller-client mode must still fail closed rather than initialize
-# local state while the migration surface exists.
-client_mode_root="$root/client-mode-root"
-missing_control="$root/missing-control.sock"
-set +e
-HACO_ROOT="$client_mode_root" HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/hacoq" env list >"$root/env-client.out" 2>"$root/env-client.err"
-env_client_code=$?
-set -e
-[[ "$env_client_code" == "1" ]]
-[[ ! -s "$root/env-client.out" ]]
-[[ ! -e "$client_mode_root/state" ]]
-
-set +e
-HACO_ROOT="$client_mode_root" HACO_CLIENT_MODE=controller HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/hacoq" base list >"$root/client-mode.out" 2>"$root/client-mode.err"
-client_mode_code=$?
-set -e
-[[ "$client_mode_code" == "1" ]]
-[[ ! -s "$root/client-mode.out" ]]
-grep -Fq 'control endpoint unavailable' "$root/client-mode.err"
-[[ ! -e "$client_mode_root/state" ]]
-
-set +e
-"$bin/hacoq" definitely-not-a-command >"$root/hacoq-invalid.out" 2>"$root/hacoq-invalid.err"
-hacoq_invalid_code=$?
-set -e
-[[ "$hacoq_invalid_code" == "1" ]]
-[[ ! -s "$root/hacoq-invalid.out" ]]
-grep -Fq 'unknown command "definitely-not-a-command"' "$root/hacoq-invalid.err"
-
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
 "$bin/haco-agent-host" release --session e2e-never-created >"$root/agent.out" 2>"$root/agent.err"
@@ -254,4 +219,4 @@ wait "$notify_pid"
 notify_pid=""
 [[ ! -s "$root/notify.err" ]]
 
-echo 'PASS: new haco product CLI + temporary hacoq compatibility black-box E2E'
+echo 'PASS: shipped haco and helper black-box E2E'

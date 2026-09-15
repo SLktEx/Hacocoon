@@ -96,7 +96,7 @@ The common installer runs this same product doctor before reporting completion. 
 
 ## Acceptance coverage
 
-Repository CI drives the temporary legacy runtime CLI (`cmd/haco`, packaged as `hacoq` during the CLI migration) as an ordinary user against real Incus. It verifies that Incus creates its loop-backed Btrfs pool, the backing image is sparse at the Linux-file level, the configured desired state is `compress=zstd:3,noatime,nodiscard`, and the live filesystem has zstd compression and `noatime` with no active discard mode or autodefrag. It also verifies create/exec/delete/run lifecycle operations reuse the pool and that an old compression-only pool setting is reconciled back to the desired policy.
+Repository CI drives the shipped `haco` and `haco-host` controller clients as an ordinary user against real Incus. It verifies that Incus creates its loop-backed Btrfs pool, the backing image is sparse at the Linux-file level, the configured desired state is `compress=zstd:3,noatime,nodiscard`, and the live filesystem has zstd compression and `noatime` with no active discard mode or autodefrag. It also verifies create/exec/delete/run lifecycle operations reuse the pool and that an old compression-only pool setting is reconciled back to the desired policy.
 
 `findmnt` can omit the negative/default `nodiscard` token. Acceptance therefore requires `nodiscard` in the Incus pool configuration and rejects active `discard` / `discard=async` modes on the live mount.
 

@@ -32,9 +32,9 @@ and a late upstream registration. This changes no policy grants or CLI steps.
 ## Implemented authorization engine
 
 - `internal/core` defines provider-neutral `EgressRequest` / `EgressGrant` values.
-- `internal/egress` canonicalizes DNS hostnames and routes `network.egress/connect` through the existing Policy / Approval / Capability / audit boundary.
+- `internal/network/egress` canonicalizes DNS hostnames and routes `network.egress/connect` through the existing Policy / Approval / Capability / audit boundary.
 - IP literals are rejected before policy evaluation.
-- `modules/standard/egressproxy` implements explicit HTTP and HTTPS proxy enforcement.
+- `internal/adapters/network/proxy` implements explicit HTTP and HTTPS proxy enforcement.
 - HTTP absolute-target and `Host` authorities must identify the same hostname and port.
 - DNS is resolved on the trusted Host only after hostname authorization.
 - The resolved address set is pinned for that connection; dialing does not resolve the hostname again.
@@ -75,7 +75,7 @@ Use `require-approval` instead of `allow` when the existing approval provider mu
 
 ## Operational path
 
-The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service. New `haco` needs no egress-serving command, and the retained `hacoq egress serve` is legacy functionality.
+The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service.
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 

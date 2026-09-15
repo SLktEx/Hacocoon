@@ -73,7 +73,7 @@ Incus 6.0.5には新しい版のinstance-import設定上書きフラグがあり
 
 ## bundle形式と検証済みの一時保存
 
-`internal/environmenttransfer`は制限付きUSTARと正規形JSONを使います。
+`internal/env/transfer`は制限付きUSTARと正規形JSONを使います。
 項目は`manifest.json`、`rootfs.tar`、`workspace.tar`、連番の
 `workspace-002.tar`～`workspace-253.tar`、任意の`oci.tar`です。
 メタデータは64 KiB、外側の付加領域は512 KiB、公開操作のpayload合計は64 GiBが上限です。

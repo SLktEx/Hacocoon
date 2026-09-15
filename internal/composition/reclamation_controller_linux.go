@@ -9,9 +9,9 @@ import (
 	"errors"
 	"io"
 
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/internal/reclamation"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 )
 
 type linuxReclaimTarget interface {

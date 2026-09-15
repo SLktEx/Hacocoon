@@ -25,9 +25,9 @@ Environment
 
 ## 認可と通信の検査
 
-- `internal/core` が `EgressRequest`／`EgressGrant`、`internal/egress` がホスト名の正規化と `network.egress/connect` の仲介を担当します。
+- `internal/core` が `EgressRequest`／`EgressGrant`、`internal/network/egress` がホスト名の正規化と `network.egress/connect` の仲介を担当します。
 - IP アドレスの直接指定は Policy 評価前に拒否します。
-- `modules/standard/egressproxy` が明示的な HTTP／HTTPS プロキシを実装します。HTTP の絶対 URI と `Host` は同じホスト名・ポートを指す必要があります。
+- `internal/adapters/network/proxy` が明示的な HTTP／HTTPS プロキシを実装します。HTTP の絶対 URI と `Host` は同じホスト名・ポートを指す必要があります。
 - 認可後に Host 側で DNS 解決し、その接続にアドレス集合を固定します。接続時に名前を再解決しません。
 - 私設、ループバック、リンクローカル、CGNAT、ベンチマーク用、文書用、マルチキャストなどのアドレスを拒否します。公開・私設が混在した応答は全体を拒否します。
 - HTTPS CONNECT の文字列だけを証拠にしません。上流へ TLS データを送る前に上限付きの ClientHello を解析し、SNI が許可した CONNECT ホスト名と一致することを要求します。
@@ -66,7 +66,7 @@ Environment の自己申告名は信頼せず、Incus の状態とコントロ�
 
 ## 起動経路
 
-インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。`hacoq egress serve` は旧機能です。
+インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。
 
 コントローラーとプロキシの終了は連動し、CONNECT を含む全接続を閉じます。ヘッダー上限は16 KiB、読取期限は10秒、保持接続上限は256です。通信失敗は固定の構造化メッセージで記録し、任意の panic 出力を含めません。
 

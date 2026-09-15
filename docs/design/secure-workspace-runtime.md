@@ -17,7 +17,7 @@ The current local provider uses Incus system containers. A selected external
 Workspace refers to the controller's filesystem, not automatically to the client's
 current directory. Managed Workspaces provide independent data copies.
 [Getting started](../guides/getting-started.md) owns the current product workflow;
-[CLI migration](../reference/cli-migration.md) separates the original commands.
+[CLI migration](../reference/cli.md) separates the original commands.
 
 Core defines stable data/lifecycle/authority contracts; the Incus adapter owns native
 resources. Prefer existing Incus operations and add only missing development,

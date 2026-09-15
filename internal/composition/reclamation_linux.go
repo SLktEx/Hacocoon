@@ -5,7 +5,7 @@ package composition
 import (
 	"context"
 
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 )
 
 // PrepareStorageReclamation selects the installation's pool, never a client path

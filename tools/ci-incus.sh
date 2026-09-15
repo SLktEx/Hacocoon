@@ -6,7 +6,7 @@ readonly CI_REMOTE="haco-ci"
 readonly SANDBOX_PROFILE="haco-sandbox"
 readonly SANDBOX_NETWORK="haco-sandbox0"
 readonly SANDBOX_ACL="haco-sandbox-egress"
-readonly INCUS_LTS_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/incus-lts.sh"
+readonly INCUS_LTS_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../install" && pwd)/incus-lts.sh"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -182,7 +182,7 @@ run_core_e2e() {
   require_github_hosted_runner
   export HACO_E2E_INCUS=1
 
-  python3 tools/ci_required_tests.py --expect TestRealIncusWorkspaceLifecycleE2E -- go test -v -timeout=10m -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./modules/runtime/incus
+  python3 tools/ci_required_tests.py --expect TestRealIncusWorkspaceLifecycleE2E -- go test -v -timeout=10m -count=1 -run '^TestRealIncusWorkspaceLifecycleE2E$' ./internal/adapters/incus
   bash test/e2e/incus.sh
 }
 

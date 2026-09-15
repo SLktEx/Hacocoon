@@ -15,7 +15,7 @@ func TestUbuntuInstallerKeepsIncusUserNamespaceCompatibilityContract(t *testing.
 	}
 
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(sourceFile), "..", ".."))
-	installerPath := filepath.Join(repoRoot, "scripts", "install.sh")
+	installerPath := filepath.Join(repoRoot, "install", "install.sh")
 	content, err := os.ReadFile(installerPath)
 	if err != nil {
 		t.Fatalf("read Ubuntu installer: %v", err)

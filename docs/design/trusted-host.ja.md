@@ -78,7 +78,7 @@ Physical Hostが保持する。[利用手順](../guides/git-workflow.md)と
 [ADR 0008](../adr/0008-managed-repository-workspaces.md)を参照。
 Windows drive・exe連携は通常installer/setupで構成する（上記参照）。
 
-現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。保持したhacoq aliasは旧実装資産であり、新hacoのsubprocess依存ではない。
+現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。旧 CLI の廃止判断は [ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.ja.md)を参照する。
 
 現在のパッケージのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用コントローラー契約](controller-client-transport.ja.md#host診断)を使う。
 
@@ -108,7 +108,7 @@ Managed Environments                   UNTRUSTED
 現在は次を実装しています。
 
 - `haco setup`: 永続的な `haco-host` を1個照合・調整
-- 通常の`wsl -d Hacocoon`入口と、保持した旧実装 `hacoq host shell` alias
+- 通常の `wsl -d Hacocoon` 入口
 - `user.hacocoon.role=trusted-host` 所有権識別情報
 - Hacocoon-managed Incus ストレージ上へのrootfs配置
 - provider-local 衝突を避けるためEnvironment名`host`を予約
@@ -181,7 +181,7 @@ Physical Host側元データは通常の executable、invoking effective UID所�
 
 これによりrepeated ensureを繰り返しても同じ結果になるにし、信頼された instance内の任意の既存バイナリをそのまま信頼しません。
 
-製品 `haco` はguest-local 構成へ代替経路せず、`hacoq` も呼び出しません。一時的な `hacoq` は未移行操作のためPhysical Host配布物に残るが、新規 trusted-host setupでは配備しない。既存guest内のコピーは製品の依存ではない。controller-mode 保護処理は引き続きguest-local操作を拒否する。
+製品 `haco` はコントローラーを呼び、guest-local 構成を作りません。旧 CLI は新しい配布物と trusted-host 配備から削除しました。[ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.ja.md)を参照してください。
 
 このモード識別情報はauthorization 認証情報ではありません。`haco-host`自体が信頼されたであり、方針、状態、プロバイダー operationの権限は引き続きPhysical Host コントローラーです。
 
@@ -246,7 +246,7 @@ wsl -d Hacocoon -u root
 
 ## Interactive warning
 
-通常の製品CLIによるHost接続は[権限の案内](#host-入口の言語)を表示します。移行用の`hacoq host shell`にも言語設定に応じた短い管理権限の警告があります。通常の開発作業はEnvironmentで行ってください。
+通常の WSL 製品入口による Host 接続は[権限の案内](#host-入口の言語)を表示します。通常の開発作業は Environment で行ってください。
 
 ## 今後の follow-up
 
@@ -265,7 +265,7 @@ wsl -d Hacocoon -u root
 
 Repository テストでは所有権照合・調整、衝突拒否、状態復旧、正確なコントローラー proxy 検証、2本のクライアントバイナリ配備 / 再実行時の一貫性、client-mode 不一致拒否、CLI 経路選択、local 代替経路の安全側で拒否する、warning、login-mode identificationを確認します。
 
-維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。保持した旧alias・Base 経路選択・local 構成拒否は構成要素テストで検証する。更新gateは `b71f88e` で成功した。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
+維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。以前の gate は `b71f88e` で成功したが、ADR 0096 のディレクトリ・CLI 変更の実機検証を意味しない。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の実機受入に限る。別hardware・別構成への互換性は未確認として扱う。
 
@@ -394,7 +394,7 @@ OCI データの初期化、正常なサービスの再起動は行いません�
 
 ```bash
 HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
-  -v -timeout 18m ./modules/runtime/incus
+  -v -timeout 18m ./internal/adapters/incus
 ```
 
 試験は専用のプロジェクトとプールを作り、成功時に削除します。ネットワークは通常の

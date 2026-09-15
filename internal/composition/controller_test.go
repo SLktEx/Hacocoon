@@ -15,7 +15,6 @@ import (
 func TestControllerEgressPolicyDoesNotReadAmbientApproval(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HACO_ROOT", root)
-	t.Setenv("HACO_PLUGIN_OCI", "")
 	t.Setenv("HACO_RUNTIME_PROVIDER", "")
 	input, err := os.CreateTemp(t.TempDir(), "stdin")
 	if err != nil {

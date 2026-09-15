@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 )

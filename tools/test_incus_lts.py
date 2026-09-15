@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-HELPER = ROOT / 'scripts/incus-lts.sh'
+HELPER = ROOT / 'install/incus-lts.sh'
 FPR = '4EFC590696CB15B87C73A3AD82CC8797C838DCFD'
 KEY = 'pub:::::::::\nfpr:::::::::' + FPR + ':\n'
 SOURCE = 'https://pkgs.zabbly.com/incus/lts-7.0'

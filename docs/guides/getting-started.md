@@ -30,8 +30,7 @@ the interactive login route.
 On native Ubuntu, extract the complete Ubuntu installer and run
 `./install-ubuntu.sh`. Run product commands as the installed controller-group
 user on that Physical Host. Source Git authentication belongs inside the trusted
-Host; the temporary explicit Host-shell entry is described in
-[CLI migration](../reference/cli-migration.md#host-entry).
+Host. A product interactive trusted-Host shell entry is not currently available on native Ubuntu.
 Native installation does not change the user's login shell.
 
 [Installation and recovery](installation.md) covers interrupted registration,

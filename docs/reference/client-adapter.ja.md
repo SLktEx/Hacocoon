@@ -88,10 +88,10 @@ Incus-backed 接続照合・調整は永続 SSH grant と明示的 forwarding �
 
 ## VS Codeを使わないgeneric proof
 
-以下は Physical Host の旧 `hacoq` による外部パス用アダプターの例です。通常の管理 Workspace は[利用開始](../guides/getting-started.ja.md)の手順を使います。VS Code の拡張機能や通信方式には依存しません。
+以下は Physical Host の明示的な外部パスを使う例です。通常の管理 Workspace は[利用開始](../guides/getting-started.ja.md)の手順を使います。VS Code の拡張機能や通信方式には依存しません。
 
 ```sh
-hacoq create --workspace "$PWD" demo
+haco env create --no-oci --workspace "$PWD" demo
 haco ssh setup demo
 ssh haco-demo
 ```
@@ -99,8 +99,7 @@ ssh haco-demo
 クライアントシェルや別アダプタープロセスを再起動した後も確認できます。
 
 ```sh
-hacoq status demo --json
-hacoq connections demo --json
+haco env status --json demo
 ```
 
 クライアント接続だけを撤回する場合:
@@ -112,7 +111,7 @@ haco env disconnect demo <grant-id>
 Environment ライフサイクルを終える場合:
 
 ```sh
-hacoq delete demo
+haco env delete demo
 ```
 
 非公開 keyを使うのは通常の `ssh` クライアントであり、Hacocoonではありません。

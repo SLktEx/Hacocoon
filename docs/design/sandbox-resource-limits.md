@@ -2,20 +2,19 @@
 
 [日本語](sandbox-resource-limits.ja.md) | English
 
-Status: **implemented provider/legacy slice**; broad real-Incus enforcement acceptance
+Status: **implemented provider/controller-client slice**; broad real-Incus enforcement acceptance
 remains incomplete. Product `haco env create/run` does not expose these budget flags.
-Use [CLI migration](../reference/cli-migration.md) for the temporary legacy boundary.
+The shipped `haco-host` companion exposes these flags through the controller.
 
 ResourceBudget has CPU, MemoryBytes, PIDs and RootBytes. It limits consumption inside
 an Env; it is not a Capability to cross the Host boundary. Each dimension accepts
 a finite positive value or `unlimited`; omitted dimensions resolve to unlimited.
 Invalid, zero, negative, overflowing, ambiguous or unsupported values fail closed.
 
-Legacy Physical Host examples (not the installed product workflow):
+The shipped controller-client companion exposes explicit resource limits:
 
 ```bash
-hacoq create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace /absolute/work dev
-hacoq run --cpu 2 --memory 4GiB --workspace /absolute/work -- go test ./...
+haco-host env create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace /absolute/work dev
 ```
 
 CPU and PID values are positive integers. Storage/memory sizes use the parser's

@@ -2,6 +2,7 @@ package composition
 
 import (
 	"context"
+	ocitooling "github.com/SLktEx/Hacocoon/internal/adapters/oci"
 	"net"
 	"net/http"
 	"net/netip"
@@ -10,39 +11,38 @@ import (
 	"strings"
 	"sync"
 
+	awsplugin "github.com/SLktEx/Hacocoon/internal/adapters/aws"
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
+	"github.com/SLktEx/Hacocoon/internal/adapters/network/dns"
+	"github.com/SLktEx/Hacocoon/internal/adapters/network/proxy"
+	packerplugin "github.com/SLktEx/Hacocoon/internal/adapters/packer"
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
-	"github.com/SLktEx/Hacocoon/internal/basebuild"
-	"github.com/SLktEx/Hacocoon/internal/basemanage"
-	capabilityapp "github.com/SLktEx/Hacocoon/internal/capability"
+	"github.com/SLktEx/Hacocoon/internal/base/build"
+	"github.com/SLktEx/Hacocoon/internal/base/manage"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	egressapp "github.com/SLktEx/Hacocoon/internal/egress"
-	environmentapp "github.com/SLktEx/Hacocoon/internal/environment"
-	"github.com/SLktEx/Hacocoon/internal/environmentcopy"
-	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
+	environmentapp "github.com/SLktEx/Hacocoon/internal/env"
+	"github.com/SLktEx/Hacocoon/internal/env/copy"
+	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
+	"github.com/SLktEx/Hacocoon/internal/env/setup"
+	"github.com/SLktEx/Hacocoon/internal/env/transfer"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
-	gitcapapp "github.com/SLktEx/Hacocoon/internal/gitcap"
+	"github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/internal/nameresolution"
-	"github.com/SLktEx/Hacocoon/internal/persistentresource"
-	"github.com/SLktEx/Hacocoon/internal/recipes"
-	"github.com/SLktEx/Hacocoon/internal/review"
-	runapp "github.com/SLktEx/Hacocoon/internal/run"
-	"github.com/SLktEx/Hacocoon/internal/snapshotrestore"
+	"github.com/SLktEx/Hacocoon/internal/host/recipes"
+	"github.com/SLktEx/Hacocoon/internal/network"
+	"github.com/SLktEx/Hacocoon/internal/network/dns"
+	egressapp "github.com/SLktEx/Hacocoon/internal/network/egress"
+	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
+	"github.com/SLktEx/Hacocoon/internal/policy/approvals"
+	"github.com/SLktEx/Hacocoon/internal/policy/review"
+	"github.com/SLktEx/Hacocoon/internal/snapshot/restore"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	"github.com/SLktEx/Hacocoon/internal/storage/cache"
+	ociplugin "github.com/SLktEx/Hacocoon/internal/storage/oci"
+	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
-	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
-	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
-	packerplugin "github.com/SLktEx/Hacocoon/modules/plugin/packer"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
-	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
-	"github.com/SLktEx/Hacocoon/modules/standard/cache"
-	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
-	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
-	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
-	"github.com/SLktEx/Hacocoon/modules/standard/networkrelay"
-	"github.com/SLktEx/Hacocoon/modules/standard/projectsetup"
-	"github.com/SLktEx/Hacocoon/modules/standard/workflow"
+	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
 const defaultLocalStorageID = "local-default"
@@ -71,8 +71,6 @@ type App struct {
 	AgentHosts          *agenthostapp.Broker
 	Clients             *clientapp.Service
 	Capabilities        *capabilityapp.Service
-	Git                 *gitcapapp.Broker
-	OCI                 *ociplugin.Service
 	Runner              *runapp.Service
 	Events              *eventsapp.Service
 	Bases               *environmentapp.BaseRouter
@@ -106,23 +104,13 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	root := envOr("HACO_ROOT", "/var/lib/hacocoon")
 	stateDir := filepath.Join(root, "state")
 
-	configuredDriver := strings.TrimSpace(os.Getenv("HACO_PLUGIN_OCI"))
-	var ociDriver ociplugin.Driver
-	if configuredDriver != "" {
-		driver, err := ociplugin.ParseDriver(configuredDriver)
-		if err != nil {
-			return nil, err
-		}
-		ociDriver = driver
-	}
-
 	var runtimeRunner host.Runner = runner
 	// Environment bridge ownership is enforced at the production Incus command
 	// boundary so future call sites cannot silently adopt/delete a same-named
 	// unmanaged bridge even if they bypass a higher-level network helper.
 	runtimeRunner = incus.WrapEnvironmentNetworkOwnershipRunner(runtimeRunner)
 	incusRuntime := incus.New(runtimeRunner)
-	maintenanceTools := &ociplugin.MaintenanceTooling{Directory: filepath.Join(root, "oci-maintenance-tools")}
+	maintenanceTools := &ocitooling.MaintenanceTooling{Directory: filepath.Join(root, "oci-maintenance-tools")}
 	incusRuntime.ConfigureMaintenanceTooling(maintenanceTools.Prepare)
 	if kernel, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil && strings.Contains(strings.ToLower(string(kernel)), "microsoft") {
 		incusRuntime.ConfigureWSLInterop()
@@ -172,7 +160,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	})
 	gitBroker := gitrepo.NewBroker(repositories, store, filepath.Join(root, "run", "git"))
 	bindingStore := agenthostapp.NewJSONBindingStore(filepath.Join(stateDir, "agent-bindings.json"))
-	gitProvider := gitcapapp.NewUnifiedProvider(runner, store)
 	auditPath := filepath.Join(root, "audit", "capabilities.jsonl")
 	policy := capabilityapp.NewFilePolicyEvaluator(filepath.Join(root, "policy.json"))
 	audit := capabilityapp.NewJSONLAudit(auditPath)
@@ -184,7 +171,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		egressapp.Provider{},
 		dnsproxy.Provider{Environments: store, Backend: router},
 		networkrelay.Provider{},
-		gitProvider,
 		&awsplugin.Provider{Host: incusRuntime.RunTrustedHostPython, Stream: incusRuntime.RunTrustedHostPythonStream},
 		gitBroker,
 	)
@@ -197,18 +183,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	egressSources, err := egressapp.NewPersistedSourceResolver(environmentapp.ProviderIncus, incusRuntime, store)
 	if err != nil {
 		return nil, err
-	}
-
-	var ociPlugin *ociplugin.Service
-	if configuredDriver != "" {
-		ociPlugin, err = ociplugin.New(
-			runtime,
-			environmentStatePath,
-			ociDriver,
-		)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
@@ -289,8 +263,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Clients:       clientapp.NewWithLifecycle(runtime, store, environments),
 		Capabilities:  capabilities,
 		Configuration: configuration,
-		Git:           gitcapapp.NewBroker(runner, store, capabilities),
-		OCI:           ociPlugin,
 		Runner:        runs,
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,

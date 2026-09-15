@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SLktEx/Hacocoon/internal/control"
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
+	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 

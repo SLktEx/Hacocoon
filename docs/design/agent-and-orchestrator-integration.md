@@ -28,8 +28,6 @@ to Hacocoon Policy and the trusted capability boundary. Notification delivery,
 agent output and task completion never grant authority.
 
 Clients observe [minimized interaction events](../reference/interaction-events.md)
-without capability parameters or credentials. Historical raw audit export is
-documented only in [legacy CLI migration](../reference/cli-migration.md#legacy-event-cursor).
-Client APIs and pre-1.0 wire formats may change; use the
+without capability parameters or credentials. Client APIs and pre-1.0 wire formats may change; use the
 [client adapter contract](../reference/client-adapter.md).
 An MCP adapter is a possible optional integration, not an implemented Core dependency.

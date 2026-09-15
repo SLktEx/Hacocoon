@@ -2,7 +2,7 @@
 
 [English](cli.md) | 日本語
 
-`cmd/haco-product`から作る製品コマンド`haco`を説明します。
+`cmd/haco`から作る製品コマンド`haco`を説明します。
 管理コマンドは信頼済み`haco-host`またはPhysical Hostで実行します。
 入力ファイルのパスはクライアント側です。ただし`env create --workspace`のパスは
 コントローラー側で解決するか、`managed:<id>`を使います。
@@ -43,7 +43,7 @@ help・versionにコントローラーは不要です。
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の
 `create/exec/shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
 `env create`・`run`のCPU・memory・PID・root容量フラグはありません。
-残る旧機能は[移行情報](cli-migration.md)へ分離しています。
+旧インターフェースの廃止判断は [ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.ja.md)に記録しています。
 
 通常の失敗は非ゼロ、構文誤りは多くの場合2です。一時実行は後始末確認後にゲストの終了値を返し、
 クライアントキャンセル時は130、後始末不明は失敗です。`reclaim`の開始受付は完了ではありません。
@@ -62,7 +62,7 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 
 ## キャッシュ操作
 
-信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容の後付け採用、履歴・クリア・復旧、追加領域を含む転送は未完成です。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
+信頼済みHostで`haco cache settings`は対象設定、`haco cache configure <file>`は新規Env用のJSON設定、`haco cache status <env>`はコピー元・現在世代、`haco cache collect <停止したenv> [領域名]`は領域全体の収集を扱います。`--json`は対象より前に指定します。既存内容を自動では採用しません。履歴・クリア・復旧は下記を参照してください。[設定と通常の使い方](../design/cache-generations.ja.md#設定して収集する)を参照してください。
 
 ## Packerでひな形を作る
 

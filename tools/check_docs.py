@@ -103,7 +103,7 @@ required = [
     "docs/design/workspace-abstraction-and-lease.md",
     "docs/design/client-and-interactive-access.md",
     "docs/design/policy-and-capability-foundation.md",
-    "docs/design/git-and-github-capability.md", "docs/reference/legacy-git.md",
+    "docs/design/git-and-github-capability.md",
     "docs/design/agent-and-orchestrator-integration.md",
     "docs/design/remote-and-cloud-runtime.md",
     "docs/design/client-adapters-and-vscode-integration.md",
@@ -114,7 +114,6 @@ required = [
     "docs/design/managed-sandbox-network.md", "docs/design/managed-sandbox-network.ja.md",
     "docs/design/oci-image-deletion.md", "docs/design/oci-image-deletion.ja.md",
     "docs/design/oci-seed-and-cow.md", "docs/design/oci-seed-and-cow.ja.md",
-    "docs/design/docker-compatibility-plugin.md", "docs/design/docker-compatibility-plugin.ja.md",
     "docs/design/btrfs-storage-layout.md", "docs/design/btrfs-storage-layout.ja.md",
     "docs/design/optional-local-oci-registry.md", "docs/design/optional-local-oci-registry.ja.md",
 ]
@@ -268,16 +267,12 @@ require_text("docs/reference/client-adapter.md", [
     "haco ssh setup", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/design/plugin-architecture.md", [
-    "Core / Standard / Plugin classification", "HACO_PLUGIN_OCI=nerdctl",
-    "HACO_PLUGIN_OCI=docker", "unset HACO_PLUGIN_OCI", "haco base",
+    "Core / Standard / Plugin classification", "haco base",
+    "0096-responsibility-layout-and-cli-retirement.md",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [
     "OCI Seed retirement", "No legacy catalog reader", "seeds.json",
     "No resource deletion is triggered", "historical evidence",
-])
-require_text("docs/design/docker-compatibility-plugin.md", [
-    "Docker Compatibility Plugin", "hacoq plugin oci docker status",
-    "hacoq plugin oci docker prepare", "fail closed",
 ])
 require_text("docs/design/egress-authorization.md", [
     "Domain-aware egress authorization", "network.egress/connect", "169.254.254.1:18080", "SNI",
@@ -291,7 +286,7 @@ require_text("docs/reference/interaction-events.md", ["browser", "native", "VS C
 
 # Literal documentation references in maintained tooling/CI must survive moves too.
 # Synthetic negative fixtures are deliberately not production references.
-for directory in ("tools", "scripts", ".github"):
+for directory in ("tools", "install", ".github"):
     for path in (root / directory).rglob("*"):
         if not path.is_file() or path.name.startswith("test_") or path.name.endswith("_test.go"):
             continue

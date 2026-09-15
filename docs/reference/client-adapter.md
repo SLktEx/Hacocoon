@@ -89,10 +89,10 @@ Incus-backed connection reconciliation reads persistent SSH grants and explicit 
 
 ## Generic non-VS-Code proof
 
-The retained `hacoq` CLI exercises this external-path adapter on the Physical Host. For ordinary managed Workspace use, follow [getting started](../guides/getting-started.md).
+The controller-backed CLI can explicitly select an external path on the Physical Host. For ordinary managed Workspace use, follow [getting started](../guides/getting-started.md).
 
 ```sh
-hacoq create --workspace "$PWD" demo
+haco env create --no-oci --workspace "$PWD" demo
 haco ssh setup demo
 ssh haco-demo
 ```
@@ -100,8 +100,7 @@ ssh haco-demo
 Inspect/reconnect after restarting the client shell or another adapter process:
 
 ```sh
-hacoq status demo --json
-hacoq connections demo --json
+haco env status --json demo
 ```
 
 Revoke only the client connection:
@@ -113,7 +112,7 @@ haco env disconnect demo <grant-id>
 Or delete the Environment when its lifecycle is finished:
 
 ```sh
-hacoq delete demo
+haco env delete demo
 ```
 
 The private key is consumed by the ordinary `ssh` client, not Hacocoon.

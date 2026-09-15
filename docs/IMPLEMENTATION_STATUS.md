@@ -55,7 +55,7 @@ fallbacks remain best effort. Vendor daemon recognition and anonymous volume
 export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
 separates the successful integrated candidate from this main-targeted extraction.
 
-Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
+Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings.
 
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.
 
@@ -120,3 +120,7 @@ Cache completion recovery: implemented candidate for named, positively completed
 **Implemented candidate:** `haco env tunnel --target-port 8080 demo` opens a loopback listener for applications. Native Linux stays local; ordinary WSL/Host entry delegates to the installed Windows client, retaining the exact Env creation and WSL registration. Closing the foreground client closes its listener and connections. Shared parsing, process framing, cancellation and installer placement reuse existing development work. Fresh installed acceptance remains separate; DNS modes and VPN/NRPT acceptance remain incomplete. See [client transport](design/controller-client-transport.md#client-tcp-listeners).
 
 Resolver selection: implemented candidate. Environment creation accepts `--dns host|backend|disabled`, defaults to the Physical Host, and preserves the setting through snapshot/copy/transfer. Disabled mode refuses controller lookups even if guest tooling is restarted. Three-mode installed acceptance is pending; see [name resolution](design/name-resolution.md).
+
+## Repository layout and retired CLI
+
+The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0096-responsibility-layout-and-cli-retirement.md).

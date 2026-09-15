@@ -96,7 +96,7 @@ common インストーラーは完了表示の前に同じ製品doctorを実行�
 
 ## Acceptance coverage
 
-リポジトリの CI は CLI 移行中の temporary 旧実装実行基盤 CLI（`cmd/haco`、release では `hacoq` として packaging）を通常の利用者として実際の Incus へ接続する。Incus が loop-backed Btrfs プールを作ること、backing イメージが Linux ファイルとしてスパースであること、configured desired 状態が `compress=zstd:3,noatime,nodiscard` であること、稼働中のファイルシステムが zstd 圧縮と `noatime` を持ち稼働中な discard モードと autodefrag が無いことを確認する。また create/exec/delete/run ライフサイクル operation が同じプールを再利用し、旧 compression-only 方針を設定しても次の rootfs operation で desired 方針へ照合・調整されることを確認する。
+リポジトリの CI は 配布する `haco` と `haco-host` のcontroller clientを通常の利用者として実際の Incus へ接続する。Incus が loop-backed Btrfs プールを作ること、backing イメージが Linux ファイルとしてスパースであること、configured desired 状態が `compress=zstd:3,noatime,nodiscard` であること、稼働中のファイルシステムが zstd 圧縮と `noatime` を持ち稼働中な discard モードと autodefrag が無いことを確認する。また create/exec/delete/run ライフサイクル operation が同じプールを再利用し、旧 compression-only 方針を設定しても次の rootfs operation で desired 方針へ照合・調整されることを確認する。
 
 `findmnt` は negative/default オプションの `nodiscard` token を省略する場合がある。そのため検証は Incus プール設定に `nodiscard` が含まれることを要求し、live behavior では `discard` / `discard=async` が有効でないことを確認する。
 

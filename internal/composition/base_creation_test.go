@@ -2,9 +2,9 @@ package composition
 
 import (
 	"context"
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"strings"
 	"testing"
 )

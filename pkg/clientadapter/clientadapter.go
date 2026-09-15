@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/SLktEx/Hacocoon/internal/client/ssh/key"
 	"github.com/SLktEx/Hacocoon/internal/composition"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/sshkey"
 	"github.com/SLktEx/Hacocoon/pkg/interaction"
 )
 

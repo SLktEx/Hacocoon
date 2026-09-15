@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-installer="$repo_root/scripts/install.sh"
+installer="$repo_root/install/install.sh"
 root="$(mktemp -d)"
 outside="/tmp/hacocoon-installer-escape-$$"
 trap 'rm -rf "$root" "$outside"' EXIT
@@ -83,7 +83,6 @@ def regular(tf, name, payload=b"binary\n", mode=0o755):
     tf.addfile(info, io.BytesIO(payload))
 
 def expected_others(tf):
-    regular(tf, "hacoq", b"hacoq-safe\n")
     regular(tf, "haco-controller", b"controller-safe\n")
     regular(tf, "haco-host", b"haco-host-safe\n")
     regular(tf, "haco-vscode", b"vscode-safe\n")
@@ -133,6 +132,10 @@ with tarfile.open(path, "w:gz", format=tarfile.USTAR_FORMAT) as tf:
         device.mode = 0o600
         tf.addfile(device)
         expected_others(tf)
+    elif kind == "legacy":
+        regular(tf, "haco")
+        expected_others(tf)
+        regular(tf, "hacoq")
     elif kind == "extra":
         regular(tf, "haco")
         expected_others(tf)
@@ -161,7 +164,6 @@ valid="$root/valid.tar.gz"
 make_archive valid "$valid"
 run_installer "$valid" "$root/install-valid"
 grep -Fx 'haco-safe' "$root/install-valid/haco" >/dev/null
-grep -Fx 'hacoq-safe' "$root/install-valid/hacoq" >/dev/null
 grep -Fx 'controller-safe' "$root/install-valid/haco-controller" >/dev/null
 grep -Fx 'haco-host-safe' "$root/install-valid/haco-host" >/dev/null
 grep -Fx 'vscode-safe' "$root/install-valid/haco-vscode" >/dev/null
@@ -172,10 +174,9 @@ valid_docs="$root/valid-docs.tar.gz"
 make_archive valid-docs "$valid_docs"
 run_installer "$valid_docs" "$root/install-valid-docs"
 grep -Fx 'haco-safe' "$root/install-valid-docs/haco" >/dev/null
-grep -Fx 'hacoq-safe' "$root/install-valid-docs/hacoq" >/dev/null
 
 printf 'sentinel\n' >"$outside"
-for kind in traversal absolute symlink hardlink fifo device extra; do
+for kind in traversal absolute symlink hardlink fifo device extra legacy; do
   fixture="$root/$kind.tar.gz"
   install_dir="$root/install-$kind"
   make_archive "$kind" "$fixture"
@@ -184,7 +185,7 @@ for kind in traversal absolute symlink hardlink fifo device extra; do
     cat "$root/$kind.out" >&2
     exit 1
   fi
-  for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+  for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
     if [ -e "$install_dir/$binary" ]; then
       echo "installer wrote $binary for rejected $kind archive" >&2
       exit 1

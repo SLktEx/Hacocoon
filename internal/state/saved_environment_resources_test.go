@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/persistentresource"
+	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 	"strings"
 	"testing"
 	"time"

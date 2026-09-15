@@ -52,7 +52,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 
 ## 確認の境界
 
-コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。古いrootコマンドとSeed/Docker操作は[CLI移行情報](reference/cli-migration.md)へ分離しています。
+コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。
 
 CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入試験を区別します。実AWS・非公開 registry・実デスクトップなど、前提がなくスキップした検証は合格扱いにしません。障害時の権限・リース・後始末は[失敗時の表](reliability/failure-injection-matrix.md)と各設計が定義します。
 
@@ -110,3 +110,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 **実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。
 
 名前解決の選択: 実装済み候補。Env作成時の`--dns host|backend|disabled`を受け付け、通常はPhysical Hostを使い、snapshot/copy/転送で設定を保持します。無効時はguestの処理を再起動してもcontrollerが問い合わせを拒否します。導入済み3モードの受入は未確認。[名前解決](design/name-resolution.ja.md)を参照。
+
+## 構成整理と旧CLIの廃止
+
+製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0096-responsibility-layout-and-cli-retirement.ja.md)も参照してください。

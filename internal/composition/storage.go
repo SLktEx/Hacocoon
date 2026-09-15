@@ -3,8 +3,8 @@ package composition
 import (
 	"context"
 
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
 func ensureDefaultIncusStoragePool(ctx context.Context, runner host.Runner) (map[string]string, error) {

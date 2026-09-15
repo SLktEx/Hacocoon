@@ -78,7 +78,7 @@ into a caller-selected Host directory.
 
 ## Bundle and verified staging
 
-`internal/environmenttransfer` uses a bounded USTAR envelope with canonical JSON.
+`internal/env/transfer` uses a bounded USTAR envelope with canonical JSON.
 Entries are `manifest.json`, `rootfs.tar`, `workspace.tar`, consecutive
 `workspace-002.tar` through `workspace-253.tar`, and optional `oci.tar`.
 Metadata is at most 64 KiB; envelope overhead at most 512 KiB; the public aggregate

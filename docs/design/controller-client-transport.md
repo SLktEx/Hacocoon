@@ -16,7 +16,7 @@ the Environment Git-only endpoint. `environment.create` can atomically reserve
 an optional persistent resource with its Workspace. See the
 [Persistent OCI Store contract](persistent-oci-store.md).
 
-Product `haco` calls the existing controller for the [managed repository workflow](../guides/git-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../reference/cli-migration.md) for remaining legacy commands.
+Product `haco` calls the existing controller for the [managed repository workflow](../guides/git-workflow.md). Its typed management API adds `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI migration](../reference/cli.md) for remaining legacy commands.
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to two minutes using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -106,7 +106,7 @@ The instance-side path intentionally lives outside `/run`: guest systemd commonl
 
 `haco setup` verifies the trusted-host ownership marker, reconciles the exact endpoint shape, starts the instance when needed, and provisions both `/usr/local/bin/haco-host` and the same-release general `/usr/local/bin/haco`. Provisioning is digest-checked and requires each Physical Host source binary to be an executable regular file owned by the invoking effective UID and not writable by group/other users. The installed binaries must converge to `0755 root:root`.
 
-`HACO_CLIENT_MODE=controller` is deliberately a safety/execution-context marker, not an authorization credential. The retained `hacoq` migration binary uses this marker to prevent guest-local state construction. The reset product `haco` does not contain that local composition path. Authorization and policy remain controller-side.
+`HACO_CLIENT_MODE=controller` identifies the execution context; it is not an authorization credential. Product `haco` has no guest-local composition path. Authorization and Policy remain controller-side.
 
 The supported WSL bootstrap then executes `haco-host doctor` inside the real trusted instance. Bootstrap fails before changing the user's automatic login shell if the round trip cannot reach the Physical Host controller.
 
@@ -166,13 +166,13 @@ The typed Environment API currently includes:
 - delete;
 - controller ping/doctor diagnostics.
 
-The client-only `haco-host` executable and the retained migration CLI `hacoq env ...` use this API without direct Incus authority. These retained commands do not establish support in the reset product `haco`.
+Both `haco` and the client-only `haco-host` companion use this API without direct Incus authority. Their supported command surfaces are listed in the [CLI reference](../reference/cli.md).
 
 ## General `haco` client namespace
 
 Product `haco` is the common user entry point on the WSL Physical Host and inside trusted `haco-host`. Its help/version commands are standalone; setup, diagnostics, repository/Workspace/Environment management, Git approval and the WSL login alias call the controller directly. It does not delegate to `hacoq`; unimplemented commands, including `haco host ensure` and `haco host shell`, fail explicitly.
 
-Additional Environment commands remain in temporary `hacoq`, while the product's initial development journey uses the typed controller API without guest-local composition or Incus authority. The installer invokes `haco setup` through the existing controller; the legacy bootstrap orchestration and guest hacoq provisioner have been removed.
+The installer invokes `haco setup` through the existing controller. The legacy CLI and its private orchestration were removed in [ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.md).
 
 ## `haco-host` transition surface
 
@@ -264,7 +264,6 @@ Repository tests and the maintained real-Incus gate cover the following contract
 - stopped/restarted trusted Host regaining controller access;
 - production-provisioned `haco-host env` create/list/status/exec/delete from inside the real trusted Host through the Physical Host controller;
 - absence of legacy guest `hacoq` after fresh setup;
-- component coverage of retained legacy aliases, Base routing and fail-closed local composition;
 - guest command exit-status/stdout/stderr propagation through the client-only companion;
 - absence of raw Incus control-socket exposure;
 - absence of the trusted controller endpoint and client-mode marker on ordinary Environments.
@@ -396,7 +395,7 @@ caller consolidation remains partial. See [ADR 0091](../adr/0091-client-stream-f
 
 ## Windows process transport
 
-Status: **partial development candidate**. `internal/wsllaunch` constructs the
+Status: **partial development candidate**. `internal/platform/wsl/launch` constructs the
 fixed hidden `System32\wsl.exe` invocation for the selected local distribution.
 The controller transport uses its validated arguments and minimal
 environment. Consolidation with notification review remains separate. `haco _control-stdio` connects only to the fixed Physical Host UDS,
