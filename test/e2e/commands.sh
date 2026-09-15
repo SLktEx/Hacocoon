@@ -4,7 +4,7 @@ set -euo pipefail
 # Assertions below use the English catalog, independent of the invoking locale.
 export HACO_UI_LANGUAGE=en
 
-for command in go grep mktemp sleep; do
+for command in go grep mktemp sleep python3; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
@@ -200,7 +200,7 @@ grep -Fq 'unknown command "definitely-not-a-command"' "$root/vscode.err"
 notify_pid=$!
 notify_ready=0
 for ((attempt = 0; attempt < 50; attempt++)); do
-  if grep -Fq 'Hacocoon browser notifications: http://127.0.0.1:0/' "$root/notify.out"; then
+  if grep -Eq '^Hacocoon browser notifications: http://127\.0\.0\.1:[1-9][0-9]*/$' "$root/notify.out"; then
     notify_ready=1
     break
   fi
@@ -214,6 +214,21 @@ done
   cat "$root/notify.err" >&2 || true
   exit 1
 }
+python3 - "$root/notify.out" <<'PY'
+import json, pathlib, sys, urllib.request
+line = pathlib.Path(sys.argv[1]).read_text().strip()
+prefix = 'Hacocoon browser notifications: '
+assert line.startswith(prefix), line
+endpoint = line[len(prefix):]
+# Use the address the product advertised, including the assigned ephemeral
+# port. Bypass ambient proxies when observing this private local listener.
+client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+with client.open(endpoint + 'api/v1/events?offset=0&limit=1', timeout=5) as response:
+    assert response.status == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    batch = json.load(response)
+    assert isinstance(batch['events'], list)
+PY
 kill -TERM "$notify_pid"
 wait "$notify_pid"
 notify_pid=""
