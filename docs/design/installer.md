@@ -124,3 +124,8 @@ PowerShell arguments and saved continuation procedure are unchanged.
 Native Windows component tests cover exits 0, 1, 37 and 3010 plus missing
 PowerShell/adjacent script. Explorer double-click/keypress acceptance remains
 separate from the automated native process checks.
+
+<a id="windows-client-placement"></a>
+## Windows client placement
+
+The Windows package also carries the checksummed `haco-tunnel.exe`. Shared component placement stores it under the current Windows user and exact WSL registration, rejecting redirected paths or mismatched ownership. It has no reclamation enrollment authority. The completion screen prints the installed path and help command; ordinary WSL entry discovers the same client.

@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.63**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.64**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -110,3 +110,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 Git push照合の後続: 42aa706fを再利用した実装済み候補。送信前/確認後の永続記録と現所有権に基づく対象refの読み取りで、元の失敗とリモートの現状を分ける。書き込み再送や承認復元は行わず、mainのclone/fetchはpush許可にならない。新しい認証付き実機利用と巨大Git転送は別に確認する。
 
 キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加、追加データ転送は未完了。新しい実機復旧の受入は別に確認する。
+
+## 手元のアプリからTCP接続
+
+**実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。

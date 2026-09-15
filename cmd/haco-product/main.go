@@ -31,6 +31,9 @@ func main() {
 	if len(os.Args) == 2 && os.Args[1] == "_desktop-review" {
 		os.Exit(runDesktopReview())
 	}
+	if len(os.Args) == 2 && os.Args[1] == "_control-stdio" {
+		os.Exit(runControlStdio())
+	}
 	if len(os.Args) == 2 && os.Args[1] == "_dns-agent" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()

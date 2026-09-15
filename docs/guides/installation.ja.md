@@ -155,3 +155,5 @@ Windows再起動後、保存済みの継続手順に従ってください。
 $env:HACO_INSTALL_NO_PAUSE = '1'
 cmd /c .\install-windows.bat
 ```
+
+手元のアプリから開発環境へ接続するには、通常のHost入口で`haco env tunnel --target-port 8080 demo`を使います。表示された接続先を開き、Ctrl+Cで終了します。WSLからの操作では導入済みWindowsクライアントが待ち受けます。PowerShellから直接使うための配置先もインストーラが表示するので、PATHの変更は不要です。[通信の契約](../design/controller-client-transport.ja.md)を参照してください。

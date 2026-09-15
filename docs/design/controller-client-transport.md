@@ -4,7 +4,7 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing, general forwarding CLI and remote transport remain planned.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
 
 ## Summary
 
@@ -359,3 +359,108 @@ receipt/frame or session-completion failure remains unconfirmed. It reuses exist
 TTY sizing and optional provider process contracts; clients receive no Incus
 authority. See [temporary execution](temporary-execution.md) and
 [ADR 0085](../adr/0085-bounded-process-streams.md).
+
+## Client TCP listeners
+
+Status: **implemented candidate** for Linux clients using the private UDS.
+`haco env tunnel --target-port 8080 demo` listens locally on native Linux and
+automatically uses the installed Windows companion from WSL/trusted Host entry.
+Each TCP connection travels through a controller byte session.
+The output gives the local address and next action. `--listen` defaults to
+`127.0.0.1:0` (automatic port), `--address` to Env-local `127.0.0.1`, and
+`--duration` to `1h` (range `1s`–`1h`). Explicit numeric loopback IPv4/IPv6 is
+supported; hostnames, zones, mapped IPv6 and non-loopback destinations are refused.
+Ctrl+C or expiry closes the listener and active connections. Sixteen concurrent
+connections are supported; excess connections close without opening an upstream.
+
+`environment.forward.prepare` returns a creation-bound selection, and
+`environment.forward.stream` opens it after checking ready metadata, the active
+lease, runtime state and exact provider identity. Neither method is registered
+on a guest endpoint. This management operation uses existing private-socket
+authority, independently of guest-originated network Capability permissions.
+The adapter pins the target namespace instead of reusing an Env address.
+The controller opens sockets inside the owned stream callback, reports readiness
+before application bytes, and provides an independent final session result.
+Half-close propagates immediately; completion is waited after both directions
+finish. Closing early sends `_control.session.cancel` on the private management
+endpoint and waits up to six seconds for acknowledgement after stream cleanup.
+Failure and cancellation close sockets and join copy workers. If the controller
+is unreachable, cleanup cannot be confirmed; its one-hour deadline bounds the
+remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
+
+No persistent Incus forwarding device is created; the existing `env forward`
+and SSH/preview lifecycle remain available. The native Windows companion below
+implements the Windows listener candidate; installed acceptance remains separate.
+A native Linux trusted-Host client listens inside that Host. Generic process
+caller consolidation remains partial. See [ADR 0091](../adr/0091-client-stream-forwarding.md).
+
+## Windows process transport
+
+Status: **partial development candidate**. `internal/wsllaunch` constructs the
+fixed hidden `System32\wsl.exe` invocation for the selected local distribution.
+The controller transport uses its validated arguments and minimal
+environment. Consolidation with notification review remains separate. `haco _control-stdio` connects only to the fixed Physical Host UDS,
+ignoring inherited endpoint overrides. Ordinary WSL identity and socket access
+checks remain required; no root switch, guest management projection or TCP
+management listener is added. Typed clients accept this dialer for both operation
+and separate session-control connections.
+
+Process pipes use bounded data and explicit half-close frames; raw pipe EOF is
+abrupt transport loss. Each frame has a one-byte kind and four-byte big-endian
+length: data kind `0x10`, length 1–32768; EOF kind `0x11`, length zero. Unknown,
+oversized, truncated or post-EOF frames abort. Deadlines abort the connection;
+resetting a deadline does not race a stale timer into closing a later operation.
+Cancellation closes owned pipes and reaps the exact child, while explicit pipe
+ownership prevents process exit from truncating buffered response data. The
+bridge's dial is bounded to ten seconds and its lifetime to one hour.
+
+Native Windows-to-WSL fixture byte delivery is verified separately from installed
+product acceptance. The public Windows listener companion and installer placement
+and automatic delegation from WSL `haco env tunnel` are **implemented candidates**. The internal stdio entry is not an additional user CLI. See [ADR 0092](../adr/0092-wsl-process-transport.md).
+
+## Native Windows tunnel client
+
+`haco-tunnel.exe --distribution <WSL name> --target-port <port> [options] <env>`
+places the listener in Windows and uses the fixed WSL controller dialer. The
+required distribution selector precedes tunnel options. The same client command
+owns parsing, target preparation, the 16-connection bound, half-close, one-hour
+maximum and cancellation for Linux and Windows. The helper has no Incus calls,
+management listener, root fallback or credential import. Help uses the common
+English/Japanese vertical option renderer and succeeds without controller access.
+On failure it directs the user to the selected WSL's `haco doctor` and application.
+
+The installer permanently places the matching amd64/arm64 client and prints its
+absolute help command. No user PATH mutation is required. `haco-wsl.exe` keeps
+its installation/reclamation responsibilities. See [installer ownership](installer.md#windows-client-placement).
+The explicit companion entry remains available. Ordinary WSL `haco env tunnel`
+selects its installed Windows client automatically; installed Windows/WSL/Incus
+acceptance remains unfinished.
+
+## Automatic Windows tunnel entry
+
+Status: **implemented candidate**. WSL hints select the desktop route, not
+permission. The CLI first prepares the exact Env incarnation, discovers the
+controller's read-only WSL registration/installation identity, and resolves the
+installer-owned per-user companion. Native Linux keeps its local listener.
+Missing interop, companion or ownership fails with bilingual next-action guidance;
+there is no fallback listener in another namespace.
+
+A bounded private request contains the prepared target, loopback listener,
+language and original absolute deadline. It contains no command text, credentials
+or provider route. The native helper selects `wsl.exe --distribution-id` and
+checks the saved installation nonce and current exact Env selection before
+listening. Every subsequent upstream retains controller generation/lease checks.
+The manual `--distribution` entry continues to use an explicit user selection.
+
+The request is four-byte big-endian length plus at most 8192 JSON bytes, with
+strict fields and a ten-second read deadline. No subsequent requests are allowed.
+The parent's open input pipe is a lifetime lease: EOF cancels the listener and
+upstreams; extra bytes fail. The parent's cancellation closes that pipe, waits
+for child completion, and kills only that child after ten seconds if necessary.
+The Linux interop child is outside the foreground terminal process group, so
+Ctrl+C reaches the owning CLI and cancellation uses that pipe lease. It remains
+a directly waited child; nonzero child failures are not rewritten as success.
+The original deadline is not restarted on delegation. Output and diagnostics
+remain separate. Native Windows component acceptance is distinct from the
+ordinary installed journey in `tools/windows-tunnel-entry-e2e.py`.
+See [ADR 0093](../adr/0093-windows-tunnel-delegation.md).

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/SLktEx/Hacocoon/internal/clientforward"
 	"github.com/SLktEx/Hacocoon/internal/cliui"
 	"strings"
 )
@@ -59,6 +60,7 @@ func init() {
 	set([]string{"env ssh"}, []cliui.HelpField{env}, []cliui.HelpField{field("--key <public-key-file>", "flag.ssh_key")})
 	set([]string{"env disconnect"}, []cliui.HelpField{env, connection}, nil)
 	set([]string{"env forward"}, []cliui.HelpField{env}, []cliui.HelpField{field("--target-port <port>", "detail.target_port"), protocol, field("--port <local-port>", "detail.local_port")})
+	set([]string{"env tunnel"}, []cliui.HelpField{env}, clientforward.HelpOptions())
 	set([]string{"env copy"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[new-env]", "detail.copy_name")}, []cliui.HelpField{json})
 	set([]string{"env export"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[file.haco]", "detail.archive_out")}, []cliui.HelpField{json})
 	set([]string{"env import"}, []cliui.HelpField{field("<file.haco>", "detail.archive_in"), field("[new-env]", "detail.import_name")}, []cliui.HelpField{json})

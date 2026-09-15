@@ -98,11 +98,13 @@ function Get-HacocoonWindowsDataRoot {
     return [IO.Path]::GetFullPath($root)
 }
 
-function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [string]$ExpectedHash) {
+function Install-HacocoonWindowsBinary([string]$Source, [string]$RegistrationId, [string]$ExpectedHash, [string]$BinaryName = 'haco-wsl.exe') {
+    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe')) { throw 'Unknown installed Windows component.' }
+    $area = if ($BinaryName -ceq 'haco-wsl.exe') { 'reclamation' } else { 'client' }
     $id = [guid]::Empty
     if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid installed helper identity.' }
     $root = Get-HacocoonWindowsDataRoot
-    $directory = [IO.Path]::GetFullPath((Join-Path $root ('Hacocoon\reclamation\' + $id.ToString('N'))))
+    $directory = [IO.Path]::GetFullPath((Join-Path $root ('Hacocoon\' + $area + '\' + $id.ToString('N'))))
     $cursor = $directory
     while ($cursor.Length -ge $root.Length) {
         if (Test-Path -LiteralPath $cursor) {
@@ -131,7 +133,7 @@ function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [st
             $record.Flush($true)
         } finally { $record.Dispose() }
     }
-    $target = Join-Path $directory 'haco-wsl.exe'
+    $target = Join-Path $directory $BinaryName
     if (Test-Path -LiteralPath $target) {
         $item = Get-Item -LiteralPath $target -Force
         if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Refusing redirected Windows helper executable.' }
@@ -160,17 +162,22 @@ function Install-HacocoonWslHelper([string]$Source, [string]$RegistrationId, [st
     return $target
 }
 
-function Invoke-WslEnrollment([string]$BundleRoot, [string]$RegistrationId) {
+function Install-HacocoonBundledWindowsBinary([string]$BundleRoot, [string]$RegistrationId, [string]$BinaryName) {
+    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe')) { throw 'Unknown bundled Windows component.' }
     $id = [guid]::Empty
-    if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty) { throw 'Invalid enrollment registration.' }
-    $source = Join-Path $BundleRoot 'haco-wsl.exe'
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or ((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Missing or redirected Windows enrollment helper.' }
-    $entries = @(Get-Content -LiteralPath (Join-Path $BundleRoot 'checksums.txt') | Where-Object { $_ -cmatch '^[a-f0-9]{64}  haco-wsl.exe$' })
-    if ($entries.Count -ne 1 -or (Get-Sha256Hex $source) -cne $entries[0].Substring(0,64)) { throw 'Windows enrollment helper checksum mismatch.' }
-    # This is a bundled installer component running as the Windows caller, not
-    # an elevated helper or a command derived from guest/controller output.
-    $installed = Install-HacocoonWslHelper $source $id.ToString('B') $entries[0].Substring(0,64)
-    & $installed enroll $id.ToString('B')
+    if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty) { throw 'Invalid component registration.' }
+    $source = Join-Path $BundleRoot $BinaryName
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or ((Get-Item -LiteralPath $source).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Missing or redirected Windows component.' }
+    $pattern = '^[a-f0-9]{64}  ' + [regex]::Escape($BinaryName) + '$'
+    $entries = @(Get-Content -LiteralPath (Join-Path $BundleRoot 'checksums.txt') | Where-Object { $_ -cmatch $pattern })
+    if ($entries.Count -ne 1 -or (Get-Sha256Hex $source) -cne $entries[0].Substring(0,64)) { throw 'Windows component checksum mismatch.' }
+    return Install-HacocoonWindowsBinary $source $id.ToString('B') $entries[0].Substring(0,64) $BinaryName
+}
+
+function Invoke-WslEnrollment([string]$BundleRoot, [string]$RegistrationId) {
+    # The common installer owns placement; only the reclaim helper enrolls WSL.
+    $installed = Install-HacocoonBundledWindowsBinary $BundleRoot $RegistrationId 'haco-wsl.exe'
+    & $installed enroll ([guid]$RegistrationId).ToString('B')
     if ($LASTEXITCODE -ne 0) { throw 'Windows installation enrollment failed; saved correspondence was retained.' }
 }
 
@@ -921,6 +928,7 @@ if (-not $SkipIncus) {
     $binding = Invoke-WslCapture @('--distribution-id', $managedRegistrationId, '--user', 'root', '--exec', '/usr/bin/python3', '-I', '/usr/local/libexec/hacocoon-wsl-interop', '--capture-registration', $managedRegistrationId)
     if ($binding.ExitCode -ne 0) { throw 'Managed WSL registration capture failed; existing records were retained.' }
     Invoke-WslEnrollment $PSScriptRoot $managedRegistrationId
+    $installedTunnel = Install-HacocoonBundledWindowsBinary $PSScriptRoot $managedRegistrationId 'haco-tunnel.exe'
     Configure-WslPost $InstanceName $loginUser
     $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
     if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }
@@ -945,5 +953,7 @@ if ($SkipIncus) {
     Write-Host "-SkipIncus was used; automatic haco-host entry was not configured."
 } else {
     Write-Host "Next: wsl -d $InstanceName"
+    $quotedTunnel = $installedTunnel.Replace("'", "''")
+    Write-Host "Windows TCP forwarding help: & '$quotedTunnel' --distribution '$InstanceName' --help"
     Write-Host "Physical Host recovery: wsl -d $InstanceName -u root"
 }
