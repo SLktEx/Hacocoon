@@ -220,3 +220,11 @@ Main e4d99700 (#699) integrates the retained-data, Git and lifecycle follow-ups 
 
 Network and configuration result guidance share the v0.68 daily-use checkpoint. Localization does
 not change connection authority, create a new checkpoint or publish a release.
+
+The Git streaming candidate remains a v0.68 usability correction. Removing the
+32 MiB pack restriction does not establish giant-repository performance or publish
+a release. See [ADR 0106](../adr/0106-streaming-git-packs.md).
+
+Main f225e5c1 (#701) integrates setup/network/configuration guidance and the
+forwarding fixture correction after all five exact-head workflows passed.
+This remains v0.68; person-dependent post-release acceptance is not a main gate.

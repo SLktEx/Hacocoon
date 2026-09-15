@@ -85,14 +85,15 @@ haco git reconcile sample-dev
 
 Environmentでは通常の `git status`、`git fetch origin`、`git pull --ff-only`、
 `git add`、`git commit`、`git push` を使います。
-1回のbatchで最大1024個のSHA-1ブランチを取得できます。packは各ブランチで32 MiBまでで、
-一つずつ取り込んでから次を取得するため、batchの合計は32 MiBを超えても構いません。
+1回のbatchで最大1024個のSHA-1ブランチを取得できます。各ブランチのpack上限は16 GiBです。
+転送全体をメモリに保持せず少しずつ受け渡し、一つを取り込んでから次を取得します。
+batchの合計を32 MiBに制限しません。
 fetchは既存のローカルブランチ履歴を再利用し、既存ブランチへのpushは、
 一覧にある更新前の履歴が手元にある場合に再送を省きます。新規ブランチでも、一覧にある
 利用可能な祖先を新しい読み取り確認後に再利用します。対象のheadが移動したり読み取りを
 拒否された場合は、エラーを確認してfetchしてからやり直してください。pushはまだ送信
-されていません。利用できる祖先がなければ全体packが必要です。新しいpack自体が
-一つのブランチのpack自体が32 MiBを超える転送には引き続き対応していません。
+されていません。利用できる祖先がなければ全体packが必要です。中断・不完全な転送は
+失敗するため、エラーを確認してからやり直してください。
 `git branch -r`で一覧を見て、たとえば`git switch --track origin/feature/example`で
 既存ブランチへ切り替えます。pushは新規ブランチ一つ、または既存ブランチ一つの
 fast-forwardに対応します。たとえば`git switch -c feature/work`で作成・commit後に

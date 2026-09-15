@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,12 +58,13 @@ func TestTrustedFetchRejectsStaleDeletedAndUnlistedCommits(t *testing.T) {
 		t.Fatal(listed, err)
 	}
 	req.Operation, req.Heads = "fetch", listed.Heads[:1]
-	if got, err := RunAgent(context.Background(), req, repos, ""); err != nil || len(got.Pack) == 0 {
+	req.PackOutput = io.Discard
+	if got, err := RunAgent(context.Background(), req, repos, ""); err != nil || got.PackBytes == 0 {
 		t.Fatal("valid batch", err)
 	}
 	for _, heads := range [][]Head{{{Ref: "refs/heads/unlisted", OID: old}}, {{Ref: "refs/tags/topic", OID: old}}, {{Ref: "refs/heads/topic", OID: old}, {Ref: "refs/heads/topic", OID: old}}, {{Ref: "refs/heads/topic", OID: strings.Repeat("f", 40)}}} {
 		req.Heads = heads
-		if got, err := RunAgent(context.Background(), req, repos, ""); err == nil || len(got.Pack) != 0 {
+		if got, err := RunAgent(context.Background(), req, repos, ""); err == nil || got.PackBytes != 0 {
 			t.Fatal("unreviewed commit escaped", heads, err)
 		}
 	}
@@ -131,9 +133,10 @@ func TestReadHeadsRejectsExcessAndNonCommitBeforePack(t *testing.T) {
 		req := AgentRequest{Operation: "list", Branch: "main"}
 		if mode == "tree" {
 			req.Operation = "fetch"
+			req.PackOutput = io.Discard
 			req.Heads = []Head{{Ref: "refs/heads/main", OID: strings.Repeat("a", 40)}}
 		}
-		if _, err := readHeads(git, req); err == nil {
+		if _, err := readHeads(git, req, func([]byte) (int64, error) { t.Fatal("invalid remote reached pack"); return 0, nil }); err == nil {
 			t.Fatal("invalid remote accepted", mode)
 		}
 	}
