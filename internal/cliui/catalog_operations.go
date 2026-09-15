@@ -72,5 +72,6 @@ var operationCatalog = map[string]translation{
 	"workflow.source_not_ready":     {"haco: source reference is not ready", "haco: コピー元Workspaceの準備が完了していません。"},
 	"workflow.source_unavailable":   {"haco: source reference unavailable", "haco: コピー元Workspaceの情報を取得できません。"},
 	"workflow.destination_unsafe":   {"haco: destination reference already exists or is unsafe; inspect it before retrying", "haco: コピー先の参照が既に存在するか、安全を確認できません。再試行前にコピー先を確認してください。"},
+	"workflow.import_ready":         {"Independent Workspace imported; source files remain in place. Open the destination directory to start development.", "独立したWorkspaceを取り込みました。元ファイルはそのままです。コピー先ディレクトリを開いて開発を始められます。"},
 	"workflow.fork_ready":           {"Workspace fork ready; source stays stopped. Open the destination directory to create its Env.", "独立したWorkspaceのコピーを用意しました。コピー元は停止したままです。コピー先ディレクトリを開くと環境を作成できます。"},
 }

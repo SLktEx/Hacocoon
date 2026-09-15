@@ -134,3 +134,8 @@ GUI、認証付きの導入実機、大容量packは別に残ります。
 v0.61は標準入力・TTY・逐次出力と、作成IDに固定したcleanupを記録します。
 main向けGitの節目（#663）に続く開発上の進捗であり、M3全体やWindows・Incusの
 受入完了、配布を意味しません。[確認範囲](acceptance-evidence.ja.md#main-interactive-run)を参照してください。
+
+## Workspaceのレポ選択と既存worktree入力
+
+v0.67内のM2候補として、停止した作業のレポ選択コピーとcheckout/linked worktreeの独立取り込みを追加します。
+既存の契約を使い、旧版互換は追加しません。実装、導入後受入、後続の性能確認は分け、タグ・リリースは作成しません。

@@ -134,7 +134,7 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			refspec := strings.TrimPrefix(line, "push ")
 			parts := strings.Split(refspec, ":")
 			listedHeads, err := validateHeads(listed.Heads)
-			if err != nil || len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || !validHeadRef(parts[1]) {
+			if err != nil || len(parts) != 2 || parts[0] == "" || strings.HasPrefix(parts[0], "+") || strings.HasPrefix(parts[0], "-") || !ValidHeadRef(parts[1]) {
 				return fmt.Errorf("only a normal single-head creation or fast-forward push is supported")
 			}
 			oldOID := listedHeads[parts[1]]

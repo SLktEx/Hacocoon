@@ -117,6 +117,9 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 	return result, h.Save(ref)
 }
 func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	if args[0] == "import" {
+		return workspaceImportCommand(ctx, args[1:], out, diagnostic)
+	}
 	flags := flag.NewFlagSet("haco workspace "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	path := flags.String("path", "", cliMessage("detail.path"))

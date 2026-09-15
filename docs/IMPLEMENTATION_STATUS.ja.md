@@ -123,5 +123,11 @@ Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Host�
 ## Workspaceのレポ選択
 
 実装済み候補: `workspace fork --repo first,third`で選んだ既存レポのGit状態を保持し、登録済みHostレポを独立追加します。
-共通の復元・削除処理を使い、元の作業とOCIは残します。linked worktree入力と巨大レポの実測は別途残件です。
+共通の復元・削除処理を使い、元の作業とOCIは残します。独立したlinked worktree入力は下記に記録し、巨大レポの実測は後続に残します。
 [仕様](design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。
+
+## 既存Git作業場所の取り込み
+
+実装済み候補: `workspace import`でLinux/WSLのcheckoutまたはlinked worktreeを独立した管理Workspaceへコピーし、未コミット変更・選択HEAD/index・objectsを保持します。
+HostのGit config/hooksと別worktreeの管理情報は持ち込みません。既存の所有権・アップロード処理を共用し、結果不明時はローカル参照と復旧記録を残します。
+[入力契約](design/workspace-input.ja.md)を参照してください。sparse/partial clone、submodule、Windows直接入力、巨大レポ性能はこの範囲に含めません。

@@ -8,7 +8,7 @@ import (
 // Preparation and external mutation receive separate Policy checks. The target
 // is a controller-selected literal ref, not authority derived from checkout.
 func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest) (Response, error) {
-	if !validHeadRef(req.Ref) || !ValidOID(req.OldOID) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID {
+	if !ValidHeadRef(req.Ref) || !ValidOID(req.OldOID) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID {
 		return Response{}, fmt.Errorf("invalid push ref or OIDs")
 	}
 	if req.Operation == "push" {
@@ -85,7 +85,7 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 // observeHead is shared by preparation and recovery. The registered remote
 // and validated literal head never become an option or a shell expression.
 func observeHead(git func([]byte, ...string) ([]byte, error), remote, ref string) (string, error) {
-	if !validHeadRef(ref) || ValidateRemote(remote) != nil {
+	if !ValidHeadRef(ref) || ValidateRemote(remote) != nil {
 		return "", fmt.Errorf("invalid remote observation target")
 	}
 	data, err := git(nil, "ls-remote", "--heads", "--", remote, ref)

@@ -109,6 +109,7 @@ var commandCatalog = map[string]translation{
 	"command.repo.delete":              {"Review and delete an unused source repository", "未使用のコピー元を確認して削除する"},
 	"command.workspace":                {"Prepare, reopen and fork retained working sets", "保持する作業セットを準備・再開・分岐する"},
 	"command.workspace.create":         {"Create independent working copies of registered repositories", "登録済みリポジトリから独立した作業コピーを作る"},
+	"command.workspace.import":         {"Copy a local checkout or linked worktree into independent retained work", "手元のcheckout・linked worktreeを独立した保持作業へ取り込む"},
 	"command.workspace.prepare":        {"Associate a directory with retained work without moving its files", "既存ファイルを移動せず、ディレクトリと保持作業を関連付ける"},
 	"command.workspace.fork":           {"Fork one stopped working set into independent data", "停止中の作業セットから独立したデータへ分岐する"},
 	"command.workspace.list":           {"List retained working data", "保持中の作業データを一覧表示する"},

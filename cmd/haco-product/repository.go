@@ -26,7 +26,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if requestedCommandHelp(append([]string{namespace}, args...), out) {
 		return 0
 	}
-	if namespace == "workspace" && len(args) > 0 && (args[0] == "prepare" || args[0] == "fork") {
+	if namespace == "workspace" && len(args) > 0 && (args[0] == "prepare" || args[0] == "fork" || args[0] == "import") {
 		return workflowCommand(ctx, args, out, diagnostic)
 	}
 	if namespace == "git" && len(args) > 0 && (args[0] == "status" || args[0] == "reconcile") {

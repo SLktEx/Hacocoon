@@ -689,3 +689,34 @@ Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）のmembership-native-1は
 fixture selection-c393aee4e83d、台帳 /var/lib/haco-selection-154075238/state.json。
 試験用にローカルで作ったGitデータと実リポジトリbackend、共通snapshot/Env lifecycleを使い、未コミット変更・HEAD・indexの保持、通常のGit準備による登録済みレポ追加、選ばなかったレポの元側保持、独立編集、元Env削除、コピー先再開、所有対象のcleanupを確認しました。
 Policyの変更やEnvへの管理権限追加はありません。OCIの選択は既存の関連データ処理の部品検証範囲です。この実機試験ではOCI・認証付きGit・公開CLI・巨大レポ性能は検証していません。
+
+## Windows候補の未解決失敗
+
+#678の6b376a62はquality・test・Ubuntu・IncusのCIが成功しました。
+Windows34938847867/job104282639159は通常SSH/editor/tunnel、容量回収、保持データ復元に成功後、通知の失効要求起動がactivation/timeoutで失敗しました。
+dispatchのHRESULT -2147220990はhelperの読み取り期限です。回収では割当7,864,320,000→5,041,553,408バイトを観測しています。
+以前のtunnel・回収失敗の解決や人の承認回答の成功とはしません。
+
+#680の2e8d905cもLinux側4ワークフローが成功しました。
+Windows34940269831/job104287130520は導入・通常SSH/editor・Linux回収に成功後、公開reclaimがcompact_attachedで失敗しました。
+実体openは1回、compact未実行、WSLは再開済みです。通知はSKIPです。この失敗結果で両PRをmainへマージしていません。
+
+ローカルのHacocoon-Roadmap-f68a8c6bでも通知確認はreview timeoutで失敗しました。
+ただし更新したのはWindows helperだけで、導入済みLinuxはf68a8c6bのまま、_desktop-reviewを実装していませんでした。
+この混在候補は#678の受入ではなく、CIの別のactivation失敗の原因も確定しません。
+次のローカル一貫確認は通常インストーラで両側の候補を揃えてから行います。
+
+## 既存worktreeの独立取り込み
+
+2e8d905cを基にした固定入力候補のfull-3でfocused36.42秒、main全差分lint22.84秒、全ローカル39.45秒、race31.22秒、CLI4.92秒、docs/regressions9.04秒、workflow1.71秒、実機試験build1.96秒が成功しました。
+最後に追加したarchiveのtraversal・alias・xattr・特別権限・余分な末尾の回帰もrace3.01秒、main全差分lint19.81秒で成功しました。
+CLIでは結果不明の記録保持、再送・置換拒否、未確認importのopen拒否を確認しました。
+実ローカルGitの回帰はcheckout・linked worktree・split index・packed refs・stage/dirty保持・Host設定や管理情報の除外を含みます。
+full-1はfocused26.38秒成功後にlint15件で停止し、修正しました。full-2も追加CLI・拒否回帰前の全項目が成功しています。
+
+Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）のinput-native-1は26.23秒/test26.19秒で成功しました。
+fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state.json。
+実linked worktreeをprovider共通のcaptureと実Incus importで新しい管理volumeへ取り込み、HEAD・ファイル、guest独立編集、通常Env停止・再開、所有対象cleanupを確認しました。既存レポ選択試験も併せて成功しました。
+製品実装は2e8d905cへ今回差分を重ねた候補であり、未変更の2e8d905cではありません。
+専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
+認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。

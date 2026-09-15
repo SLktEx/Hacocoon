@@ -44,7 +44,7 @@ func TestRealIncusWorkspaceSelectionE2E(t *testing.T) {
 	r := New(WrapEnvironmentNetworkOwnershipRunner(host.ExecRunner{}))
 	r.setRootPool(pool)
 	must(r.verifyTrustedHostOwnership(ctx))
-	backend := &RepositoryBackend{Runtime: r}
+	backend := &RepositoryBackend{Runtime: r, ImportRoot: dir, ImportLimit: 4 << 30}
 	store := state.NewEnvironmentJSONStore(filepath.Join(dir, "state.json"))
 	repos := gitrepo.NewRepositoryService(dir, backend)
 	repos.SnapshotCatalog = store
@@ -164,6 +164,9 @@ printf untracked > extra
 	must(svc.CleanupRestoredData(ctx, destination.Workspace, func(ctx context.Context) error { return repos.DeleteRestoredCopy(ctx, copied) }))
 	for _, member := range collection.Copies() {
 		must(backend.DeleteWorkspaceVolume(ctx, member))
+	}
+	if os.Getenv("HACO_E2E_WORKSPACE_INPUT") == "1" {
+		nativeWorkspaceInput(t, ctx, svc, repos, dir, name, third.ID, run)
 	}
 	must(repos.DeleteSource(ctx, third.ID, third.Owner))
 	t.Log("PASS selected saved dirty/index/HEAD data, registered addition, omitted member retained at source, independent edits, source Env deletion, restart and exact cleanup; OCI, authenticated Git and large-repository performance not exercised")

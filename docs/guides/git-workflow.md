@@ -202,3 +202,5 @@ haco open ./task-next
 `haco repo clone`. Unselected members remain in the original work. OCI data is
 copied independently. Omit `--repo` to keep the whole collection. See
 [copy semantics](../design/workspace-workflow.md#choose-the-copys-repositories).
+
+[Import a local checkout or linked worktree](../design/workspace-input.md) into independent retained work.

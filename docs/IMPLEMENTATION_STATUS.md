@@ -134,6 +134,16 @@ Snapshot planning now reuses the create/resume/import placement binding for data
 
 Implemented candidate: `workspace fork --repo first,third` retains selected saved
 Git state and independently adds registered Host repositories through the same
-restore/cleanup transition. Source work and OCI remain intact. Linked-worktree
-input and giant-repository measurement remain separate. See
+restore/cleanup transition. Source work and OCI remain intact. Independent linked-worktree
+input is described below; giant-repository measurement remains deferred. See
 [the contract](design/workspace-workflow.md#choose-the-copys-repositories).
+
+## Existing Git working-directory input
+
+Implemented candidate: `workspace import` copies a Linux/WSL checkout or linked
+worktree into an independent managed Workspace, retaining dirty files, selected
+HEAD/index and objects. Host Git config/hooks and other worktree administration
+are excluded. Import shares the existing ownership and upload transitions;
+unknown results retain a local reference and recovery receipts. See
+[the input contract](design/workspace-input.md). Sparse/partial clones, submodules,
+Windows-native input and giant-repository performance remain outside this slice.

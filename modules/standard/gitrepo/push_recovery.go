@@ -63,7 +63,7 @@ func validPushAudit(event core.CapabilityAuditEvent) bool {
 	return event.RequestID != "" && event.Capability == Capability && event.Action == "push" &&
 		ValidID(event.Environment) && ValidID(a["repository"]) && ValidID(a["operation_id"]) &&
 		ValidateRemote(event.Resource) == nil && a["remote"] == event.Resource &&
-		validHeadRef(a["target_ref"]) && ValidOID(a["old_oid"]) && ValidOID(a["new_oid"]) && a["new_oid"] != ZeroOID
+		ValidHeadRef(a["target_ref"]) && ValidOID(a["old_oid"]) && ValidOID(a["new_oid"]) && a["new_oid"] != ZeroOID
 }
 
 func (b *Broker) PushStatus(ctx context.Context, environment, requestID string) (PushStatus, error) {

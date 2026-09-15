@@ -16,8 +16,8 @@ type Head struct {
 	OID string `json:"oid"`
 }
 
-// Full head names are data, never refspec patterns or command options.
-func validHeadRef(ref string) bool {
+// ValidHeadRef accepts full head names as data, never refspec patterns or command options.
+func ValidHeadRef(ref string) bool {
 	if len(ref) > 1024 || !utf8.ValidString(ref) || !strings.HasPrefix(ref, "refs/heads/") {
 		return false
 	}
@@ -44,7 +44,7 @@ func validateHeads(heads []Head) (map[string]string, error) {
 	}
 	result := make(map[string]string, len(heads))
 	for _, head := range heads {
-		if !validHeadRef(head.Ref) || !ValidOID(head.OID) || head.OID == ZeroOID || result[head.Ref] != "" {
+		if !ValidHeadRef(head.Ref) || !ValidOID(head.OID) || head.OID == ZeroOID || result[head.Ref] != "" {
 			return nil, fmt.Errorf("invalid or duplicate Git head")
 		}
 		result[head.Ref] = head.OID

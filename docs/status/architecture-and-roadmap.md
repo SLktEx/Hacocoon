@@ -230,6 +230,7 @@ Client loopback TCP forwarding now reuses the shared controller sessions, framed
 The M2 candidate adds selected membership to stopped independent forks using the
 existing restore transition. Local full/race and dedicated supported-Incus Git
 state/addition/restart/cleanup passed; see [evidence](acceptance-evidence.md#selected-workspace-membership).
-Next: independent linked-worktree input through the client/provider boundaries,
-then the remaining installed/authenticated acceptance. Source work is preserved;
+Independent checkout/linked-worktree input is implemented in the next candidate
+through the client/provider boundaries. Next: installed/authenticated acceptance
+and existing-Env cache enrollment/orphan-generation recovery. Source work is preserved;
 large-repository measurement remains deferred by the user.

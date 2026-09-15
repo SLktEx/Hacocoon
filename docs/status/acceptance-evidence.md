@@ -788,3 +788,48 @@ edits, source Env deletion, destination restart and exact owned cleanup. No Poli
 changes or guest management authority were introduced. OCI selection is covered
 at the existing associated-data component boundary; native OCI, authenticated Git,
 public CLI and giant-repository performance were not exercised by this native test.
+
+## Outstanding Windows candidate failures
+
+PR #678 at `6b376a62` passed quality, test, Ubuntu and Incus CI. Windows run
+34938847867/job104282639159 passed ordinary SSH/editor/tunnel, reclamation and
+retained-data restoration, then failed native notification stale activation:
+`activation/timeout`, dispatch HRESULT -2147220990 (the helper's read deadline).
+Reclamation observed 7,864,320,000 to 5,041,553,408 allocated bytes. This does not
+resolve earlier tunnel/reclamation failures or establish human approval answers.
+
+PR #680 at `2e8d905c` also passed all four Linux workflows. Windows run
+34940269831/job104287130520 passed installation, native SSH/editor and Linux
+reclamation, then failed public reclaim with `compact_attached`: one native open,
+no compaction attempted, WSL resumed. Notification was SKIPPED. Neither PR is
+merged on these failed Windows results.
+
+A local notification probe on Hacocoon-Roadmap-f68a8c6b failed with review timeout.
+Only the Windows helper had been updated; installed Linux still reported f68a8c6b
+and did not implement `_desktop-review`. This mixed candidate is not acceptance
+of #678 and does not explain its separate CI activation failure. A matching
+ordinary installation must precede the next local end-to-end probe.
+
+## Independent worktree input
+
+The immutable input candidate based on2e8d905c passed full-3: focused36.42s,
+complete main-diff lint22.84s, full local39.45s, race31.22s, CLI4.92s,
+docs/regressions9.04s, workflow1.71s and native-test build1.96s. Final additional
+archive traversal/alias/xattr/privilege/trailing-data regressions passed with
+race3.01s and full main-diff lint19.81s. The CLI regression preserves a receipt
+on an unknown result, refuses replay/replacement and never opens an unconfirmed
+import. Real local Git regressions cover checkout, linked worktree, split index,
+packed refs, staged/dirty content and exclusion of Host config/admin state.
+Full-1 stopped at15 lint findings after focused26.38s; those were corrected.
+Full-2 passed all checks before the extra CLI/refusal regressions.
+
+On Ubuntu26.04.1/Incus7.0.1 in Hacocoon-Roadmap-f68a8c6b, input-native-1 passed
+26.23s/test26.19s. Fixture selection-384863c4ef38, catalog
+/var/lib/haco-selection-1381113910/state.json, copied an actual local linked
+worktree through the real provider-neutral capture and Incus import into a new
+managed volume. Selected HEAD/files, independent guest editing, normal Env
+stop/start and exact cleanup passed alongside the existing membership test.
+The product implementation was the candidate overlay, not unchanged2e8d905c;
+the dedicated test binary was used, not the installed CLI. No Policy relaxation
+or guest management authority was added. Authenticated Git, human GUI answers,
+installed input and giant-repository measurements were not exercised.

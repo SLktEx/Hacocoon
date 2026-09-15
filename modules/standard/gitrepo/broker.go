@@ -319,7 +319,7 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 			return Response{}, core.ErrInvalidArgument
 		}
 	case "push":
-		if !validHeadRef(req.Ref) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID || !ValidOID(req.OldOID) || len(req.Pack) == 0 || len(req.Heads) != 0 {
+		if !ValidHeadRef(req.Ref) || !ValidOID(req.NewOID) || req.NewOID == ZeroOID || !ValidOID(req.OldOID) || len(req.Pack) == 0 || len(req.Heads) != 0 {
 			return Response{}, core.ErrInvalidArgument
 		}
 		ref, agent.Ref = req.Ref, req.Ref

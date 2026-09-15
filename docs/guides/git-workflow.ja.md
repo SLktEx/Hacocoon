@@ -185,3 +185,5 @@ haco open ./task-next
 選ばなかったレポも元の作業には残り、OCIデータは独立して複製します。
 `--repo`を省略すると全レポを引き継ぎます。
 [複製の仕様](../design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。
+
+[手元のcheckout・linked worktreeを独立した保持作業へ取り込む](../design/workspace-input.ja.md)手順も利用できます。

@@ -144,4 +144,11 @@ not all of M3 or Windows/Incus acceptance and not a release. See
 
 Within the current v0.67 development checkpoint, stopped forks can select retained
 members and add registered repositories. This M2 completion slice creates no tag
-or release; linked-worktree input and native acceptance remain separate.
+or release; native acceptance is recorded separately from implementation.
+
+## Existing worktree input
+
+Within v0.67, the M2 candidate adds explicit independent checkout/linked-worktree
+import. This uses current contracts without adding old-version compatibility.
+Implementation, installed acceptance and deferred performance remain distinct;
+no tag or release is created.

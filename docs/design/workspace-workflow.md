@@ -11,7 +11,9 @@ does not introduce a second ownership catalog.
 
 ## Path entry
 
-A local directory can hold a small Workspace reference. Preparing/opening that
+A local directory can hold a small Workspace reference. Explicit
+[local checkout / linked-worktree import](workspace-input.md) makes independent
+managed data; `open` itself never implicitly imports directory files. Preparing/opening that
 reference copies explicitly selected Host-managed repositories into the existing
 Incus Btrfs Workspace volumes. The directory's existing files are not moved,
 replaced, mounted into the Environment or used as an implicit source. The new local files are the explicit Workspace reference

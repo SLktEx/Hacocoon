@@ -74,6 +74,9 @@ func main() {
 	if err := registerEnvironmentExport(server, app); err != nil {
 		fail(err)
 	}
+	if err := registerWorkspaceImport(server, app); err != nil {
+		fail(err)
+	}
 	if err := registerEnvironmentImport(server, app); err != nil {
 		fail(err)
 	}
