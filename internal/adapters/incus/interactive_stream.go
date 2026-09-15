@@ -25,6 +25,9 @@ func (r *Runtime) ShellEnvironmentStream(ctx context.Context, ref string, stdin 
 	if r == nil || ref == "" || stdin == nil || stdout == nil || stderr == nil {
 		return core.ErrInvalidArgument
 	}
+	if err := validateManagedInstanceRef(ref); err != nil {
+		return err
+	}
 	argv := interactiveShellWithPrompt(
 		[]string{"/bin/bash"},
 		environmentPrompt(ref),

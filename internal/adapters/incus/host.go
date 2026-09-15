@@ -187,16 +187,6 @@ func (r *Runtime) ProvisionTrustedHostClient(ctx context.Context, source string)
 	return nil
 }
 
-// ShellTrustedHost ensures the trusted host exists and then opens an
-// interactive login shell. Incus control authority stays on the Physical Host;
-// no Incus socket is mounted into haco-host.
-func (r *Runtime) ShellTrustedHost(ctx context.Context) error {
-	if err := r.EnsureTrustedHost(ctx); err != nil {
-		return err
-	}
-	return r.execInteractive(ctx, trustedHostName, []string{"/bin/bash", "-l"})
-}
-
 func (r *Runtime) ensureTrustedHostClientEnvironment(ctx context.Context) error {
 	result, err := r.runner.Run(ctx, "incus", "config", "get", trustedHostName, trustedHostControlEnvKey, "--project", r.project)
 	if err != nil {
