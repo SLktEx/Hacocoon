@@ -106,3 +106,6 @@ Incusの子スナップショット・バックアップ・保存スケジュー
 [ストレージ容量回収](../design/storage-reclamation.ja.md)にあります。
 [Environmentの持ち出し](../design/environment-transfer.ja.md)は完成したbundleを移す機能です。
 [データ退避](data-evacuation.ja.md)は部分実装の保守作業で、インストール全体のバックアップではありません。
+
+削除警告と保持データの結果は選択した日英表示に従います。空入力・入力終了・yes以外では削除しません。
+警告や確認の表示に失敗した場合も`--yes`でも削除せず、controllerが参照・所有権を確認します。

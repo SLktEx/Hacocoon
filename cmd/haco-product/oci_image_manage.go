@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -32,20 +31,20 @@ func runOCIImageManage(args []string) int {
 }
 func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string, in io.Reader, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci image list [--unused] [--runtime nerdctl|docker] [--json] [--host] [<env-or-store-id>] | delete [--unused] [--runtime nerdctl|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]")
+		commandHelp(diagnostic, "plugin oci image", cliLanguage())
 		return 2
 	}
 	f := flag.NewFlagSet("haco plugin oci image "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
-	hostSource := f.Bool("host", false, "operate on the managed Host source for future Store copies")
-	runtime := f.String("runtime", "nerdctl", "OCI runtime owning these images")
-	unused := f.Bool("unused", false, "select images with no container users, including tagged images")
+	hostSource := f.Bool("host", false, cliMessage("detail.host_images"))
+	runtime := f.String("runtime", "nerdctl", cliMessage("detail.runtime"))
+	unused := f.Bool("unused", false, cliMessage("detail.unused_list"))
 	var yes, machine bool
 	switch args[0] {
 	case "list":
-		f.BoolVar(&machine, "json", false, "machine-readable images and users")
+		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, "confirm deletion of the reviewed image")
+		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		return 2
 	}
@@ -73,7 +72,7 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 	}
 	all, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "list", Environment: environment, Host: *hostSource, Runtime: *runtime})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	matchingTarget := all.Target.Environment == environment
@@ -81,14 +80,14 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		matchingTarget = !*hostSource && all.Target.Store.ID == environment && all.Target.Environment == "" && all.Target.Instance == ""
 	}
 	if !matchingTarget || all.Target.Host != *hostSource || all.Target.Runtime != *runtime {
-		fmt.Fprintln(diagnostic, "haco: invalid image review identity")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("image.invalid_review"))
 		return 1
 	}
 	selected := []oci.ManagedImage{}
 	seen := map[string]bool{}
 	for _, image := range all.Images {
 		if !oci.ValidImageSelection(all.Target, image.ID) || seen[image.ID] {
-			fmt.Fprintln(diagnostic, "haco: invalid or duplicate image review identity")
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("image.duplicate_review"))
 			return 1
 		}
 		seen[image.ID] = true
@@ -117,14 +116,14 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 	}
 	if len(selected) == 0 {
 		if *unused {
-			fmt.Fprintln(out, "No images without container users; nothing deleted")
+			_, _ = fmt.Fprintln(out, cliMessage("image.none_unused"))
 			return 0
 		}
-		fmt.Fprintln(diagnostic, "haco: image not found; use image list to review exact IDs and tags")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("image.missing"))
 		return 1
 	}
 	if !*unused && len(selected) != 1 {
-		fmt.Fprintln(diagnostic, "haco: ambiguous image selection")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("image.ambiguous"))
 		return 1
 	}
 	review := all
@@ -133,51 +132,47 @@ func ociImageManageCommand(ctx context.Context, c ociImageClient, args []string,
 		return 1
 	}
 	if len(selected[0].Containers) > 0 {
-		fmt.Fprintln(diagnostic, "haco: image is referenced by a container; retained")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("image.busy"))
 		return 1
 	}
 	if *unused {
-		fmt.Fprintln(diagnostic, "Selection includes tagged images with no running or stopped container users. This is not an estimate of reclaimable bytes.")
-	}
-	if *hostSource {
-		fmt.Fprintln(diagnostic, "This changes the Host source used for future Store copies. Existing independent copies remain.")
-	}
-	fmt.Fprintln(diagnostic, "Delete this image from the selected Store. Independent copies, saved snapshots and remote registry images remain. The runtime may refuse images with multiple tags or other references; no force is used.")
-	if !yes {
-		if !requireInteractiveConfirmation(in, diagnostic) {
-			return 2
-		}
-		fmt.Fprint(diagnostic, "Delete the reviewed image(s)? [y/N] ")
-		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
-		answer = strings.ToLower(strings.TrimSpace(answer))
-		if err != nil || (answer != "y" && answer != "yes") {
-			fmt.Fprintln(diagnostic, "Image retained.")
+		if _, err := fmt.Fprintln(diagnostic, cliMessage("image.unused_warning")); err != nil {
 			return 1
 		}
+	}
+	if *hostSource {
+		if _, err := fmt.Fprintln(diagnostic, cliMessage("image.host_warning")); err != nil {
+			return 1
+		}
+	}
+	if code := confirmDataDeletion(in, diagnostic, yes, "image.delete_warning", "image.delete_prompt", "image.retained"); code != 0 {
+		return code
 	}
 	for i, image := range selected {
 		if _, err := c.OCIImage(ctx, controlapi.OCIImageRequest{Operation: "delete", Target: all.Target, ID: image.ID}); err != nil {
-			fmt.Fprintf(diagnostic, "haco: deletion stopped after %d of %d images: %v\n", i, len(selected), err)
+			_, _ = fmt.Fprintf(diagnostic, cliLanguage().Text("image.delete_failed"), i, len(selected), err)
 			return 1
 		}
-		fmt.Fprintf(out, "OCI image deleted: %s\n", image.ID)
+		if _, err := fmt.Fprintf(out, cliLanguage().Text("image.deleted"), image.ID); err != nil {
+			return 1
+		}
 	}
 	return 0
 }
 func writeOCIImages(out io.Writer, all oci.ManagedImageList) error {
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	role := "independent copy"
+	role := cliMessage("image.role_independent")
 	if all.Target.Host {
-		role = "Host source for future copies"
-		fmt.Fprintln(table, "Target: managed Host source")
+		role = cliMessage("image.role_host")
+		_, _ = fmt.Fprintln(table, cliMessage("image.host_target"))
 	} else if all.Target.Detached {
-		role = "detached retained Store"
-		fmt.Fprintln(table, "Target: retained Store via a disposable Environment")
+		role = cliMessage("image.role_detached")
+		_, _ = fmt.Fprintln(table, cliMessage("image.detached_target"))
 	} else {
-		fmt.Fprintf(table, "Environment: %q (generation %q)\n", all.Target.Environment, all.Target.Instance)
+		_, _ = fmt.Fprintf(table, cliLanguage().Text("image.environment"), all.Target.Environment, all.Target.Instance)
 	}
-	fmt.Fprintf(table, "Store: %q (owner %q, %s)\nRuntime: %q\nSaved snapshots (independent): %q\n", all.Target.Store.ID, all.Target.Store.Owner, role, all.Target.Runtime, strings.Join(all.IndependentSnapshots, ","))
-	fmt.Fprintln(table, "TYPE\tIMAGE ID\tTAGS\tDIGESTS\tCONTAINER USERS")
+	_, _ = fmt.Fprintf(table, cliLanguage().Text("image.details"), all.Target.Store.ID, all.Target.Store.Owner, role, all.Target.Runtime, strings.Join(all.IndependentSnapshots, ","))
+	_, _ = fmt.Fprintln(table, cliMessage("image.columns"))
 	for _, image := range all.Images {
 		fmt.Fprintf(table, "oci-image\t%q\t%q\t%q\t%q\n", image.ID, strings.Join(image.Tags, ","), strings.Join(image.Digests, ","), strings.Join(image.Containers, ","))
 	}

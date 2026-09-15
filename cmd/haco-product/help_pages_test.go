@@ -68,11 +68,15 @@ func TestLocalizedHelpPreservesCurrentMainEntry(t *testing.T) {
 				t.Fatalf("missing %q: %s", command, out.String())
 			}
 		}
-		for _, path := range []string{"env ssh", "open"} {
+		for _, path := range []string{"env ssh", "ssh setup"} {
 			out.Reset()
 			if !commandHelp(&out, path, language) || strings.Contains(out.String(), "--port") {
 				t.Fatalf("obsolete SSH port option: %s", out.String())
 			}
+		}
+		out.Reset()
+		if !commandHelp(&out, "open", language) || !strings.Contains(out.String(), "--port") || !strings.Contains(out.String(), "HTTP") {
+			t.Fatalf("missing HTTP preview option: %s", out.String())
 		}
 	}
 }

@@ -394,6 +394,38 @@ those results are not substituted for this updated head. Seed #662 final head
 same-commit evidence job 104155046690. No earlier failure or human acceptance gap
 is erased by either result.
 
+## Detailed guidance and single Host tool preparation
+
+Candidate `4d7435cc` reuses #592/#593 and #659 on main `44211fd2`. Current
+JSON opt-in, portless SSH, HTTP preview and once-per-Host setup semantics remain.
+Focused CLI/catalog/Host/Incus tests (4.39s), pinned changed-code lint (4.09s),
+full local tests (44.27s), related race (9.69s), CLI E2E (3.64s), documentation
+(5.03s) and workflow policy (1.08s) passed on a verified source archive.
+
+The first focused attempt exposed old fixture language selection and an overly
+broad SSH-port assertion: current `haco open --port` selects HTTP preview. The
+fixtures now use the shared locale selector and distinguish preview from portless
+SSH. The next lint found two unchecked test-file closes; both are checked now.
+These failures remain distinct from the subsequent passes. Fresh installed Host
+preparation and original SSH-failure reproduction were not run for this head;
+#655's original Host apt failure remains historical unresolved evidence.
+
+PR #665 head `e6ef0431` passed repository, quality, Ubuntu and Incus CI, but
+Windows run 34896159890 failed before packaging/installation in the first native
+reclamation protocol subtest (job 104150566559, start, 30.09s timeout; only CLIXML
+on stderr). The other five modes passed; subsequent product steps were skipped.
+No changed file touched that protocol implementation. The same verified source
+was built and run on this Windows PC: all six modes passed in 5.84s (command
+7.67s), with start taking 3.68s. No WSL restart, reclamation, registration change
+or execution-policy relaxation was involved. The CI timeout remains unexplained
+and is not erased by local success. The candidate now includes main `119e3007`.
+
+After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` passed the full local test entry (19.51s), CLI E2E (10.60s), and docs/regressions (5.55s). Windows CI is rerun for the updated head; the earlier protocol timeout remains unresolved evidence.
+
+
+PR #665 head `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa` passed all five CI workflows, including Windows 34900315650. After merging main `9da3ec8f` as `35d5ea81`, combined local tests (13.58s), CLI E2E (3.22s) and docs/regressions (4.65s) passed. The earlier native protocol startup timeout remains unexplained; this later pass does not erase it. No fresh human desktop acceptance is claimed.
+
+
 <a id="main-interactive-run"></a>
 ## Interactive temporary execution on main
 
@@ -499,6 +531,10 @@ Fresh notification answers and actual Packer completion remain unverified.
 The main candidate reuses `2a0e9499`, `c4b7af50`, `094cc930`, `3a6e2bbc` and `2b3a5b56` over interactive-run source `7ed40fe5`. It preserves split lifecycle ownership and exact temporary-run identities, without adding old-version migration. Initial focused tests caught a missing generation-validation call during normalization and an imported old-schema acceptance fixture. The validation was restored and the fixture now tests preservation of current owned resources. All corruption-refusal cases then passed.
 
 Final focused tests (12.86s), uncapped changed-code lint (10.84s), maintained local tests (22.15s), related race (9.78s), CLI E2E (4.01s), docs/regressions (6.96s) and workflow policy (1.34s) passed with Go 1.27.1. Earlier lint found read-response closes, fixture writes and boolean simplifications; fixed before these results. Historical provider measurements above are not relabeled as new native acceptance. The old ambiguous fixture pool remains untouched. Public configuration, stopped-Env publication, history/clear and added-data snapshot/copy/transfer remain incomplete, so production enrollment is disabled.
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
+
+
+After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.
 
 
 <a id="ordinary-cache-collection"></a>
