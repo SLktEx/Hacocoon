@@ -72,7 +72,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	logger, err := logging.NewFromEnv(stderr)
 	if err != nil {
-		_, _ = fmt.Fprintln(stderr, cliMessage("setup.invalid_logging"))
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.logging"))
 		return 1
 	}
 	logging.SetRoot(logger)

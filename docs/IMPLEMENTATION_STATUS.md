@@ -94,3 +94,8 @@ successful CI. Candidate, main and published artifacts remain distinct; no new
 release was created. Performance/additional strict validation and excluded
 old-version reconstruction are separated from current data retention in the
 [M0–M5 roadmap](status/architecture-and-roadmap.md).
+
+The network-guidance development follow-up adds English/Japanese registration,
+revocation, rule and listener outcomes with unchanged machine results and
+permission semantics. This completes another M1/M3 presentation slice; installed
+acceptance and overall CLI language coverage remain separately tracked.

@@ -217,3 +217,6 @@ advance or release. Human login and notification/editor decisions remain
 post-release acceptance, not a gate for merging implemented work with green CI.
 
 Main e4d99700 (#699) integrates the retained-data, Git and lifecycle follow-ups within v0.68 after all five exact-head workflows passed. This is main integration, not publication or completed person-dependent acceptance.
+
+Network result guidance shares the v0.68 daily-use checkpoint. Localization does
+not change connection authority, create a new checkpoint or publish a release.

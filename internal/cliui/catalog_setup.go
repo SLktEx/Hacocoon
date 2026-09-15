@@ -6,7 +6,6 @@ var setupCatalog = map[string]translation{
 	"setup.invalid_usage":          {"haco: usage: haco setup [--script <path> | --clear-script] [environment]", "haco: 使い方: haco setup [--script <path> | --clear-script] [environment]"},
 	"setup.script_unreadable":      {"haco: cannot read a regular UTF-8 setup script (maximum 1 MiB)", "haco: セットアップ用の通常ファイルを読み取れません。UTF-8形式で最大1MiBのスクリプトを指定してください。"},
 	"setup.select_option":          {"haco: select one script option; --reapply-script and --script-result are Host-only", "haco: スクリプトのオプションは1つだけ指定してください。--reapply-scriptと--script-resultはHost専用です。"},
-	"setup.invalid_logging":        {"haco: invalid logging configuration", "haco: ログ設定が無効です。HACO_LOG_LEVELとHACO_LOG_FORMATを確認してください。"},
 	"setup.truncated":              {"haco: setup output was truncated", "haco: セットアップの出力が上限を超えたため、一部を省略しました。"},
 	"setup.project_cleared":        {"Saved project setup removed.", "プロジェクトの保存手順を解除しました。"},
 	"setup.project_completed":      {"Project setup completed.", "プロジェクトのセットアップが完了しました。"},

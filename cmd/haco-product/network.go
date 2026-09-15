@@ -38,7 +38,7 @@ func runNetwork(args []string) int {
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: cannot open controller client")
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.controller"))
 		return 1
 	}
 	return networkCommand(ctx, client, args, os.Stdout, os.Stderr)
@@ -54,13 +54,18 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 		return 2
 	}
 	args = clean
-	result := func(value any, err error) int {
+	result := func(value any, err error, notice ...string) int {
 		if err != nil {
-			fmt.Fprintln(diagnostic, "haco:", err)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("network.failed"), err)
 			return 1
 		}
 		if value != nil {
 			if writeCLIResult(out, value, jsonOutput) != nil {
+				return 1
+			}
+		}
+		if !jsonOutput && len(notice) != 0 {
+			if _, err := fmt.Fprintln(out, cliMessage(notice[0])); err != nil {
 				return 1
 			}
 		}
@@ -73,16 +78,19 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 			return 0
 		case "list":
 			v, e := client.ListNetworkConnections(ctx)
+			if e == nil && len(v) == 0 && !jsonOutput {
+				return result(nil, nil, "network.connections_empty")
+			}
 			return result(v, e)
 		}
 	}
 	if len(args) == 2 && args[0] == "revoke" {
-		return result(nil, client.RevokeNetworkConnection(ctx, args[1]))
+		return result(nil, client.RevokeNetworkConnection(ctx, args[1]), "network.revoked")
 	}
 	if len(args) > 1 && args[0] == "host" {
 		if args[1] == "add" {
 			f := flag.NewFlagSet("network host add", flag.ContinueOnError)
-			f.SetOutput(diagnostic)
+			configureCLIFlags(f, diagnostic)
 			var service capability.NetworkService
 			f.StringVar(&service.Address, "address", "", cliMessage("detail.host_address"))
 			f.IntVar(&service.Port, "port", 0, cliMessage("detail.target_port"))
@@ -109,7 +117,8 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 			}
 			for _, old := range policy.NetworkServices {
 				if old.Name == service.Name {
-					return result(nil, fmt.Errorf("service already exists; remove it before registering a replacement"))
+					_, _ = fmt.Fprintln(diagnostic, cliMessage("network.service_exists"))
+					return 1
 				}
 			}
 			policy.NetworkServices = append(policy.NetworkServices, service)
@@ -118,7 +127,7 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 				return result(nil, err)
 			}
 			_, err = client.ReplaceConfiguration(ctx, snapshot)
-			return result(service, err)
+			return result(service, err, "network.host_added")
 		}
 		if (args[1] == "list" && len(args) == 2) || (args[1] == "remove" && len(args) == 3) {
 			snapshot, err := client.ReadConfiguration(ctx)
@@ -130,6 +139,9 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 				return result(nil, err)
 			}
 			if args[1] == "list" {
+				if len(policy.NetworkServices) == 0 && !jsonOutput {
+					return result(nil, nil, "network.hosts_empty")
+				}
 				return result(policy.NetworkServices, nil)
 			}
 			index := -1
@@ -147,12 +159,12 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 				return result(nil, err)
 			}
 			_, err = client.ReplaceConfiguration(ctx, snapshot)
-			return result(nil, err)
+			return result(nil, err, "network.host_removed")
 		}
 	}
 	if len(args) > 0 && args[0] == "rule" {
 		f := flag.NewFlagSet("network rule", flag.ContinueOnError)
-		f.SetOutput(diagnostic)
+		configureCLIFlags(f, diagnostic)
 		var spec networkrelay.RuleSpec
 		var duration, ttl time.Duration
 		var decision string
@@ -172,7 +184,7 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 		}
 		spec.ExpiresAt = time.Now().UTC().Add(ttl)
 		v, e := client.AddNetworkRule(ctx, spec)
-		return result(v, e)
+		return result(v, e, "network.rule_added")
 	}
 	return usage()
 }
@@ -190,7 +202,7 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 	}
 	args = clean
 	f := flag.NewFlagSet("network "+args[0], flag.ContinueOnError)
-	f.SetOutput(diagnostic)
+	configureCLIFlags(f, diagnostic)
 	spec := networkrelay.Spec{Protocol: args[0]}
 	var duration time.Duration
 	var listen string
@@ -202,18 +214,18 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 	}
 	spec.DurationSeconds = int(duration / time.Second)
 	if networkrelay.ValidateSpec(spec) != nil {
-		fmt.Fprintln(diagnostic, "haco: invalid destination or lifetime")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("network.invalid_destination"))
 		return 2
 	}
 	host, _, err := net.SplitHostPort(listen)
 	ip := net.ParseIP(host)
 	if err != nil || ip == nil || !ip.IsLoopback() {
-		fmt.Fprintln(diagnostic, "haco: listener must use a numeric loopback address")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("network.loopback"))
 		return 2
 	}
 	logger, err := logging.NewFromEnv(diagnostic)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: invalid logging configuration")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.logging"))
 		return 2
 	}
 	ctx, cancel := context.WithTimeout(ctx, duration)
@@ -227,7 +239,14 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 		}
 	}
 	emit := func(address string) error {
-		return writeCLIResult(out, map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds}, jsonOutput)
+		if err := writeCLIResult(out, map[string]any{"listen": address, "protocol": spec.Protocol, "target": spec.Target, "kind": spec.Kind, "duration_seconds": spec.DurationSeconds}, jsonOutput); err != nil {
+			return err
+		}
+		if !jsonOutput {
+			_, err := fmt.Fprintln(out, cliMessage("network.listener_ready"))
+			return err
+		}
+		return nil
 	}
 	if spec.Protocol == "udp" {
 		address, e := net.ResolveUDPAddr("udp", listen)
@@ -256,7 +275,7 @@ func networkListenCommand(ctx context.Context, args []string, out, diagnostic io
 		}
 	}
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("network.listener_failed"), err)
 		return 1
 	}
 	return 0
