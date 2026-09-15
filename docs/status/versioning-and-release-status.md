@@ -215,3 +215,5 @@ Sequential multi-head fetch is another v0.68 usability correction: it removes a 
 Setup outcome localization is a v0.68 daily-use correction with no checkpoint
 advance or release. Human login and notification/editor decisions remain
 post-release acceptance, not a gate for merging implemented work with green CI.
+
+Main e4d99700 (#699) integrates the retained-data, Git and lifecycle follow-ups within v0.68 after all five exact-head workflows passed. This is main integration, not publication or completed person-dependent acceptance.

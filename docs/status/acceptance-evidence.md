@@ -1451,3 +1451,28 @@ corrected before the successful suite; the first changed-line lint also rejected
 unchecked output returns. Existing exit status, script output, private-result
 access, explicit replay and structured diagnostic boundaries are preserved.
 This is repository/component evidence, not a new installed or human-GUI pass.
+
+## Main integration of retained-data and lifecycle fixes
+
+[#699](https://github.com/SLktEx/Hacocoon/pull/699) merged as main
+`e4d99700b976e2166a4a0b27dc9f37cf3aaaacc1`. Its exact head `51ba4f24`
+passed quality `34989824960`, test `34989824791`, Ubuntu `34989824936`,
+Incus `34989824882` and Windows `34989824868`. The merged tree is identical
+to that head. Core, standalone, Btrfs and evidence jobs all passed, including
+the aggregate fixture cleanup that failed at the earlier head.
+
+Windows job `104451279682` passed ordinary installation, Environment HTTPS and
+direct-egress refusal, native entry/SSH/editor/forwarding, Linux and public
+reclamation, retained Workspace/OCI/snapshot restore and native notification
+ownership/refusal/subscription. Public operation
+`{68E10593-EC50-41D2-875E-F71D4F303386}` recovered **2,840,592,384 bytes**:
+Windows allocation 7,797,211,136 → 4,956,618,752; virtual capacity
+1,099,511,627,776 was unchanged. Compaction completed after 252 open attempts;
+the same WSL resumed. Human toast clicks/fresh GUI decisions and VPN/NRPT
+remain skipped. Earlier failures and the dedicated local enrollment issue
+remain distinct; success does not establish their causes.
+
+The setup-language follow-up was rebased without a tree difference from
+`724adc2d` onto this main (`e5a4e1e8` → `8b95f79a`). Its normal ten-binary
+Linux/Windows package built from `724adc2d` in 45.49s, without installation,
+WSL termination or publication. These scopes do not claim a new release.

@@ -18,45 +18,33 @@ are post-release acceptance items, not conditions for merging implemented work
 into main. Keep their unperformed status explicit without holding implementation
 delivery for them. This does not turn a known CI failure into a pass.
 
-Main `2f421006` / [#687](https://github.com/SLktEx/Hacocoon/pull/687) integrates the
-previous Workspace, Git/GUI, network/DNS, Packer, cache, retained-data and notification
-work. Main `ee8bf7fb` / [#688](https://github.com/SLktEx/Hacocoon/pull/688) adds
-reclamation failure diagnostics. Both exact PR heads passed all five workflows.
-These are implementation checkpoints, not M0–M5-wide acceptance or distribution.
+Main `2f421006` (#687) and `ee8bf7fb` (#688) integrated the earlier M0–M5
+implementation and reclamation diagnostics. Main `e4d99700` /
+[#699](https://github.com/SLktEx/Hacocoon/pull/699) now also contains #689–#693
+and #696–#698: restored-tree comparison, bilingual reclamation, SSH failure
+classification, restore by source name, incremental/sequential Git transfer,
+catalog-scoped lifecycle locking and virtual-disk observation lifetime fixes.
 
-[#692](https://github.com/SLktEx/Hacocoon/pull/692) includes #689–#691 and adds
-bounded Windows SSH failure classification. Exact head `4e7a45a7` passed four Linux
-workflows. Its first Windows attempt failed at an external VS Code extension HTTP503 after
-SSH/transfer checks passed. The one retry passed SSH/editor and Linux reclamation,
-but public reclamation refused an attached disk; notifications were skipped. Earlier
-unexplained Windows failures remain separate. Main integration still needs all
-five successful workflows for the exact candidate.
+All five required workflows succeeded for exact #699 head `51ba4f24`, including
+installed Windows and real Incus/Btrfs. Earlier HTTP503, attached-disk and
+unexplained TCP failures remain in [acceptance evidence](acceptance-evidence.md);
+later success does not rewrite those receipts. No release was published.
 
-[#693](https://github.com/SLktEx/Hacocoon/pull/693), implementation `e1ec0894`, adds
-latest-ready restore by environment name. Local tests and an installed two-save,
-source-deletion, latest-restore and exact-fixture cleanup journey passed. It is a
-stacked draft during #692 CI, with main as the final target. Neither PR is a release.
-
-The main-targeted `codex/main-reclaim-readiness` candidate includes #689–#693 and
-[#696](https://github.com/SLktEx/Hacocoon/pull/696), plus `f50c0d93` for virtual-disk
-observation lifetime. Local full and Windows component checks passed; actual empty
-disk attachment skipped for missing Windows privilege. Keep the previous CI
-failures and current dedicated-WSL concurrent-use uncertainty separate. The new
-candidate passed four workflows, but #697 Windows failed during ordinary tunnel
-exchange after SSH/editor and transfer/recreated-work checks passed. Reclamation
-and native notifications were skipped. Preserve that failure and diagnose the
-reset before integration; do not infer a cause from the application timeout alone.
+[#700](https://github.com/SLktEx/Hacocoon/pull/700) is the next main-targeted
+slice: Host/project setup outcomes and next actions use shared English/Japanese
+presentation and vertical help. Local full checks and normal installer-package
+generation passed. Its final-head CI and main integration remain next.
 
 ## M0–M5 remaining work
 
 | Stage and useful outcome | Remaining implementation or acceptance |
 |---|---|
-| M0 — use existing improvements together | Integration is on main. Preserve the same-version ordinary installation → open/edit → stop/resume → retained-data cycle when changing connections. Existing Windows CI includes editor, cold SSH, forwarding and retained-data checks; wider configurations remain separate. |
-| M1 — understandable everyday use | Vertical help, OS/Host language handoff, repeated-failure grouping, installer final results and detailed daily guidance are integrated. Candidate #690 adds Japanese reclamation results. Remaining command families and original tool diagnostics are listed in the language contract. Fresh human GUI/layout answers, the observed managed-user systemd-session warning and broader Windows entry remain acceptance work. |
-| M2 — independent multi-repository work and reviewed Git | Selected membership in a new fork, independent checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and exact old/new reconciliation are integrated. Complete actual authenticated development and fresh Windows-notification/VS Code GUI answers. Keep main push approval independent of clone/fetch. In-place membership editing is not required for the implemented independent-fork flow. |
-| M3 — permitted communication outside ordinary networks | TCP/UDP, client loopback forwarding, interactive temporary execution and `host/backend/disabled` DNS selection are implemented. DNS selection survives snapshot/copy/import. Complete end-to-end guest DNS/Policy checks on the supported baseline and actual VPN/NRPT/restart combinations where available; name discovery never grants connection authority. |
-| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external-shell execution and Base archive import are wired. Actual Packer builds remain blocked at dependency downloads under the dedicated installation's default-deny Policy; use normal reviewed settings, not test overrides. Creation-time cache enrollment, generation reuse, collection/history/recovery/clear and Env-local emptying are implemented. Late enrollment and unknown native-copy cancellation remain separate follow-ups. Broader ordinary OCI use and real large-repository measurements remain. |
-| M5 — understand retained data and resume development elsewhere | Component-level snapshot deletion diagnosis, retained-object cleanup, export/import, reclamation diagnostics and current-data inventory/archive are implemented. Candidate #690 adds restored-tree comparison and has a limited actual-data restore pass. A later development change restores by source environment name using the latest recorded ready capture, without requiring an internal ID for ordinary use. Complete required-current-data selection, appropriate guest-visible owner/attribute checks, restored editor/build/OCI/authenticated Git use, and the dedicated installation's reclaim-start diagnosis. Preserve unknown ownership and failed receipts. |
+| M0 — use existing improvements together | Main integrates #687–#688 and #699. The same-version installation, ordinary SSH/editor/forwarding, stop/resume and retained-data cycle passed packaged Windows and Incus CI. Broader configurations remain separate. |
+| M1 — understandable everyday use | Vertical help, language handoff, repeated-failure grouping, installer results and bilingual reclamation are on main. #700 completes the setup-result guidance slice; other command families remain in the language contract. Human GUI/layout checks are post-release. The dedicated managed-user systemd-session warning remains a separate observation. |
+| M2 — independent multi-repository work and reviewed Git | Independent multi-repository forks, checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and result reconciliation are on main. Incremental history and sequential bounded fetch are integrated. Authenticated development and fresh notification/VS Code answers remain post-release acceptance. Main push approval stays independent of clone/fetch. |
+| M3 — permitted communication outside ordinary networks | TCP/UDP, loopback forwarding, interactive temporary execution and persistent host/backend/disabled DNS selection are implemented. Supported-baseline DNS/Policy and ordinary Windows forwarding have scoped evidence. Actual VPN/NRPT/restart combinations remain unperformed; name discovery never grants connection authority. |
+| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred; the single-pack 32 MiB functional limit remains explicit. |
+| M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. Windows CI passed public reclaim plus retained Workspace/OCI/snapshot restore. Required-current-data selection, guest-visible owner checks, restored authenticated development and the dedicated local reclaim-start observation remain distinct acceptance/follow-up items. Preserve unknown ownership and failed receipts. |
 
 [CLI language scope](../reference/cli-language.md),
 [Workspace input](../design/workspace-input.md),
@@ -133,27 +121,3 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
-
-Installed create failed before provider creation because a different user owned the global temporary lifecycle directory. The development correction moves exclusion into the canonical catalog (ADR 0105); validate it through normal installation without changing the old temporary object. Windows tunnel phase timings now distinguish application readiness, Host entry and native-listener/data exchange, while keeping the previous limits and assertions. The cause of #697 remains unproven.
-
-The sequential multi-head fetch correction (`45555463`, included in #699's
-follow-up) allows aggregate batches above 32 MiB while keeping each independently
-authorized response bounded and indexed before the next. A single pack above
-32 MiB remains a functional transport limit; huge-repository performance is deferred.
-The same follow-up retains persistent catalog locks during completed Incus fixture
-cleanup (`d4c264a3`); the original failed Btrfs CI receipt remains recorded.
-
-#699 at `1ae5b410` has successful installed Windows acceptance, including native
-TCP forwarding, restored-work recreation and public reclamation with retained
-Workspace/OCI/snapshot restoration. Human GUI decisions and VPN/NRPT remain
-post-release/skipped. Its Incus Btrfs failure was after the product operations,
-when fixture cleanup met persistent catalog locks; follow-up `d4c264a3` retains
-those locks and has local regression coverage. Revalidate the final PR head
-before main integration; do not erase #697's unexplained earlier tunnel failure.
-
-The setup-language follow-up (`e5a4e1e8`) closes M1's Host/project setup result
-and recovery-guidance gap with shared English/Japanese presentation and vertical
-help. Local full checks and the bounded bilingual approval-runner regression
-passed. It is a development-branch implementation until its main integration;
-person-dependent acceptance remains post-release. At #699 head `51ba4f24`,
-quality/test/Ubuntu and all Incus jobs succeeded; Windows is still running.
