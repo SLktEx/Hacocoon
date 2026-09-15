@@ -604,3 +604,5 @@ The follow-up to #670 passed focused lifecycle/cache/OCI/CLI/controller tests19.
 Final recovery usage text and bilingual help passed CLI/UI/controller tests9.40s and docs/regressions12.72s; ownership/recovery code is unchanged from the full validation above.
 
 At recovery head3ac51f91, quality34924782288 failed QF1003 in cache_maintenance.go:41; test34924782199, Ubuntu34924782166 and Incus34924782231 passed. The dispatch is now a tagged switch with unchanged behavior. This failure remains distinct from local changed-patch lint success.
+
+The dispatch correction passed focused control/cache/workspace tests11.23s, uncapped lint against current main18.59s and documentation/regressions8.48s. Reparenting onto main4cd0c7dc (the exact tree of tested parent1ee2962b) changed no files.
