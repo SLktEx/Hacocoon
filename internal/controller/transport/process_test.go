@@ -114,7 +114,11 @@ func TestProcessDisconnectCancelsWithBackpressuredUnconsumedStdin(t *testing.T) 
 }
 
 func TestProcessClientRejectsInvalidCompletionAndCredit(t *testing.T) {
-	for _, mode := range []string{"no-result", "trailing-output", "duplicate-result", "excess-credit", "oversized", "partial-header"} {
+	for _, mode := range []string{
+		"no-result", "trailing-output", "duplicate-result", "excess-credit", "oversized", "partial-header",
+		"empty-output", "empty-stderr", "short-credit", "zero-credit", "cumulative-credit", "stop-payload",
+		"duplicate-stop", "output-after-stop", "empty-result", "result-before-stop", "unknown-frame", "partial-payload", "oversized-result",
+	} {
 		t.Run(mode, func(t *testing.T) {
 			server, wire := net.Pipe()
 			client, err := NewProcessConn(context.Background(), completedProcessTestSession{Conn: wire}, io.Discard)
@@ -122,7 +126,12 @@ func TestProcessClientRejectsInvalidCompletionAndCredit(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = client.Close() }()
+			if err := wire.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan struct{})
 			go func() {
+				defer close(done)
 				defer func() { _ = server.Close() }()
 				w := &processWriter{conn: server}
 				switch mode {
@@ -147,6 +156,45 @@ func TestProcessClientRejectsInvalidCompletionAndCredit(t *testing.T) {
 					_, _ = server.Write(header[:])
 				case "partial-header":
 					_, _ = server.Write([]byte{processResult})
+				case "empty-output":
+					_ = w.frame(processOutput, nil)
+				case "empty-stderr":
+					_ = w.frame(processErrorOutput, nil)
+				case "short-credit":
+					_ = w.frame(processCredit, []byte{1})
+				case "zero-credit", "cumulative-credit":
+					var credit [4]byte
+					if mode == "cumulative-credit" {
+						binary.BigEndian.PutUint32(credit[:], processChunk)
+						_ = w.frame(processCredit, credit[:])
+					}
+					_ = w.frame(processCredit, credit[:])
+				case "stop-payload":
+					_ = w.frame(processInputStop, []byte("not empty"))
+				case "duplicate-stop", "output-after-stop", "empty-result":
+					_ = w.frame(processInputStop, nil)
+					_, _, _ = readProcessFrame(server)
+					kind, data := processResult, []byte(nil)
+					switch mode {
+					case "duplicate-stop":
+						kind = processInputStop
+					case "output-after-stop":
+						kind, data = processOutput, []byte("late")
+					}
+					_ = (&processWriter{conn: server}).frame(kind, data)
+				case "result-before-stop":
+					_ = w.frame(processResult, []byte("unconfirmed receipt"))
+				case "unknown-frame":
+					_ = w.frame(255, nil)
+				case "partial-payload", "oversized-result":
+					var header [5]byte
+					header[0] = processResult
+					size := uint32(1)
+					if mode == "oversized-result" {
+						size = MaxProcessResult + 1
+					}
+					binary.BigEndian.PutUint32(header[1:], size)
+					_, _ = server.Write(header[:])
 				}
 			}()
 			if _, err := io.ReadAll(client); !errors.Is(err, ErrProtocol) {
@@ -155,12 +203,13 @@ func TestProcessClientRejectsInvalidCompletionAndCredit(t *testing.T) {
 			if _, err := client.Result(); err == nil {
 				t.Fatal("invalid completion published")
 			}
+			<-done
 		})
 	}
 }
 
 func TestProcessServerRejectsInputAfterEOFAndCreditOverrun(t *testing.T) {
-	for _, mode := range []string{"after-eof", "duplicate-eof", "credit-overrun"} {
+	for _, mode := range []string{"after-eof", "duplicate-eof", "credit-overrun", "empty-input", "eof-payload", "unknown-frame"} {
 		t.Run(mode, func(t *testing.T) {
 			server, client := net.Pipe()
 			defer func() { _ = client.Close() }()
@@ -178,6 +227,12 @@ func TestProcessServerRejectsInputAfterEOFAndCreditOverrun(t *testing.T) {
 			}
 			w := &processWriter{conn: client}
 			switch mode {
+			case "empty-input":
+				_ = w.frame(processInput, nil)
+			case "eof-payload":
+				_ = w.frame(processInputEOF, []byte("not empty"))
+			case "unknown-frame":
+				_ = w.frame(255, nil)
 			case "credit-overrun":
 				if err := w.frame(processInput, make([]byte, processChunk)); err != nil {
 					t.Fatal(err)

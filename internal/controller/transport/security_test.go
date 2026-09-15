@@ -51,3 +51,24 @@ func TestReadEnvelopeLineRejectsOversizedInput(t *testing.T) {
 		t.Fatalf("error = %v, want ErrProtocol", err)
 	}
 }
+
+func TestUnixSocketStartupRejectsInvalidLocations(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "parent-file")
+	if err := os.WriteFile(parent, []byte("retained"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{" ", filepath.Join(parent, "socket"), filepath.Join(t.TempDir(), strings.Repeat("s", 250))} {
+		listener, err := ListenUnix(path, 0600)
+		if listener != nil {
+			_ = listener.Close()
+			t.Fatal("invalid socket location accepted", path)
+		}
+		if err == nil {
+			t.Fatal("startup failure hidden", path)
+		}
+	}
+	data, err := os.ReadFile(parent)
+	if err != nil || string(data) != "retained" {
+		t.Fatal("failed socket startup changed the existing file", err)
+	}
+}
