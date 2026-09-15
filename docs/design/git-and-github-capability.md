@@ -30,7 +30,9 @@ branch, under a separate exact-ref decision. Registration selects checkout
 provenance, not the set of permitted push targets.
 Fetch revalidates each requested ref/OID against a fresh Host observation;
 unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
-a 32 MiB aggregate pack are accepted per helper batch. Discovery is checked
+a 32 MiB pack per head are accepted per helper batch. Packs are fetched and
+indexed sequentially; their aggregate may exceed 32 MiB. The head count and
+per-response bounds remain in force. Discovery is checked
 against both the all-heads scope and each exact ref; object fetch executes under
 a new exact-ref decision. An exact-ref deny cannot be bypassed by broad discovery.
 Fetch accepts at most 32 distinct local commit hints. Only ancestors of the freshly
