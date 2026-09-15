@@ -43,6 +43,12 @@ their respective main integration.
 
 ## M0–M5 remaining work
 
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) now contains
+the Git streaming correction after all five exact-head workflows passed. The
+single-pack functional limit is resolved within the documented 16 GiB budget;
+representative huge-repository performance remains deferred. #704 is rebased onto
+this main and awaits its new exact-head CI; its earlier results are retained separately.
+
 | Stage and useful outcome | Remaining implementation or acceptance |
 |---|---|
 | M0 — use existing improvements together | Main integrates #687–#688 and #699. The same-version installation, ordinary SSH/editor/forwarding, stop/resume and retained-data cycle passed packaged Windows and Incus CI. Broader configurations remain separate. |
@@ -60,6 +66,13 @@ their respective main integration.
 Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
+
+M5's named current-data selection and aggregate comparison helper is implemented
+on a development branch for [#703](https://github.com/SLktEx/Hacocoon/issues/703).
+It reuses the existing portable manifest comparer and preserves partial/unreviewed
+outcomes. The remaining selection work is choosing the operator's actual required
+data and checking independent retention, owner namespaces and ordinary resumed use.
+No old-version reconstruction or automatic deletion is added.
 
 Complete ordinary Packer setup/download/build/publication and reuse first when the
 required communication configuration is available. The proposed three-source

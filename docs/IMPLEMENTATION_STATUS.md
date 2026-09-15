@@ -65,6 +65,14 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
+The current-data selection follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703))
+is **implemented on a development branch**: the checkout maintenance helper names
+required data, preserves retain/recreate/exclude decisions and aggregates existing
+restored-tree comparisons. Unreviewed categories, missing manifests and failed
+items stay visible. See [usage and limits](guides/data-evacuation.md). It does not
+complete actual current-data selection, independent retention, guest-owner or
+authenticated development acceptance, and is not an installed `haco` command.
+
 Previous main checkpoint `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699) integrates
 #689–#693 and #696–#698 on top of #687/#688. Restored-tree comparison,
 Japanese reclamation results, bounded SSH failure classification, latest-ready
@@ -108,8 +116,10 @@ includes #700 setup guidance, network/configuration guidance and a correction
 to the installed TCP fixture's readiness timing. All five exact-head workflows and installed Windows acceptance passed; person-dependent checks remain post-release. #700's two distinct Windows failures remain in
 [acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).
 
-The Git streaming development candidate replaces whole-pack base64 with bounded
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) replaces whole-pack base64 with bounded
 binary frames on both existing transport boundaries. It removes the 32 MiB
 single-pack restriction, retains separate exact-ref push approval and checks a
-final byte-count receipt. Local real Git over 32 MiB and full repository validation pass; installed
-validation is pending. See [ADR 0106](adr/0106-streaming-git-packs.md).
+final byte-count receipt. Local real Git over 32 MiB and full repository validation pass.
+All five exact-head workflows passed, including the ordinary Windows installation,
+SSH/editor, reclamation and notification route. Actual large Git through Incus and
+person-dependent acceptance remain separate. See [ADR 0106](adr/0106-streaming-git-packs.md).

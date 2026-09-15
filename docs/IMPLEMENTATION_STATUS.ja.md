@@ -62,6 +62,14 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 ## mainの統合と開発候補
 
+現行データの対象選択（[#703](https://github.com/SLktEx/Hacocoon/issues/703)）は
+**開発ブランチに実装済み**。リポジトリから使う保守ヘルパーで必要なデータに名前を付け、
+保持・再作成・除外の判断を残し、既存の復元ツリー照合をまとめる。
+未確認の分類、未作成のマニフェスト、失敗した項目も表示する。
+[操作と制限](guides/data-evacuation.ja.md)を参照。実際の全対象選択、独立した保存、
+guestから見た所有者や認証付き開発の確認を完了したわけではなく、
+インストール済みの `haco` コマンドでもない。
+
 main `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699)に、
 #687/#688に続いて#689〜#693と#696〜#698を統合した。復元ツリーの照合、容量回収結果の
 日本語表示、SSH失敗の分類、環境名からの最新保存の復元、Git既存履歴の再利用と
@@ -99,7 +107,8 @@ main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)に、
 同一headの5系統CIと導入済みWindows受入は成功。本人操作の確認はリリース後に残す。#700の異なる2回のWindows失敗は
 [受入記録](status/acceptance-evidence.ja.md#転送試験の準備待ち修正)に保持する。
 
-Gitの開発候補は両方の既存境界で全量base64を上限付きのバイナリ転送へ置き換える。
+main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702)は、両方の既存境界で全量base64を上限付きのバイナリ転送へ置き換える。
 単一packの32 MiB制限を撤去し、refごとの独立したpush承認と最終バイト数の確認を維持する。
-32 MiB超のローカル実Gitと全体検証は成功、導入済み検証は確認待ち。
+32 MiB超のローカル実Gitと全体検証は成功。同一headの5系統CIが成功し、通常Windows導入・
+SSH/エディタ・容量回収・通知経路を確認した。実Incus経由の大容量Gitと本人操作は別の確認として残す。
 [ADR 0106](adr/0106-streaming-git-packs.ja.md)を参照。

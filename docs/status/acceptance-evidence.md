@@ -1599,3 +1599,37 @@ after rebasing onto this main. The latter's normal ten-binary Linux/Windows
 package built in 42.32s. No local installation, WSL termination or publication
 was performed. Product code also matches the full-tested pre-rebase `9c9d2ed0`;
 four documentation conflicts preserved both independent evidence sections.
+
+### Named current-data selection
+
+Development implementation `fe23cf539a8f27e56d8357354540c9a7f8cc5488`
+([#703](https://github.com/SLktEx/Hacocoon/issues/703)) passed seven local Linux
+selection regressions, including two real copied trees with Git metadata, dirty
+files and symlinks, then independent changed and unrestored selections. It reused
+the existing scanner/comparer; originals remained unchanged. Windows passed six
+portable selection tests; the Linux filesystem case was explicitly skipped there.
+
+The Linux commands passed: selection 0.24s, existing tree comparison 0.25s,
+maintained full local test 84.69s, docs 18.25s and workflow policy 1.98s. A WSL
+root systemd-user-session warning preceded these checks; no service repair or
+permission change was used. Final paired documentation passed `check_docs.py`.
+This is selected local filesystem and repository evidence, not installed Incus,
+actual operator inventory completeness, independent retained storage, owner-idmap
+equivalence or authenticated editor/build/OCI/Git acceptance. The helper never
+grants deletion authority. Person-dependent checks remain post-release and do not
+block main integration after the required exact-head CI succeeds.
+
+### Git streaming main integration and selection rebase
+
+Main `6cdfe5d02bd1531da37ecd08c8c1e91134498c4e` integrates #702, with the same
+tree as head `821cecb6dae26efacb2ca3c77dc20e20e8c02c8c`. Quality35004194444,
+test35004194464, Ubuntu35004194454, Incus35004194621 and Windows35004194439
+all passed. Windows job104499736879 passed installed SSH/editor, Linux/public
+reclamation and native notification review; evidence job104509492624 also passed.
+This does not establish actual large Git through Incus or fresh human answers.
+
+#704's selection implementation is rebased as `db1ac9aafc1f0833898d21e5609be056bd38754e`
+with no changes to selection code/tests, local CI or workflow from `fe23cf53`.
+Documentation conflicts preserve both independent results. Earlier #704 head
+`9a8a7d07` had four successful workflows and Windows still running when replaced;
+these are not proof of the new combined head. The new exact head needs its own CI.
