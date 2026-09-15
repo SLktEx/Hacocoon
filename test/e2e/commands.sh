@@ -164,6 +164,7 @@ import json, sys
 with open(sys.argv[1]) as f: data = json.load(f)
 data['policy'] = {'default':'deny','rules':[]}
 with open(sys.argv[1], 'w') as f: json.dump(data, f)
+print('Configuration editor completed')
 PY
 chmod 700 "$root/editor with spaces"
 VISUAL="" EDITOR="'$root/editor with spaces'" "$bin/haco" config --edit --json >"$root/config-edited.json"

@@ -163,7 +163,8 @@ func editConfiguration(ctx context.Context, snapshot capability.PolicySnapshot) 
 	// The operator's editor setting is trusted shell configuration. The generated
 	// pathname is a separate positional argument, never interpolated as code.
 	command := exec.CommandContext(ctx, "/bin/sh", "-c", "exec "+editor+" \"$1\"", "haco-config-editor", path)
-	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
+	// Keep stdout available for the saved receipt, including --json output.
+	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stderr, os.Stderr
 	if err := command.Run(); err != nil {
 		return snapshot, path, fmt.Errorf("editor did not complete")
 	}
