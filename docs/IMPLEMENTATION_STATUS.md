@@ -80,3 +80,12 @@ integrity and original exit codes remain. Local notification regressions and
 Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
 remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
 and [installer results](design/installer.md#windows-final-result).
+
+## Detailed guidance and canonical setup
+
+**Implemented candidate:** #592/#593's bilingual argument/option explanations and
+retained-data results are adapted to current main. Deletion warnings share one
+client confirmation helper and preserve controller ownership checks. #659's
+obsolete preliminary Host-tool provisioning is removed. Local validation and
+fresh installed acceptance remain distinct; old-version compatibility/migration
+are outside the requested M0–M5 scope.

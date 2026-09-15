@@ -8,9 +8,13 @@ import (
 )
 
 func TestSwitchBaseDisabledBeforeOpeningController(t *testing.T) {
-	var out, diagnostic bytes.Buffer
-	code := environmentCommand(context.Background(), []string{"switch-base", "--base", "ubuntu", "demo"}, &out, &diagnostic)
-	if code != 2 || out.Len() != 0 || !strings.Contains(diagnostic.String(), "currently disabled") || !strings.Contains(diagnostic.String(), "Stage D") {
-		t.Fatalf("code=%d out=%s error=%s", code, &out, &diagnostic)
+	t.Setenv("HACO_CONTROL_SOCKET", "/missing/disabled-switch-base.sock")
+	for _, locale := range []string{"C", "ja_JP.UTF-8"} {
+		setCLITestLocale(t, locale)
+		var out, diagnostic bytes.Buffer
+		code := environmentCommand(context.Background(), []string{"switch-base", "--base", "ubuntu", "demo"}, &out, &diagnostic)
+		if code != 2 || out.Len() != 0 || !strings.Contains(diagnostic.String(), "--base") || !strings.Contains(diagnostic.String(), "Workspace") || strings.Contains(diagnostic.String(), "Stage D") {
+			t.Fatalf("code=%d out=%s error=%s", code, &out, &diagnostic)
+		}
 	}
 }

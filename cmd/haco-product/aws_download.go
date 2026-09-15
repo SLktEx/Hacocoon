@@ -17,9 +17,9 @@ func awsDownloadCommand(ctx context.Context, client awsClient, args []string, ou
 	flags := flag.NewFlagSet("aws s3 cp", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	var spec awsplugin.GetSpec
-	flags.StringVar(&spec.Environment, "env", "", "Environment (inferred when only one exists)")
-	flags.StringVar(&spec.Profile, "profile", "default", "trusted Host AWS profile")
-	flags.StringVar(&spec.Region, "region", "", "AWS region (defaults to trusted Host profile)")
+	flags.StringVar(&spec.Environment, "env", "", cliMessage("detail.aws_env"))
+	flags.StringVar(&spec.Profile, "profile", "default", cliMessage("detail.aws_profile"))
+	flags.StringVar(&spec.Region, "region", "", cliMessage("detail.aws_region"))
 	if flags.Parse(args) != nil || len(flags.Args()) != 2 {
 		fmt.Fprintln(diagnostic, "Usage: haco aws s3 cp [--env name] [--profile name] [--region region] s3://bucket/key <file>")
 		return 2

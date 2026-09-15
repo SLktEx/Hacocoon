@@ -59,9 +59,9 @@ func awsCommand(ctx context.Context, client awsClient, args []string, out, diagn
 	flags := flag.NewFlagSet("aws s3 ls", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	var spec awsplugin.ListSpec
-	flags.StringVar(&spec.Environment, "env", "", "Environment (inferred when only one exists)")
-	flags.StringVar(&spec.Profile, "profile", "default", "trusted Host AWS profile")
-	flags.StringVar(&spec.Region, "region", "", "AWS region (defaults to trusted Host profile)")
+	flags.StringVar(&spec.Environment, "env", "", cliMessage("detail.aws_env"))
+	flags.StringVar(&spec.Profile, "profile", "default", cliMessage("detail.aws_profile"))
+	flags.StringVar(&spec.Region, "region", "", cliMessage("detail.aws_region"))
 	if flags.Parse(args[2:]) != nil || len(flags.Args()) != 1 {
 		return usage()
 	}

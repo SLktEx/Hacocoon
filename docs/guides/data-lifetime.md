@@ -108,3 +108,7 @@ Deleting data and recovering Windows disk allocation are different operations.
 status/review, interruption handling and its tested scope.
 [Environment transfer](../design/environment-transfer.md) moves a completed bundle;
 [evacuation](../guides/data-evacuation.md) is partial maintenance work, not whole-installation backup.
+
+Deletion warnings and retained-data results follow the selected language.
+Empty input, EOF or an answer other than yes cancels. Failed warning/prompt output
+refuses deletion even with `--yes`; the controller rechecks references and ownership.

@@ -118,12 +118,12 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	flags := flag.NewFlagSet("haco workspace "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	path := flags.String("path", "", "existing directory for the Workspace reference")
-	name := flags.String("name", "", "name of the new work (generated when omitted)")
-	repos := flags.String("repo", "", "Host repository IDs separated by commas")
-	base := flags.String("base", "", "Base for later open")
-	oci := flags.String("oci", "", "auto, none, or an existing oci: Store")
-	jsonOutput := flags.Bool("json", false, "machine-readable result")
+	path := flags.String("path", "", cliMessage("detail.path"))
+	name := flags.String("name", "", cliMessage("detail.work_name"))
+	repos := flags.String("repo", "", cliMessage("detail.repos"))
+	base := flags.String("base", "", cliMessage("detail.base"))
+	oci := flags.String("oci", "", cliMessage("detail.oci"))
+	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -131,18 +131,18 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		return 2
 	}
 	if *path == "" || (args[0] == "prepare" && flags.NArg() != 0) || (args[0] == "fork" && (flags.NArg() != 1 || *repos != "" || *oci != "")) {
-		fmt.Fprintln(diagnostic, "Usage: haco workspace prepare --path DIR --repo first,second [--name NAME] [--oci auto|none|oci:ID] [--json] | haco workspace fork --path DIR [--name NAME] [--base BASE] [--json] SOURCE")
+		commandHelp(diagnostic, "workspace "+args[0], cliLanguage())
 		return 2
 	}
 	c, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	if args[0] == "prepare" {
 		h, e := workflow.LockReference(ctx, *path)
 		if e != nil {
-			fmt.Fprintln(diagnostic, "haco:", e)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), e)
 			return 1
 		}
 		defer h.Close()
@@ -151,7 +151,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 			return 1
 		}
 		if e != nil {
-			fmt.Fprintln(diagnostic, "haco:", e)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), e)
 			return 1
 		}
 		return 0
@@ -160,32 +160,32 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	if workspacePath(flags.Arg(0)) {
 		h, e := workflow.LockReference(ctx, flags.Arg(0))
 		if e != nil {
-			fmt.Fprintln(diagnostic, "haco:", e)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), e)
 			return 1
 		}
 		ref, e := h.Load()
 		h.Close()
 		if e != nil || ref.State != "ready" {
-			fmt.Fprintln(diagnostic, "haco: source reference is not ready", e)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("workflow.source_not_ready"), e)
 			return 1
 		}
 		source = ref.Reference
 	} else {
 		response, e := c.WorkspaceWorkflow(ctx, controlapi.WorkflowRequest{Operation: "reference", Reference: &workflow.Reference{Name: flags.Arg(0)}})
 		if e != nil || response.Reference == nil {
-			fmt.Fprintln(diagnostic, "haco: source reference unavailable", e)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("workflow.source_unavailable"), e)
 			return 1
 		}
 		source = *response.Reference
 	}
 	h, err := workflow.LockReference(ctx, *path)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	defer h.Close()
 	if _, e := h.Load(); !errors.Is(e, os.ErrNotExist) {
-		fmt.Fprintln(diagnostic, "haco: destination reference already exists or is unsafe; inspect it before retrying")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("workflow.destination_unsafe"))
 		return 1
 	}
 	if *name == "" {
@@ -193,7 +193,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	ref := workflow.PathReference{Version: 1, Reference: workflow.Reference{Name: *name}, State: "forking", OCI: "none"}
 	if err = h.Save(ref); err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	response, err := c.WorkspaceWorkflow(ctx, controlapi.WorkflowRequest{Operation: "fork", Reference: &source, Target: *name})
@@ -221,9 +221,9 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		return 1
 	}
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
-	fmt.Fprintln(diagnostic, "Workspace fork ready; source stays stopped. Open the destination directory to create its Env.")
+	_, _ = fmt.Fprintln(diagnostic, cliMessage("workflow.fork_ready"))
 	return 0
 }
