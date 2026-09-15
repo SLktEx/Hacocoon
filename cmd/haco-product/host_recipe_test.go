@@ -17,6 +17,11 @@ import (
 
 type hostRecipeFixture struct{ service *recipes.HostService }
 
+func TestHostRecipeCLIJapanesePreservesPrivateOutputAndExplicitReplay(t *testing.T) {
+	t.Setenv("HACO_UI_LANGUAGE", "ja")
+	TestHostRecipeCLIPrivateFailureResultAndExplicitReplay(t)
+}
+
 func (f hostRecipeFixture) SetupHost(ctx context.Context, update recipes.Update) error {
 	return f.service.Apply(ctx, update)
 }

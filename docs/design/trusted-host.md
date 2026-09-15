@@ -499,3 +499,8 @@ Normal setup invokes the canonical Standard tooling step once, after OCI storage
 and client readiness. The obsolete preliminary Git/gh apt helper is removed.
 Git, gh and OCI tools share the existing lock, installation metadata and bounded
 failure handling. Failed setup retains owned resources; ordinary setup can retry.
+
+Host setup completion, saved-script results and recovery guidance follow the
+client's English/Japanese presentation. Diagnostic state/reason tokens and request
+correlation remain stable; explicit `--script-result` output remains verbatim.
+Localization does not change the explicit replay contract.

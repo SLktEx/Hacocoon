@@ -39,10 +39,12 @@ def command_failure_category(stdout, stderr):
         return "setup-" + stage.group(1) + "-" + code.group(1)
     for message, category in (
         ("cannot read a regular UTF-8 setup script", "script-input"),
+        ("セットアップ用の通常ファイルを読み取れません", "script-input"),
         ("Project setup request failed", "controller-request"),
         ("Project setup failed; correct the script or Environment", "project-setup"),
         ("Cannot open the Physical Host controller client", "controller-client"),
         ("invalid logging configuration", "logging-config"),
+        ("ログ設定が無効です", "logging-config"),
     ):
         if message in stderr:
             return category
@@ -102,7 +104,9 @@ def configuration_update(directory, mutate):
 
 
 def valid_network_output(output):
-    return output.splitlines() == ["PENDING_NETWORK_RESULT_OK", "Project setup completed."]
+    lines = output.splitlines()
+    return (len(lines) == 2 and lines[0] == "PENDING_NETWORK_RESULT_OK"
+            and lines[1] in ("Project setup completed.", "プロジェクトのセットアップが完了しました。"))
 
 
 def pending_requests():

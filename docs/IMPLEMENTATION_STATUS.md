@@ -104,3 +104,8 @@ handle before waiting to reopen the same pinned path. File/parent ownership pins
 remain held; installed acceptance is pending. See [the lifetime decision](adr/0103-virtual-disk-observation-lifetime.md).
 
 Lifecycle operations now use mandatory catalog-scoped locks rather than shared temporary names. This fixes the ownership collision observed during installed Env creation; see [ADR 0105](adr/0105-catalog-lifecycle-locks.md). Installed acceptance of this correction is pending.
+
+Setup result presentation is **implemented** in English/Japanese for Host and
+project completion, missing/cleared recipes and failure next actions. Shared
+vertical help and stable raw script/diagnostic output are retained. This client
+correction does not establish fresh installed or person-dependent acceptance.
