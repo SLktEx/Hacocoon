@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/logging"
-	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/platform/wsl/reclaim"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 )
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, enroll func(context.Context, string) error) int {

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/platform/wsl/reclaim"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 )
 
 func TestInstallerHelperArgumentsAndFailureBoundary(t *testing.T) {
