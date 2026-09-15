@@ -37,3 +37,6 @@ native要求前に予約します。import待ちを明示し、中断後に空�
 入力の種類を一致させて作成を開始し、完了記録・公開・削除は共通処理を使います。
 現在のproviderが配置を検査し、新しい所有権だけを書きます。archiveの設定でHostの
 パスをmountしたり管理権限を得たりすることはできません。
+
+
+snapshot計画はEnvの作成・再開・importと同じprovider配置照合を使う。リポジトリ配下の追加データは、追加領域に加えてlease対象Workspaceのstorage所有関係も固定する。追加データだけのdigestで完全な照合を代替しない。共通Incus runtimeに処理を置き、各adapter経路で同じ契約を使う。

@@ -591,3 +591,14 @@ DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒
 ## 現行データの退避前確認
 
 現行schema16の追加データ、選択世代、import・コピー・cleanup未完了記録を台帳を書き換えず表示する。台帳参照の照合と実体の観測を分け、過去の生成元の不在を削除候補にしない。固定候補でLinux退避回帰78件0.96秒、文書・回帰34.39秒、workflow4.39秒PASS。Windowsでも探索実行PASSだがLinux専用29件は明示的SKIPで、Linux実行で別途確認した。現行schema対応を共通Go台帳と照合する回帰を追加。これは読み取り専用一覧の検証であり、全環境のbackup・復元・対応provider実機受入ではない。既存の転送実機・Windows失敗は未解決として保持する。
+
+
+## 保存Envのリポジトリ内追加データ
+
+対応7.0.1のsaved-data-ec2813c23b2ada60はsnapshot計画でcapability staleとなり11.61秒/test11.56秒FAIL。台帳 /var/lib/haco-saved-data-3393557504/state.json。通常のリポジトリ内配置はWorkspaceのstorageも固定するが、計画側は追加データだけのdigestを比べていた。作成・再開・importで使うruntimeの配置解決を共用し、完全な照合の受入とデータだけへの置換拒否の部品回帰を追加した。
+
+f71ab282に基づく修正後固定候補で集中16.88秒、main全差分lint15.95秒、全ローカル27.33秒、race11.29秒、CLI4.21秒、文書7.90秒、workflow1.45秒、実機試験compile1.61秒PASS。新規Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1、Incus7.0.1）でplacement-supported-native-1は55.61秒/test55.58秒PASS。fixture saved-data-054e30231401ddac、台帳 /var/lib/haco-saved-data-2319641996/state.json。2つのWorkspace、rootfsのcompilerデータ、/workspace/two/node_modulesを含む稼働中保存・再開、停止copy、export/import、未収集内容、新しい所有権、独立編集、元削除、import後再開、共通cleanupを確認。先行失敗fixtureと保持Workspace記録は別に残す。
+
+対応版rootfs限定の持ち出しはf68a8c6bで76.26秒/test76.23秒PASS。通常Windowsインストールでdoctor・DNS/HTTPS・Windows登録・通知登録が完了し、hacocoon-secondは保持。現行schema一覧も保持中の6.0.5 fixture台帳と実体を2.89秒で読み取り照合でき、authority=falseを維持した。
+
+通常導入後のPackerサンプルは依存導入で10.39秒FAILし、非公開診断付き再試行も6.56秒FAIL。UbuntuのHTTP取得に通常proxyが403を返した。公開configはdefault=deny・ruleなしであり、試験専用の許可を追加していない。実Packer実行は通常の通信設定待ち。#676 head f68a8c6bのWindows34935395589/job104272085316は導入・並列cold SSH・実VS Code編集・setup・preview・通常export/importに成功後、通常Windows tunnelでtimeout/connection resetとなりFAIL。回収・通知は未実施。過去の失敗原因も解決扱いにしない。

@@ -319,3 +319,6 @@ than substituting the current shared generation. Provenance remains subject to
 the ordinary generation comparison before later collection. Portable
 export/import includes these areas with fresh destination ownership; see
 [the transfer contract](environment-transfer.md#named-disposable-data). See [ADR0095](../adr/0095-saved-environment-data.md).
+
+
+Named data under a repository uses the canonical placement binding shared with create/resume/import, including exact leased Workspace storage identity. Snapshot planning refuses a data-only or stale binding before provider copy. See [saved-data ownership](../adr/0095-saved-environment-data.md).

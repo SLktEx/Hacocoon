@@ -11,7 +11,7 @@ import (
 )
 
 func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
-	for _, mode := range []string{"data", "data-owner", "data-path", "data-binding", "data-omitted", "ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool", "retained", "retained-not-ready", "retained-drift", "retained-lookup-error"} {
+	for _, mode := range []string{"data", "data-repository", "data-repository-unbound", "data-owner", "data-path", "data-binding", "data-omitted", "ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool", "retained", "retained-not-ready", "retained-drift", "retained-lookup-error"} {
 		t.Run(mode, func(t *testing.T) {
 			root, instance := rootfsFixture()
 			base := baseSnapshotFixture()
@@ -28,6 +28,9 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 			if strings.HasPrefix(mode, "data") {
 				resource := core.PersistentResource{ID: "env-data:" + strings.Repeat("1", 32), Owner: strings.Repeat("2", 32), Kind: CacheResourceKind, NativeRef: "pool/haco-persistent-" + strings.Repeat("2", 32), State: "ready", EnvironmentInstance: source.InstanceID}
 				area := core.EnvironmentAttachment{Key: "compiler", Target: "/root/.cache/compiler", Resource: resource.Ref(), Origin: core.ResourceGeneration{Name: "compiler", Kind: CacheResourceKind, Compatibility: strings.Repeat("3", 64), Epoch: strings.Repeat("4", 32)}}
+				if strings.HasPrefix(mode, "data-repository") {
+					area.Target = "/workspace/two/node_modules"
+				}
 				source.Environment.Attachments = []core.EnvironmentAttachment{area}
 				devices[environmentDataDevicePrefix+area.Key] = environmentDataDevice(core.EnvironmentRuntimeAttachment{Attachment: area, Resource: resource})
 				config := persistentResourceConfig(resource)
@@ -35,7 +38,12 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 					config[environmentInstanceKey] = "env-" + strings.Repeat("f", 32)
 				}
 				volumes = append(volumes, persistentVolumeObservation{Name: "haco-persistent-" + resource.Owner, Type: "custom", ContentType: "filesystem", Config: config, UsedBy: []string{"/1.0/instances/" + root.Source + "?project=hacocoon"}})
-				binding, err := environmentDataBinding(source.InstanceID, []core.EnvironmentRuntimeAttachment{{Attachment: area, Resource: resource}})
+				bindingRuntime := New(&fakeRunner{})
+				bindingRuntime.ConfigureManagedWorkspaces(func(context.Context, string) ([]WorkspaceAttachment, error) { return mounts, nil })
+				binding, _, err := bindingRuntime.environmentPlacementBinding(context.Background(), core.EnvironmentResourceBinding{InstanceID: source.InstanceID, WorkspacePath: source.Environment.Workspace.Path, Attachments: []core.EnvironmentRuntimeAttachment{{Attachment: area, Resource: resource}}})
+				if mode == "data-repository-unbound" {
+					binding, err = environmentDataBinding(source.InstanceID, []core.EnvironmentRuntimeAttachment{{Attachment: area, Resource: resource}})
+				}
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -113,14 +121,14 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				return mounts, nil
 			})
 			components, err := r.PlanSnapshot(context.Background(), source, "snap-"+strings.Repeat("e", 32))
-			if mode != "data" && mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
+			if mode != "data" && mode != "data-repository" && mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
 				if err == nil || len(components) != 0 {
 					t.Fatal("incomplete aggregate accepted", err, components)
 				}
 				return
 			}
 			want := 4
-			if mode == "data" {
+			if mode == "data" || mode == "data-repository" {
 				want++
 			}
 			if mode == "no-oci" {
