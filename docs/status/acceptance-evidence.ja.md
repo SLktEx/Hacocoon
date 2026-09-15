@@ -430,3 +430,6 @@ Windows試験・GUI形式の構築とvetに加え、実Windows review11.41秒、
 
 
 起動診断の追補はCOMのinitialize/register/create/dispatchと数値HRESULTを記録し、読み取り専用の期限切れ・中止をCOM応答と非公開peer終了後も保持します。集中1.22秒、文書と回帰10.37秒、実Windows通知4.75秒、desktop0.44秒、専用登録2.81秒、Windows build/vet、PowerShell probe構文がPASS。最後の整形は空白のみです。導入済み起動失敗の修復とは主張せず、上記の失敗runを保持します。
+
+
+main `ef443132`を`effc7801`へ統合後、GUI候補の全ローカル72.69秒、CLI E2E6.79秒、文書と回帰8.14秒がPASSしました。導入済み起動と先行clearの失敗は未解決で、更新headのWindows実行を待ちます。

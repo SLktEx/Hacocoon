@@ -494,3 +494,6 @@ At #664 head `38dc1ffe`, Windows run 34914309433 / job 104208480202 passed insta
 
 
 The activation diagnostic follow-up records fixed COM initialize/register/create/dispatch HRESULTs and preserves read-only timeout/cancellation across COM and private peer shutdown. Focused regressions (1.22s), docs/regressions (10.37s), native Windows review (4.75s), desktop (0.44s), isolated registration (2.81s), Windows build/vet and PowerShell probe parsing passed. Final formatting only changes whitespace. This does not establish that the installed activation failure is fixed; its failing run remains above.
+
+
+After integrating main `ef443132` as `effc7801`, the combined GUI candidate passed the full local test entry (72.69s), CLI E2E (6.79s), and docs/regressions (8.14s). Native installed activation and earlier clear failures remain unresolved pending the updated Windows run.
