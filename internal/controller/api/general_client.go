@@ -1,6 +1,7 @@
 package controlapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -45,12 +46,22 @@ func (c *Client) Run(ctx context.Context, spec runapp.Spec) (runapp.Result, erro
 	if len(data) > maxRunResultBytes {
 		return runapp.Result{}, fmt.Errorf("run result exceeds size limit: %w", control.ErrProtocol)
 	}
-	var response runResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return runapp.Result{}, fmt.Errorf("decode run result: %w", control.ErrProtocol)
-	}
+	return decodeRunResult(data)
+}
 
-	return response.Result, responseError(response.Error)
+// Both run transports require an explicit receipt. A missing/null result must
+// not become a zero-valued execution result with a successful return status.
+func decodeRunResult(data []byte) (runapp.Result, error) {
+	var response struct {
+		Result *runapp.Result  `json:"result"`
+		Error  *responseStatus `json:"error,omitempty"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&response) != nil || response.Result == nil || decoder.Decode(new(any)) != io.EOF {
+		return runapp.Result{}, control.ErrProtocol
+	}
+	return *response.Result, responseError(response.Error)
 }
 
 func (c *Client) RequestCapability(ctx context.Context, request core.CapabilityRequest, approve func(context.Context, core.ApprovalRequest) (bool, error)) (core.CapabilityResult, error) {

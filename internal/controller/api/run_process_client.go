@@ -1,9 +1,7 @@
 package controlapi
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"os"
 
@@ -48,15 +46,5 @@ func (c *Client) RunStream(ctx context.Context, spec runapp.Spec, tty bool, stdi
 	if err != nil {
 		return runapp.Result{}, err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	var response runResponse
-	if decoder.Decode(&response) != nil {
-		return runapp.Result{}, control.ErrProtocol
-	}
-	var extra any
-	if decoder.Decode(&extra) != io.EOF {
-		return runapp.Result{}, control.ErrProtocol
-	}
-	return response.Result, responseError(response.Error)
+	return decodeRunResult(payload)
 }

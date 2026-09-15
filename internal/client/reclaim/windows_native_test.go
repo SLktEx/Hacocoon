@@ -79,11 +79,16 @@ func TestNativePowerShellReclamationProtocol(t *testing.T) {
 			for i, v := range text {
 				binary.LittleEndian.PutUint16(raw[i*2:], v)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			// Cold PowerShell/module startup can exceed 30s on a loaded Windows
+			// host. This is a protocol fixture, not a startup-latency requirement.
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			command := exec.CommandContext(ctx, powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", base64.StdEncoding.EncodeToString(raw))
 			command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 			out, err := command.Output()
+			if ctx.Err() != nil {
+				t.Fatal("PowerShell protocol fixture did not finish within its bound", ctx.Err())
+			}
 			if mode == "prepare-receipt" || mode == "launch-receipt" {
 				var failure *InvocationError
 				if err == nil || !errors.As(decodeInvocationFailure(out), &failure) || failure.Failure.NativeError != 5 {

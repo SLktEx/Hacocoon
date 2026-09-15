@@ -25,7 +25,7 @@ func RegisterEnvironmentExport(server *control.Server, export func(context.Conte
 	}
 	return server.RegisterStream(MethodEnvironmentExport, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
 		var req EnvironmentExportRequest
-		if decodeExportJSON(payload, &req) != nil || !exportSourcePattern.MatchString(req.Source) {
+		if decodeExportJSON(payload, &req) != nil || req.Validate() != nil {
 			return nil, control.ErrInvalidArgument
 		}
 		return func(ctx context.Context, conn net.Conn) error {

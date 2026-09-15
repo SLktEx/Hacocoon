@@ -63,10 +63,11 @@ func decodeExportJSON(data []byte, target any) error {
 // error proves the explicit terminal receipt and EOF, not EOF alone. The caller
 // must discard partial output on every error and publish only after file sync.
 func (c *Client) ExportEnvironment(ctx context.Context, source string, sink io.Writer) (result EnvironmentExportResult, err error) {
-	if !exportSourcePattern.MatchString(source) || sink == nil {
+	request := EnvironmentExportRequest{Source: source}
+	if request.Validate() != nil || sink == nil {
 		return result, core.ErrInvalidArgument
 	}
-	conn, err := c.wire.OpenStream(ctx, MethodEnvironmentExport, EnvironmentExportRequest{Source: source})
+	conn, err := c.wire.OpenStream(ctx, MethodEnvironmentExport, request)
 	if err != nil {
 		return result, err
 	}
