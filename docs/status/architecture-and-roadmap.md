@@ -143,6 +143,7 @@ follow. M2 Git/GUI, M3 transport/DNS, M4 cache/Packer and M5 Seed retirement
 remain active. Local regression checks are primary; continue independent work
 while required hosted checks run. Large-repository measurement and additional
 validation follow usable implementation and remain unverified until executed.
+Old-version compatibility and migration are outside M0–M5 by the latest user direction.
 Retained-data ownership and authority checks remain required throughout.
 
 
@@ -171,3 +172,17 @@ preserves current main's ordinary tooling and Base/OCI contracts, and removes
 remaining Seed sampling/recommendation and legacy deletion/re-enable state.
 No application data is removed. Local verification and PR/main status are recorded
 separately from implementation; M1 Windows integration and M2–M4 continue.
+
+## Git branch workflow integration
+
+All-head reads and reviewed new-branch/fast-forward pushes from #585/#587 are
+implemented in the main integration candidate. Keep main push approval independent
+from clone/fetch. Complete GUI answers and explicit unknown-result observation next.
+Authenticated installed use, 32 MiB transport replacement and large-repository
+measurements remain separate; ordinary local Git tests do not prove them.
+
+Main now includes #660 (`7e876bc1`), #661 (`44211fd2`) and Seed retirement #662
+(`119e3007`). Each final head passed all five CI workflows. The user explicitly
+authorized main merges after successful CI; tags/releases remain separate.
+PR #663 rebases the M2 Git slice on that main. GUI and M3 streaming continue;
+current data retention, DNS, cache/Packer and remaining M5 cleanup are still open.

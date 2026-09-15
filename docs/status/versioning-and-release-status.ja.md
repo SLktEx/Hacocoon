@@ -80,8 +80,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.57 | OCI Image Cleanup | partial（実装・検証の残課題あり） |
 | v0.58 | Daily CLI Entry and Setup Diagnostics | 実装済み |
 | v0.59 | Host customization lifecycle and results | 実装済み |
+| v0.60 | Git branch read and push authority | 実装済み |
 
-現在のmilestone位置は **v0.59**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.60**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -113,3 +114,10 @@ v0.59のM5候補で、Seedの実行経路とカタログ、収集・推奨、旧
 撤去します。現行のBaseと永続OCIイメージ操作は維持します。2026-09-15のユーザーの
 範囲変更により、旧バージョンとの互換性・移行はM0〜M5の完了条件に含めません。
 現在の節目内の整理であり、タグやリリースは作成しません。
+
+## Gitブランチ操作の統合
+
+v0.60は #585/#587 をmainへ再利用した全head取得と、新規branch/fast-forwardの
+明示的なpush権限を記録します。M2全体の完了や配布を意味しません。
+GUI、認証付きの導入実機、大容量packは別に残ります。
+[検証範囲](acceptance-evidence.ja.md#main-git-branches)を参照してください。

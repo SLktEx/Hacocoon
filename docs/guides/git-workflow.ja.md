@@ -24,9 +24,9 @@ managed Git WorkspaceからEnvironmentを作成すると、この仲介接続は
     "environment": "sample-dev", "resource": "https://github.com/SLktEx/Hacocoon.git",
     "attributes": {
       "repository": "sample", "remote": "https://github.com/SLktEx/Hacocoon.git",
-      "target_ref": "refs/heads/main", "old_oid": "*", "new_oid": "*", "operation_id": "*"
+      "target_ref": "refs/heads/*", "old_oid": "*", "new_oid": "*", "operation_id": "*"
     },
-    "decision": "allow", "reason": "Read the registered branch"
+    "decision": "allow", "reason": "Read all branches of this registered repository"
   },
   {
     "capability": "git.repository", "action": "push",
@@ -41,9 +41,14 @@ managed Git WorkspaceからEnvironmentを作成すると、この仲介接続は
 ]
 ```
 
-要求の全属性がルールに必要です。この例ではコミットIDと操作IDだけを変動可能にし、
-リポジトリとrefを固定します。pushには `update_kind: fast-forward` が必要で、
-この項目のない古いルールは拒否されます。
+要求の全属性がルールに必要です。この例ではリポジトリを固定して全ブランチの読み取りを許可し、
+pushはmainだけを毎回確認します。main限定の読み取りルールは全ブランチfetchを許可しません。cloneではpush許可を保存しません。
+個別refの読み取り拒否がある場合は一覧全体を拒否し、オブジェクト取得時にも各refのPolicyを再確認します。
+コミットID・操作IDは変動可能です。pushの`update_kind`は更新なら`fast-forward`、新規なら`create`で、
+この項目のないルールは拒否されます。開発ブランチを確認付きでpushするには、その正確な
+`target_ref`と対象update kindに`decision: require-approval`のpushルールを追加し、mainのルールは
+維持してください。既定denyなら対応ルールのないブランチ／種別は拒否、既定require-approvalなら
+共通reviewで確認されます。
 [Policyの優先順位](../design/policy-and-capability-foundation.md#matching-rule-precedence)は
 記載順によらず、拒否、承認要求、許可の順です。
 
@@ -54,8 +59,16 @@ managed Git WorkspaceからEnvironmentを作成すると、この仲介接続は
 
 Environmentでは通常の `git status`、`git fetch origin`、`git pull --ff-only`、
 `git add`、`git commit`、`git push` を使います。
-現在の仲介機能は既存のSHA-1ブランチ一つ、32 MiBまでのpackに対応します。
-force push、ブランチの作成・削除、複数ref、LFS、submoduleは延期されています。
+1回のbatchで最大1024個のSHA-1ブランチ、合計32 MiBまでのpackを取得できます。
+refごとの転送で共有履歴が重複する場合があり、大容量転送の最適化は未完了です。
+`git branch -r`で一覧を見て、たとえば`git switch --track origin/feature/example`で
+既存ブランチへ切り替えます。pushは新規ブランチ一つ、または既存ブランチ一つの
+fast-forwardに対応します。たとえば`git switch -c feature/work`で作成・commit後に
+`git push -u origin feature/work`を使います。新規作成も固定commitを示して個別に承認し、後続更新とは
+別に判断します。force push、ブランチ削除、複数refのpush、LFS、submoduleは延期されています。
+移動・削除されたheadは拒否するため、再fetchで最新状態を確認してください。巨大レポの受入を意味しません。
+
+Workspaceは全ブランチのfetch設定を持ちます。
 
 pushの待機中、別の信頼されたHostターミナルで確認します。
 
@@ -88,6 +101,11 @@ haco git approve --save ask-env <id>
 `deny --save all` は全体への拒否を保存します。
 `ask-env` と `ask-all` は今後の承認要求を保存し、今回の判断はapprove／denyで別に指定します。
 `--save` を省略するとPolicyを変更しません。
+
+保存した選択は対象ブランチを固定し、新規作成とfast-forward更新を区別します。
+`feature/work`の作成を許可しても、その次の更新やmainへのpushは許可されません。
+承認待ち中に同名refが作られた場合も、新規作成で上書きしません。競合時は上流を確認・fetchし、
+新しく判断してください。承認の自動再試行は行いません。
 
 保存した許可は管理者の拒否・承認要求を上書きしません。
 上の例は毎回確認する設定です。繰り返し許可する必要があれば、管理者ルール自体を確認します。
