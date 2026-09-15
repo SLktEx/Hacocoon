@@ -1240,3 +1240,10 @@ identity. This isolates the observed difference to the init interop route, not t
 an absent enrollment or only the Incus boundary. Its underlying Windows cause is
 unproven. No registration/history mutation, socket substitution in the product,
 global WSL shutdown or extra reclamation attempt was made.
+
+## Native WSL interop registration recovery
+
+On installed candidate `e1ec0894`, the subsequent native interop observation failed before querying the registry: the
+WSLInterop binfmt handler was absent. Ordinary installed `haco setup` restored the
+WSL-owned registration, and a Windows executable printed the expected marker.
+This recovery does not establish a successful reclamation start.

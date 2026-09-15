@@ -100,6 +100,14 @@ func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest) (R
 		return Response{}, fmt.Errorf("remote head is not a SHA-1 commit")
 	}
 	result := Response{OID: head.OID, Ref: head.Ref}
-	result.Pack, err = git([]byte(head.OID+"\n"), "pack-objects", "--stdout", "--revs")
+	revisions := head.OID + "\n"
+	for _, have := range req.Haves {
+		// A hint never grants access to another ref or hidden Host object.
+		// Ignore missing/non-ancestor hints without exposing their presence.
+		if _, err := git(nil, "merge-base", "--is-ancestor", have, head.OID); err == nil {
+			revisions += "^" + have + "\n"
+		}
+	}
+	result.Pack, err = git([]byte(revisions), "pack-objects", "--stdout", "--revs")
 	return result, err
 }

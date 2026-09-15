@@ -294,6 +294,9 @@ func (bound binding) repositories() []Object {
 }
 
 func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Response, error) {
+	if !validHaves(req.Operation, req.Haves) {
+		return Response{}, core.ErrInvalidArgument
+	}
 	if err := b.validateBinding(ctx, bound); err != nil {
 		return Response{}, err
 	}
@@ -309,6 +312,7 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req Request) (Resp
 		return Response{}, core.ErrPolicyDenied
 	}
 	agent := AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, Heads: append([]Head(nil), req.Heads...)}
+	agent.Haves = append([]string(nil), req.Haves...)
 	switch req.Operation {
 	case "list":
 		if req.Ref != "" || req.OldOID != "" || req.NewOID != "" || len(req.Pack) != 0 || len(req.Heads) != 0 {

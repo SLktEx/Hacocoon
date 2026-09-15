@@ -93,8 +93,10 @@ pending. See [the evidence contract](../adr/0086-git-push-reconciliation-evidenc
 In the Environment, use ordinary `git status`, `git fetch origin`,
 `git pull --ff-only`, `git add`, `git commit` and `git push`.
 The helper fetches up to 1024 SHA-1 branch heads per batch, with
-an aggregate 32 MiB pack limit. Per-head transfers can repeat shared history;
-large-pack optimization remains pending. Use `git branch -r` to see them, then for example
+an aggregate 32 MiB pack limit. Fetch reuses known local branch history, and
+existing-branch pushes omit the listed old history when available locally.
+New-branch pushes and more than 32 MiB of new pack data remain limited.
+Use `git branch -r` to see them, then for example
 `git switch --track origin/feature/example` to work on an existing branch.
 The helper supports one new branch or one existing fast-forward
 target per push. For example, create local work with `git switch -c feature/work`,

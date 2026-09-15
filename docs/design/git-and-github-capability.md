@@ -33,7 +33,12 @@ unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
 a 32 MiB aggregate pack are accepted per helper batch. Discovery is checked
 against both the all-heads scope and each exact ref; object fetch executes under
 a new exact-ref decision. An exact-ref deny cannot be bypassed by broad discovery.
-Separate head transfers may repeat shared history, a remaining M4 optimization.
+Fetch accepts at most 32 distinct local commit hints. Only ancestors of the freshly
+verified authorized head are excluded from its pack; missing or unrelated hints
+are ignored and never select another Host ref. Existing-target pushes exclude the
+listed old commit when it exists locally; preparation still fetches and verifies
+that exact remote target. New-target pushes retain complete packs. See
+[the incremental transport decision](../adr/0102-incremental-git-history.md).
 The initial checkout branch never grants
 push permission. See [ADR 0081](../adr/0081-git-read-and-push-authority.md).
 HTTPS GitHub authentication uses the trusted Host's `gh` credential store.

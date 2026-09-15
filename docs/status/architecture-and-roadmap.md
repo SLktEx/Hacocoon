@@ -21,8 +21,9 @@ These are implementation checkpoints, not M0–M5-wide acceptance or distributio
 
 [#692](https://github.com/SLktEx/Hacocoon/pull/692) includes #689–#691 and adds
 bounded Windows SSH failure classification. Exact head `4e7a45a7` passed four Linux
-workflows. Its Windows run failed at an external VS Code extension HTTP503 after
-SSH/transfer checks passed; the failed jobs are being retried once. Earlier
+workflows. Its first Windows attempt failed at an external VS Code extension HTTP503 after
+SSH/transfer checks passed. The one retry passed SSH/editor and Linux reclamation,
+but public reclamation refused an attached disk; notifications were skipped. Earlier
 unexplained Windows failures remain separate. Main integration still needs all
 five successful workflows for the exact candidate.
 
@@ -74,8 +75,10 @@ Authentication, external networks and visible desktop acceptance must be recorde
 as performed, failed or unperformed independently of repository tests.
 
 Large-repository performance, additional strict validation, broader OCI/runtime
-compatibility and larger Git transport are deferred until ordinary use works.
-The existing 32 MiB pack limit remains a known constraint. Measure representative
+compatibility are deferred until ordinary use works. Functional Git transfer
+limits remain M4 work: the incremental candidate avoids resending known history
+for fetch and existing-target push. The 32 MiB new-pack limit and complete
+new-target push remain known constraints, not completed giant-repository support. Measure representative
 large repositories before claiming the intended capacity/speed benefit; small
 fixtures do not prove it. LFS, submodules, force/delete/multi-ref push are not
 additional M2 completion conditions.

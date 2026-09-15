@@ -110,7 +110,11 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			}
 			total := 0
 			for _, head := range requested {
-				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}})
+				haves, err := helperHaves(ctx)
+				if err != nil {
+					return err
+				}
+				response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: haves})
 				if err != nil {
 					return err
 				}
@@ -149,7 +153,7 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if !ValidOID(oid) || oid == ZeroOID {
 				return fmt.Errorf("invalid local commit")
 			}
-			pack, err := helperGit(ctx, []byte(oid+"\n"), "pack-objects", "--stdout", "--revs")
+			pack, err := helperPushPack(ctx, oid, oldOID)
 			if err != nil {
 				return err
 			}
