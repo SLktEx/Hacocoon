@@ -1192,3 +1192,31 @@ the NUL-interleaved WSL E_UNEXPECTED seen in job104373589771 without emitting ra
 child output. Local PowerShell regression and real child timeout/nonzero checks
 passed. This improves evidence for the next ordinary run; it does not establish
 a cause or resolve that prior failure. No extra permission, restart or retry is added.
+
+## Snapshot restore by environment name
+
+Implementation `e1ec0894` adds `snapshot restore --latest <source-env> [new-env]`.
+Local focus 11.21s, changed-line lint 13.35s, maintained test entry 30.53s,
+race 14.92s, CLI 3.78s, docs 8.23s and workflow policy 1.41s passed.
+Capture time survives real catalog reload; CLI/controller tests cover unordered
+saves, incomplete/other-Env exclusion, date ties/unknowns, failed listing and no
+fallback after a selected restore fails. The initial unchecked diagnostic-write
+lint failure was corrected before the successful run. Checkpoint identity and
+maintained docs checks also passed after the v0.68 update.
+
+The ordinary ten-binary package built in 34.67s. Installed/new native acceptance
+is recorded separately; these local tests alone do not prove Windows SSH or OCI
+restoration. Prior Windows failures and the Packer permission question remain open.
+
+On dedicated Ubuntu26.04.1/Incus7.0.1, the normal package installed in 39.73s and
+`doctor` passed. The installed CLI cloned this repository, created a managed
+Workspace and an Env without OCI, captured two different marker values, deleted
+the source Env, and restored by the deleted source's name. Saves took 4.19/4.27s;
+restore took 5.53s and returned a running Env with the second marker. Both saved
+records remained unchanged. Only marker writes/reads used Physical-Host Incus
+exec; all lifecycle/capture/restore operations used the normal installed CLI.
+This does not establish a desktop SSH/OCI journey or giant-repository performance.
+The exact fresh Env, two saves, both Workspaces and source registration were then
+cleaned through ordinary product commands; all six cleanup operations passed.
+Native receipt: `latest-b61bbc62`, restored Workspace `restore-5dbfe05afd5db0c4`,
+source commit `e1ec08947e8ae2c7db5d0251f246cdc9403446a5`.

@@ -33,7 +33,7 @@ help and version require no controller.
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
 | Image removal | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused` replaces image selector; reviewed candidates may include tagged images |
-| Snapshot | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] <id> [new-env]`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
+| Snapshot | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] [--latest] <id|source-env> [new-env]`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
 | Copy | `haco env copy [--json] <stopped-env> [new-env]` | Default `<source>-copy`; [copy](../design/environment-copy.md) |
 | Transfer | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux; defaults `<env>.haco` / `<source>-imported`; [transfer](../design/environment-transfer.md) |
 | Disk allocation | `haco reclaim [--yes \| --status \| --review [--yes]]` | Managed Windows/WSL only; [reclamation](../design/storage-reclamation.md) |

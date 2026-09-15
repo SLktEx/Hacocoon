@@ -201,3 +201,9 @@ evacuation flow. It is a useful comparison step, not full migration acceptance o
 
 Within v0.67, shared English/Japanese result and review presentation closes another
 daily-use gap. Protocols, consent and lifecycle are unchanged; no release is published.
+
+## Restore by environment name
+
+v0.68 adds latest-ready snapshot selection by recorded capture time. Canonical
+restore still creates independent data. Local regression and one installed
+Incus journey passed; this checkpoint does not complete M5 or publish a release.
