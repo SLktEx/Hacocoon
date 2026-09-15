@@ -199,6 +199,14 @@ The native PowerShell process has a30-second ceiling for cold startup, including
 
 
 Private WSL readiness is checked by a read-only round trip before COM presentation
-registration. Owned-history clear, readiness and initial review share the existing
-20-second launch budget. Startup timeout is reported as `peer_ready/timeout`;
-no review/answer is retried. The COM server is revoked before owned cleanup.
+registration. Owned-history clear, readiness and initial review share a 50-second
+startup budget. A duplicate launcher waits up to 60 seconds for either published
+presentation readiness or ownership after the previous process finishes cleanup.
+The outer notifier allows 120 seconds for that handoff and startup, while normal
+10/8-second reads and decision deadlines remain unchanged. The per-user session
+mutex alone is not evidence that COM can present a request. A named readiness
+event is published only after initialization; it conveys no decision or credential.
+Shutdown withdraws readiness before COM revocation and retains mutex ownership
+through private-peer and owned-history cleanup. A failed unpublished startup can
+be replaced after cleanup. Duplicate launch success still requires actual Show;
+no approval is replayed. See [ADR 0100](../adr/0100-notification-session-readiness.md).

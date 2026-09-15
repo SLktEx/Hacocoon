@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/desktopreview"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -350,5 +351,15 @@ func TestNativeFromNowOnlyInitializesMissingState(t *testing.T) {
 				t.Fatal("history was presented or new event lost")
 			}
 		})
+	}
+}
+
+func TestNativeLaunchDeadlineCoversSessionHandoffAndStartup(t *testing.T) {
+	if desktopreview.LaunchTimeout <= desktopreview.SessionWaitTimeout+desktopreview.StartupTimeout {
+		t.Fatal("outer deadline can discard successful startup")
+	}
+	script := windowsReviewLaunchScript("Hacocoon", "test-scheme", "test-uri")
+	if !strings.Contains(script, "AddSeconds(120)") || !strings.Contains(script, "HACO_REVIEW_READY") {
+		t.Fatal("native launch deadline or delivery acknowledgement lost")
 	}
 }

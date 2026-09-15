@@ -38,12 +38,12 @@ function Invoke-ReviewProbe([string[]]$Arguments, [int]$ExitCode, [string]$Expec
         $errorOutput = $process.StandardError.ReadToEndAsync()
         # No approval answer is supplied through stdin or argv.
         $process.StandardInput.Close()
-        if (-not $process.WaitForExit(60000)) { throw 'Native review timed out' }
+        if (-not $process.WaitForExit(130000)) { throw 'Native review timed out' }
         $receipt = $output.GetAwaiter().GetResult() + $errorOutput.GetAwaiter().GetResult()
         if ($process.ExitCode -ne $ExitCode -or -not $receipt.Contains($Expected)) {
             # Print only product-owned fixed classifications, never raw native output.
             $stage = 'unknown'; $reason = 'unavailable'
-            if ($receipt -match 'stage=(registration|session_plan|ownership|activation|clear|peer_start|review|events|unknown)\b') { $stage = $Matches[1] }
+            if ($receipt -match 'stage=(registration|session_plan|ownership|activation|clear|peer_start|peer_ready|review|events|unknown)\b') { $stage = $Matches[1] }
             if ($receipt -match 'reason=(timeout|canceled|unavailable)\b') { $reason = $Matches[1] }
             $native = 'unrecorded'
             if ($receipt -match 'native_stage=(runtime|xml|create|identity|show|history) native_error=(-?[0-9]{1,11})\b') { $native = $Matches[1] + ':' + $Matches[2] }

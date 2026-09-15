@@ -155,11 +155,12 @@ review/CAS/cleanup; independent Env/Workspace/OCI data and protected references
 remain. Existing-Env enrollment and unknown-copy cancellation remain incomplete.
 
 
-Notification startup now waits for a real private WSL read response before COM
-registration. Clear/readiness/first review share the existing 20-second launch
-budget; normal 10/8-second operations and no-replay rules remain. Matching installed
-stale/malformed refusal and Host notification subscription passed; human answers
-and visual layout remain separate.
+Notification startup checks private WSL readiness before COM registration. A
+separate readiness event prevents duplicates from dispatching during startup or
+cleanup. The 50-second startup budget covers native history clear, readiness and
+initial review; predecessor wait is bounded separately. Normal read/decision
+bounds and no-replay rules remain. Installed human answers and visible layout
+remain separate acceptance. See [notification review](design/pending-approval-review.md).
 
 ## Saved-data deletion diagnostics candidate
 

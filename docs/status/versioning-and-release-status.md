@@ -171,3 +171,10 @@ underlying storage health. See the [owning contract](../design/environment-snaps
 Within v0.67, the M4 candidate adds isolated Base archive import and finite builder
 resources, reusing input staging and the existing publication/cleanup lifecycle.
 This is a development checkpoint, not a release or complete M4/M5 acceptance.
+
+## Notification session handoff
+
+Within v0.67, the Windows candidate separates process ownership from presentation
+readiness and bounds startup independently from predecessor cleanup. This corrects
+a daily-use startup race; it does not complete human answer acceptance or release
+a new package. See [ADR 0100](../adr/0100-notification-session-readiness.md).

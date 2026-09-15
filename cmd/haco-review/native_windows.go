@@ -68,20 +68,12 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	mutexName, err := windows.UTF16PtrFromString(`Local\` + appID + "-" + tokenUser.User.Sid.String())
+	session, err := openReviewSession(`Local\`+appID+"-"+tokenUser.User.Sid.String(), desktopreview.SessionWaitTimeout)
 	if err != nil {
 		return err
 	}
-	mutex, err := windows.CreateMutex(nil, false, mutexName)
-	if err != nil && err != windows.ERROR_ALREADY_EXISTS {
-		return err
-	}
-	defer windows.CloseHandle(mutex)
-	state, err := windows.WaitForSingleObject(mutex, 0)
-	if err != nil {
-		return err
-	}
-	if state == uint32(windows.WAIT_TIMEOUT) {
+	defer session.close()
+	if !session.owned {
 		stage = "activation"
 		if id == "" {
 			return errors.New("native review is already running")
@@ -92,13 +84,9 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		_, err = fmt.Fprintln(os.Stdout, "HACO_REVIEW_READY")
 		return err
 	}
-	if state != windows.WAIT_OBJECT_0 && state != windows.WAIT_ABANDONED {
-		return errors.New("cannot own native review session")
-	}
-	defer windows.ReleaseMutex(mutex)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	startup, finishStartup := context.WithTimeout(ctx, 20*time.Second)
+	startup, finishStartup := context.WithTimeout(ctx, desktopreview.StartupTimeout)
 	defer finishStartup()
 	surface := &nativeToastSurface{plan: plan, appID: appID}
 	// Expired in-memory nonces are never recovered after a crash or restart.
@@ -129,7 +117,12 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	defer stop()
+	defer func() {
+		// Withdraw before revoking COM; keep ownership through peer/history cleanup.
+		// A duplicate then waits for that cleanup instead of launching another server.
+		resultErr = errors.Join(resultErr, session.withdraw())
+		stop()
+	}()
 	language, _, _ := windows.NewLazySystemDLL("kernel32.dll").NewProc("GetUserDefaultUILanguage").Call()
 	manager := &desktopreview.ToastManager{Exchange: peer, Surface: surface, Japanese: language&0x3ff == 0x11}
 	if id != "" {
@@ -145,6 +138,9 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		}
 	}
 	finishStartup()
+	if err := session.publish(); err != nil {
+		return err
+	}
 	stage = "events"
 	type completion struct {
 		job   *desktopreview.ToastSubmission

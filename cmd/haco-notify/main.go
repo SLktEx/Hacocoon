@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -377,7 +378,7 @@ $info.RedirectStandardOutput=$true;$info.RedirectStandardInput=$true
 $process=[Diagnostics.Process]::new();$process.StartInfo=$info
 if(-not $process.Start()){throw 'start'}
 $process.StandardInput.Close()
-$nativeStage='show';$deadline=[DateTime]::UtcNow.AddSeconds(20);$receipt='';$buffer=New-Object char[] 64
+$nativeStage='show';$deadline=[DateTime]::UtcNow.AddSeconds(` + strconv.Itoa(int(desktopreview.LaunchTimeout/time.Second)) + `);$receipt='';$buffer=New-Object char[] 64
 while(-not $receipt.EndsWith([string][char]10)){
  $remaining=[int]($deadline-[DateTime]::UtcNow).TotalMilliseconds
  if($remaining -le 0 -or $receipt.Length -ge 64){throw 'ready'}
