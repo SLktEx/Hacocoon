@@ -129,6 +129,17 @@ func TestRealIncusSavedEnvironmentDataE2E(t *testing.T) {
 	if status.State != core.EnvironmentRunning {
 		t.Fatal("capture did not resume")
 	}
+	inspected, err := svc.InspectSnapshot(ctx, saved.ID)
+	must(err)
+	if inspected.Partial || len(inspected.Components) != 5 {
+		t.Fatal("incomplete native inspection", inspected)
+	}
+	for _, c := range inspected.Components {
+		if c.Presence != "present" || c.Check != "ready" || c.Object == "" || c.Pool == "" || c.Backing != "uninspected" {
+			t.Fatal("native saved component not diagnosed", c)
+		}
+	}
+	t.Log("PASS read-only snapshot inspection of rootfs, both Workspace members and both data volumes; underlying Btrfs health is not inferred")
 	must(svc.DeleteSnapshot(ctx, saved.ID))
 	must(svc.Stop(ctx, name))
 	restorer := &snapshotrestore.Service{Catalog: store, Environments: svc, Workspaces: repositories, Stores: resources}

@@ -129,7 +129,7 @@ func validateReference(ref PathReference) error {
 		if len(ref.Repositories) == 0 {
 			return core.ErrInvalidArgument
 		}
-	case "forking", "recovery-required":
+	case "forking", "importing", "recovery-required":
 	case "ready":
 		if ref.Workspace == "" {
 			return core.ErrInvalidArgument

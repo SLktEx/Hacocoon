@@ -53,3 +53,29 @@ func TestPushRejectsMalformedTargetsBeforeRunningGit(t *testing.T) {
 		t.Fatal("accepted nonexistent advertised head")
 	}
 }
+
+func TestObserveHeadRefusesMalformedTargetsAndResponses(t *testing.T) {
+	remote := "https://github.com/SLktEx/Hacocoon.git"
+	for _, ref := range []string{"--heads", "refs/heads/-option", "refs/heads/a*", "refs/heads/a\nother", "refs/tags/v1"} {
+		// A dash inside the literal full ref is safe: it never starts an option.
+		if ref == "refs/heads/-option" {
+			continue
+		}
+		calls := 0
+		_, err := observeHead(func([]byte, ...string) ([]byte, error) { calls++; return nil, nil }, remote, ref)
+		if err == nil || calls != 0 {
+			t.Fatalf("target %q reached Git", ref)
+		}
+	}
+	for _, response := range []string{ZeroOID + "\trefs/heads/main\n", strings.Repeat("a", 40) + "\trefs/heads/other\n", strings.Repeat("a", 40) + "\trefs/heads/main\n\n"} {
+		_, err := observeHead(func(_ []byte, args ...string) ([]byte, error) {
+			if strings.Join(args, " ") != "ls-remote --heads -- "+remote+" refs/heads/main" {
+				t.Fatal(args)
+			}
+			return []byte(response), nil
+		}, remote, "refs/heads/main")
+		if err == nil {
+			t.Fatalf("malformed observation accepted: %q", response)
+		}
+	}
+}

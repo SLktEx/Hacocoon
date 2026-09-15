@@ -116,6 +116,9 @@ func (s *EnvironmentJSONStore) BeginSnapshot(ctx context.Context, snapshot core.
 		if !ok || !reflect.DeepEqual(current, source.Environment) || lease.InstanceID != source.InstanceID || lease.State != core.WorkspaceLeaseActive || validateEnvironmentCreateCommit(current, lease) != nil {
 			return false, core.ErrCapabilityStale
 		}
+		if environmentResourcesBusy(*data, current.Name) {
+			return false, core.ErrRecoveryRequired
+		}
 		if snapshotBusy(*data, current.Name) {
 			return false, core.ErrStorageBusy
 		}

@@ -101,7 +101,8 @@ retention dependency. See [snapshots](environment-snapshots.md).
 Definition build, alias revision independence and installed Windows SSH passed
 on `a2fcb72`. Earlier machine-ID/stdio failures and a local rebuild timeout remain
 recorded in [acceptance evidence](../status/acceptance-evidence.md#storage).
-Archive import, concurrent builds, history UI and automatic retries are deferred.
+Concurrent builds, history UI and automatic crash retries remain deferred.
+Archive import is implemented in the current candidate as described below.
 
 ## Explicit built-image cleanup
 
@@ -144,3 +145,50 @@ fingerprint and initializes from that pinned revision. `haco/` is reserved.
 sources, reserved overrides and oversized/malformed configuration. A Base supplies
 guest contents; Policy/Capability supplies authority. Project-specific setup remains
 separate from reusable Base tooling.
+
+## Import a container image archive
+
+**Implemented candidate:** on the trusted Linux/WSL client, run:
+
+```bash
+haco base import --name my-tools ./my-tools.tar
+haco env create --base my-tools --workspace ./work demo
+```
+
+The input is an **uncompressed unified Incus container image tar**, with
+`metadata.yaml` first and a `rootfs/` tree (x86-64 or arm64). It is not an Env
+`.haco` bundle, split image, VM image or compressed archive. Use native image
+export with compression disabled when preparing this input. The file remains
+unchanged. `--json` before the path returns the immutable revision, state and any
+retained builder; there is no caller-selected controller path or remote download.
+
+The complete upload is captured in a private unnamed, read-only file before any
+builder is created. Framing and upload receipts are shared with Env/Workspace
+import; storage staging is shared through `internal/staging`. The Incus adapter
+reuses native archive validation: bounded bytes/entries/metadata, canonical paths,
+no descendants below links, confined hardlink topology, and complete terminal
+framing. Image properties/templates are replaced with fresh transport ownership.
+Guest rootfs links and native filesystem entries are interpreted only by Incus,
+never extracted or executed by a Host shell.
+
+Canonical creation makes an independent temporary Env with its ownership receipt
+before current sandbox configuration and start. Its scratch Workspace is guest
+local: no Host Workspace mount, OCI Store, cache attachments, control sockets or
+reusable credentials. The normal source guard, Policy/Approval, DNS and guest key
+renewal remain. The imported rootfs executes only with ordinary Env authority.
+The transport image is temporary and never promoted to the retained Base.
+
+Archive import then shares the definition/Packer builder's guest cleanup, stop,
+immutable publication and atomic logical-alias update. All builders now receive
+finite defaults before start: 2 CPUs, 4 GiB RAM, 1,024 PIDs and 64 GiB root disk.
+Archive input/output are bounded to 64 GiB and one million native archive entries;
+the public operation has a 30-minute deadline. These are working limits, not
+large-repository performance claims. Source data and existing Base revisions remain.
+
+Failed input does not publish a Base. Failed creation uses canonical exact-owned
+cleanup; ambiguous creation/publication retains its builder/native receipt.
+Publication uncertainty never automatically replays upload or moves a logical
+pointer to unverified data. A published Base survives failed builder cleanup.
+Inspect the reported builder and Base before explicit cleanup or starting a fresh
+import. As with definitions, arbitrary secrets deliberately included in a rootfs
+cannot be automatically identified. See [ADR 0099](../adr/0099-base-archive-builder.md).

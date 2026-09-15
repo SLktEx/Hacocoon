@@ -178,7 +178,7 @@ The Physical Host source for each binary must be a regular executable, owned by 
 
 This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing executables in the trusted instance.
 
-The product `haco` binary calls the controller without guest-local composition. The retired CLI is absent from new release payloads and trusted-host provisioning; see [ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.md).
+The product `haco` binary calls the controller without guest-local composition. The retired CLI is absent from new release payloads and trusted-host provisioning; see [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.md).
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
 
@@ -270,7 +270,7 @@ Still separate work:
 
 Repository tests cover ownership reconciliation, collision refusal, state recovery, exact controller-proxy validation, both client binaries' provisioning/idempotency, client-mode drift refusal, CLI routing, fail-closed fallback prevention, warning selection, and login-mode identification.
 
-The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. The earlier gate passed at `b71f88e`; that result does not validate the later directory and CLI changes in ADR 0096. Commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
+The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. The earlier gate passed at `b71f88e`; that result does not validate the later directory and CLI changes in ADR 0102. Commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.
 
@@ -460,6 +460,16 @@ recipe text are not diagnostic fields. WSL helper exit 42 specifically means
 `native_binfmt_incompatible`; unknown failures remain `failed`, rather than a
 guessed cause. Other reasons include timeout, canceled, incompatible_state,
 recovery_required, unavailable, denied, busy, not_found and unsupported.
+
+Notification service refresh uses `stage=notification_setup` with a fixed
+`notification_<operation>_failed` reason. Operations are `enable_state`,
+`activity`, `disable`, `reload`, `failure_state`, `reset`, `enable` and `restart`.
+They identify the failed service operation, not the underlying Windows cause.
+The installed helper carries these classifications as private exit codes 50–57;
+the adapter recognizes them only in notification refresh mode. Unknown exits
+remain failures and cancellation takes precedence. Raw helper output never
+becomes a reason. Existing unit ownership, disabled-service preservation,
+healthy-service reuse, startup checks and bounded restart rules are unchanged.
 
 Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
 an administrator can read `journalctl -u haco-controller.service --since

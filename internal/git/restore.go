@@ -51,8 +51,18 @@ func (s *RepositoryService) RestoreWorkspace(ctx context.Context, id string, sav
 // Failure retains the creating Workspace and source reservation for recovery;
 // it must not implicitly dispose data that another catalog still owns.
 func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id string, saved core.Snapshot, prepare func(context.Context, core.Workspace) error) (Object, error) {
+	return s.RestoreWorkspaceSelectionWithData(ctx, id, saved, nil, prepare)
+}
+
+// RestoreWorkspaceSelectionWithData changes membership only in a new independent
+// copy. Existing members retain their saved Git state; additions use explicitly
+// registered Host sources. Both share the same reservation, receipt and cleanup.
+func (s *RepositoryService) RestoreWorkspaceSelectionWithData(ctx context.Context, id string, saved core.Snapshot, repositories []string, prepare func(context.Context, core.Workspace) error) (Object, error) {
 	if !gitadapter.ValidID(id) || !validSavedID(saved.ID) || saved.State != "ready" {
 		return Object{}, core.ErrInvalidArgument
+	}
+	if err := ValidateRepositorySelection(repositories); err != nil {
+		return Object{}, err
 	}
 	backend, ok := s.Backend.(savedWorkspaceBackend)
 	if !ok || s.SnapshotCatalog == nil {
@@ -60,7 +70,7 @@ func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id str
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sources, err := backend.SavedWorkspaces(ctx, saved)
+	sources, err := s.restoreSources(ctx, backend, saved, repositories)
 	if err != nil {
 		return Object{}, err
 	}
@@ -68,18 +78,17 @@ func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id str
 		return Object{}, core.ErrIncompatibleState
 	}
 	object := Object{Kind: "work", ID: id, Owner: randomID(), State: "creating", RestoredFrom: saved.ID}
-	seen := map[string]bool{}
 	for _, source := range sources {
-		if !gitadapter.ValidID(source.Repository) || !gitadapter.ValidWorkspaceRouting(source.Remote, source.Branch) || seen[source.Repository] || source.Component.State != "verified" {
-			return Object{}, core.ErrIncompatibleState
-		}
-		seen[source.Repository] = true
 		member := Object{Kind: "work", ID: id, Repository: source.Repository, Remote: source.Remote, Branch: source.Branch, Owner: object.Owner, State: "creating", RestoredFrom: saved.ID}
 		if len(sources) > 1 {
 			member.Owner = randomID()
 			member.ID = restoredWorkspaceMemberID(id, source.Repository, member.Owner)
 		}
-		member.NativeRef, err = backend.PlanSavedWorkspace(ctx, member.ID, source)
+		if source.registered == nil {
+			member.NativeRef, err = backend.PlanSavedWorkspace(ctx, member.ID, source.SavedWorkspace)
+		} else {
+			member.NativeRef, err = s.Backend.Plan(ctx, "work", member.ID)
+		}
 		if err != nil {
 			return Object{}, err
 		}
@@ -120,8 +129,14 @@ func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id str
 		if err := ctx.Err(); err != nil {
 			return fail(err)
 		}
-		if err := backend.CreateSavedWorkspace(ctx, *member, source); err != nil {
-			return fail(err)
+		var createErr error
+		if source.registered == nil {
+			createErr = backend.CreateSavedWorkspace(ctx, *member, source.SavedWorkspace)
+		} else {
+			createErr = s.Backend.CreateVolume(ctx, *member, source.registered)
+		}
+		if createErr != nil {
+			return fail(createErr)
 		}
 		member.State = "created"
 		if err := s.save(object); err != nil {
@@ -129,6 +144,11 @@ func (s *RepositoryService) RestoreWorkspaceWithData(ctx context.Context, id str
 		}
 		if err := s.Backend.InspectVolume(ctx, *member); err != nil {
 			return fail(err)
+		}
+		if source.registered != nil {
+			if err := s.Backend.Populate(ctx, *member); err != nil {
+				return fail(err)
+			}
 		}
 		member.State = "ready"
 	}

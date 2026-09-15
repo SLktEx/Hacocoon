@@ -1,6 +1,6 @@
 # 責務別配置と旧CLIの廃止
 
-状態: 採用。Refs #654。基準は main `a3d0f4fd7bbf7134c113029f80124e8f2c332bd6`。
+状態: 採用。Refs #654。基準は main `ee8bf7fbd2e858f9b6fd1d22ecce77fdde6bf082`。
 
 ## 決定
 

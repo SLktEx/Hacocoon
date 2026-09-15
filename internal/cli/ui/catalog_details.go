@@ -48,6 +48,8 @@ var detailCatalog = map[string]translation{
 	"detail.path":               {"Required existing directory where the work reference is written.", "必須。作業場所の設定を保存する既存ディレクトリ。"},
 	"detail.work_name":          {"Name for the new work reference; generated when omitted.", "新しい作業場所の名前。省略時は生成します。"},
 	"detail.base":               {"Optional Base name; omission uses the configured default.", "環境のひな形の名前。省略時は設定済みの既定値を使います。"},
+	"detail.fork_repos":         {"Optional destination repository names. Retain selected source changes, add registered repositories, and omit others only from the copy. Omission keeps all.", "コピー先のレポ構成。選んだ既存レポの変更を保持し、登録済みレポを追加します。選ばなかったレポも元の作業には残ります。省略時は全レポを複製します。"},
+	"detail.worktree_input":     {"Existing local Git checkout or linked worktree. Stop editing during capture. Host Git configuration and other worktree metadata are excluded.", "既存のGit checkout、またはlinked worktree。コピー中は編集を止めてください。HostのGit設定や他のworktree管理情報は引き継ぎません。"},
 	"detail.fork_base":          {"Optional Base for opening the copy; omission retains the source's Base selection.", "コピー先で使うひな形。省略時はコピー元の選択を引き継ぎます。"},
 	"detail.oci":                {"OCI data: auto for automatic preparation, none to omit, or oci:<store> for a retained Store. The default is auto.", "OCIデータ。autoは自動準備、noneは省略、oci:<store>は保持済みStoreを使用。既定はauto。"},
 	"detail.read_access":        {"Git reads and pushes are authorized separately. Choosing main for clone never grants unconditional main push.", "Gitの取得とpushは別々に許可します。mainをcloneしてもmainへのpushを無条件には許可しません。"},

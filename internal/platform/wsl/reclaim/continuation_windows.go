@@ -105,45 +105,45 @@ func (r registration) withReclamationTarget(ctx context.Context, visit func(*ope
 		return err
 	}
 	if err := r.revalidate(); err != nil {
-		return err
+		return targetStage("registration", err)
 	}
 	guard, err := acquireContinuation(r.ID)
 	if err != nil {
-		return err
+		return targetStage("exclusion", err)
 	}
 	defer func() { err = errors.Join(err, guard.Close()) }()
 	path, err := r.diskPath()
 	if err != nil {
-		return err
+		return targetStage("disk_path", err)
 	}
 	pin, err := pinDisk(path)
 	if err != nil {
-		return err
+		return targetStage("disk_access", err)
 	}
 	defer func() { err = errors.Join(err, pin.Close()) }()
 	records, err := openOperationStore(r.ID)
 	if err != nil {
-		return err
+		return targetStage("record_access", err)
 	}
 	defer func() { err = errors.Join(err, records.close()) }()
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil {
-		return err
+		return targetStage("windows_owner", err)
 	}
 	enrolled, err := records.readBinding()
 	if err != nil {
-		return fmt.Errorf("managed WSL enrollment required: %w", err)
+		return targetStage("enrollment", err)
 	}
 	if enrolled.Target.Registration != r || enrolled.Target.Disk != pin.identity || enrolled.Target.WindowsOwner != user.User.Sid.String() {
-		return errors.New("managed WSL registration, owner or disk differs from enrollment")
+		return targetStage("binding", errors.New("managed WSL registration, owner or disk differs from enrollment"))
 	}
 	identity, err := r.readInstallation(ctx)
 	if err != nil {
-		return err
+		return targetStage("installation", err)
 	}
 	target := installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
 	if err := records.requireBinding(target); err != nil {
-		return err
+		return targetStage("binding", err)
 	}
 	return visit(records, pin, target)
 }
@@ -158,7 +158,7 @@ func (r registration) prepareContinuationVersion(ctx context.Context, version in
 	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
 		var beginErr error
 		intent, beginErr = records.beginVersion(r, pin.identity, version)
-		return beginErr
+		return targetStage("intent", beginErr)
 	})
 	return
 }

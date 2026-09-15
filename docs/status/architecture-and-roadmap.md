@@ -197,6 +197,16 @@ M4 public cache/Packer and current-version M5 cleanup remain active. Old-version
 compatibility/migration are excluded; new installed acceptance remains distinct.
 
 
+## GUI approval integration
+
+The optional VS Code client now reuses #588 to show current requests and complete
+explicit allow/deny and saved-scope choices inside a local GUI. Fresh human answers
+and installed GUI acceptance remain separate. Windows notification-contained
+answers now reuse #611 and subsequent refusal/cancellation corrections; both
+clients use the existing common review and Policy services. Fresh installed
+answers and visible notification layout still require acceptance. Old-version compatibility/migration are outside M0–M5.
+
+
 ## Temporary execution on main
 
 The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY
@@ -205,6 +215,7 @@ and requires current run identity rather than adding legacy migration. DNS modes
 and client-side forwarding remain independent work. Local regression and new
 native acceptance are recorded separately; large-repository performance remains deferred.
 
+The M2 reconciliation candidate reuses42aa706f for durable push receipts and exact-ref observation under fresh read authority. GUI answers remain in #664; authenticated installed acceptance and larger Git transport remain separate. No old-version compatibility is added.
 
 The M4 public cache candidate adds Host settings, creation-time enrollment, stopped collection and named status output. Next: complete history/clearing/recovery and added-data transfer, then installed ordinary workflow acceptance. Large-repository measurements follow usable flows and are not claimed by small fixtures.
 
@@ -213,3 +224,62 @@ Named cache history and reviewed source clearing are implemented in the follow-u
 The cache recovery follow-up completes named positive-receipt recovery and current-generation adoption through shared ownership operations. Unknown native copy reconciliation, orphan-source access, existing-Env enrollment and added-data transfer remain; performance stays deferred.
 
 Client loopback TCP forwarding now reuses the shared controller sessions, framed WSL process transport, Windows companion placement and foreground-owned cancellation. Remaining M3 work is selectable DNS modes and actual use in environments other than ordinary networks; installed forwarding evidence is tracked separately.
+
+## Selected Workspace composition
+
+The M2 candidate adds selected membership to stopped independent forks using the
+existing restore transition. Local full/race and dedicated supported-Incus Git
+state/addition/restart/cleanup passed; see [evidence](acceptance-evidence.md#selected-workspace-membership).
+Independent checkout/linked-worktree input is implemented in the next candidate
+through the client/provider boundaries. Next: installed/authenticated acceptance
+and existing-Env cache enrollment. Retained-source history/recovery/cleanup now
+have --all entry points using the common ownership transitions. Source work is preserved;
+large-repository measurement remains deferred by the user.
+
+
+Native notification startup now waits for private WSL read readiness before COM
+presentation registration. Matching installed refusal/subscription passed; fresh
+human decisions and past CI activation/reclamation failures remain distinct.
+
+## Saved-data deletion diagnostics
+
+The M5 candidate adds read-only component inspection and safe delete retry guidance
+for #523. Provider observations and existing deletion ownership checks are shared;
+underlying Btrfs consistency remains uninspected. Installed current-data evacuation,
+Base archive import and late cache enrollment/local clearing remain separate work.
+Large-repository performance and extra validation follow ordinary usability.
+
+## Base archive input
+
+The M4 candidate implements explicit uncompressed Incus Base archive import through
+a temporary builder and the existing publication contract (#183), with finite
+builder resources. Existing cache enrollment/local clearing, installed notification
+reliability, current-data evacuation and broader input/recovery acceptance remain.
+Giant-repository measurements follow ordinary usability.
+
+The notification candidate now separates published presentation readiness from
+process ownership and uses the common cold-controller Ping wait before private
+requests. Installed refusal/subscription passed after ordinary matching installation;
+initial Host notification-service readiness remains separately observed. Fresh human
+answers, reclamation while the exact VHDX remains attached, current-data evacuation
+and Env-local cache maintenance are still open. Base archive import and snapshot
+inspection have supported-Incus evidence; giant performance remains deferred.
+
+## Env-local cache maintenance
+
+The M4 candidate adds reviewed single/all-area and all-Env emptying through the
+canonical lifecycle, retaining Workspace/OCI/common sources/saved copies. Explicit
+retry resolves a persisted interrupted clear; unknown-copy cancellation and late
+existing-Env enrollment remain. Current-data replacement, authenticated installed
+use and human GUI answers still need their own evidence. Performance follows usable
+flows. See [the contract](../design/cache-generations.md#empty-an-environments-cache).
+
+## Ordinary reclamation diagnosis
+
+The M5 candidate adds bounded bilingual preparation/launch diagnostics. Next: resolve
+the dedicated installation's pre-dispatch failure, then the independent Windows CI
+attached-disk failure. Keep failed receipts; do not force global WSL shutdown or treat
+a diagnostic as permission to replay. Current-data evacuation and authenticated
+restoration remain separate; giant performance stays deferred.
+
+PR #687 passed all five exact-head workflows and is on main at `2f421006`. This integrates the preceding candidate stack, including saved-data inspection, Base archive input, cache maintenance, Workspace composition and notification readiness. Human GUI answers and the dedicated installed reclamation failure remain separate from the successful Windows CI.

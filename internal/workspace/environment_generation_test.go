@@ -80,7 +80,7 @@ func TestUncertainCollectionFencesProducerAcrossReload(t *testing.T) {
 		t.Fatal("absence receipt released source", err)
 	}
 	// The catalog reads the persisted copy source fence for every operation.
-	if err := catalog.CheckEnvironmentResourceCopyIdle(ctx, env.Name); !errors.Is(err, core.ErrRecoveryRequired) {
+	if err := catalog.CheckEnvironmentResourcesIdle(ctx, env.Name); !errors.Is(err, core.ErrRecoveryRequired) {
 		t.Fatal(err)
 	}
 }

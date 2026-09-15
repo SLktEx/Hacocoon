@@ -78,7 +78,7 @@ Physical Hostが保持する。[利用手順](../guides/git-workflow.md)と
 [ADR 0008](../adr/0008-managed-repository-workspaces.md)を参照。
 Windows drive・exe連携は通常installer/setupで構成する（上記参照）。
 
-現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。旧 CLI の廃止判断は [ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.ja.md)を参照する。
+現在の製品hacoはコントローラー経由のsetup/doctor、WSL通常入口、repo・Workspace・Environment・Git・OCI Storeの操作を提供する。旧 CLI の廃止判断は [ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)を参照する。
 
 現在のパッケージのWindows受入と未確認項目は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。製品診断は[読み取り専用コントローラー契約](controller-client-transport.ja.md#host診断)を使う。
 
@@ -181,7 +181,7 @@ Physical Host側元データは通常の executable、invoking effective UID所�
 
 これによりrepeated ensureを繰り返しても同じ結果になるにし、信頼された instance内の任意の既存バイナリをそのまま信頼しません。
 
-製品 `haco` はコントローラーを呼び、guest-local 構成を作りません。旧 CLI は新しい配布物と trusted-host 配備から削除しました。[ADR 0096](../adr/0096-responsibility-layout-and-cli-retirement.ja.md)を参照してください。
+製品 `haco` はコントローラーを呼び、guest-local 構成を作りません。旧 CLI は新しい配布物と trusted-host 配備から削除しました。[ADR 0102](../adr/0102-responsibility-layout-and-cli-retirement.ja.md)を参照してください。
 
 このモード識別情報はauthorization 認証情報ではありません。`haco-host`自体が信頼されたであり、方針、状態、プロバイダー operationの権限は引き続きPhysical Host コントローラーです。
 
@@ -265,7 +265,7 @@ wsl -d Hacocoon -u root
 
 Repository テストでは所有権照合・調整、衝突拒否、状態復旧、正確なコントローラー proxy 検証、2本のクライアントバイナリ配備 / 再実行時の一貫性、client-mode 不一致拒否、CLI 経路選択、local 代替経路の安全側で拒否する、warning、login-mode identificationを確認します。
 
-維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。以前の gate は `b71f88e` で成功したが、ADR 0096 のディレクトリ・CLI 変更の実機検証を意味しない。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
+維持する実際の Incus E2E gateはコントローラー経由の `haco setup`、接続先投影、必要な2本のクライアントのダイジェスト一致、`haco-host doctor` / `haco-host env ...` のコントローラー経由操作、再起動復旧、新規 setupでguestに旧`hacoq`がないこと、生の Incus ソケット非露出、通常Environmentの信頼された接続先 / client-mode 識別情報非露出を検査する。以前の gate は `b71f88e` で成功したが、ADR 0102 のディレクトリ・CLI 変更の実機検証を意味しない。commitを固定したWindows結果と残る制約は[実装status](../IMPLEMENTATION_STATUS.ja.md)に記録する。
 
 Windows/WSLの確認済み範囲は、実装statusに記録したcommit固定の実機受入に限る。別hardware・別構成への互換性は未確認として扱う。
 
@@ -423,6 +423,14 @@ HostのCLIは同じ言語です。Host権限を使う場所であることと、
 状態: **implemented**。`haco setup` は既存の所有権確認付き処理を管理controller経由で観測します。stderrにrunning/succeeded/failedの工程を表示し、stdoutは最終結果用に保ちます。進捗率は推測せず、プロセスを起動しただけで完了にしません。対象はclient検証、project/storage、Hostの所有権確認・作成、network、controller endpoint、起動、WSL interop、client mode/provisioning、Host storage、通知、customizationです。同じ工程の再表示は実際の再確認を表し、未設定の任意工程を完了とは表示しません。
 
 controllerは共有構造化loggerに固定stage/state/reason、所要時間、生成した`request_id`を記録します。CLIも上限付きの固定語彙を再検証します。providerの任意エラー、helperの生出力、秘密、recipe本文は診断欄に含めません。WSL helperの終了値42だけを`native_binfmt_incompatible`と分類し、原因未確定は`failed`のままにします。timeout、canceled、incompatible_state、recovery_required、unavailable、denied、busy、not_found、unsupported等も区別します。
+
+通知サービス更新は`stage=notification_setup`と固定の`notification_<operation>_failed`を使います。
+操作は`enable_state`（有効化状態の確認）、`activity`（稼働確認）、`disable`（無効化）、
+`reload`（定義の再読込）、`failure_state`（失敗状態の確認）、`reset`（失敗状態の解除）、
+`enable`（有効化）、`restart`（再起動）です。失敗したサービス操作を示し、Windows側の原因を断定しません。
+導入済みhelperの内部終了値50〜57を通知更新モードだけで分類します。未知の終了値も失敗とし、
+中断は優先して扱います。生出力を理由へ取り込みません。unit所有確認、無効化の維持、
+正常サービスの再利用、起動確認、回数制限付き再起動は変更しません。
 
 現在の状態は`haco doctor`で確認します。WSL/Linuxの**Physical Host**で管理者が`journalctl -u haco-controller.service --since '30 minutes ago' --no-pager`を実行し、表示されたrequest IDを探せます。保存・ローテーションはsystemd-journaldが管理します。既存の`HACO_LOG_LEVEL=debug`と`HACO_LOG_FORMAT=json`を利用できますが、client側設定でcontrollerのDEBUGを遠隔有効化はしません。DEBUGでもredactionを維持します。
 

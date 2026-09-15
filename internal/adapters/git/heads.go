@@ -16,7 +16,7 @@ type Head struct {
 	OID string `json:"oid"`
 }
 
-// Full head names are data, never refspec patterns or command options.
+// ValidHeadRef accepts full head names as data, never refspec patterns or command options.
 func ValidHeadRef(ref string) bool {
 	if len(ref) > 1024 || !utf8.ValidString(ref) || !strings.HasPrefix(ref, "refs/heads/") {
 		return false

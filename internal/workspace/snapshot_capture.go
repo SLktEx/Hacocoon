@@ -149,7 +149,7 @@ func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
 				continue
 			}
 			if err := backend.DeleteSnapshotComponent(ctx, component); err != nil {
-				return fmt.Errorf("snapshot %s cleanup incomplete: %w", id, errors.Join(core.ErrRecoveryRequired, err))
+				return fmt.Errorf("snapshot %s component %q cleanup incomplete: %w", id, component.Role, errors.Join(core.ErrRecoveryRequired, err))
 			}
 			if err := catalog.RecordSnapshotComponent(ctx, id, component, "absent"); err != nil {
 				return err

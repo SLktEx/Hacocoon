@@ -211,3 +211,13 @@ source data into a destination's current shared cache or implicitly add its Host
 cache settings. Incus 7.0 LTS remains required; older 6.0.5 lacks the existing
 volume-export flag and repository-placement API. Native acceptance is recorded
 separately in [acceptance evidence](../status/acceptance-evidence.md).
+
+## Shared private input staging
+
+The current candidate extracts the existing unnamed, read-only upload capture into
+`internal/staging` for Env bundles and Base image input. Bundle validation, size
+limits, span inspection, lifecycle reservations and native ownership are unchanged.
+The staging helper exposes no pathname or writable descriptor to consumers.
+Base import uses a guest-local temporary Workspace through the same canonical
+archive creation receipt; ordinary Env import continues to attach only explicitly
+prepared retained data. See [Base image input](base-images-and-custom-environments.md#import-a-container-image-archive).

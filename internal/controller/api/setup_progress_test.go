@@ -68,6 +68,39 @@ func TestSetupProgressBeforeCompletionAndJournal(t *testing.T) {
 		t.Fatal(logs.String())
 	}
 }
+
+func TestNotificationSetupFailureReachesProgressAndJournalOnce(t *testing.T) {
+	old := logging.Root()
+	var logs bytes.Buffer
+	logging.SetRoot(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer logging.SetRoot(old)
+	calls := 0
+	path := doctorTestSocket(t, func(s *control.Server) {
+		_ = RegisterSetup(s, setupServiceFunc(func(ctx context.Context) error {
+			calls++
+			return hostsetup.Step(ctx, "notification_setup", func() error {
+				return errors.Join(&hostsetup.NotificationServiceFailure{Operation: "restart"}, errors.New("SECRET-backend-output"))
+			})
+		}))
+	})
+	c, _ := NewClient(path)
+	var events []hostsetup.Event
+	err := c.SetupHostProgress(context.Background(), recipes.Update{}, func(_ string, e hostsetup.Event) { events = append(events, e) })
+	var status *control.StatusError
+	if !errors.As(err, &status) || status.Code != "setup_failed" || strings.Contains(err.Error(), "SECRET") {
+		t.Fatal("lost sanitized failure", err)
+	}
+	seen := false
+	for _, event := range events {
+		if event.Stage == "notification_setup" && event.State == "failed" && event.Reason == "notification_restart_failed" {
+			seen = true
+		}
+	}
+	if !seen || calls != 1 || strings.Contains(logs.String(), "SECRET") || !strings.Contains(logs.String(), "notification_restart_failed") || strings.Count(logs.String(), `"level":"ERROR"`) != 1 {
+		t.Fatal("failure was lost, repeated or exposed raw output", calls, logs.String())
+	}
+}
+
 func TestSetupProgressRejectsUntrustedFramesAndMissingCompletion(t *testing.T) {
 	for _, frame := range []any{
 		setupFrame{Done: true},

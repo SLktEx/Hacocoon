@@ -39,10 +39,12 @@ type environmentImportUpload struct {
 	Data []byte                `json:"data,omitempty"`
 	End  *environmentImportEnd `json:"end,omitempty"`
 }
-type environmentImportResponse struct {
-	Result environmenttransfer.ImportResult `json:"result"`
-	Upload environmentImportEnd             `json:"upload"`
-	Error  *responseStatus                  `json:"error,omitempty"`
+type environmentImportResponse = uploadResponse[environmenttransfer.ImportResult]
+
+type uploadResponse[T any] struct {
+	Result T                    `json:"result"`
+	Upload environmentImportEnd `json:"upload"`
+	Error  *responseStatus      `json:"error,omitempty"`
 }
 
 var importPublicName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,56}$`)
@@ -80,10 +82,24 @@ func RegisterEnvironmentImport(server *control.Server, receive func(context.Cont
 	if receive == nil {
 		return core.ErrInvalidArgument
 	}
-	return server.RegisterStream(MethodEnvironmentImport, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
+	return registerImportStream(server, MethodEnvironmentImport, func(payload json.RawMessage) (func(context.Context, io.Reader) (environmenttransfer.ImportResult, error), error) {
 		var req EnvironmentImportRequest
 		if decodeExportJSON(payload, &req) != nil || req.Validate() != nil {
 			return nil, control.ErrInvalidArgument
+		}
+		return func(ctx context.Context, r io.Reader) (environmenttransfer.ImportResult, error) {
+			return receive(ctx, r, req.Environment)
+		}, nil
+	}, func(r environmenttransfer.ImportResult) bool { return r.State == "running" })
+}
+
+// registerImportStream shares framing, cancellation and exact upload receipts.
+// Each domain validates its own request/result and owns staging and publication.
+func registerImportStream[T any](server *control.Server, method string, prepare func(json.RawMessage) (func(context.Context, io.Reader) (T, error), error), successful func(T) bool) error {
+	return server.RegisterStream(method, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
+		receive, err := prepare(payload)
+		if err != nil {
+			return nil, err
 		}
 		return func(ctx context.Context, conn net.Conn) error {
 			ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -97,20 +113,20 @@ func RegisterEnvironmentImport(server *control.Server, receive func(context.Cont
 				// activation. The connection remains open for the terminal operation receipt.
 				go func() { defer close(disconnected); _, _ = reader.reader.ReadByte(); cancel() }()
 			}
-			result, err := receive(ctx, reader, req.Environment)
+			result, err := receive(ctx, reader)
 			if !reader.done {
 				err = errors.Join(err, control.ErrProtocol)
 			}
 			if reader.done {
 				defer func() { _ = conn.Close(); <-disconnected }()
 			}
-			if err == nil && result.State != "running" {
+			if err == nil && !successful(result) {
 				err = core.ErrRecoveryRequired
 			}
 			if err := conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
 				return err
 			}
-			return json.NewEncoder(conn).Encode(environmentImportResponse{Result: result, Upload: environmentImportEnd{Bytes: reader.count, SHA256: hex.EncodeToString(reader.hash.Sum(nil))}, Error: statusFromError(err)})
+			return json.NewEncoder(conn).Encode(uploadResponse[T]{Result: result, Upload: environmentImportEnd{Bytes: reader.count, SHA256: hex.EncodeToString(reader.hash.Sum(nil))}, Error: statusFromError(err)})
 		}, nil
 	})
 }
@@ -177,21 +193,27 @@ func (r *environmentImportReader) Read(p []byte) (int, error) {
 // stays with the caller, which must ensure its reads can finish or be cancelled.
 // An operation failure returns its retained-resource receipt alongside the error.
 func (c *Client) ImportEnvironment(ctx context.Context, source io.Reader, name string) (environmenttransfer.ImportResult, error) {
-	var result environmenttransfer.ImportResult
 	req := EnvironmentImportRequest{Environment: name}
 	if source == nil || req.Validate() != nil {
-		return result, core.ErrInvalidArgument
+		return environmenttransfer.ImportResult{}, core.ErrInvalidArgument
 	}
+	return uploadInput(ctx, c, source, MethodEnvironmentImport, req, validImportResult, func(r environmenttransfer.ImportResult) bool {
+		return r.State == "running" && exportSourcePattern.MatchString(r.Environment) && r.Workspace != "" && (name == "" || r.Environment == name)
+	})
+}
+
+func uploadInput[T any](ctx context.Context, c *Client, source io.Reader, method string, req any, valid func(T) bool, successful func(T) bool) (T, error) {
+	var result T
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
-	conn, err := c.wire.OpenStream(ctx, MethodEnvironmentImport, req)
+	conn, err := c.wire.OpenStream(ctx, method, req)
 	if err != nil {
 		return result, err
 	}
 	defer conn.Close()
 	// Read concurrently so a rejected upload cannot deadlock with its error reply.
 	type answer struct {
-		result environmenttransfer.ImportResult
+		result T
 		upload environmentImportEnd
 		err    error
 	}
@@ -208,12 +230,12 @@ func (c *Client) ImportEnvironment(ctx context.Context, source io.Reader, name s
 			}
 			return
 		}
-		var response environmentImportResponse
+		var response uploadResponse[T]
 		if decodeExportJSON(scanner.Bytes(), &response) != nil {
 			a.err = control.ErrProtocol
 			return
 		}
-		if !validImportResult(response.Result) {
+		if !valid(response.Result) {
 			a.err = control.ErrProtocol
 			return
 		}
@@ -228,7 +250,7 @@ func (c *Client) ImportEnvironment(ctx context.Context, source io.Reader, name s
 			a.err = e
 			return
 		}
-		if a.err == nil && (a.result.State != "running" || !exportSourcePattern.MatchString(a.result.Environment) || a.result.Workspace == "" || (name != "" && a.result.Environment != name)) {
+		if a.err == nil && !successful(a.result) {
 			a.err = control.ErrProtocol
 		}
 	}()

@@ -23,7 +23,7 @@ func (s *Service) CreateFromArchiveWithData(ctx context.Context, spec core.Envir
 	if !ok {
 		return core.Environment{}, core.ErrUnsupported
 	}
-	if source == nil || limit <= 0 || spec.Base != "" || spec.TemporaryWorkspace != nil {
+	if source == nil || limit <= 0 || spec.Base != "" {
 		return core.Environment{}, core.ErrInvalidArgument
 	}
 	spec.SkipDefaultResource = spec.PersistentResource == ""

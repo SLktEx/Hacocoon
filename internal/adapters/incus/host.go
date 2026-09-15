@@ -133,13 +133,8 @@ func (r *Runtime) ConfigureWSLInterop() {
 		if mode != "" {
 			args = append(args, mode)
 		}
-		if result, err := r.runner.Run(ctx, "/usr/bin/python3", args...); err != nil {
-			if result.ExitCode == 42 {
-				return hostsetup.ErrNativeBinfmtIncompatible
-			}
-			return fmt.Errorf("refresh trusted Host Windows access; rerun Windows installer: %w", err)
-		}
-		return nil
+		result, err := r.runner.Run(ctx, "/usr/bin/python3", args...)
+		return wslInteropSetupResult(mode, result, err)
 	}
 	r.trustedHostInterop = func(ctx context.Context) error { return configure(ctx, "") }
 	r.trustedHostNotifications = func(ctx context.Context) error { return configure(ctx, "--notifications=refresh") }

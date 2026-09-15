@@ -426,6 +426,79 @@ After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` 
 PR #665 head `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa` passed all five CI workflows, including Windows 34900315650. After merging main `9da3ec8f` as `35d5ea81`, combined local tests (13.58s), CLI E2E (3.22s) and docs/regressions (4.65s) passed. The earlier native protocol startup timeout remains unexplained; this later pass does not erase it. No fresh human desktop acceptance is claimed.
 
 
+<a id="main-gui-approval"></a>
+## Main GUI approval integration candidate
+
+The VS Code portion reuses #588 (`e7ba7987`) on main `7e876bc1`.
+Focused desktop/common review/control/product tests (2.67s) and changed-code
+golangci-lint 2.13.2 (4.49s) passed. The first full local run passed Go and all
+32 renderer/client tests, then failed both VSIX packaging tests because our
+verification archive assigned epoch-zero timestamps to uncommitted new files.
+The Windows checkout packaging tests passed; product packaging rules were not
+weakened. Correctly preserving source timestamps fixed the verification copy.
+The subsequent full local test entry (13.99s), related race (6.18s), CLI E2E
+(3.49s) and docs/regressions (4.51s) passed. This is repository/component evidence,
+not fresh installed Webview or human answers. Historical #588 acceptance remains
+scoped to its own source and cannot establish this main integration.
+
+The combined candidate `da064d83` adds Windows notification-contained choices
+from #611 (`667ae5bf`) plus duplicate-refusal and cancellation diagnostics
+(`7de0ad51`, `8eeac2b8`). On the verified source, focused tests (2.84s), pinned
+changed-code lint (4.38s), the full local test entry (10.77s), related race
+(6.64s), CLI E2E (2.93s), docs (4.59s) and workflow policy (1.02s) passed.
+The first lint attempt found three unchecked test-stream closes and one error
+capitalization; those were corrected before this successful run.
+
+Windows amd64 test/GUI-adapter builds and Windows-target vet passed. Actual
+Windows review components (4.27s), shared desktop review tests (0.30s) and the
+isolated registration test (2.27s) passed. This includes the ordinary initial
+owned-history clear, English/Japanese ToastGeneric selection XML accepted by
+Windows history, removal, COM activation/refusal, cancellation/process reaping,
+and exact registration ownership. The registration fixture cleaned only its
+fresh keys/files; no installation, execution policy or pending user request was
+changed. A first test harness launch stopped before tests because its PowerShell
+path variable was missing; selecting the current executable resolved that
+harness error without altering execution policy.
+
+These results do not establish human button answers, visible layout or the
+installed notification-to-controller journey. Earlier development candidates'
+8-second notification clear timeouts remain unexplained failures; a successful
+isolated current-component run does not erase them. Fresh installed VS Code
+answers and authenticated Git also remain unverified.
+
+PR #664 head `8c1cc435` passed repository, quality, Ubuntu and Incus workflows.
+Windows run 34894187686 failed at installed native notification review (job
+104143946090): stage=clear, reason=timeout, child exit=1, duration=8023 ms,
+no native HRESULT. Installation, strict SSH and both reclamation stages passed
+before it. The root cause remains unknown; component success does not erase it.
+The follow-up adds bounded fixed progress observations without extending deadlines
+or bypassing notification history. Fresh validation is recorded below.
+
+The follow-up on main `119e3007` (`ffb31f2b`) passed focused checks 2.48s, lint
+3.49s, full local tests 10.53s, race 6.15s, CLI E2E 2.91s, docs 4.83s and workflow
+policy 1.04s. Windows test/GUI builds and vet passed; actual Windows review tests
+(11.41s), desktop tests (0.42s) and isolated registration (2.38s) also passed.
+Fixed progress parsing covers partial reads, unrelated/oversized output and child
+failure; the ordinary initial clear/show/history/remove path was exercised again.
+The installed CI clear timeout still needs a result from this updated candidate.
+
+A preceding validation archive was captured while the merge commit was completing
+and incorrectly retained a removed Seed fixture. Its full test run failed on that
+fixture's source-guard mismatch. This is retained as an invalid-source validation
+failure, not evidence for the merged candidate. Archive creation now pins one
+commit and rejects a moving source before validation; a fresh exact archive
+produced the results above. No product guard or timeout was relaxed.
+
+
+At #664 head `38dc1ffe`, Windows run 34914309433 / job 104208480202 passed installation, strict SSH and public reclaim, then failed native review step 20. The new fixed report was `stage=activation, reason=unavailable`; native HRESULT, child duration and renderer progress were unobserved. After about ten seconds, the missing-request probe did not receive the expected no-longer-pending refusal. This is a separate unresolved activation failure, not proof of repair of earlier clear timeouts. Fresh human answers remain unverified.
+
+
+The activation diagnostic follow-up records fixed COM initialize/register/create/dispatch HRESULTs and preserves read-only timeout/cancellation across COM and private peer shutdown. Focused regressions (1.22s), docs/regressions (10.37s), native Windows review (4.75s), desktop (0.44s), isolated registration (2.81s), Windows build/vet and PowerShell probe parsing passed. Final formatting only changes whitespace. This does not establish that the installed activation failure is fixed; its failing run remains above.
+
+
+After integrating main `ef443132` as `effc7801`, the combined GUI candidate passed the full local test entry (72.69s), CLI E2E (6.79s), and docs/regressions (8.14s). Native installed activation and earlier clear failures remain unresolved pending the updated Windows run.
+
+
 <a id="main-interactive-run"></a>
 ## Interactive temporary execution on main
 
@@ -533,9 +606,19 @@ The main candidate reuses `2a0e9499`, `c4b7af50`, `094cc930`, `3a6e2bbc` and `2b
 Final focused tests (12.86s), uncapped changed-code lint (10.84s), maintained local tests (22.15s), related race (9.78s), CLI E2E (4.01s), docs/regressions (6.96s) and workflow policy (1.34s) passed with Go 1.27.1. Earlier lint found read-response closes, fixture writes and boolean simplifications; fixed before these results. Historical provider measurements above are not relabeled as new native acceptance. The old ambiguous fixture pool remains untouched. Public configuration, stopped-Env publication, history/clear and added-data snapshot/copy/transfer remain incomplete, so production enrollment is disabled.
 Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
 
+At #664 head `aef58798`, Windows34918511743/job104221234323 passed installation, strict SSH and Linux reclamation. Public reclamation Host re-entry failed at 02:08:10 UTC with `stage=notification_setup reason=failed`; the observer then waited until 02:37:51 and timed out. The public reclaim operation was not reached and notification step20 was skipped. Other four workflows passed. This differs from the earlier clear/COM activation failures. The follow-up reuses `5a6fb54c` classification and failed-entry detection, without claiming a root-cause fix.
+
+The main notification-setup integration reuses 5a6fb54c over GUI aef58798 and main 5e89597a. Focused tests4.37s, notification Python regressions0.69s, changed-code lint30.66s, full local117.79s, race20.22s, CLI11.78s, docs17.46s and workflow2.88s passed. Initial integration testing failed at import of a future stream acceptance script absent on main; its unrelated test import was removed while retaining the existing native entry regression. Windows execution of the native observer tests passed6 tests0.555s. No new installed notification success is claimed.
+
+
 
 After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.
 
+After merging current main5121b205 as ac145abc, the combined GUI/notification candidate passed full local tests50.00s, CLI12.86s and docs/regressions31.34s. The aef58798 installed notification-setup failure remains unresolved pending new fixed-operation evidence.
+
+## Git push reconciliation integration
+
+The main candidate reuses 42aa706f over GUI/notification source 8d509399. Focused tests (9.31s), changed-code lint (12.57s), maintained local tests (25.06s), race (28.69s), CLI E2E (4.44s), documentation/regressions (8.66s), and workflow policy (1.50s) passed with Go 1.27.1. The first lint attempt found an unchecked audit-fixture close; the fixture was fixed before the complete pass. Tests exercise real Git repositories and read-only remote observation, including ambiguous receipts and replaced Environment identity. Authenticated remote Git and human approval acceptance were not run. Reconciliation never repeats a push or infers its original success from current branch equality.
 
 <a id="ordinary-cache-collection"></a>
 ## Ordinary cache collection candidate
@@ -597,6 +680,12 @@ The new real Incus maintenance attempt FAILED: `TestRealIncusEnvironmentDataPlac
 
 Read-only follow-up confirmed no Environments, leases or persistent resources remain in that exact failed-fixture catalog, and the native name query returned no instance. Only two empty generation entries remain. The original timeout is unresolved.
 
+After merging main4cd0c7dc as611bedaf, the combined Git/GUI/Packer/cache source passed full local tests14.30s, CLI3.36s and documentation/regressions5.62s. At prior GUI head8d509399, Windows34923857407 passed SSH and public reclamation but notification clear failed after8024ms with progress=decode. The same fixed native script on this PC under normal Windows permissions passed isolated test IDs in0.53s/0.23s; the restricted execution frame refused before notification work. This does not resolve the CI failure or prove human answers.
+
+At dca688f6, Windows34926634572/job104245971260 again failed initial clear with reason=timeout, child_exit=1, duration_ms=8019, native_progress=decode; previous SSH/public-reclaim steps passed. The product process ceiling is now30 seconds for cold PowerShell/WinRT initialization, while existing shorter caller deadlines and exact child cancellation remain. This is a bounded startup correction to verify, not proof of the underlying CI slowdown or successful GUI acceptance.
+
+The corrected source passed the full native Windows review test suite on this PC in 8.22s, including actual English/Japanese ToastGeneric display, history and removal (6.90s), activation callbacks, redaction and exact child cancellation. This is native component evidence; human clicks, visual layout acceptance and the CI cold-start outcome remain unverified.
+
 ## Named cache completion recovery
 
 The follow-up to #670 passed focused lifecycle/cache/OCI/CLI/controller tests19.10s, changed-code lint15.71s, full local39.78s, race14.61s, CLI7.25s, docs/regressions10.41s and workflow2.00s. A real catalog with staged provider failure proves completed copies recover without recopy, original source pins are released only after verification, reset candidates remain retained, and unknown/provider-refused/wrong-owner cases remain blocked. Common OCI recovery now passes the exact owned reference. This is component evidence, not new native recovery or Windows acceptance. The earlier native maintenance timeout remains unresolved.
@@ -606,6 +695,8 @@ Final recovery usage text and bilingual help passed CLI/UI/controller tests9.40s
 At recovery head3ac51f91, quality34924782288 failed QF1003 in cache_maintenance.go:41; test34924782199, Ubuntu34924782166 and Incus34924782231 passed. The dispatch is now a tagged switch with unchanged behavior. This failure remains distinct from local changed-patch lint success.
 
 The dispatch correction passed focused control/cache/workspace tests11.23s, uncapped lint against current main18.59s and documentation/regressions8.48s. Reparenting onto main4cd0c7dc (the exact tree of tested parent1ee2962b) changed no files.
+
+After integrating main df22a1a5 as 2f07fa3d, full local tests passed95.04s, CLI8.56s and docs/regressions10.27s. Native notification evidence above applies to the unchanged notification implementation.
 
 ## Main client forwarding integration
 
@@ -618,6 +709,8 @@ Native PowerShell7 installer components passed with both installed binary types:
 After the v0.64 checkpoint and installation guidance update, presentation/build-identity tests2.81s, architecture/checksum/corrupt-archive packaging0.54s, docs5.72s and workflow1.11s passed. Windows CI now expects the actual ten build entries and requires the tunnel artifact; published amd64/arm64 targets stay intact.
 
 The candidate rebased over corrected recovery c35f6610 as c682faaa passed focused4.22s, main-diff lint16.99s, full local104.53s, race36.42s, CLI18.56s, docs19.60s and workflow2.66s. Recovery #671 then passed all five workflows and merged as main df22a1a5. Its file tree exactly matches c35f6610, so reparenting the forwarding commit as11823e02 changed no files.
+
+After integrating main forwarding 2f995027 as14b8fb9a, the Git/GUI/notification candidate passed full local53.41s, CLI8.88s, docs/regressions19.00s and workflow2.79s. Both private entry points and the union of native Windows client tests are retained; notification process behavior is unchanged from the native8.22s pass.
 
 DNS selection candidate: focused72.65s passed initially. With snapshot creation and import mode-preservation regressions, focused30.07s, changed-code lint23.44s, full local45.48s, race14.76s, CLI35.53s, docs/regressions13.46s and workflow5.91s passed. The final status presentation and additional native-adapter regression are checked separately. No three-mode real Incus acceptance is established by these component results.
 
@@ -640,6 +733,18 @@ DNS candidate #674 head a44c0cc5 passed four Linux workflows; Windows34930836374
 
 After DNS integration and v0.66 generation, the combined candidate passed focused22.16s, complete main-diff lint17.84s, full local29.81s, race11.90s, CLI4.77s, docs8.15s and workflow1.50s. Native named-data evidence above covers unchanged lifecycle/provider code; no new Windows pass is claimed.
 
+
+Integrating main9f5bc9e3 (DNS and named-data snapshot/copy) as ab77483f changed only evidence overlap during merge. Combined Git/GUI local tests105.78s, CLI7.58s, docs10.98s and workflow2.62s passed. The earlier Windows parallel cold SSH stream_denied remains unexplained; these local passes do not replace native acceptance.
+
+
+## Calling-thread network identity
+
+The native namespace regression FAILED11.20s with the former process-leader opener, reporting another thread's identity. After switching to the calling-thread namespace it PASSED23.70s using the same namespace authority. Focused13.84s, changed-code lint12.61s, full local33.40s, race18.79s, CLI4.29s, docs8.59s and workflow1.50s passed. Host-namespace refusal and dedicated-thread destruction remain unchanged. This establishes the defect and correction; earlier Windows stream_denied failures remain uncorrelated until installed reconnect runs.
+
+A fresh ordinary Windows installer from f68a8c6b completed on Hacocoon-Roadmap-f68a8c6b (Ubuntu26.04.1/Incus7.0.1), including storage/trusted Host, doctor DNS/HTTPS, Windows enrollment and notification registration. No test permission override was used. Supported named-data rootfs snapshot/copy/export/import PASSED76.26s/test76.23s; fixture saved-data-c1685c13e42f7479, catalog /var/lib/haco-saved-data-90071584/state.json. Fresh identities, independent edits, imported restart and exact cleanup passed. No human notification, authenticated Git or giant-repository claim.
+
+The separate repository-subdirectory attempt FAILED11.61s/test11.56s at capture: capability stale, Env left stopped. Fixture saved-data-ec2813c23b2ada60, catalog /var/lib/haco-saved-data-3393557504/state.json. This occurs on supported7.0.1 and is a product defect to investigate, separate from earlier6.0.5 missing APIs. Source cleanup ran; retained Workspace fixture records remain.
+
 ## Portable named Environment data
 
 The v0.67 candidate on #675 head fa6c1312 implements named data in the existing export/import envelope and canonical Environment lifecycle. The immutable final source passed focused16.47s, complete main-diff lint15.45s, full local27.39s, race12.82s, CLI4.59s, docs/regressions8.38s and workflow1.48s. Tests cover full payloads, fresh local identities, import-only reservations, complete placement, unsupported-provider refusal before Workspace creation, and retained ownership after ambiguous cleanup. Initial full-1 failed because its temporary staging directory was not private; tightening the fixture to0700 fixed it. Full-2 passed focused12.92s but failed lint on two unchecked test-reader closes; both are now checked. Neither failure was skipped or fixed by weakening product permissions.
@@ -652,3 +757,316 @@ Follow-up identified Incus client/server6.0.5 on hacocoon-second. It lacks the e
 ## Current data evacuation inventory
 
 The schema16 inventory follow-up projects named data, selected generations and pending import/copy/cleanup receipts without modifying the catalog. Exact catalog links remain separate from native observations; absent historical producers do not become deletion candidates. The immutable candidate passed Linux evacuation regressions (78 tests,0.96s), maintained documentation/regressions34.39s and workflow policy4.39s. Windows discovery also passed but explicitly skipped29 Linux-only checks; the Linux run supplies those checks. A guard compares the supported current schema with the canonical Go store. This is read-only inventory coverage, not whole-installation backup, restore or supported-provider acceptance. Earlier native transfer and Windows failures remain unresolved.
+
+
+## Repository data placement in saved Environments
+
+Supported7.0.1 attempt saved-data-ec2813c23b2ada60 FAILED11.61s/test11.56s at snapshot planning with capability stale; catalog /var/lib/haco-saved-data-3393557504/state.json. The planner compared a data-only digest while ordinary repository placement also binds the leased Workspace storage. It now shares the existing runtime placement resolver with create/resume/import. A component regression accepts the complete repository binding and refuses data-only substitution.
+
+The corrected immutable candidate based on f71ab282 passed focused16.88s, complete main-diff lint15.95s, full local27.33s, race11.29s, CLI4.21s, docs7.90s, workflow1.45s and native-test compilation1.61s. On newly installed Hacocoon-Roadmap-f68a8c6b (Ubuntu26.04.1, Incus7.0.1), placement-supported-native-1 PASSED55.61s/test55.58s. Fixture saved-data-054e30231401ddac, catalog /var/lib/haco-saved-data-2319641996/state.json, covers two Workspaces, rootfs compiler data and /workspace/two/node_modules, running snapshot/resume, stopped copy, portable export/import, uncollected content, fresh identities, independent edits, source deletion, imported restart and exact cleanup. The original failed fixture and its retained Workspace records remain separate.
+
+The earlier rootfs-only supported transfer passed76.26s/test76.23s at f68a8c6b. Fresh normal Windows installation completed with doctor, DNS/HTTPS, Windows enrollment and notification registration; existing hacocoon-second was retained. Current-schema inventory also read the retained6.0.5 fixture catalog and native objects successfully in2.89s with authority=false.
+
+Ordinary installed Packer sample builds FAILED at dependency installation:10.39s, then6.56s with private failure output. Ubuntu HTTP downloads returned403 from the normal proxy. The public config showed default=deny with zero rules; no test-specific allow was introduced. Actual Packer execution remains pending normal communication configuration. #676 head f68a8c6b Windows34935395589/job104272085316 passed installation, parallel cold SSH, actual VS Code editing, setup, preview and ordinary export/import, then FAILED the ordinary Windows tunnel with timeout/connection reset; reclamation and notification steps did not run. Earlier failures are not relabeled as resolved.
+
+The combined candidate b42be03e includes current main a3d0f4fd, Git/GUI #672 and repository placement #679. Focused21.73s, complete main-diff lint23.92s, full local41.13s, race21.73s, CLI5.39s, docs/regressions11.17s and workflow1.75s passed. The existing native namespace and repository-placement evidence applies to unchanged implementations. #677 passed all five workflows at f71ab282 and merged as a3d0f4fd; #676 was closed by incorporation. Its separate Windows tunnel failure above remains recorded.
+
+## Selected Workspace membership
+
+The candidate based on6b376a62 passed focused10.58s, complete main-diff lint16.44s,
+full local25.61s, race27.75s, CLI2.86s, docs/regressions8.59s, workflow1.36s and
+native-test compilation1.55s. Earlier full-1 also passed; full-2 adds the actual
+registered-copy failure/source pin regression and native acceptance test.
+
+On Hacocoon-Roadmap-f68a8c6b, Ubuntu26.04.1/Incus7.0.1, membership-native-1
+PASSED16.98s/test16.95s. Fixture selection-c393aee4e83d, catalog
+/var/lib/haco-selection-154075238/state.json, used test-authored local Git data,
+the real repository backend and canonical snapshot/Env lifecycle. It preserved
+saved dirty files, HEAD and index, added a registered source through the normal
+Git preparation, left an omitted member in the source, and proved independent
+edits, source Env deletion, destination restart and exact owned cleanup. No Policy
+changes or guest management authority were introduced. OCI selection is covered
+at the existing associated-data component boundary; native OCI, authenticated Git,
+public CLI and giant-repository performance were not exercised by this native test.
+
+## Outstanding Windows candidate failures
+
+PR #678 at `6b376a62` passed quality, test, Ubuntu and Incus CI. Windows run
+34938847867/job104282639159 passed ordinary SSH/editor/tunnel, reclamation and
+retained-data restoration, then failed native notification stale activation:
+`activation/timeout`, dispatch HRESULT -2147220990 (the helper's read deadline).
+Reclamation observed 7,864,320,000 to 5,041,553,408 allocated bytes. This does not
+resolve earlier tunnel/reclamation failures or establish human approval answers.
+
+PR #680 at `2e8d905c` also passed all four Linux workflows. Windows run
+34940269831/job104287130520 passed installation, native SSH/editor and Linux
+reclamation, then failed public reclaim with `compact_attached`: one native open,
+no compaction attempted, WSL resumed. Notification was SKIPPED. Neither PR is
+merged on these failed Windows results.
+
+A local notification probe on Hacocoon-Roadmap-f68a8c6b failed with review timeout.
+Only the Windows helper had been updated; installed Linux still reported f68a8c6b
+and did not implement `_desktop-review`. This mixed candidate is not acceptance
+of #678 and does not explain its separate CI activation failure. A matching
+ordinary installation must precede the next local end-to-end probe.
+
+## Independent worktree input
+
+The immutable input candidate based on2e8d905c passed full-3: focused36.42s,
+complete main-diff lint22.84s, full local39.45s, race31.22s, CLI4.92s,
+docs/regressions9.04s, workflow1.71s and native-test build1.96s. Final additional
+archive traversal/alias/xattr/privilege/trailing-data regressions passed with
+race3.01s and full main-diff lint19.81s. The CLI regression preserves a receipt
+on an unknown result, refuses replay/replacement and never opens an unconfirmed
+import. Real local Git regressions cover checkout, linked worktree, split index,
+packed refs, staged/dirty content and exclusion of Host config/admin state.
+Full-1 stopped at15 lint findings after focused26.38s; those were corrected.
+Full-2 passed all checks before the extra CLI/refusal regressions.
+
+On Ubuntu26.04.1/Incus7.0.1 in Hacocoon-Roadmap-f68a8c6b, input-native-1 passed
+26.23s/test26.19s. Fixture selection-384863c4ef38, catalog
+/var/lib/haco-selection-1381113910/state.json, copied an actual local linked
+worktree through the real provider-neutral capture and Incus import into a new
+managed volume. Selected HEAD/files, independent guest editing, normal Env
+stop/start and exact cleanup passed alongside the existing membership test.
+The product implementation was the candidate overlay, not unchanged2e8d905c;
+the dedicated test binary was used, not the installed CLI. No Policy relaxation
+or guest management authority was added. Authenticated Git, human GUI answers,
+installed input and giant-repository measurements were not exercised.
+
+
+## Retained cache catalog maintenance
+
+The candidate based on809bfb33 passed focused12.91s, complete main-diff lint15.08s,
+full local26.56s, race11.53s, CLI4.17s, docs/regressions7.95s, workflow1.32s and
+native-test compilation1.45s. Regressions cover missing producers, exact reviewed
+owners, changed selection/display membership, incomplete/busy cleanup, recovery
+without deletion, caller-path/owner refusal and common CLI confirmation/display.
+
+On Ubuntu26.04.1/Incus7.0.1 in the dedicated WSL, cache-native-1 passed17.70s
+(test17.67s). Fixture data-e2e-25cadfe2239e648b,
+catalog /var/lib/haco-data-placement-24466710/state.json, exercised ordinary Env
+creation, two cache areas, stopped collection, independent data-bearing reuse,
+clear while a consumer remained live, then --all workflow inspection/cleanup of
+retained collected data after both Envs were deleted. The external Workspace
+marker remained. All operations used the fixture's private catalog and canonical
+ownership transitions; no global/user data or Policy relaxation. This uses the
+real backend and Standard workflow, not installed public CLI, OCI or large-repo
+performance acceptance.
+
+#681 at809bfb33 passed the four Linux CI workflows. Windows34943936799/job104298802478
+passed installation, SSH/editor, tunnel and public reclamation, then FAILED stale
+notification activation with dispatch HRESULT -2147220990 at its10-second deadline.
+Notification follow-up and human decisions were not established by that run.
+Readiness is addressed in #682; this historical failure remains a failure.
+
+
+## Native review readiness
+
+Matching installation of809bfb33 on Hacocoon-Roadmap-f68a8c6b completed normally.
+The first invocation of the test used PowerShell5.1 and did not run because the
+fixture requires7. With PowerShell7, native-review-matching-2 FAILED review timeout.
+A read-only probe using the same WSL command/environment/private pipes received
+an empty pending list in13.56s; the original first-review limit was10s. This
+establishes a local startup timing failure, not the cause of every past CI failure.
+
+The readiness candidate based on809bfb33 passed focused5.32s and complete main-diff
+lint20.03s. Windows component tests passed0.83s, with native toast display initially
+SKIPPED. Separate enabled native display/history/removal passed2.64s/test2.63s with
+English/Japanese XML; no human click or visual-layout claim. An earlier unquoted
+PowerShell -test.v invocation failed argument parsing before tests; structured
+arguments corrected that harness invocation.
+
+The ordinary Windows helper installer then applied the readiness candidate to
+that dedicated distribution; its Linux809bfb33 protocol implementation was unchanged.
+installed-review-1 PASSED actual COM registration, owned resume/idempotence, foreign
+and mismatched activator refusal, stale/malformed input refusal, Host notification
+controller subscription and listener cleanup. Human toast click/fresh UI decision
+remains explicitly SKIPPED. No Policy/auth changes or answer retries were used.
+The older #678 CI activation timeout and #680 compact_attached results remain
+separate unresolved observations.
+
+
+The final readiness candidate also passed full local26.41s, focused5.11s,
+complete main-diff lint19.06s, race2.30s, CLI4.14s, docs/regressions8.03s and
+workflow1.54s. This does not turn the skipped human response into acceptance.
+
+
+The combined cache candidate2f49460f also includes notification readiness #682.
+Focused15.09s, complete main-diff lint14.42s, full local28.63s, race11.70s,
+CLI4.18s, docs/regressions8.27s and workflow1.48s passed. Both native implementations
+are unchanged from the separately recorded supported-Incus and Windows checks.
+
+## Snapshot deletion inspection candidate
+
+At implementation `9c2736db`, local `snapshot-full-3` passed focused regressions
+(17.96 s), lint against the complete main diff (10.05 s), maintained full tests
+(25.99 s), lifecycle/API race checks (16.47 s), CLI E2E (4.12 s), docs (8.06 s),
+workflow policy (1.51 s) and native test compilation (1.51 s). The first focused
+run failed human message formatting and a stale request field in the test fixture;
+both were corrected. The second run passed focused tests but failed errcheck on
+the new diagnostic write; that was corrected before the full third run.
+
+On dedicated WSL `Hacocoon-Roadmap-f68a8c6b`, Incus 7.0.1,
+`snapshot-native-2` passed in 25.75 s (test 25.71 s), fixture
+`saved-data-61784250e8f288f3`, catalog
+`/var/lib/haco-saved-data-3210844539/state.json`. It observed rootfs, two Workspace
+members and two managed data volumes, then passed ordinary deletion, independent
+copy, source deletion, copied resume and exact-owned cleanup. This is provider and
+service acceptance, not installed CLI, underlying Btrfs health, OCI runtime,
+human approval or giant-repository performance acceptance. `snapshot-native-1`
+was **SKIP** because the fixture opt-in was omitted; its exit zero is not a pass.
+
+## Notification startup CI remains incomplete
+
+[PR #682](https://github.com/SLktEx/Hacocoon/pull/682), `bd83251b`, passed the four
+Linux workflows, but [Windows run 34946460934](https://github.com/SLktEx/Hacocoon/actions/runs/34946460934)
+failed native review in job `104306922882`: activation creation HRESULT
+`-2146959355`, no observed native progress. Prior installation, strict SSH/editor,
+transfer, public reclamation and detached Workspace/OCI/snapshot restore passed.
+The local installed review pass does not erase this COM activation failure or the
+earlier dispatch timeout. #683 includes the change and needs its own acceptance.
+
+## Base archive import candidate
+
+At implementation `35a0c496`, `base-full-3` passed focused tests (23.08 s), full
+main-diff lint (18.20 s), maintained full tests (33.10 s), staging/build/transfer/
+lifecycle/API race tests (18.88 s), CLI E2E (4.51 s), docs (8.78 s), workflow policy
+(1.57 s), CLI build (0.71 s) and native compilation (1.93 s). The added temporary
+Workspace boundary regressions then passed with race detection (24.29 s), complete
+diff lint (39.84 s) and docs (9.49 s). `base-full-1` failed the existing maximum
+staging-budget regression; the extraction was corrected to preserve that valid
+boundary. `base-full-2` passed focused tests but failed three new errcheck findings;
+those were corrected. The formatter/final checks on the build WSL reported a
+systemd root user-session startup warning while commands and tests succeeded;
+that warning is not a new Windows acceptance pass.
+
+On dedicated WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1, `base-native-1`
+passed the actual `haco base import` CLI/controller stream in 165.94 s (test
+165.89 s), private catalog `/var/lib/haco-base-import-1372522241/state.json`.
+It exported its owned source rootfs, deleted the source, imported the archive
+through an isolated temporary builder, published immutable Base
+`sha256:6fbaf82f1e891f16d32da5186119908cd1499614018eeb2646f7828fd74986b8`, and used its
+tool in a fresh Env. Normal exact-owned Env/image cleanup passed and the input
+archive remained. This is native CLI/provider acceptance, not a packaged Windows
+entry, authenticated Git, Packer dependencies or giant-repository measurement.
+
+[PR #683](https://github.com/SLktEx/Hacocoon/pull/683), `bda75b67`, passed four Linux
+workflows but [Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actions/runs/34947135337)
+failed job `104309115278` with the same COM activation creation HRESULT
+`-2146959355` as #682, after public reclamation passed. These heads are not
+qualified for main merge; local notification acceptance does not erase the failure.
+
+## Notification ownership, readiness and cold controller
+
+At `e043b740`, native Windows kernel-object regressions passed unpublished-owner,
+closing-owner handoff and failed-start replacement. `lifecycle-local-2` passed the
+Windows component suite (1.84 s). The display attempt initially failed at temporary
+registry creation with access denied under workspace permissions; the same native
+check with normal user registry access passed in 11.28 s (test 11.18 s), including
+English/Japanese XML, history and removal. It did not observe human answers/layout.
+
+`lifecycle-full-2`, covering follow-up `92ce27a5`, passed focused tests (11.02 s),
+complete main-diff lint (21.31 s), maintained tests (35.57 s), private-client/review
+race tests (15.74 s), CLI E2E (4.75 s), docs (10.72 s), workflow policy (1.81 s) and
+native compilation (4.24 s). It checks delayed controller availability before
+consuming a request, refusal without replay, and preserved failed pending reads.
+
+Helper-only installed attempts `installed-review-1` and `-2` failed at private
+readiness while the Linux installation remained `809bfb33`. Read-only diagnostics
+then observed both successful pending reads and `pending_unavailable`, and a missing
+controller socket during WSL startup. No permission, service or Policy override
+was used to turn that failed read into success.
+
+The ordinary Windows package installer updated dedicated WSL
+`Hacocoon-Roadmap-f68a8c6b` and all companions to `92ce27a5` (local package build
+37.42 s, version `v0.0.0-e2e`, unpublished). After terminating only that WSL,
+`installed-review-3` passed actual registration/owned resume/idempotence, foreign
+owner/mismatched activator refusal and stale/malformed request refusal. Its immediate
+Host subscription check failed because the notification service was not yet active;
+a later read observed enabled/active/running, zero restarts and success. This initial
+startup observation remains an unresolved timing result, not an erased failure.
+`installed-review-4` subsequently passed the same route, Host controller subscription,
+absence of audit projection and owned listener cleanup. Human fresh answers remain
+explicitly SKIP. These results do not establish a full CI pass or whole M0–M5 completion.
+
+[PR #684](https://github.com/SLktEx/Hacocoon/pull/684), `a45e936f`, passed four Linux
+workflows but [Windows run 34949250114](https://github.com/SLktEx/Hacocoon/actions/runs/34949250114)
+failed job `104316004120` at `clear/timeout`, 20,013 ms, native progress `decode`,
+after reclamation passed. [PR #685](https://github.com/SLktEx/Hacocoon/pull/685),
+`d6c9fa13`, passed four Linux workflows but
+[Windows run 34951609643](https://github.com/SLktEx/Hacocoon/actions/runs/34951609643)
+failed job `104323633089` at `compact_attached`; Linux reclamation completed,
+Windows compaction was not attempted, resume succeeded and notification acceptance
+was SKIP. No failed head was merged. Earlier COM creation/dispatch failures remain.
+
+## Env cache emptying
+
+Candidate `2ca6af59c16b49d499c8c557f589934c1fcb33ad` adds reviewed cache emptying.
+`empty-full-1` passed focused tests (19.93 s), full main-diff lint (40.76 s),
+maintained local tests (102.05 s), race checks (50.65 s), CLI E2E (6.73 s), docs
+(14.90 s), workflow policy (2.46 s) and native build (4.97 s). After adding direct
+catalog snapshot/collection fences, `empty-final-guards` passed focused tests
+(22.16 s), main-diff lint (13.25 s), race (27.00 s), docs (9.49 s) and native build
+(2.15 s). Tests retain saved snapshots across a catalog reload, refuse another
+snapshot while clearing, and require explicit same-owner recovery.
+
+Earlier `empty-local-2` failed in newly added test fixtures: missing workflow
+dependencies and using an in-memory confirmation reader as a nonterminal.
+`empty-local-3` exposed the existing nonterminal refusal exit code 2 rather than
+the expected 1. Corrected fixtures passed in `empty-local-4` (29.89 s; native build
+2.31 s). No product permission or confirmation was weakened. Formatting also
+reported a WSL root user-session startup warning while completing successfully.
+
+On dedicated Incus 7.0.1, `empty-native-1` passed in 34.00 s (test 33.96 s),
+fixture `data-e2e-ee7f06d38f566742`, catalog
+`/var/lib/haco-data-placement-3790057143/state.json`. It exercised ordinary Env
+creation/collection/reuse, reviewed single-area and all-Env emptying, nested files,
+an outside Workspace symlink without traversal, sibling contents, common-source
+retention, normal restart and canonical cleanup. The fixture's Workspace remained.
+This is provider/lifecycle acceptance, not installed CLI, native OCI/snapshot
+retention, human UI or giant-repository performance evidence.
+
+The final catalog guards were included in `empty-native-2`, also PASS (26.36 s,
+test 26.31 s), fixture `data-e2e-37c63c45b570dc31`, catalog
+`/var/lib/haco-data-placement-605572226/state.json`, with the same bounded scope.
+
+Parent [PR #686](https://github.com/SLktEx/Hacocoon/pull/686), `935c0752`, passed four
+Linux workflows. [Windows run 34955347257](https://github.com/SLktEx/Hacocoon/actions/runs/34955347257),
+job `104335936830`, failed at public reclaim with `compact_attached`: Linux stages
+complete, stop requested, one open attempt, compaction not attempted, resume
+succeeded. Notifications were SKIP. This failure remains distinct from local
+notification acceptance; that head was not merged.
+
+## Main integration and reclamation diagnostics
+
+[PR #687](https://github.com/SLktEx/Hacocoon/pull/687) head
+`21b2452b63cb58d86e9adc3cda546fc1c3214149` passed all five workflows and was
+squash-merged to main as `2f421006d1ce86edbb5a1deb3da9c17c46a5ef5c`.
+[Windows job 104346984027](https://github.com/SLktEx/Hacocoon/actions/runs/34958740591/job/104346984027)
+passed ordinary entry, SSH/editor/tunnel, reclamation, detached Workspace/OCI/snapshot
+restore and installed notification refusal/subscription/cleanup. Allocation fell
+from 7,864,320,000 to 5,020,581,888 bytes (2,843,738,112 recovered), with 1 TiB
+virtual capacity and 128 GiB pool capacity retained. Fresh human toast/UI answers
+were explicitly SKIP. This later pass does not establish the cause of earlier
+`compact_attached` or COM failures; their recorded results remain.
+
+On the existing dedicated installation (`92ce27a5`), `ordinary-reclaim-1` failed
+before a saved operation appeared (36.78 s from terminal start); the Windows saved
+status remained `none`. No worker was retried or record cleared. A separate exact-GUID
+systemd shutdown observation saw sharing error 32 after stop, then an unattached
+disk at 81.30 s and successful same-GUID resumption at 108.41 s. This is not a
+compaction attempt or a reproduction of CI's attached-disk observation.
+
+The diagnostic candidate's `detach-local-2` focused tests passed (3.31 s); native
+Windows suites passed for wslreclaim (0.77 s), reclaimclient (3.83 s) and haco-wsl
+(0.45 s). Dedicated installed identity observation passed (5.54 s), followed by
+existing enrollment/owner/file correspondence (5.78 s); no intent, trim or stop
+was issued. Initial helper tests failed because two old assertions required empty
+stdout on failure; they were updated for the bounded diagnostic receipt.
+`detach-full-1` failed errcheck on the new display write; the return handling was
+corrected. These checks do not establish a successful installed public retry.
+
+`detach-full-2` passed focused tests (3.25 s), main-diff lint (5.27 s), maintained local tests (12.31 s), race (10.68 s), CLI E2E (2.88 s), docs (6.16 s), workflow policy (0.97 s) and native build (1.11 s).
+
+Candidate `97ffa2d66c223ebced04b195bc1d409d59b43829` was built through normal packaging (21.54 s) and installed with matching Linux/Windows companions into the dedicated existing WSL (44.86 s), with installer doctor passing. `ordinary-reclaim-2` failed again (21.88 s from terminal start), now reporting preparation/enrollment, Windows code 2. The same target passes direct Windows enrolled-target observation. This route-dependent discrepancy is unresolved; no missing binding was recreated and no worker was replayed.

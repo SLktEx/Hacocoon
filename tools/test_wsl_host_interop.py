@@ -9,9 +9,12 @@ import tempfile
 from unittest import mock
 import types
 import stat
+import io
+import sys
 
 spec = importlib.util.spec_from_file_location("interop", Path(__file__).resolve().parents[1] / "install/setup-wsl-host-interop.py")
 interop = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = interop
 spec.loader.exec_module(interop)
 
 
@@ -275,6 +278,56 @@ class NotificationServiceTests(unittest.TestCase):
                 target.symlink_to('/dev/null')
                 with self.assertRaises(ValueError): interop.install_notification_unit(unit, True, directory, run)
                 run.assert_not_called()
+
+
+class NotificationFailureTests(unittest.TestCase):
+    def test_service_failures_preserve_operation_without_subprocess_output(self):
+        for operation, code in interop.NotificationServiceFailure.codes.items():
+            for raises in (False, True):
+                with self.subTest(operation=operation, raises=raises), tempfile.TemporaryDirectory() as name:
+                    directory = Path(name)
+                    unit = interop.notification_unit([], 'Hacocoon', 'a' * 64)
+                    # Exact owned fixture; only systemctl is replaced here.
+                    (directory / 'hacocoon-notify.service').write_text(unit if operation in ('is-enabled', 'is-active', 'disable') else unit.replace('a' * 64, 'b' * 64))
+                    original = Path.lstat
+                    def owned(path, *args, **kwargs):
+                        info = original(path, *args, **kwargs)
+                        return types.SimpleNamespace(st_mode=info.st_mode, st_uid=0, st_nlink=info.st_nlink, st_size=info.st_size)
+                    def fail(args, **kwargs):
+                        if args[1] == operation:
+                            if raises:
+                                raise subprocess.CalledProcessError(4, ['SECRET-command'], output='SECRET-output', stderr='SECRET-stderr')
+                            return subprocess.CompletedProcess(args, 4)
+                        return subprocess.CompletedProcess(args, 0)
+                    run = mock.Mock(side_effect=fail)
+                    enabled = None if operation == 'is-enabled' else operation != 'disable'
+                    with mock.patch.object(Path, 'lstat', owned), self.assertRaises(interop.NotificationServiceFailure) as caught:
+                        interop.install_notification_unit(unit, enabled, directory, run)
+                    self.assertEqual(caught.exception.exit_code, code)
+                    self.assertNotIn('SECRET', str(caught.exception))
+                    self.assertEqual(run.call_args_list[-1].args[0][1], operation)
+                    self.assertEqual(sum(c.args[0][1] == operation for c in run.call_args_list), 1)
+
+    def test_guest_exit_status_reaches_installed_helper_without_raw_output(self):
+        for operation, code in interop.NotificationServiceFailure.codes.items():
+            with self.subTest(operation=operation), mock.patch.object(interop, 'notification_executable_revision', return_value='a' * 64):
+                error = subprocess.CalledProcessError(code, ['SECRET-command'], stderr='SECRET-stderr')
+                with mock.patch.object(interop.subprocess, 'run', side_effect=error) as run, self.assertRaises(interop.NotificationServiceFailure) as caught:
+                    interop.configure_notifications(['incus'], [], 'Hacocoon', None)
+                program = run.call_args.kwargs['input']
+                compile(program, '<installed notification program>', 'exec')
+                self.assertEqual(caught.exception.exit_code, code)
+                with mock.patch.object(interop, 'main', side_effect=caught.exception), mock.patch.object(interop.sys, 'stderr', io.StringIO()) as output, self.assertRaises(SystemExit) as exited:
+                    interop.cli_main()
+                self.assertEqual(exited.exception.code, code)
+                self.assertEqual(output.getvalue().strip(), 'notification service operation failed: ' + operation)
+
+    def test_unknown_guest_failure_is_not_reclassified(self):
+        error = subprocess.CalledProcessError(58, ['incus'])
+        with mock.patch.object(interop, 'notification_executable_revision', return_value='a' * 64), mock.patch.object(interop.subprocess, 'run', side_effect=error):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                interop.configure_notifications(['incus'], [], 'Hacocoon', None)
+        self.assertIs(caught.exception, error)
 
 
 class NativeBinfmtTests(unittest.TestCase):

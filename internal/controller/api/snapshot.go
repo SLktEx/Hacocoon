@@ -30,8 +30,9 @@ type SnapshotSummary struct {
 	OCI         bool   `json:"oci"`
 }
 type SnapshotResponse struct {
-	Snapshots []SnapshotSummary `json:"snapshots"`
-	Error     *responseStatus   `json:"error,omitempty"`
+	Snapshots  []SnapshotSummary        `json:"snapshots"`
+	Inspection *core.SnapshotInspection `json:"inspection,omitempty"`
+	Error      *responseStatus          `json:"error,omitempty"`
 }
 type snapshotService interface {
 	CaptureSnapshot(context.Context, string) (core.Snapshot, error)
@@ -73,6 +74,22 @@ func RegisterSnapshots(server *control.Server, service snapshotService) error {
 			saved, err = service.ListSnapshots(ctx, req.Environment)
 			for _, item := range saved {
 				response.Snapshots = append(response.Snapshots, summarizeSnapshot(item))
+			}
+		case "inspect":
+			if req.Environment != "" || !publicSnapshotID.MatchString(req.ID) {
+				return nil, translateError(core.ErrInvalidArgument)
+			}
+			inspector, ok := service.(interface {
+				InspectSnapshot(context.Context, string) (core.SnapshotInspection, error)
+			})
+			if !ok {
+				err = core.ErrUnsupported
+				break
+			}
+			var result core.SnapshotInspection
+			result, err = inspector.InspectSnapshot(ctx, req.ID)
+			if result.ID != "" {
+				response.Inspection = &result
 			}
 		case "delete":
 			if req.Environment != "" || !publicSnapshotID.MatchString(req.ID) {

@@ -75,5 +75,5 @@ jobs:
         run: |
           go mod download
           if ($LASTEXITCODE -ne 0) { throw "go mod download failed" }
-          go test -run '^$' ./internal/platform/wsl/reclaim ./internal/client/reclaim ./cmd/haco-wsl
+          go test -run '^$' ./internal/platform/wsl/reclaim ./internal/client/reclaim ./internal/cli/wsl
           if ($LASTEXITCODE -ne 0) { throw "Windows Go cache warmup failed" }

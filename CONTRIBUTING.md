@@ -46,6 +46,7 @@ and [VS Code notifications](clients/vscode-notify/README.md).
 | Controller startup / API / transport | `internal/controller`, `internal/controller/api`, `internal/controller/transport` |
 | Environment routing, copy, transfer, temporary run | `internal/env` |
 | Canonical lifecycle and Workspace leases | `internal/workspace`; atomic persistence in `internal/state` |
+| Existing checkout / archive input | `internal/workspace/input`; bounded upload files in `internal/staging` |
 | Saved snapshots / restore | `internal/workspace` capture; `internal/snapshot/restore` application service |
 | Base assets, build, image review | `internal/base/{asset,build,manage}` |
 | Incus runtime, storage, isolation | `internal/adapters/incus` |
@@ -65,7 +66,7 @@ feature services call those contracts and composition wires implementations.
 Core/Standard/Plugin are architectural roles, not directory trees. External operations
 stay behind adapters; optional integrations do not become Core prerequisites.
 `pkg/` is reserved for the actual public client and interaction APIs. See
-[the layout decision](docs/adr/0096-responsibility-layout-and-cli-retirement.md).
+[the layout decision](docs/adr/0102-responsibility-layout-and-cli-retirement.md).
 
 ## Design checks
 

@@ -38,6 +38,8 @@ func ValidReason(s string) bool {
 	switch s {
 	case "", "failed", "canceled", "timeout", "not_found", "incompatible_state", "recovery_required", "busy", "denied", "unavailable", "invalid_argument", "unsupported", "native_binfmt_incompatible":
 		return true
+	case "notification_enable_state_failed", "notification_activity_failed", "notification_disable_failed", "notification_reload_failed", "notification_failure_state_failed", "notification_reset_failed", "notification_enable_failed", "notification_restart_failed":
+		return true
 	}
 	return false
 }
@@ -45,6 +47,7 @@ func ValidReason(s string) bool {
 var ErrNativeBinfmtIncompatible = errors.New("native WSL binfmt registration incompatible")
 
 func Reason(err error) string {
+	var notification *NotificationServiceFailure
 	switch {
 	case errors.Is(err, ErrNativeBinfmtIncompatible):
 		return "native_binfmt_incompatible"
@@ -52,6 +55,8 @@ func Reason(err error) string {
 		return "canceled"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "timeout"
+	case errors.As(err, &notification):
+		return notification.reason()
 	case errors.Is(err, core.ErrRecoveryRequired):
 		return "recovery_required"
 	case errors.Is(err, core.ErrIncompatibleState):

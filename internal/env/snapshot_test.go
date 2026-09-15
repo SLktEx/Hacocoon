@@ -80,3 +80,25 @@ func TestSnapshotRoutingPreservesProviderAndOpaqueOwnership(t *testing.T) {
 		t.Fatal("invalid request reached provider")
 	}
 }
+
+func (p *recordingSnapshotProvider) InspectSnapshotComponent(_ context.Context, c core.SnapshotComponent) (core.SnapshotComponentInspection, error) {
+	p.component = c
+	p.calls = append(p.calls, "inspect")
+	return core.SnapshotComponentInspection{Presence: "present", Check: "ready"}, nil
+}
+func TestSnapshotInspectionNeverFallsBackToDefaultProvider(t *testing.T) {
+	chosen, other := &recordingSnapshotProvider{}, &recordingSnapshotProvider{}
+	router, err := NewRouter("other", Register(testProvider, chosen), Register("other", other))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := core.SnapshotComponent{NativeRef: encodeRouteRef(testProvider, "instance/saved"), Binding: "opaque", Role: "rootfs"}
+	got, err := router.InspectSnapshotComponent(context.Background(), c)
+	if err != nil || got.Provider != testProvider || chosen.component.NativeRef != "instance/saved" || chosen.component.Binding != "opaque" || len(other.calls) != 0 {
+		t.Fatal(got, err)
+	}
+	c.NativeRef = "instance/saved"
+	if _, err := router.InspectSnapshotComponent(context.Background(), c); err == nil || len(chosen.calls) != 1 || len(other.calls) != 0 {
+		t.Fatal("unrouted inspection", err)
+	}
+}

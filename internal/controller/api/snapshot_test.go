@@ -29,6 +29,10 @@ func (f *snapshotAPIFixture) ListSnapshots(_ context.Context, name string) ([]co
 	return []core.Snapshot{f.saved}, f.err
 }
 func (f *snapshotAPIFixture) DeleteSnapshot(context.Context, string) error { f.calls++; return f.err }
+func (f *snapshotAPIFixture) InspectSnapshot(_ context.Context, id string) (core.SnapshotInspection, error) {
+	f.calls++
+	return core.SnapshotInspection{ID: id, State: f.saved.State, Partial: f.err != nil, Components: []core.SnapshotComponentInspection{{Role: "rootfs", Presence: "unknown", Check: "unavailable"}}}, f.err
+}
 func TestSnapshotTransportKeepsOutcomeAndRejectsInvalidRequests(t *testing.T) {
 	f := &snapshotAPIFixture{saved: core.Snapshot{ID: "snap-11111111111111111111111111111111", State: "ready", Source: core.SnapshotSource{Environment: core.Environment{Name: "demo", RuntimeRef: "private-runtime"}}, Components: []core.SnapshotComponent{{Role: "rootfs", NativeRef: "private-native", Owner: "private-owner"}, {Role: "workspace:main"}, {Role: "oci"}}}}
 	server := control.NewServer()
@@ -66,8 +70,13 @@ func TestSnapshotTransportKeepsOutcomeAndRejectsInvalidRequests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	f.err = core.ErrRecoveryRequired
+	inspected, inspectErr := client.Snapshot(ctx, SnapshotRequest{Operation: "inspect", ID: f.saved.ID})
+	if inspectErr == nil || inspected.Inspection == nil || inspected.Inspection.ID != f.saved.ID || !inspected.Inspection.Partial {
+		t.Fatal(inspected, inspectErr)
+	}
 	before := f.calls
-	for _, raw := range []string{`{"operation":"delete","id":"snap-short"}`, `{"operation":"delete","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"create"}`, `{"operation":"list","id":"other"}`, `{"operation":"create","environment":"demo","binding":"private"}`, `{"operation":"restore"}`, `null`} {
+	for _, raw := range []string{`{"operation":"inspect","id":"snap-short"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","binding":"private"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"delete","id":"snap-short"}`, `{"operation":"delete","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"create"}`, `{"operation":"list","id":"other"}`, `{"operation":"create","environment":"demo","binding":"private"}`, `{"operation":"restore"}`, `null`} {
 		var out SnapshotResponse
 		if err := client.wire.Call(ctx, MethodSnapshot, json.RawMessage(raw), &out); err == nil {
 			t.Fatal("accepted", raw)

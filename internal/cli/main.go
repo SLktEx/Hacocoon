@@ -27,8 +27,10 @@ const loginAlias = "hacocoon-login"
 // can exceed 30 seconds; bound startup without delaying an already-ready host.
 const controllerStartupTimeout = 2 * time.Minute
 
-// Main runs the installed CLI and its fixed guest/Host helper modes.
 func Main() {
+	if len(os.Args) == 2 && os.Args[1] == "_desktop-review" {
+		os.Exit(runDesktopReview())
+	}
 	if len(os.Args) == 2 && os.Args[1] == "_control-stdio" {
 		os.Exit(runControlStdio())
 	}
@@ -195,12 +197,7 @@ func runLoginShim(args []string) error {
 		return fmt.Errorf("open Hacocoon controller client: %w", err)
 	}
 	ctx := context.Background()
-	readyCtx, cancelReady := context.WithTimeout(ctx, controllerStartupTimeout)
-	defer cancelReady()
-	if err := waitForController(readyCtx, func(ctx context.Context) error {
-		_, err := client.Ping(ctx)
-		return err
-	}); err != nil {
+	if err := waitForControllerClient(ctx, client); err != nil {
 		return fmt.Errorf("wait for Physical Host controller: %w", err)
 	}
 	language := hostEntryLanguage(ctx, os.Getenv, detectWindowsLanguage)
@@ -211,6 +208,17 @@ func runLoginShim(args []string) error {
 	defer stream.Close()
 	writeTrustedHostNoticeInLanguage(os.Stderr, language)
 	return terminalbridge.Bridge(ctx, stream, os.Stdin, os.Stdout)
+}
+
+// Every local client waits for the same read-only controller readiness boundary.
+// Actual operations, including approvals, are never automatically retried.
+func waitForControllerClient(ctx context.Context, client *controlapi.Client) error {
+	ready, cancel := context.WithTimeout(ctx, controllerStartupTimeout)
+	defer cancel()
+	return waitForController(ready, func(ctx context.Context) error {
+		_, err := client.Ping(ctx)
+		return err
+	})
 }
 
 // WSL can start a login shell before its enabled systemd controller is ready.

@@ -39,3 +39,27 @@ func TestArchiveReceiptRoutesAndRejectsProtocolDrift(t *testing.T) {
 		})
 	}
 }
+
+func (p *archiveReceiptProvider) SupportsTemporaryWorkspace() bool { return true }
+func TestArchiveRoutesTemporaryWorkspaceWithoutHostPath(t *testing.T) {
+	p := &archiveReceiptProvider{receiptTestProvider{baseTestProvider: baseTestProvider{created: core.EnvironmentRuntime{Ref: "haco-builder"}}, mode: "ok"}}
+	router, err := NewRouter(ProviderIncus, Register(ProviderIncus, p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, err := core.NewTemporaryWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := core.EnvironmentRuntimeSpec{TemporaryWorkspace: true, WorkspacePath: work.Path}
+	recorded := 0
+	_, err = NewBaseRouter(router).CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
+	if err != nil || recorded != 1 {
+		t.Fatal("temporary archive not routed", err, recorded)
+	}
+	spec.WorkspacePath = "/host/private"
+	_, err = NewBaseRouter(router).CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })
+	if err == nil || recorded != 1 {
+		t.Fatal("Host path accepted as temporary", err, recorded)
+	}
+}

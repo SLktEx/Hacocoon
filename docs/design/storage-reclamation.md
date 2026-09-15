@@ -200,3 +200,18 @@ partial failure, no replay, cancellation, review retention and native refusal.
 Dedicated `HACO_E2E_RECLAIM_TRIM=1` tests cover owned Btrfs fixtures;
 `HACO_E2E_RECLAIM_OUTER_TRIM=1` separately authorizes their dedicated WSL outer
 filesystem. Neither opt-in belongs on an unrelated shared Host.
+
+## Failure diagnostics
+
+Preparation and worker-launch failures report an allowlisted phase/stage and optional
+Windows error number through the installed bridge. The CLI translates these into
+English/Japanese next actions: inspect saved status, check the installation with
+`haco doctor`, or explicitly review an unsuccessful operation before a separate retry.
+The bounded diagnostic contains no disk paths, credentials or subprocess output.
+It retains a nonzero exit and is never proof that a worker did not start. Unknown or
+malformed diagnostics keep the existing uncertain-result response. No automatic
+retry, record clearing, relaxed enrollment or change to disk ownership is introduced.
+
+A saved `compact_attached` result explains that Windows compaction did not start
+because the disk remained in use, data remains retained, and another attempt requires
+explicit review. It does not stop other WSL distributions to force disk readiness.

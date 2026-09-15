@@ -14,6 +14,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
@@ -116,6 +117,9 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 	return result, h.Save(ref)
 }
 func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	if args[0] == "import" {
+		return workspaceImportCommand(ctx, args[1:], out, diagnostic)
+	}
 	flags := flag.NewFlagSet("haco workspace "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	path := flags.String("path", "", cliMessage("detail.path"))
@@ -130,7 +134,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		}
 		return 2
 	}
-	if *path == "" || (args[0] == "prepare" && flags.NArg() != 0) || (args[0] == "fork" && (flags.NArg() != 1 || *repos != "" || *oci != "")) {
+	if *path == "" || (args[0] == "prepare" && flags.NArg() != 0) || (args[0] == "fork" && (flags.NArg() != 1 || *oci != "")) {
 		commandHelp(diagnostic, "workspace "+args[0], cliLanguage())
 		return 2
 	}
@@ -192,11 +196,18 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		*name = workflow.NewName()
 	}
 	ref := workflow.PathReference{Version: 1, Reference: workflow.Reference{Name: *name}, State: "forking", OCI: "none"}
+	if *repos != "" {
+		ref.Repositories = strings.Split(*repos, ",")
+	}
+	if err = gitrepo.ValidateRepositorySelection(ref.Repositories); err != nil {
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
+		return 2
+	}
 	if err = h.Save(ref); err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
-	response, err := c.WorkspaceWorkflow(ctx, controlapi.WorkflowRequest{Operation: "fork", Reference: &source, Target: *name})
+	response, err := c.WorkspaceWorkflow(ctx, controlapi.WorkflowRequest{Operation: "fork", Reference: &source, Target: *name, Repositories: ref.Repositories})
 	if response.Fork != nil {
 		fork := response.Fork
 		if fork.Workspace != "" {
@@ -204,6 +215,7 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		}
 		ref.State, ref.OCI, ref.Base, ref.TemporarySnapshot = fork.State, fork.OCI, fork.Base, fork.TemporarySnapshot
 		ref.Resource = fork.Resource
+		ref.Repositories = fork.Repositories
 		if ref.State == "" {
 			ref.State = "recovery-required"
 		}

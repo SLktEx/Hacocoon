@@ -41,10 +41,13 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	flags := flag.NewFlagSet("haco snapshot "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	var machine bool
+	var machine, details bool
 	switch args[0] {
 	case "create", "list":
 		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
+	case "inspect":
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
+		flags.BoolVar(&details, "details", false, cliMessage("snapshot.inspect.details"))
 	case "delete":
 	default:
 		return usage()
@@ -61,7 +64,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	req := controlapi.SnapshotRequest{Operation: args[0]}
 	if len(pos) > 0 {
-		if args[0] == "delete" {
+		if args[0] == "delete" || args[0] == "inspect" {
 			req.ID = pos[0]
 		} else {
 			req.Environment = pos[0]
@@ -75,7 +78,13 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	response, err := client.Snapshot(ctx, req)
 	var writeErr error
 	if machine {
-		writeErr = json.NewEncoder(out).Encode(response.Snapshots)
+		if args[0] == "inspect" {
+			writeErr = json.NewEncoder(out).Encode(response.Inspection)
+		} else {
+			writeErr = json.NewEncoder(out).Encode(response.Snapshots)
+		}
+	} else if args[0] == "inspect" {
+		writeErr = writeSnapshotInspection(out, response.Inspection, details)
 	} else if args[0] == "list" {
 		table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 		_, _ = fmt.Fprintln(table, cliMessage("snapshot.columns"))
@@ -92,6 +101,9 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	if err != nil {
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)
+		if args[0] == "delete" && regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(req.ID) {
+			_, _ = fmt.Fprintf(diagnostic, cliLanguage().Text("snapshot.inspect.next"), req.ID)
+		}
 		return 1
 	}
 	if writeErr != nil {

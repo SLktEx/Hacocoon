@@ -90,7 +90,7 @@ func (r *Runtime) dialEnvironmentAddress(ctx context.Context, ref, instance, pro
 	defer unix.Close(ns)
 	// A malformed provider PID must never turn an Environment destination into
 	// a Physical Host loopback connection, even when its metadata looked valid.
-	hostNS, err := unix.Open("/proc/self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	hostNS, err := openCurrentNetworkNamespace()
 	if err != nil {
 		return nil, core.ErrRuntimeUnavailable
 	}
@@ -137,6 +137,12 @@ func (r *Runtime) networkInstancePID(ctx context.Context, ref string) (int, erro
 }
 func dialNetworkNamespace(ctx context.Context, namespace int, protocol string, port int) (net.Conn, error) {
 	return dialNetworkNamespaceAddress(ctx, namespace, protocol, "127.0.0.1", port)
+}
+
+func openCurrentNetworkNamespace() (int, error) {
+	// Network namespaces belong to threads. The process leader may itself be
+	// a dedicated guest dial worker; it is not the calling Host thread.
+	return unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
 }
 
 func dialNetworkNamespaceAddress(ctx context.Context, namespace int, protocol, address string, port int) (net.Conn, error) {

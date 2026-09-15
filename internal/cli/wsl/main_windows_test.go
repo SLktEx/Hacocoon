@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 	"github.com/SLktEx/Hacocoon/internal/platform/wsl/reclaim"
 )
 
@@ -66,8 +67,13 @@ func TestPreparedWorkerDispatch(t *testing.T) {
 				t.Fatal(code, called, errout.String())
 			}
 			if fail {
-				if out.Len() != 0 {
-					t.Fatal("failure wrote success")
+				if mode == "_launch" {
+					var receipt reclamation.InvocationFailureReceipt
+					if json.Unmarshal(out.Bytes(), &receipt) != nil || !receipt.Failure.Valid() || receipt.Failure.Phase != "launch" {
+						t.Fatal("missing bounded failure receipt", out.String())
+					}
+				} else if out.Len() != 0 {
+					t.Fatal("worker wrote on closed channel")
 				}
 				continue
 			}
@@ -78,6 +84,18 @@ func TestPreparedWorkerDispatch(t *testing.T) {
 				t.Fatal(out.String())
 			}
 		}
+	}
+}
+
+func TestPreparationFailureReceiptDoesNotExposeRawError(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	var out, log bytes.Buffer
+	code := dispatch(context.Background(), []string{"_prepare", "registration"}, &out, &log, helperActions{prepare: func(context.Context, string) (wslreclaim.PreparedStatus, error) {
+		return wslreclaim.PreparedStatus{}, errors.Join(syscall.Errno(5), errors.New("token=private-preparation"))
+	}})
+	var receipt reclamation.InvocationFailureReceipt
+	if code != 1 || json.Unmarshal(out.Bytes(), &receipt) != nil || !receipt.Failure.Valid() || receipt.Failure.NativeError != 5 || strings.Contains(out.String(), "private") || strings.Contains(log.String(), "private-preparation") {
+		t.Fatal(code, out.String(), log.String())
 	}
 }
 
@@ -210,7 +228,8 @@ func TestPreparationDoesNotDispatchOrDiscardOnOutputFailure(t *testing.T) {
 			t.Fatal("wrong preparation failure boundary")
 		}
 		if failed {
-			if code != 1 || out.Len() != 0 || !strings.Contains(diagnostic.String(), "prepare_wsl_worker") {
+			var receipt reclamation.InvocationFailureReceipt
+			if code != 1 || json.Unmarshal(out.Bytes(), &receipt) != nil || !receipt.Failure.Valid() || receipt.Failure.Phase != "prepare" || !strings.Contains(diagnostic.String(), "prepare_wsl_worker") {
 				t.Fatal("failed prepare claimed success")
 			}
 		} else {
@@ -233,7 +252,8 @@ func TestLaunchFailureLogsNativeCodeWithoutSuccess(t *testing.T) {
 	t.Setenv("HACO_LOG_FORMAT", "json")
 	var out, diagnostic bytes.Buffer
 	code := dispatch(context.Background(), []string{"_launch", "r", "o"}, &out, &diagnostic, helperActions{launch: func(context.Context, string, string) (int, error) { return 0, syscall.Errno(5) }})
-	if code != 1 || out.Len() != 0 {
+	var receipt reclamation.InvocationFailureReceipt
+	if code != 1 || json.Unmarshal(out.Bytes(), &receipt) != nil || !receipt.Failure.Valid() || receipt.Failure.Phase != "launch" || receipt.Failure.NativeError != 5 {
 		t.Fatal(code, out.String())
 	}
 	var record map[string]any

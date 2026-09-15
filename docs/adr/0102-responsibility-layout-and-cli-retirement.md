@@ -1,6 +1,6 @@
 # Responsibility layout and CLI retirement
 
-Status: accepted. Refs #654. Based on main `a3d0f4fd7bbf7134c113029f80124e8f2c332bd6`.
+Status: accepted. Refs #654. Based on main `ee8bf7fbd2e858f9b6fd1d22ecce77fdde6bf082`.
 
 ## Decision
 

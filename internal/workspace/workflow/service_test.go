@@ -13,6 +13,7 @@ import (
 
 type reposFixture struct {
 	object       gitrepo.Object
+	selection    []string
 	restores     int
 	createCalls  int
 	dataFail     error
@@ -42,8 +43,9 @@ func (r *reposFixture) CopyWorkspaceSet(ctx context.Context, id string, repos []
 	r.object = object
 	return object, err
 }
-func (r *reposFixture) RestoreWorkspaceWithData(ctx context.Context, id string, _ core.Snapshot, prepare func(context.Context, core.Workspace) error) (gitrepo.Object, error) {
+func (r *reposFixture) RestoreWorkspaceSelectionWithData(ctx context.Context, id string, _ core.Snapshot, selection []string, prepare func(context.Context, core.Workspace) error) (gitrepo.Object, error) {
 	r.restores++
+	r.selection = selection
 	object := gitrepo.Object{Kind: "work", ID: id, Owner: "fork", State: "creating"}
 	err := prepare(ctx, core.Workspace{ID: "workspace:managed:fork"})
 	if err == nil {
@@ -216,7 +218,7 @@ func TestForkCopiesStoppedAggregateWithIndependentStoreAndRetainsFailure(t *test
 			case "cleanup-failure":
 				e.failDelete = core.ErrRecoveryRequired
 			}
-			result, err := s.Fork(context.Background(), Reference{Name: "task", Workspace: "workspace:managed:owner"}, "branch")
+			result, err := s.Fork(context.Background(), Reference{Name: "task", Workspace: "workspace:managed:owner"}, "branch", nil)
 			if e.captured != "workspace:managed:owner" || e.deleteCalls != 1 || e.startCalls != 0 {
 				t.Fatal("incorrect source lifecycle")
 			}
@@ -263,5 +265,24 @@ func TestOpenNeverAdoptsRecycledStoreOwner(t *testing.T) {
 	_, err := s.Open(context.Background(), spec)
 	if !errors.Is(err, core.ErrCapabilityStale) || e.startCalls != 0 || e.createCalls != 0 {
 		t.Fatal("adopted recycled Store", err)
+	}
+}
+
+func TestForkRejectsInvalidSelectionBeforeCapture(t *testing.T) {
+	for _, selection := range [][]string{{}, {"one", "one"}, {"../one"}} {
+		s, r, e := fixture()
+		_, err := s.Fork(context.Background(), Reference{Name: "task", Workspace: "workspace:managed:owner"}, "branch", selection)
+		if !errors.Is(err, core.ErrInvalidArgument) || e.captureCalls != 0 || r.restores != 0 {
+			t.Fatal(selection, err)
+		}
+	}
+}
+func TestForkPassesSelectedMembershipThroughCanonicalCapture(t *testing.T) {
+	s, r, e := fixture()
+	e.envs = []core.Environment{{Name: "source-env", Workspace: core.Workspace{ID: "workspace:managed:owner"}}}
+	e.saved = core.Snapshot{ID: "saved"}
+	_, err := s.Fork(context.Background(), Reference{Name: "task", Workspace: "workspace:managed:owner"}, "branch", []string{"one", "three"})
+	if err != nil || e.captureCalls != 1 || r.restores != 1 || len(r.selection) != 2 || r.selection[1] != "three" {
+		t.Fatal(r.selection, err)
 	}
 }

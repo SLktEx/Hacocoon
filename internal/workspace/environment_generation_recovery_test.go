@@ -83,7 +83,7 @@ func TestCacheRecoveryUsesPositiveReceiptWithoutRecopyOrRetainedDataDeletion(t *
 				if !errors.Is(err, core.ErrRecoveryRequired) {
 					t.Fatal(result, err)
 				}
-				if err := catalog.CheckEnvironmentResourceCopyIdle(ctx, env.Name); !errors.Is(err, core.ErrRecoveryRequired) {
+				if err := catalog.CheckEnvironmentResourcesIdle(ctx, env.Name); !errors.Is(err, core.ErrRecoveryRequired) {
 					t.Fatal("uncertain source released", err)
 				}
 				if mode == "unknown" && interrupted.recoveries != 0 {
@@ -101,7 +101,7 @@ func TestCacheRecoveryUsesPositiveReceiptWithoutRecopyOrRetainedDataDeletion(t *
 			if result.Entries[0].State != want {
 				t.Fatal(result)
 			}
-			if err := catalog.CheckEnvironmentResourceCopyIdle(ctx, env.Name); err != nil {
+			if err := catalog.CheckEnvironmentResourcesIdle(ctx, env.Name); err != nil {
 				t.Fatal("completed copy kept producer pinned", err)
 			}
 			if _, err := w.Recover(ctx, env.Name, "compiler"); err != nil || interrupted.copies != 1 || interrupted.recoveries != 1 {

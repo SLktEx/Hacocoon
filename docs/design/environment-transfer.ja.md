@@ -189,3 +189,13 @@ native完了を検証前に記録し、共通の公開処理だけがimport待�
 現在の共有キャッシュへ登録したり、移設先Host設定を暗黙に追加したりしません。
 Incus 7.0 LTSが必要です。6.0.5には既存volume-exportのflagとレポ配置APIがありません。
 実機結果は[受入記録](../status/acceptance-evidence.ja.md)で区別します。
+
+## 非公開の入力一時保存の共通化
+
+開発候補では、既存の名前のない読み取り専用ファイルへの取り込みを
+`internal/staging` に集約し、Env bundleとBaseイメージ入力で共有する。
+bundle形式、サイズ上限、構成範囲の確認、ライフサイクルの予約、native所有情報は
+変えない。一時保存の利用者へファイル名や書き込み可能な記述子を渡さない。
+Base取り込みはEnv内の一時Workspaceを同じ正規アーカイブ作成処理で使う。
+通常のEnv取り込みは、明示的に用意した保持データだけを引き続き接続する。
+[Baseイメージ入力](base-images-and-custom-environments.md#import-a-container-image-archive)を参照。

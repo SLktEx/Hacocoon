@@ -40,7 +40,7 @@ func PrepareWorker(ctx context.Context, registrationID string) (PreparedStatus, 
 	}
 	r, err := readRegistration(registrationID)
 	if err != nil {
-		return PreparedStatus{}, err
+		return PreparedStatus{}, targetStage("registration", err)
 	}
 	intent, err := r.prepareContinuationVersion(ctx, 2)
 	if err != nil {

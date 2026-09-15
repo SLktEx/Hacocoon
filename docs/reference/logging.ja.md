@@ -123,9 +123,36 @@ Hostのユーザー設定のstdout/stderrは上限付き非公開結果として
 `haco setup --script-result`だけで表示します。生の出力や結果objectを構造化log、
 progress stage、auditに記録しません。
 
+Windows review実行ファイルはnative review利用不能時の単一`notification_review` ERRORを
+所有します。`stage`はregistration／session_plan／ownership／activation／clear／peer_start／
+review／events／unknown、`reason`はunavailable／timeout／canceledに限定します。
+検証済み表示結果では`native_stage`（runtime／xml／create／identity／show／history）と数値の
+`native_error`（HRESULT）も記録できます。生エラー、controller応答、XML、page token、path、
+子プロセス出力は含めません。導入済みprobeの失敗時も、これらの固定分類と終了値・期待文一致の
+真偽値だけを表示します。
+
+native通知描画の失敗は数値`exit_code`と`duration_ms`も記録します。終了値-1は、子の起動前失敗など、
+移植可能な終了コードが得られない場合です。contextのキャンセル／期限切れを子出力より優先します。
+単一ERRORの所有者は同じreview境界のままで、生のprocessエラー・stdout・stderrはlogへ出しません。
+
+描画失敗では、最大512バイトから確認した最後の固定段階を`native_progress`へ記録します。
+値はruntime／input／decode／winrt／xml／create／identity／show／history／completeです。
+未取得、途中の行、上限超過、その他の出力はunobservedになります。この観測は表示・実行・
+承認の成功を示さず、期限切れやキャンセルの結果も変更しません。
+
+
+COM起動の失敗は固定の`activation_stage`（initialize/register/create/dispatch）と数値`activation_error`（符号付きHRESULT）を記録します。読み取り専用の起動での期限・中止をCOM応答と非公開peer終了後も区別し、生のnativeエラーや要求内容は記録しません。
+
+通知準備の失敗は既存のsetup境界で固定のサービス操作理由（notification_enable_state_failed、notification_activity_failed、notification_disable_failed、notification_reload_failed、notification_failure_state_failed、notification_reset_failed、notification_enable_failed、notification_restart_failed）を保持する。非公開helperの終了値50〜57は通知refreshだけで解釈し、生の出力は転送しない。中止を優先する。
+
+Git照合は共通の同期済みCapability監査を使う。固定git-push-started/confirmed/observed記録へ要求・Env作成・取得元所有権・登録済みremote・ref・旧新OIDを保存し、照合は読み取り要求を別に記録する。これは監査上の事実であり、認証情報・subprocessの生出力・Git設定全体をログへ出さない。
 
 キャッシュ管理は領域別の結果と診断を分けます。失敗を報告する境界ではcomponentを`cache`とし、固定した操作名と分類済み失敗コードだけを記録します。設定文書、パス、基盤の応答、生のエラーはログへ出しません。
 
 キャッシュ保守も共通の `component=cache` 境界を使い、固定操作名 `cache.history` / `cache.clear` と固定 `failure_code` を記録する。確認revision・providerの保存場所・生のエラーはログに出さない。
 
 名前付き収集の復旧は既存キャッシュ失敗境界と固定 operation=cache.recover を使う。所有記録の内容やproviderの生のエラーはログへ出さない。
+
+Windowsの容量回収の準備・起動失敗は、既存の補助プログラムのエラー境界で、
+固定の `phase`、`stage` と数値の `native_error` を記録する。失敗したコマンドの
+標準出力には許可された段階と番号だけを返し、生のエラー文を含めない。
