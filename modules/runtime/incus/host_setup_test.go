@@ -63,6 +63,9 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 	pushes := map[string]int{}
 	failProduct := true
 	runner.run = func(ctx context.Context, n int, name string, args []string) (host.Result, error) {
+		if strings.Contains(strings.Join(args, " "), "apt-get") {
+			t.Fatal("package mutation escaped the canonical Host preparation callback")
+		}
 		if isConfigGet(args, trustedHostClientModeEnvKey) {
 			return host.Result{Stdout: trustedHostClientModeValue}, nil
 		}
@@ -101,8 +104,23 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 	}
 	runtime := New(runner)
 
+	preparations := 0
+	failPreparation := true
+	runtime.ConfigureHostStorage(func(context.Context) error {
+		if installed[trustedHostProductClientPath] == "" || installed["/usr/local/bin/haco-notify"] == "" {
+			t.Fatal("Host preparation before companion publication")
+		}
+		preparations++
+		if failPreparation {
+			return core.ErrRecoveryRequired
+		}
+		return nil
+	})
 	refreshes := 0
 	runtime.trustedHostNotifications = func(context.Context) error {
+		if failPreparation || preparations != refreshes+2 {
+			t.Fatal("notification refresh did not follow one successful Host preparation")
+		}
 		if installed[trustedHostProductClientPath] == "" || installed["/usr/local/bin/haco-notify"] == "" {
 			t.Fatal("notification restart before companion publication")
 		}
@@ -113,14 +131,21 @@ func TestHostSetupReusesOwnedHostAndRecoversPartialClientInstall(t *testing.T) {
 		t.Fatal("partial install accepted")
 	}
 	failProduct = false
+	if err := runtime.SetupTrustedHost(context.Background(), dir); !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatalf("incomplete Host preparation accepted: %v", err)
+	}
+	if refreshes != 0 {
+		t.Fatal("notifications refreshed after failed Host preparation")
+	}
+	failPreparation = false
 	if err := runtime.SetupTrustedHost(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
 	if err := runtime.SetupTrustedHost(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
-	if refreshes != 2 {
-		t.Fatalf("notification refresh count=%d", refreshes)
+	if refreshes != 2 || preparations != 3 {
+		t.Fatalf("notification refresh count=%d, preparation count=%d", refreshes, preparations)
 	}
 	if pushes[trustedHostClientPath] != 1 || pushes[trustedHostProductClientPath] != 2 || pushes["/usr/local/bin/haco-notify"] != 1 {
 		t.Fatalf("non-idempotent pushes=%v", pushes)

@@ -36,7 +36,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
 		c, err := controlapi.NewDefaultClient()
 		if err != nil {
-			fmt.Fprintln(diagnostic, "haco:", err)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 			return 1
 		}
 		return sourceManageCommand(ctx, c, args, os.Stdin, out, diagnostic)
@@ -64,13 +64,13 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	n := 1
 	switch operation {
 	case "repo clone":
-		flags.StringVar(&branch, "branch", "", "one existing upstream branch")
+		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
 		n = 2
 	case "workspace create":
-		flags.StringVar(&repo, "repo", "", "registered repository IDs, separated by commas")
+		flags.StringVar(&repo, "repo", "", cliMessage("detail.repos"))
 	case "git connect":
 	case "git approve", "git deny":
-		flags.StringVar(&save, "save", "", "save this operation scope: env, all, ask-env or ask-all")
+		flags.StringVar(&save, "save", "", cliMessage("detail.saved"))
 	case "git pending":
 		n = 0
 	default:
@@ -106,7 +106,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot open controller client")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.controller"))
 		return 1
 	}
 	var result any
@@ -139,7 +139,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 1
 	}
 	if err := writeCLIResult(out, result, jsonOutput); err != nil {
-		fmt.Fprintln(diagnostic, "haco: cannot write result")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("error.write_result"))
 		return 1
 	}
 	return 0

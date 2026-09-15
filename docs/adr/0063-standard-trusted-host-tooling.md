@@ -49,3 +49,8 @@ The dedicated standard-tooling Incus fixture checks public pull/build/run,
 stop/start/repeat setup and offline independent Store use. Released installer,
 private registry, arm64 runtime and custom existing-installation acceptance must
 be reported separately; repository support is not evidence those checks ran.
+
+The main integration removes the obsolete preliminary Git/gh apt helper (#659).
+Only canonical Standard tooling preparation runs after OCI/client readiness.
+Duplicated provisioning can fail before that owner's validation and recovery
+contract is reached; it must not be reintroduced as a compatibility path.

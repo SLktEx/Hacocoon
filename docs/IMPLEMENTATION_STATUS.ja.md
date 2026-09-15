@@ -77,6 +77,13 @@ Windows/SSH確認とExplorer操作は別の残件です。
 [通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
 [インストーラの結果](design/installer.md#windows-final-result)を参照してください。
 
+## 詳細案内とHost準備の共通化
+
+**実装済み候補:** #592/#593の日英の引数・オプション説明と保持データの結果を現在mainへ合わせました。
+削除確認はclientの共通処理を使い、controllerの所有権検査を維持します。#659の旧Hostツール二重準備も撤去します。
+ローカル試験と新規導入での受入は区別します。旧版互換・旧版移行は今回のM0〜M5の対象外です。
+
+
 ## 対話一時実行の候補
 
 **実装済み候補:** `haco run -i/-it`を上限付きの双方向転送と共通runライフサイクルへ接続します。
