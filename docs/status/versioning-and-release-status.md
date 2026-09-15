@@ -228,3 +228,8 @@ a release. See [ADR 0106](../adr/0106-streaming-git-packs.md).
 Main f225e5c1 (#701) integrates setup/network/configuration guidance and the
 forwarding fixture correction after all five exact-head workflows passed.
 This remains v0.68; person-dependent post-release acceptance is not a main gate.
+
+Named current-data selection and aggregate restored-tree review are a v0.68 M5
+maintenance follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703)).
+The development helper reuses existing comparison contracts. Local success does
+not complete actual inventory or person-dependent acceptance; no release is published.

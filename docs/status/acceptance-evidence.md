@@ -1599,3 +1599,22 @@ after rebasing onto this main. The latter's normal ten-binary Linux/Windows
 package built in 42.32s. No local installation, WSL termination or publication
 was performed. Product code also matches the full-tested pre-rebase `9c9d2ed0`;
 four documentation conflicts preserved both independent evidence sections.
+
+### Named current-data selection
+
+Development implementation `fe23cf539a8f27e56d8357354540c9a7f8cc5488`
+([#703](https://github.com/SLktEx/Hacocoon/issues/703)) passed seven local Linux
+selection regressions, including two real copied trees with Git metadata, dirty
+files and symlinks, then independent changed and unrestored selections. It reused
+the existing scanner/comparer; originals remained unchanged. Windows passed six
+portable selection tests; the Linux filesystem case was explicitly skipped there.
+
+The Linux commands passed: selection 0.24s, existing tree comparison 0.25s,
+maintained full local test 84.69s, docs 18.25s and workflow policy 1.98s. A WSL
+root systemd-user-session warning preceded these checks; no service repair or
+permission change was used. Final paired documentation passed `check_docs.py`.
+This is selected local filesystem and repository evidence, not installed Incus,
+actual operator inventory completeness, independent retained storage, owner-idmap
+equivalence or authenticated editor/build/OCI/Git acceptance. The helper never
+grants deletion authority. Person-dependent checks remain post-release and do not
+block main integration after the required exact-head CI succeeds.
