@@ -4,7 +4,6 @@ package wslreclaim
 
 import (
 	"context"
-	"encoding/binary"
 	"os"
 	"syscall"
 	"testing"
@@ -47,26 +46,18 @@ func TestDedicatedWSLVHDDetachedState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	started := time.Now()
-	h, attempts, err := waitVirtualDiskOpen(ctx, func() (windows.Handle, error) {
+	h, identity, attempts, err := waitDetachedVirtualDisk(ctx, func() (windows.Handle, error) {
 		var h windows.Handle
 		code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&params)), uintptr(unsafe.Pointer(&h)))
 		if code != 0 {
 			return 0, syscall.Errno(code)
 		}
 		return h, nil
-	})
+	}, inspectDetachedDynamic, windows.CloseHandle)
 	t.Logf("read-only native readiness: attempts=%d elapsed=%s", attempts, time.Since(started))
 	if err != nil {
 		t.Fatalf("read-only native open: %v", err)
 	}
 	defer windows.CloseHandle(h)
-	loaded, err := virtualInfo(h, 13)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := binary.LittleEndian.Uint32(loaded[8:])
-	t.Logf("native attachment state=%d (zero means detached); no mutation attempted", state)
-	if state != 0 {
-		t.Fatal("dedicated WSL VHDX remains attached")
-	}
+	t.Logf("native detached identity=%+v; no mutation attempted", identity)
 }

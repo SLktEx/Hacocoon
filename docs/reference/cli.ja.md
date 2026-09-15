@@ -34,7 +34,7 @@ help・versionにコントローラーは不要です。
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |
 | OCIイメージ一覧 | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [イメージ参照](../design/oci-image-deletion.ja.md)。既定はnerdctl。`--host`時は対象引数なし |
 | OCIイメージ削除 | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused`時はイメージ引数なし。タグ付きでも未使用候補になる場合あり |
-| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] <id> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
+| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] [--latest] <id\|source-env> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
 | コピー | `haco env copy [--json] <stopped-env> [new-env]` | 既定名は`<source>-copy`。[コピー](../design/environment-copy.md) |
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |

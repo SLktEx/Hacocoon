@@ -155,6 +155,11 @@ func TestSnapshotCaptureOrdersDurableReceiptsAndRetainsEveryFailure(t *testing.T
 				if err != nil || snap.State != "ready" {
 					t.Fatal(snap, err)
 				}
+				reloaded := state.NewEnvironmentJSONStore(s.path)
+				stored, readErr := reloaded.GetSnapshot(context.Background(), snap.ID)
+				if readErr != nil || snap.CreatedAt.IsZero() || !stored.CreatedAt.Equal(snap.CreatedAt) {
+					t.Fatal("capture time lost across persistence", stored.CreatedAt, snap.CreatedAt, readErr)
+				}
 				if !reflect.DeepEqual(s.trace.events, steps) {
 					t.Fatal(s.trace.events)
 				}

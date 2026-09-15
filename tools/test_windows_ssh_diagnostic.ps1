@@ -11,6 +11,26 @@ foreach ($hostile in @('[failed] operation=stream stage=target reason=SECRET', '
 foreach ($hostile in @('SECRET', "windows-workspace-ok SECRET", "prefix windows-workspace-ok", "WINDOWS-WORKSPACE-OK")) {
     if ((Get-SSHProgressEvidence $hostile $hostile) -cne 'no-recognized-progress') { throw 'Untrusted progress escaped allowlist' }
 }
+# The recorded Windows failure contains NUL-interleaved UTF-16 output. Keep
+# only the known error classification; unrelated output must remain private.
+$wslError = "Catastrophic failure`nError code: Wsl/Service/E_UNEXPECTED`nSECRET"
+foreach ($encoded in @($wslError, [Text.Encoding]::UTF8.GetString([Text.Encoding]::Unicode.GetBytes($wslError)))) {
+    if ((Get-SSHProgressEvidence $encoded '') -cne 'wsl_service_unexpected') { throw 'WSL service failure classification lost' }
+}
+foreach ($hostile in @('Error code: Wsl/Service/SECRET', 'prefix Error code: Wsl/Service/E_UNEXPECTED', 'Error code: Wsl/Service/E_UNEXPECTED SECRET')) {
+    if ((Get-SSHProgressEvidence $hostile '') -cne 'no-recognized-progress') { throw 'WSL diagnostic escaped allowlist' }
+}
+foreach ($case in @(
+    @{Exit=255; Out=''; Err='Host key verification failed.'; Want='refused'},
+    @{Exit=255; Out=''; Err='WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!'; Want='refused'},
+    @{Exit=0; Out=''; Err='Host key verification failed.'; Want='exit_zero'},
+    @{Exit=255; Out='MUST-NOT-EXECUTE'; Err='Host key verification failed.'; Want='command_marker'},
+    @{Exit=255; Out=''; Err=$wslError; Want='refusal_unconfirmed'},
+    @{Exit=255; Out=''; Err='Connection timed out: SECRET-PEER'; Want='refusal_unconfirmed'},
+    @{Exit=255; Out=''; Err='[failed] operation=stream stage=target reason=denied'; Want='refusal_unconfirmed'}
+)) {
+    if ((Get-SSHHostKeyCheckOutcome $case.Exit $case.Out $case.Err) -cne $case.Want) { throw 'Host-key refusal decision or private diagnostics changed' }
+}
 # Extract only the process helper; never run the real WSL/SSH fixture here.
 $tokens = $null; $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'test_windows_environment_ssh.ps1'), [ref]$tokens, [ref]$errors)

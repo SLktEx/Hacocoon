@@ -13,6 +13,13 @@ OP = "{11111111-1111-4111-8111-111111111111}"
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_japanese_status_still_requires_the_successful_completion_marker(self):
+        message = "容量回収の保存結果はありません。この確認で新しい操作は開始していません。\n"
+        self.assertFalse(gate.absent_status_completed(message))
+        self.assertTrue(gate.absent_status_completed(message + "HACO_ABSENT_STATUS_EXIT:0\n"))
+        with self.assertRaises(RuntimeError):
+            gate.absent_status_completed(message + "HACO_ABSENT_STATUS_EXIT:1\n")
+
     def test_status_waits_for_completion_despite_echo_and_prompt_repaint(self):
         output = ""
         chunks = [

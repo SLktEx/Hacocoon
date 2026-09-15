@@ -24,7 +24,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if !strings.HasPrefix(environment.Workspace.Path, "managed:") || environment.Workspace.ID == "" {
 		return fmt.Errorf("snapshots require a managed Workspace: %w", core.ErrUnsupported)
 	}
-	release, err := lockWorkspace(ctx, environment.Workspace.ID)
+	release, err := s.lockWorkspace(ctx, environment.Workspace.ID)
 	if err != nil {
 		return err
 	}

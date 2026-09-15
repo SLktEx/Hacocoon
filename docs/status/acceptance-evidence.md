@@ -1070,3 +1070,365 @@ corrected. These checks do not establish a successful installed public retry.
 `detach-full-2` passed focused tests (3.25 s), main-diff lint (5.27 s), maintained local tests (12.31 s), race (10.68 s), CLI E2E (2.88 s), docs (6.16 s), workflow policy (0.97 s) and native build (1.11 s).
 
 Candidate `97ffa2d66c223ebced04b195bc1d409d59b43829` was built through normal packaging (21.54 s) and installed with matching Linux/Windows companions into the dedicated existing WSL (44.86 s), with installer doctor passing. `ordinary-reclaim-2` failed again (21.88 s from terminal start), now reporting preparation/enrollment, Windows code 2. The same target passes direct Windows enrolled-target observation. This route-dependent discrepancy is unresolved; no missing binding was recreated and no worker was replayed.
+
+## Restored-tree comparison
+
+Implementation `9f946abc561393141df5d0ef9a081ab1949f6b6f` adds portable tree
+comparison using the existing read-only inventory. `compare-full-1` passed focused
+file/real-tar regressions (0.48 s), maintained local tests (82.69 s), CLI E2E
+(12.45 s), docs (18.00 s) and workflow policy (2.71 s). The six focused tests cover
+real restored data, internal links, symlinks without traversal, xattrs, changed
+content/mode/owner, incomplete reads, replacements and malformed manifests.
+
+`compare-native-1` passed in 27.59 s. The preserved
+`/home/codex-second/fixtures/workflow` tree (26 entries, 2,343 logical file bytes)
+was captured with the existing GNU tar workflow into
+`/var/tmp/haco-reviewed-capture-md4e11_9` on `hacocoon-second`. Its 51,200-byte archive
+was retained outside WSL and SHA-256 checked, then restored into a new private tree
+`/var/tmp/haco-reviewed-restore-8f9kdnr5/tree` on `Hacocoon-Roadmap-f68a8c6b`.
+Linux scans and Windows-side portable comparison matched; original data, capture,
+retained archive and restored tree remain. Numeric owners were compared in the raw
+Linux Host namespace. This does not establish guest idmap correspondence, full
+current-data migration, authenticated development or large-repository performance.
+The initially inspected network-final tree was empty and was not used as evidence
+of restored file contents. Old-version reconstruction/replacement remains out of scope.
+
+The retained installation inventory queried all native resources successfully:
+12 instances, 48 custom-volume entries and two images in `hacocoon`, plus one
+separately owned cache volume. Ownership review, manual data classification and
+whole-backup completion remain distinct from this read-only inventory.
+
+For the independent installed-reclamation investigation, direct and trusted-Host
+Windows reads used the same owner hash/64-bit process but saw different enrollment
+visibility. The first terminal probe timed out on a cursor-position query; the
+corrected read-only probe observed the discrepancy. A proposed maintenance WSL
+restart was NOT performed because its guard found an unrelated running
+`Ubuntu-24.04`. No global shutdown, binding overwrite or data deletion occurred.
+The cause of this execution-context difference is still unestablished.
+
+
+<a id="reclamation-language"></a>
+## Reclamation language
+
+Implementation `99522ebd893e7fbdc0752e3db3d6f84595f10fb6` translates ordinary
+reclamation status, capacities, failure guidance and reviewed interruption through
+the shared catalog. Focused tests9.45s, changed-code lint19.86s, maintained local
+tests43.65s, race14.50s, CLI E2E4.05s, docs13.30s, workflow1.78s and native-build1.85s
+passed. Japanese tests preserve exact operation/target/state consent and raw
+protocol values. Public-journey presentation recognizes both languages; completion
+still requires the original machine receipt. Native installed language acceptance
+is recorded separately. The first formatting attempt refused a concurrently edited
+source by hash check; a fresh archive was formatted before these tests.
+
+Parent #688 passed all five exact-head workflows at `4e0a483e` and was squash-merged
+to main `ee8bf7fb`. This does not resolve the dedicated local enrollment observation
+failure or prove fresh human GUI answers.
+
+The exact implementation was packaged through the normal installer tooling51.68s
+and installed60.72s with matching Linux/Windows binaries; all doctor checks passed.
+Ordinary Windows→WSL→Host Japanese help and read-only saved-result display passed
+45.28s with status exit0 (no saved operation). An initial private observer expected
+the internal fallback help instead of the shared vertical help and failed its
+assertion despite successful product output; corrected before the second run.
+WSL reported a managed-user systemd-session warning while Host entry completed;
+its cause remains uninvestigated. This read-only success does not establish a new
+reclamation start/compaction or fresh human GUI answers.
+
+
+At restored-comparison head `379f0b156e853d81b00a2933dbd6983f00718cc9`, Windows
+[run34964494309/job104365643144](https://github.com/SLktEx/Hacocoon/actions/runs/34964494309/job/104365643144)
+passed installation, HTTPS, interop, SSH/editor/forwarding and Linux reclamation.
+Public reclamation failed: both Linux stages complete; Windows stop requested,
+open attempts1, compact_attached, compaction not attempted and resume unsuccessful.
+Notification review was skipped. Four Linux workflows passed. This head was not
+merged; #690 includes its code and merges the identical parent main tree without
+changing candidate file contents. The Windows failure remains unexplained.
+
+On installed `99522ebd`, a third dedicated ordinary Japanese reclaim attempt failed
+after91.11s at prepare/enrollment with Windows error2. Read-only status was successful
+and still returned none afterward; no new operation record, stop, compaction or
+automatic replay was observed. The new diagnostic presentation worked, while the
+previous enrolled-record visibility discrepancy remains unresolved.
+
+
+<a id="supported-dns-modes"></a>
+## Supported Incus DNS modes
+
+With installed product `99522ebd893e7fbdc0752e3db3d6f84595f10fb6` on dedicated
+Hacocoon-Roadmap-f68a8c6b / Incus7.0.1, the existing three-mode native regression
+passed24.68s (test24.61s): host10.31s, backend8.09s, disabled6.20s. It created fresh
+owned Envs, checked resolver service/configuration across stop/resume and backend
+resolution, then completed canonical owned cleanup. Catalogs remain at
+`/var/lib/haco-dns-modes-2079785240/state.json`, `-3117962770/state.json` and
+`-811325797/state.json`. No Policy/configuration or dependency overrides were added.
+This supplements the earlier6.0.5 evidence, not guest Policy-query/Windows DNS
+tunneling/VPN/NRPT or giant-repository acceptance. The first wrapper used an invalid
+Incus info flag and stopped before the test; the maintained query /1.0 interface
+was used for the successful supported-server observation.
+
+The M0–M5/status consolidation passed the maintained local docs check39.09s and
+subsequent link checks. It removes stale candidate diaries, preserves unique failure
+evidence and updates paired owning contracts; no product code or checkpoint changes.
+
+
+At #690 head `b6dec8807e026bf9c765db0af16eea238186da06`, four Linux workflows passed,
+but Windows [job104373589771](https://github.com/SLktEx/Hacocoon/actions/runs/34966961367/job/104373589771)
+failed the changed-host-key assertion in test_windows_environment_ssh.ps1:554.
+Earlier SSH/editor, approval Webview stale refusal, saved-choice review, setup,
+preview, imported/recreated work and Windows tunnel checks passed. Linux/public
+reclamation and native notification review were skipped. The assertion combines
+exit status, unexpected stdout and missing host-key diagnostics; the log does not
+establish which predicate failed. Subsequent Policy cleanup/disconnect reported
+WSL Catastrophic failure. This is neither a proven host-key bypass nor a successful
+refusal test. Keep this head unmerged pending diagnosis; do not relabel it using
+the earlier #687/#688 successes.
+
+
+## Windows host-key refusal diagnosis
+
+The follow-up to #690 preserves the three existing host-key refusal requirements
+but records which one failed, with existing allowlisted SSH progress. It recognizes
+the NUL-interleaved WSL E_UNEXPECTED seen in job104373589771 without emitting raw
+child output. Local PowerShell regression and real child timeout/nonzero checks
+passed. This improves evidence for the next ordinary run; it does not establish
+a cause or resolve that prior failure. No extra permission, restart or retry is added.
+
+## Snapshot restore by environment name
+
+Implementation `e1ec0894` adds `snapshot restore --latest <source-env> [new-env]`.
+Local focus 11.21s, changed-line lint 13.35s, maintained test entry 30.53s,
+race 14.92s, CLI 3.78s, docs 8.23s and workflow policy 1.41s passed.
+Capture time survives real catalog reload; CLI/controller tests cover unordered
+saves, incomplete/other-Env exclusion, date ties/unknowns, failed listing and no
+fallback after a selected restore fails. The initial unchecked diagnostic-write
+lint failure was corrected before the successful run. Checkpoint identity and
+maintained docs checks also passed after the v0.68 update.
+
+The ordinary ten-binary package built in 34.67s. Installed/new native acceptance
+is recorded separately; these local tests alone do not prove Windows SSH or OCI
+restoration. Prior Windows failures and the Packer permission question remain open.
+
+On dedicated Ubuntu26.04.1/Incus7.0.1, the normal package installed in 39.73s and
+`doctor` passed. The installed CLI cloned this repository, created a managed
+Workspace and an Env without OCI, captured two different marker values, deleted
+the source Env, and restored by the deleted source's name. Saves took 4.19/4.27s;
+restore took 5.53s and returned a running Env with the second marker. Both saved
+records remained unchanged. Only marker writes/reads used Physical-Host Incus
+exec; all lifecycle/capture/restore operations used the normal installed CLI.
+This does not establish a desktop SSH/OCI journey or giant-repository performance.
+The exact fresh Env, two saves, both Workspaces and source registration were then
+cleaned through ordinary product commands; all six cleanup operations passed.
+Native receipt: `latest-b61bbc62`, restored Workspace `restore-5dbfe05afd5db0c4`,
+source commit `e1ec08947e8ae2c7db5d0251f246cdc9403446a5`.
+
+## Windows integration retry and interop observation
+
+PR #692 head `4e7a45a75047c8d372da1ab889eb7d2796f4370b` passed four Linux
+workflows. Windows34970515521/job104385385746 failed VS Code extension installation
+with HTTP503. Ordinary SSH, cold parallel sessions, changed-host-key refusal,
+DNS/Policy, setup, preview, transfer and restored work passed. Linux/public
+reclamation and native notifications were skipped. The failed Windows jobs were
+retried once for that external dependency failure; there is no successful merge
+claim and the earlier unexplained #690 failure remains unresolved.
+
+The local enrollment visibility difference survived restarting only the dedicated
+WSL after confirming no ordinary Envs or reclamation operation. Doctor passed.
+Windows direct and the physical WSL's normal invocation see enrollment; both
+Physical Host and trusted Host using `/run/WSL/1_interop` do not. All observed
+processes reported the same Windows owner hash, 64-bit execution and no package
+identity. This isolates the observed difference to the init interop route, not to
+an absent enrollment or only the Incus boundary. Its underlying Windows cause is
+unproven. No registration/history mutation, socket substitution in the product,
+global WSL shutdown or extra reclamation attempt was made.
+
+## Native WSL interop registration recovery
+
+On installed candidate `e1ec0894`, the subsequent native interop observation failed before querying the registry: the
+WSLInterop binfmt handler was absent. Ordinary installed `haco setup` restored the
+WSL-owned registration, and a Windows executable printed the expected marker.
+This recovery does not establish a successful reclamation start.
+
+## Incremental ordinary Git history
+
+Development implementation `6088e6c542ffb9b13e0a2b3650c4d992c8a57435`
+([#695](https://github.com/SLktEx/Hacocoon/issues/695)) passed local focused tests
+11.52s, lint 24.76s, maintained full tests 29.90s, Git race tests 36.27s, CLI 9.34s,
+docs 9.28s, workflow policy 1.38s and native test compilation 1.75s.
+The real-Git component regression uses 34,603,008 bytes of existing random data:
+fetch transferred 293 bytes and push preparation 319 bytes for its small changes.
+Preparation left the remote unchanged. Existing broker approval tests passed.
+
+The first run found that embedded `bytes.Buffer.ReadFrom` let subprocess output
+bypass the capped writer. Removing that embedding made the full-history limit
+regression and the actual pipe-copy regression pass. This is a local 33 MiB
+functional result, not installed Incus/Windows/authenticated Git acceptance or
+representative giant-repository performance. New-target and large-new-pack limits
+remain; this fix does not advance the v0.68 checkpoint or publish a release.
+
+Windows retry job `104394453906` for #692 head `4e7a45a7` passed SSH/editor and
+Linux reclamation, then failed public reclamation with `compact_attached`:
+stop requested, one open, no compaction attempted, same-target resume successful.
+Native notification was skipped. The earlier HTTP503 and unexplained failures
+remain independent; this head is not approved for main integration.
+
+## Virtual-disk observation handle lifetime
+
+Development implementation `f50c0d93445f3f6f427b0e301294e5101f94a65e` closes an
+attached observation handle before its bounded wait, while retaining file/parent
+pins. [ADR 0103](../adr/0103-virtual-disk-observation-lifetime.md) records the native
+API contract and distinguishes observation lifetime from ownership.
+
+Local focused tests 9.91s, lint 17.21s, maintained full tests 39.95s, reclamation
+race tests 1.61s, CLI 4.96s, docs 13.49s, workflow policy 1.99s and native test
+compilation 2.18s passed. Windows packages passed (reclaim 0.80s, client 6.09s,
+helper 0.47s). Windows-specific lint first found an unchecked test handle close;
+after fixing it, lint passed in 1.82s and focused native regression in 1.22s.
+The native empty-disk attachment fixture was **SKIP**, with
+`ERROR_PRIVILEGE_NOT_HELD`; no elevation or permission workaround was applied.
+Other dedicated-disk native checks were not enabled. These results do not prove
+installed public reclamation on the new candidate.
+
+A separate read-only observation on installed `e1ec0894` requested poweroff of
+`Hacocoon-Roadmap-f68a8c6b` after empty-Env/absent-operation checks. Native open
+kept returning sharing violation for 90 seconds; same-target resume succeeded
+at 90.94s. It never obtained the held handle needed for the intended comparison.
+The systemd journal recorded intervening startup, and a separate Windows process
+was running bash in the target. Its ownership/use is awaiting clarification;
+no process was killed. This attempt is inconclusive about handle lifetime and
+separate from CI #692's `compact_attached` result. Existing failures remain.
+
+The normal ten-binary installer package for #697 head `b0b2fcbc` built in 34.90s.
+It has not been installed over the dedicated WSL while concurrent use is unresolved;
+installed `e1ec0894` and its existing data remain. This is packaging, not public
+reclamation acceptance.
+
+## New-branch Git history reuse
+
+Development implementation `e17e5132e0ce9769a7c6446ac496797baa7df209` extends the
+existing-history fix to ordinary new-branch preparation. The real-Git component
+regression used 34,603,008 bytes of existing random data and sent a 322-byte pack
+for its small new-branch change. It kept the expected-absent target and left the
+remote unchanged. Ref read denial, movement and mismatched confirmation stopped
+before push; existing ordinary broker approval regressions passed.
+
+Focused checks passed in 13.70s, then final focused 13.85s, lint 24.54s, maintained
+full tests 40.22s, Git race 33.37s, CLI 4.34s, docs 11.65s, workflow policy 1.72s
+and native test compilation 1.69s passed. This is component/real-Git evidence,
+not installed authenticated Git, a main merge, a release or giant-repository
+performance. New pack data above 32 MiB remains unsupported. The v0.68 checkpoint
+is unchanged. See [ADR 0104](../adr/0104-new-branch-git-history.md).
+
+## Integrated candidate Windows tunnel failure
+
+#697 head `b0b2fcbc` passed quality `34979869527`, test `34979869379`, Ubuntu
+`34979869467` and Incus `34979869532`. Windows `34979869494`, job `104417065184`,
+failed after installed SSH/cold reconnect, actual VS Code editing, approval
+webview refusal, saved request decisions, preview and Windows-projected transfer
+with restored work/recreation had passed. The ordinary tunnel's native listener
+was confirmed, but its eight-client exchange received Windows reset `10054`;
+the application fixture also timed out in `accept`. The log does not establish
+whether its 40-second application readiness budget, stream preparation or another
+condition caused the reset. Do not call this a proven product or fixture cause.
+
+Linux/public reclamation and native notifications were **SKIP** in this run. The
+readiness fix has not reached installed reclamation acceptance. Main remains
+`ee8bf7fb`; no retry or merge was made after this failure. Earlier failures remain.
+
+The #698 package at `023ca03e` built all ten binaries and normal installers in
+40.22s; installation is pending concurrent-use clarification. Read-only Host
+`gh auth status` in the running dedicated WSL confirmed no GitHub login. The user
+was given ordinary Host login instructions; no credential was printed/exported,
+and authenticated Git acceptance remains unperformed.
+
+## Installed lifecycle lock collision and read-only Windows readiness
+
+With installed product `e1ec0894`, ordinary public clone and managed Workspace
+creation passed in the dedicated Incus 7.0.1 WSL. Env `tunnel-b60c7032` creation
+failed before provider creation: the Physical Host controller (effective UID 0)
+rejected `/tmp/hacocoon-environment-locks`, owned by UID/GID 1000 at mode 0700.
+The Workspace lock directory had the same owner/mode. The actual protected
+`/var/lib/hacocoon/state` directory is UID/GID 0, mode 0700. The first observation
+inside trusted `haco-host` found neither temporary directory; the controller runs
+on the Physical Host, where the subsequent read-only observation found both.
+No ownership or permission change, deletion, retry, reinstall or restart was used.
+The exact new repo `tunnel-b60c7032-repo` and Workspace `tunnel-b60c7032-work`
+remain retained; Env status was not-found, which alone is not provider-absence
+proof for cleanup.
+
+A read-only Windows client built from `e34c2bf8` used the installed registered
+control route and its normal ten-second preparation budget. One ping completed
+in 46 ms; eight parallel pings completed in 67–101 ms. This confirms control
+readiness only, not actual TCP data forwarding or the cause of #697.
+
+The catalog-lock correction first failed component tests because existing state
+parents may be owner-owned, non-writable by others, but readable at mode 0755.
+The corrected design pins that protected parent and creates an owner-only child
+for locks; it does not chmod the parent or permit other users to write it. State
+and Workspace component regressions then passed in 8.86s. Installed acceptance
+of the correction remains pending. Human login/notification/VS Code answers are
+post-release acceptance, not a main-merge gate; prior CI failures remain failures.
+
+Final local validation of the catalog-lock implementation passed: focused state/Workspace 9.55s, changed-code lint 18.78s, maintained full test entry 30.88s, race 12.11s, CLI E2E 4.18s, docs 8.50s, workflow policy 1.39s and native Incus test compilation 1.94s. After the later documentation/phase-recording edits, Windows-side documentation consistency, fixture syntax and diff checks also passed. The WSL root systemd-user-session warning was observed again; it was not repaired or counted as resolved. No installed acceptance or authenticated/GUI interaction is implied.
+
+## Catalog-lock candidate CI and package
+
+At #699 head `1ae5b410`, quality `34986231603`, test `34986231525` and Ubuntu
+`34986231600` succeeded. Incus `34986231453` passed the standalone and Core jobs
+but failed Btrfs job `104438909790` after all aggregate save/export/import/restore,
+copy, retained Workspace/OCI and owned provider deletion checks passed. The final
+fixture-directory cleanup rejected the newly persistent `lifecycle-locks` child.
+This remains a failed run, not complete Incus acceptance. The fixture correction
+retains this directory/inodes, removes completed recovery files only after a full
+entry preflight, and still refuses unknown directories or symlinks. It does not
+change provider-absence checks or product locking.
+
+The normal ten-binary Linux/Windows installer package built from exact `1ae5b410`
+in 69.93s. It was not installed or published; no running WSL was stopped.
+
+## Sequential multi-head Git fetch
+
+Commit `45555463` removes the helper's aggregate-size rejection while retaining
+the 1024-head and 32 MiB per-response limits and separate exact-ref authorization.
+Each response is indexed before the next request. A real Git regression with two
+independent 17 MiB random-content branches failed on the previous implementation
+(`git batch exceeds supported pack size`, 18.41s command) and passed after the
+correction (9.69s command). Both commits' content was available after indexing;
+the two packs totalled 35,662,881 bytes and each stayed below 33,554,432 bytes.
+The initial test invocation had a host-shell parse error and did not run; the
+recorded failure/pass came from corrected invocations of the actual regression.
+
+Final local checks passed: Git regressions 18.23s, lint 28.19s, maintained whole
+test entry 47.06s, race 42.43s, CLI 5.57s, docs 9.77s, workflow policy 2.06s and
+native test compilation 1.72s. This is functional component evidence, not huge-repo
+performance or authenticated installed Git acceptance. Single packs over 32 MiB
+remain unsupported. `d4c264a3` separately corrected the Incus fixture cleanup,
+with focused regression 23.41s (test execution 0.041s) and lint 17.36s passing.
+Both changes were integrated locally without conflicts at `5980d18f`.
+
+A focused Windows process regression also reproduced loss of completed stdout/stderr phases when the native acceptance wrapper timed out. The correction keeps bounded output on the timeout exception and emits it before failing, without increasing the 30-minute deadline or weakening required markers. The original regression failed with empty captured output; all seven native-runner tests then passed in 1.671s on Windows. This does not identify the running #699 Windows job's cause or establish its success. The integrated `77a4c8cc` normal ten-binary package built in 31.96s without installation or publication.
+
+## Windows acceptance of the catalog-lock integration
+
+#699 head `1ae5b410` passed Windows workflow `34986231470`, job `104438908869`
+and evidence job `104450106625`. Normal installer/restart/reinstall, egress/DNS
+refusal, cold parallel SSH, actual VS Code 1.136.1 editing and terminal, saved
+project setup, reviewed requests, preview, export/import and retained-data
+recreation all passed. The ordinary native TCP tunnel passed eight 1 MiB
+half-close round trips and Ctrl+C listener cleanup. Its phase record shows
+application ready at 234ms, Host ready at 26,234ms, listener at 27,405ms, native
+owner confirmed at 29,875ms and exchange completed at 31,969ms. This successful
+run does not explain #697's earlier reset/accept-timeout failure.
+
+Installed Linux reclamation and the public Windows worker completed. Windows
+allocation fell from 7,730,102,272 to 4,965,007,360 bytes (2,765,094,912 recovered),
+virtual capacity remained 1,099,511,627,776 bytes, and the same WSL resumed.
+Compaction was attempted once after 320 bounded open observations. The Host
+sentinel, detached Workspace/OCI and snapshot restore passed after reclamation.
+Native notification registration/ownership/stale-malformed refusal/subscription
+checks passed. Human toast/fresh GUI decisions and VPN/NRPT were explicitly
+skipped and remain post-release acceptance; no authenticated Git claim is made.
+
+Quality, test, Ubuntu and Windows are successful for this head, but Incus remains
+failed at the completed fixture's persistent lock directory described above.
+Follow-up `d4c264a3` fixes that fixture locally. Main is still `ee8bf7fb`; this
+receipt does not authorize merging a different unverified head.

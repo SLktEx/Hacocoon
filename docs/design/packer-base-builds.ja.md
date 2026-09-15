@@ -2,7 +2,7 @@
 
 日本語 | [English](packer-base-builds.md)
 
-状態: 開発候補で部分実装。実Packerを通常の使い捨てEnvで動かす経路を実装しています。
+状態: mainで部分実装。実Packerを通常の使い捨てEnvで動かす経路を実装しています。
 導入済み環境での受入は別に確認します。公開・revision・保持・確認付き削除は、既存の
 [Baseのライフサイクル](base-images-and-custom-environments.md)が管理します。
 

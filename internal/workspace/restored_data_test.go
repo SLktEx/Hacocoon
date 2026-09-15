@@ -45,7 +45,7 @@ func TestRestoredDataCleanupUsesCanonicalWorkspaceLock(t *testing.T) {
 	ctx := context.Background()
 	work := core.Workspace{ID: "workspace:managed:lock", Path: "managed:restored"}
 	s := NewWithProvider(nil, state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json")), restoredDataProvider{work})
-	unlock, err := lockWorkspace(ctx, work.ID)
+	unlock, err := s.lockWorkspace(ctx, work.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

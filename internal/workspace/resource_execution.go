@@ -14,7 +14,7 @@ func (s *Service) ExecForResource(ctx context.Context, name, instance string, re
 	if !core.ValidEnvironmentInstanceID(instance) || !core.ValidPersistentResourceRef(resource) {
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return core.ExecutionResult{}, err
 	}

@@ -147,7 +147,7 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 	// never stop another distribution. Only wait before mutation.
 	openCtx, cancelOpen := context.WithTimeout(ctx, 90*time.Second)
 	defer cancelOpen()
-	h, attempts, openErr := waitVirtualDiskOpen(openCtx, func() (windows.Handle, error) {
+	h, identity, attempts, openErr := waitDetachedVirtualDisk(openCtx, func() (windows.Handle, error) {
 		var handle windows.Handle
 		// V2 uses ACCESS_NONE. NO_PARENTS prevents following a differencing chain.
 		code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&parameters)), uintptr(unsafe.Pointer(&handle)))
@@ -155,18 +155,13 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 			return 0, syscall.Errno(code)
 		}
 		return handle, nil
-	})
+	}, inspectDetachedDynamic, windows.CloseHandle)
 	result.OpenAttempts = attempts
 	if openErr != nil {
 		return result, fmt.Errorf("open virtual disk: %w", openErr)
 	}
 	defer func() { err = errors.Join(err, windows.CloseHandle(h)) }()
-	result.Virtual, err = waitVirtualDiskDetached(openCtx, func() (virtualDiskIdentity, error) {
-		return inspectDetachedDynamic(h)
-	})
-	if err != nil {
-		return result, err
-	}
+	result.Virtual = identity
 	if _, err = p.Allocation(); err != nil {
 		return result, err
 	}
@@ -192,49 +187,38 @@ func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, er
 	return result, errors.Join(err, measureErr, identityErr, ctx.Err())
 }
 
-// No retry after a handle has been returned or for any error other than the
-// sharing violation observed at native open. The held file/parents are unchanged.
-func waitVirtualDiskOpen(ctx context.Context, open func() (windows.Handle, error)) (windows.Handle, int, error) {
+// An open virtual-disk handle can itself prevent WSL's detach. Close attached
+// observation handles before waiting, while the caller retains file/parent pins
+// and the fixed volume path. Return only a detached handle for one compaction.
+// See Microsoft's DetachVirtualDisk open-handle lifetime contract.
+func waitDetachedVirtualDisk(ctx context.Context, open func() (windows.Handle, error),
+	inspect func(windows.Handle) (virtualDiskIdentity, error), closeHandle func(windows.Handle) error,
+) (windows.Handle, virtualDiskIdentity, int, error) {
 	attempts := 0
 	for {
 		if err := ctx.Err(); err != nil {
-			return 0, attempts, err
+			return 0, virtualDiskIdentity{}, attempts, err
 		}
 		attempts++
 		handle, err := open()
 		if err == nil {
-			return handle, attempts, nil
-		}
-		if !errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
-			return 0, attempts, err
-		}
-		timer := time.NewTimer(250 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return 0, attempts, errors.Join(ctx.Err(), err)
-		case <-timer.C:
-		}
-	}
-}
-
-// Native open may succeed before WSL releases the attachment. Keep the same
-// handle and all ownership pins; only observe until detached within the shared
-// open/detach deadline. No compaction or stop operation is retried.
-func waitVirtualDiskDetached(ctx context.Context, inspect func() (virtualDiskIdentity, error)) (virtualDiskIdentity, error) {
-	for {
-		if err := ctx.Err(); err != nil {
-			return virtualDiskIdentity{}, err
-		}
-		identity, err := inspect()
-		if err == nil || !errors.Is(err, errVirtualDiskAttached) {
-			return identity, err
+			identity, inspectErr := inspect(handle)
+			if inspectErr == nil {
+				return handle, identity, attempts, nil
+			}
+			closeErr := closeHandle(handle)
+			if closeErr != nil || !errors.Is(inspectErr, errVirtualDiskAttached) {
+				return 0, virtualDiskIdentity{}, attempts, errors.Join(inspectErr, closeErr)
+			}
+			err = inspectErr
+		} else if !errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
+			return 0, virtualDiskIdentity{}, attempts, err
 		}
 		timer := time.NewTimer(250 * time.Millisecond)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return virtualDiskIdentity{}, errors.Join(ctx.Err(), err)
+			return 0, virtualDiskIdentity{}, attempts, errors.Join(ctx.Err(), err)
 		case <-timer.C:
 		}
 	}

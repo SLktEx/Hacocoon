@@ -13,15 +13,17 @@ import (
 )
 
 type cappedBuffer struct {
-	bytes.Buffer
-	limit int
+	buffer bytes.Buffer
+	limit  int
 }
 
+func (b *cappedBuffer) Bytes() []byte { return b.buffer.Bytes() }
+
 func (b *cappedBuffer) Write(p []byte) (int, error) {
-	if len(p) > b.limit-b.Len() {
+	if len(p) > b.limit-b.buffer.Len() {
 		return 0, fmt.Errorf("Git transfer exceeds PoC size limit")
 	}
-	return b.Buffer.Write(p)
+	return b.buffer.Write(p)
 }
 
 // Agent executes one controller-selected operation. It has no server socket
@@ -43,6 +45,9 @@ func Agent(ctx context.Context, input io.Reader, output io.Writer) error {
 }
 
 func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (Response, error) {
+	if !validHaves(req.Operation, req.Haves) {
+		return Response{}, fmt.Errorf("invalid Git history hints")
+	}
 	if !ValidID(req.Repository) || !ValidBranch(req.Branch) || ValidateRemote(req.Remote) != nil || len(req.Pack) > MaxPack {
 		return Response{}, fmt.Errorf("invalid trusted Git request")
 	}

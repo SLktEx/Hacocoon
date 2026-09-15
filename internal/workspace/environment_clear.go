@@ -21,7 +21,7 @@ func (s *Service) EmptyEnvironmentResource(ctx context.Context, name string, exp
 	if !ok {
 		return core.ErrUnsupported
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func (s *Service) EmptyEnvironmentResource(ctx context.Context, name string, exp
 	if err != nil {
 		return err
 	}
-	release, err := lockWorkspace(ctx, env.Workspace.ID)
+	release, err := s.lockWorkspace(ctx, env.Workspace.ID)
 	if err != nil {
 		return err
 	}

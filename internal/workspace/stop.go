@@ -23,7 +23,7 @@ func (s *Service) stopForWorkspace(ctx context.Context, name string, work core.W
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return err
 	}

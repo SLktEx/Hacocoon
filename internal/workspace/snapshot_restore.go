@@ -144,12 +144,12 @@ func (s *Service) CleanupSnapshotRestore(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", op.Current.Environment.Name)
+	unlock, err := s.lockLifecycle(ctx, "environment", op.Current.Environment.Name)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	release, err := lockWorkspace(ctx, op.Current.Environment.Workspace.ID)
+	release, err := s.lockWorkspace(ctx, op.Current.Environment.Workspace.ID)
 	if err != nil {
 		return err
 	}

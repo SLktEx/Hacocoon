@@ -67,6 +67,12 @@ haco env stop dev
 haco env copy dev independent-dev
 ```
 
+環境名から最新の完了済み保存を戻すには、
+`haco snapshot restore --latest dev restored-dev` を使います。
+保存日時から最新を一つに確定できない場合は `haco snapshot list` でIDを選びます。
+失敗・未完了の保存は選ばず、独立したデータと新しい環境を作成します。元の環境は置き換えません。
+
+
 スナップショットはルート領域、全Workspaceメンバー、任意のOCI、メタデータの独立したコピーです。
 実行中の保存元は停止し、保存が完了してから再開します。Envのコピーは停止済みの保存元が必要です。
 復元・コピーでは新しいデータと権限の識別子を作り、既存のEnvironmentを上書きしません。

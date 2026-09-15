@@ -2,7 +2,7 @@
 
 [English](pending-approval-review.md) | 日本語
 
-状態: **VS Code GUIとWindows通知内の確認を開発候補で実装済み。導入済み新規回答の受け入れはpartialです。**
+状態: **VS Code GUIとWindows通知内の確認をmainで実装済み。導入済み新規回答の受け入れはpartialです。**
 リポジトリのテストと、導入済みのネットワーク・デスクトップ・GitHub 受け入れは区別します。
 
 ## 通常の使い方
@@ -92,7 +92,7 @@ native Windows 通知の起動導線は実装済み、D2 受け入れは部分�
 
 ## VS Code GUIでの承認
 
-状態: **開発候補で実装済み。導入済みGUIの受け入れは確認待ち**。
+状態: **mainで実装済み。導入済みGUIの受け入れは確認待ち**。
 任意のローカルUI拡張で通知のReview、または **Hacocoon: Review Pending Approvals** を選ぶと、
 Webviewが開きます。今回の操作全体と保存範囲を確認し、**今回は許可する** または **今回は拒否する**
 を選びます。terminal入力は不要です。表示はVS Codeの日英設定に従い、command paletteは通知bridgeなしでも使えます。
@@ -130,7 +130,7 @@ Issue #568の別の残件です。
 
 ## Windows通知内で回答する
 
-状態: **開発候補で実装済み。導入済みの新規要求への回答と、表示の見切れ確認は未完了**。
+状態: **mainで実装済み。導入済みの新規要求への回答と、表示の見切れ確認は未完了**。
 
 Windowsインストーラーは自分のWSLディストリビューション用に、非表示helper、照合用protocol、
 通知識別子とCOM受信を登録します。所有するHostのsetupは既存controllerから通知を購読します。

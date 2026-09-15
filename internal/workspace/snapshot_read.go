@@ -21,12 +21,12 @@ func (s *Service) withSavedSnapshot(ctx context.Context, id string, use func(con
 	if err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", observed.Source.Environment.Name)
+	unlock, err := s.lockLifecycle(ctx, "environment", observed.Source.Environment.Name)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	release, err := lockWorkspace(ctx, observed.Source.Environment.Workspace.ID)
+	release, err := s.lockWorkspace(ctx, observed.Source.Environment.Workspace.ID)
 	if err != nil {
 		return err
 	}

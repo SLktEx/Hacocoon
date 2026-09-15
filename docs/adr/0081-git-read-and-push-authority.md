@@ -50,7 +50,10 @@ Deriving push permission from clone, widening an exact-ref saved choice, using a
 implicit/wildcard lease, accepting arbitrary object IDs for reads, trusting exit
 status alone, and forwarding guest Git configuration are rejected.
 
-The initial transport bounds a batch at 1024 heads and 32 MiB total pack data.
+The initial transport used a 32 MiB aggregate limit. The current correction bounds
+a batch at 1024 heads and each separately authorized pack at 32 MiB. The helper
+indexes one pack before requesting the next, so a sequential batch can exceed
+32 MiB without increasing the per-message or per-pack allocation limits.
 Per-head transfers can repeat history; large-repository transport and measurement
 remain separate work. Force push, deletion, multi-ref push, LFS and submodules
 remain deferred. Real Git component tests do not establish authenticated GitHub,

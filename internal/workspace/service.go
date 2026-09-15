@@ -22,6 +22,7 @@ type environmentRuntime interface {
 // ready Environment metadata, or remove one side of the aggregate while the
 // other remains durable.
 type environmentStore interface {
+	LockLifecycle(context.Context, string, string) (func(), error)
 	GetEnvironment(context.Context, string) (core.Environment, error)
 	GetWorkspaceLease(context.Context, string) (core.WorkspaceLease, error)
 	BeginEnvironmentCreate(context.Context, core.WorkspaceLease) error

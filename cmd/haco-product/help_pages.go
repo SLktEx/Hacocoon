@@ -69,7 +69,7 @@ var helpPages = []helpPage{
 	{Path: "snapshot create", Syntax: "[--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},
 	{Path: "snapshot inspect", Syntax: "[--json] [--details] <snapshot>", Message: "command.snapshot.inspect", Example: "haco snapshot inspect snap-0123456789abcdef0123456789abcdef"},
 	{Path: "snapshot list", Syntax: "[--json] [env]", Message: "command.snapshot.list", Example: "haco snapshot list"},
-	{Path: "snapshot restore", Syntax: "[--json] <snapshot-id> [new-env]", Message: "command.snapshot.restore", Example: "haco snapshot restore <snapshot-id> restored"},
+	{Path: "snapshot restore", Syntax: "[--json] [--latest] <snapshot-id|source-env> [new-env]", Message: "command.snapshot.restore", Example: "haco snapshot restore --latest dev restored"},
 	{Path: "snapshot delete", Syntax: "<snapshot-id>", Message: "command.snapshot.delete", Example: "haco snapshot delete <snapshot-id>"},
 	{Path: "plugin", Syntax: "<command>", Message: "command.plugin", Example: "haco plugin oci --help"},
 	{Path: "plugin oci", Syntax: "<command>", Message: "command.plugin.oci", Example: "haco plugin oci store list"},

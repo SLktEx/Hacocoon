@@ -17,6 +17,10 @@ import (
 // forces the architecture change to be explicit.
 type lifecycleOnlyStore struct{}
 
+func (*lifecycleOnlyStore) LockLifecycle(context.Context, string, string) (func(), error) {
+	return nil, core.ErrUnsupported
+}
+
 func (*lifecycleOnlyStore) GetEnvironment(context.Context, string) (core.Environment, error) {
 	return core.Environment{}, core.ErrNotFound
 }

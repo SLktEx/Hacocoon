@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -115,75 +116,167 @@ func TestNativeVirtualDiskCompactionPreservesPinnedIdentity(t *testing.T) {
 	t.Logf("owned empty VHD compact while pinned: %+v", compacted)
 }
 
-func TestVirtualDiskOpenWaitIsBoundedAndOnlyBeforeMutation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	calls := 0
-	_, attempts, err := waitVirtualDiskOpen(ctx, func() (windows.Handle, error) { calls++; return 42, nil })
-	if !errors.Is(err, context.Canceled) || calls != 0 || attempts != 0 {
-		t.Fatal(calls, attempts, err)
+// Native attachment lifetime is independent of WSL. Use only a newly created,
+// empty disk with no drive letter; never attach a managed or caller-supplied disk.
+func TestNativeDetachedWaitReleasesVirtualHandle(t *testing.T) {
+	path := nativeEmptyVHD(t)
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, attempts, err = waitVirtualDiskOpen(context.Background(), func() (windows.Handle, error) { return 0, windows.ERROR_ACCESS_DENIED })
-	if !errors.Is(err, windows.ERROR_ACCESS_DENIED) || attempts != 1 {
-		t.Fatal(attempts, err)
-	}
-	calls = 0
-	handle, attempts, err := waitVirtualDiskOpen(context.Background(), func() (windows.Handle, error) {
-		calls++
-		if calls == 1 {
-			return 0, windows.ERROR_SHARING_VIOLATION
+	storage := struct {
+		Device uint32
+		Vendor windows.GUID
+	}{3, windows.GUID{Data1: 0xec984aec, Data2: 0xa0f9, Data3: 0x47e9, Data4: [8]byte{0x90, 0x1f, 0x71, 0x41, 0x5a, 0x66, 0x34, 0x5b}}}
+	parameters := struct {
+		Version, InfoOnly, ReadOnly uint32
+		Resiliency                  windows.GUID
+	}{Version: 2}
+	open := func() (windows.Handle, error) {
+		var handle windows.Handle
+		code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&parameters)), uintptr(unsafe.Pointer(&handle)))
+		if code != 0 {
+			return 0, syscall.Errno(code)
 		}
-		return 42, nil
-	})
-	if err != nil || handle != 42 || attempts != 2 {
-		t.Fatal(handle, attempts, err)
+		return handle, nil
 	}
-	ctx, cancel = context.WithCancel(context.Background())
+	owner, err := open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if owner != 0 {
+			_ = windows.CloseHandle(owner)
+		}
+	}()
+	attachParameters := [2]uint32{1, 0}
+	code, _, _ := virtualDiskDLL.NewProc("AttachVirtualDisk").Call(uintptr(owner), 0, 3, 0, uintptr(unsafe.Pointer(&attachParameters[0])), 0)
+	if code == uintptr(windows.ERROR_PRIVILEGE_NOT_HELD) {
+		t.Skip("native empty-disk attachment requires Windows manage-volume privilege")
+	}
+	if code != 0 {
+		t.Fatalf("attach owned empty disk: %v", syscall.Errno(code))
+	}
+	// No permanent-lifetime flag: closing all owned virtual handles releases
+	// this fixture even when an assertion fails. No detach of other disks.
+	probe, err := open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if probe != 0 {
+			_ = windows.CloseHandle(probe)
+		}
+	}()
+	if err := windows.CloseHandle(owner); err != nil {
+		t.Fatal(err)
+	}
+	owner = 0
+	first := true
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_, attempts, err = waitVirtualDiskOpen(ctx, func() (windows.Handle, error) { cancel(); return 0, windows.ERROR_SHARING_VIOLATION })
-	if !errors.Is(err, context.Canceled) || !errors.Is(err, windows.ERROR_SHARING_VIOLATION) || attempts != 1 {
-		t.Fatal(attempts, err)
+	handle, identity, attempts, err := waitDetachedVirtualDisk(ctx, func() (windows.Handle, error) {
+		if first {
+			first = false
+			h := probe
+			probe = 0
+			return h, nil
+		}
+		return open()
+	}, inspectDetachedDynamic, windows.CloseHandle)
+	if err != nil {
+		t.Fatalf("owned attachment did not release: attempts=%d error=%v", attempts, err)
 	}
+	defer func() {
+		if err := windows.CloseHandle(handle); err != nil {
+			t.Error(err)
+		}
+	}()
+	if identity.Capacity != 256<<20 {
+		t.Fatal(identity)
+	}
+	t.Logf("owned native disk detached with file intact: attempts=%d", attempts)
 }
 
-func TestVirtualDiskDetachWaitObservesWithoutReopeningOrMutating(t *testing.T) {
+func TestDetachedOpenClosesAttachedHandlesBeforeWaiting(t *testing.T) {
 	expected := virtualDiskIdentity{Capacity: 42, Identifier: [16]byte{1}}
-	calls := 0
-	got, err := waitVirtualDiskDetached(context.Background(), func() (virtualDiskIdentity, error) {
-		calls++
-		if calls == 1 {
+	opens, closes := 0, 0
+	live := false
+	h, got, attempts, err := waitDetachedVirtualDisk(context.Background(), func() (windows.Handle, error) {
+		if live {
+			t.Fatal("reopened while prior virtual handle remained held")
+		}
+		opens++
+		if opens == 1 {
+			return 0, windows.ERROR_SHARING_VIOLATION
+		}
+		live = true
+		return windows.Handle(opens), nil
+	}, func(h windows.Handle) (virtualDiskIdentity, error) {
+		if h == 2 {
 			return virtualDiskIdentity{}, errVirtualDiskAttached
 		}
 		return expected, nil
-	})
-	if err != nil || got != expected || calls != 2 {
-		t.Fatal(got, calls, err)
-	}
-	for _, failure := range []error{windows.ERROR_ACCESS_DENIED, errors.New("invalid disk format")} {
-		calls = 0
-		_, err = waitVirtualDiskDetached(context.Background(), func() (virtualDiskIdentity, error) {
-			calls++
-			return virtualDiskIdentity{}, failure
-		})
-		if !errors.Is(err, failure) || calls != 1 {
-			t.Fatal(calls, err)
+	}, func(h windows.Handle) error {
+		if h != 2 || !live {
+			t.Fatal("closed wrong handle", h)
 		}
+		closes++
+		live = false
+		return nil
+	})
+	if err != nil || h != 3 || got != expected || attempts != 3 || closes != 1 || !live {
+		t.Fatal(h, got, attempts, closes, err)
 	}
+	// Success transfers the detached handle to its caller, rather than closing it.
+}
+
+func TestDetachedOpenRefusesUnknownFailuresAndClosesFailedObservations(t *testing.T) {
+	for _, mode := range []string{"open", "inspect", "close"} {
+		t.Run(mode, func(t *testing.T) {
+			opens, closes := 0, 0
+			failure := windows.ERROR_ACCESS_DENIED
+			h, _, attempts, err := waitDetachedVirtualDisk(context.Background(), func() (windows.Handle, error) {
+				opens++
+				if mode == "open" {
+					return 0, failure
+				}
+				return 42, nil
+			}, func(windows.Handle) (virtualDiskIdentity, error) {
+				if mode == "close" {
+					return virtualDiskIdentity{}, errVirtualDiskAttached
+				}
+				return virtualDiskIdentity{}, failure
+			}, func(windows.Handle) error {
+				closes++
+				if mode == "close" {
+					return failure
+				}
+				return nil
+			})
+			wantClose := 1
+			if mode == "open" {
+				wantClose = 0
+			}
+			if h != 0 || attempts != 1 || opens != 1 || closes != wantClose || !errors.Is(err, failure) {
+				t.Fatal(h, attempts, opens, closes, err)
+			}
+		})
+	}
+}
+
+func TestDetachedOpenCancellationClosesOwnedHandleAndDoesNotReopen(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	calls = 0
-	_, err = waitVirtualDiskDetached(ctx, func() (virtualDiskIdentity, error) {
-		calls++
+	opens, closes := 0, 0
+	h, _, attempts, err := waitDetachedVirtualDisk(ctx, func() (windows.Handle, error) { opens++; return 42, nil }, func(windows.Handle) (virtualDiskIdentity, error) {
 		cancel()
 		return virtualDiskIdentity{}, errVirtualDiskAttached
-	})
-	if !errors.Is(err, context.Canceled) || !errors.Is(err, errVirtualDiskAttached) || calls != 1 {
-		t.Fatal(calls, err)
+	}, func(windows.Handle) error { closes++; return nil })
+	if h != 0 || attempts != 1 || opens != 1 || closes != 1 || !errors.Is(err, context.Canceled) || !errors.Is(err, errVirtualDiskAttached) {
+		t.Fatal(h, attempts, opens, closes, err)
 	}
-	_, err = waitVirtualDiskDetached(ctx, func() (virtualDiskIdentity, error) {
-		t.Fatal("inspection after cancellation")
-		return expected, nil
-	})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
+	_, _, attempts, err = waitDetachedVirtualDisk(ctx, func() (windows.Handle, error) { t.Fatal("open after cancellation"); return 0, nil }, nil, nil)
+	if attempts != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatal(attempts, err)
 	}
 }

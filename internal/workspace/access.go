@@ -11,7 +11,7 @@ func (s *Service) WithClientAccess(ctx context.Context, name string, expected *c
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return err
 	}
