@@ -890,3 +890,9 @@ separate unresolved observations.
 The final readiness candidate also passed full local26.41s, focused5.11s,
 complete main-diff lint19.06s, race2.30s, CLI4.14s, docs/regressions8.03s and
 workflow1.54s. This does not turn the skipped human response into acceptance.
+
+
+The combined cache candidate2f49460f also includes notification readiness #682.
+Focused15.09s, complete main-diff lint14.42s, full local28.63s, race11.70s,
+CLI4.18s, docs/regressions8.27s and workflow1.48s passed. Both native implementations
+are unchanged from the separately recorded supported-Incus and Windows checks.

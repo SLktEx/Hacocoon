@@ -758,3 +758,8 @@ installed-review-1は実COM登録・所有再開/反復・別所有者/activator
 
 最終の準備確認候補も全ローカル26.41秒、focused5.11秒、main全差分lint19.06秒、race2.30秒、CLI4.14秒、docs/regressions8.03秒、workflow1.54秒が成功しました。
 未実施の人の回答を受入済みにするものではありません。
+
+
+統合候補2f49460fは通知準備修正#682も含みます。
+focused15.09秒、main全差分lint14.42秒、全ローカル28.63秒、race11.70秒、CLI4.18秒、docs/regressions8.27秒、workflow1.48秒が成功しました。
+対応Incus・実Windowsで別途確認した両実装は変更していません。
