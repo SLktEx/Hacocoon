@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -134,15 +135,28 @@ func webCommand(ctx context.Context, args []string) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+	listener, err := net.Listen("tcp", *listen)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listener.Close() }()
+	if _, err := fmt.Fprintf(os.Stdout, "Hacocoon browser notifications: http://%s/\n", listener.Addr()); err != nil {
+		return err
+	}
+	stopWatch, watchDone := make(chan struct{}), make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
+		defer close(watchDone)
+		select {
+		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = server.Shutdown(shutdownCtx)
+		case <-stopWatch:
+		}
 	}()
+	defer func() { close(stopWatch); <-watchDone }()
 
-	fmt.Printf("Hacocoon browser notifications: http://%s/\n", *listen)
-	err = server.ListenAndServe()
+	err = server.Serve(listener)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

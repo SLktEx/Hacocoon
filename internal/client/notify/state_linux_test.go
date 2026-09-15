@@ -4,6 +4,7 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/pkg/interaction"
 )
 
 func TestNotifyStateDoesNotTouchPredictableTemporaryLink(t *testing.T) {
@@ -195,5 +198,48 @@ func TestNotifyStateRejectsUnsafeParentAndLock(t *testing.T) {
 	data, _ := os.ReadFile(victim)
 	if string(data) != "preserve" {
 		t.Fatal("lock opening changed unrelated file")
+	}
+}
+
+func TestNotifyStateRejectsCorruptionAndKeepsBoundedHistory(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "state.json")
+	for _, payload := range []string{"{broken", `{"Offset":-1}`} {
+		if err := os.WriteFile(path, []byte(payload), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadState(path); !errors.Is(err, interaction.ErrInvalidArgument) {
+			t.Fatal("corrupt cursor accepted", err)
+		}
+	}
+	state := notifyState{Offset: 7, SeenEventIDs: make([]string, maxSeenEventIDs+2), Failures: make([]failureNotice, maxFailureNotices+2)}
+	state.SeenEventIDs[2], state.SeenEventIDs[len(state.SeenEventIDs)-1] = "oldest-retained", "newest"
+	if err := saveState(path, state); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadState(path)
+	if err != nil || loaded.Offset != 7 || len(loaded.SeenEventIDs) != maxSeenEventIDs || len(loaded.Failures) != maxFailureNotices || loaded.SeenEventIDs[0] != "oldest-retained" || loaded.SeenEventIDs[len(loaded.SeenEventIDs)-1] != "newest" {
+		t.Fatal("saved history truncation changed cursor or order", loaded, err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []notifyState{{Offset: -1}, {SeenEventIDs: []string{strings.Repeat("x", maxNotifyStateBytes)}}} {
+		if err := saveState(path, invalid); err == nil {
+			t.Fatal("invalid state replaced saved cursor")
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || string(after) != string(before) {
+			t.Fatal("failed save damaged state", err)
+		}
+	}
+	for _, invalid := range []string{"", "/", filepath.Join(path, "child")} {
+		if _, err := loadState(invalid); err == nil {
+			t.Fatal("invalid state location accepted", invalid)
+		}
+		if err := saveState(invalid, notifyState{}); err == nil {
+			t.Fatal("invalid state location written", invalid)
+		}
 	}
 }
