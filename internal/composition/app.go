@@ -33,8 +33,10 @@ import (
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
 	awsplugin "github.com/SLktEx/Hacocoon/modules/capability/aws"
 	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
+	packerplugin "github.com/SLktEx/Hacocoon/modules/plugin/packer"
 	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 	"github.com/SLktEx/Hacocoon/modules/standard/approvals"
+	"github.com/SLktEx/Hacocoon/modules/standard/cache"
 	"github.com/SLktEx/Hacocoon/modules/standard/dnsproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/egressproxy"
 	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
@@ -50,6 +52,7 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	Cache               *cache.Workflow
 	hostSetupActive     sync.Mutex
 	hostSetupDone       chan struct{}
 	Workflow            *workflow.Service
@@ -227,6 +230,14 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		return backend.ProvisionHostTools(ctx, source)
 	})
 	environments.ConfigureDefaultResource(workspaceStores.Resolve)
+	cacheSettings := cache.Settings{Path: filepath.Join(stateDir, "cache.json")}
+	environments.ConfigureEnvironmentResources(resources, func(ctx context.Context, request core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error) {
+		selector, err := cacheSettings.Select(ctx, store, repositories)
+		if err != nil {
+			return nil, err
+		}
+		return selector.Select(ctx, request)
+	})
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
 	restorer := &snapshotrestore.Service{Catalog: store, Environments: environments, Workspaces: repositories, Stores: resources}
@@ -257,11 +268,12 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	operations.Handle("/", awsplugin.NewGuestHandler(awsBroker, egressSources))
 
 	return &App{
+		Cache:               &cache.Workflow{Settings: cacheSettings, Catalog: store, Collector: environments, Cleaner: resources},
 		Workflow:            &workflow.Service{Repositories: repositories, Environments: environments, Stores: resources},
 		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,
-		BaseBuild:           &basebuild.Service{Environments: environments},
+		BaseBuild:           &basebuild.Service{Environments: environments, Packer: packerplugin.Runner{}},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,

@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.61**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.63**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -101,4 +101,14 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 
 ## Cache generation foundation
 
-**Partial:** atomic generation adoption, independent CoW resources, exact Env-owned disposable attachments and Host target selection are implemented components. Production selection is disabled until stopped collection and public configuration/cleanup are connected. Added attachments currently refuse snapshot/copy/transfer instead of dropping data. Existing Workspace/OCI retention is unchanged. See [cache generations](design/cache-generations.md).
+**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Existing-Env enrollment, history/clear/recovery commands and added-data snapshot/copy/transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
+
+## Packer Base build candidate
+
+**Partial:** actual Packer HCL2 and external scripts run inside an ordinary builder Env. The optional adapter shares canonical Base publication and cleanup. Full Packer/download/installed Windows acceptance remains pending; see [Packer builds](design/packer-base-builds.md).
+
+Cache history/clear follow-up: implemented candidate. Named history separates
+current selection from retained attempts. Revision-bound clear resets reuse and
+uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
+uncertain copies. Self-service copy recovery, orphan-source browsing and added-data
+transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).

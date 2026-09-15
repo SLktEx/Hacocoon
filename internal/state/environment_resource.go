@@ -129,7 +129,7 @@ func (s *EnvironmentJSONStore) PrepareEnvironmentResourceDeletion(ctx context.Co
 		if !ok || !lease.Equal(expected) {
 			return false, core.ErrCapabilityStale
 		}
-		if snapshotBusy(*data, lease.EnvironmentID) {
+		if snapshotBusy(*data, lease.EnvironmentID) || environmentResourceCopyBusy(*data, lease.EnvironmentID) {
 			return false, core.ErrRecoveryRequired
 		}
 		if lease.RuntimeAbsent {

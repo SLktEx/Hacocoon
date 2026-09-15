@@ -94,6 +94,8 @@ func run(args []string) int {
 		return runVersion(args[1:])
 	case "setup":
 		return runSetup(args[1:])
+	case "cache":
+		return runCache(args[1:])
 	case "config":
 		return runConfiguration(args[1:])
 	case "experimental":

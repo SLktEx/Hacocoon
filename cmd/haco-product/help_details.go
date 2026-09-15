@@ -39,6 +39,12 @@ func init() {
 		}
 	}
 	set([]string{"env list", "repo list", "workspace list", "plugin oci store list"}, nil, []cliui.HelpField{json})
+	set([]string{"cache settings"}, nil, []cliui.HelpField{json})
+	set([]string{"cache configure"}, []cliui.HelpField{field("<file>", "cache.file")}, []cliui.HelpField{json}, "cache.configured")
+	set([]string{"cache status"}, []cliui.HelpField{env}, []cliui.HelpField{json})
+	set([]string{"cache history"}, []cliui.HelpField{field("<env>", "detail.env"), field("<area>", "cache.history")}, []cliui.HelpField{json}, "cache.history")
+	set([]string{"cache clear"}, []cliui.HelpField{field("<env>", "detail.env"), field("<area>", "cache.clear")}, []cliui.HelpField{json, field("--yes", "cache.clear_yes")}, "cache.clear_warning")
+	set([]string{"cache collect"}, []cliui.HelpField{field("<env>", "detail.stopped"), field("[area]", "cache.area_option")}, []cliui.HelpField{json}, "cache.next")
 	set([]string{"version"}, nil, []cliui.HelpField{json})
 	set([]string{"doctor"}, []cliui.HelpField{field("[environment]", "detail.doctor_env")}, []cliui.HelpField{json})
 	set([]string{"setup"}, []cliui.HelpField{field("[environment]", "detail.setup_env")}, []cliui.HelpField{field("--script <path>", "detail.setup_script"), field("--clear-script", "detail.setup_clear"), field("--reapply-script", "detail.setup_reapply"), field("--script-result", "detail.setup_result")})
@@ -63,7 +69,7 @@ func init() {
 	set([]string{"git approve", "git deny"}, []cliui.HelpField{field("<id>", "detail.request")}, []cliui.HelpField{field("--save env|all|ask-env|ask-all", "detail.saved")}, "detail.read_access")
 	set([]string{"base list"}, nil, []cliui.HelpField{field("--all", "detail.base_all"), json})
 	set([]string{"base inspect"}, []cliui.HelpField{baseName}, nil)
-	set([]string{"base build"}, []cliui.HelpField{field("<definition.json>", "detail.definition")}, nil)
+	set([]string{"base build"}, []cliui.HelpField{field("<directory | definition.json>", "base.packer_context")}, []cliui.HelpField{field("--name <base>", "base.packer_name"), field("--from <base>", "base.packer_from"), field("--output", "base.packer_output"), json})
 	set([]string{"base delete"}, []cliui.HelpField{field("<name-or-fingerprint>", "detail.base_delete")}, []cliui.HelpField{yes})
 	set([]string{"snapshot create"}, []cliui.HelpField{env}, []cliui.HelpField{json})
 	set([]string{"snapshot list"}, []cliui.HelpField{field("[env]", "detail.snapshot_env")}, []cliui.HelpField{json})

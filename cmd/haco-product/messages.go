@@ -31,6 +31,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"network", "command.network"},
 		{"aws", "help.aws"},
 		{"config", "help.config"},
+		{"cache", "cache.help"},
 		{"experimental edit vscode", "help.experimental"},
 		{"approve", "help.approve"},
 		{"doctor", "help.doctor"},
