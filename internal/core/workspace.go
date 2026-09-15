@@ -76,6 +76,7 @@ type EphemeralRun struct {
 }
 
 type Environment struct {
+	DNSMode            DNSMode                 `json:"dns_mode,omitempty"`
 	Attachments        []EnvironmentAttachment `json:"attachments,omitempty"`
 	PersistentResource PersistentResourceRef   `json:"persistent_resource,omitempty"`
 	Name               string                  `json:"name"`
@@ -88,6 +89,7 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
+	DNSMode DNSMode
 	// EphemeralInstance binds a trusted run reservation to canonical creation.
 	// It is not accepted by ordinary client Environment-create DTOs.
 	EphemeralInstance string
@@ -106,6 +108,7 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
+	DNSMode     DNSMode
 	Attachments []EnvironmentRuntimeAttachment
 	// InstanceID binds the provider resource to the durable creation reservation.
 	InstanceID         string

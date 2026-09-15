@@ -321,6 +321,9 @@ func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 }
 
 func validateEnvironmentCreateCommit(environment core.Environment, lease core.WorkspaceLease) error {
+	if !environment.DNSMode.Valid() {
+		return core.ErrInvalidArgument
+	}
 	if environment.PersistentResource != lease.PersistentResource {
 		return core.ErrIncompatibleState
 	}

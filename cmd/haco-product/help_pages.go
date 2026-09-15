@@ -27,7 +27,7 @@ var helpPages = []helpPage{
 	{Path: "run", Syntax: "[-i | -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] [--rm] -- <command...>", Message: "run.help", Example: "haco run -it -- bash"},
 	{Path: "env", Syntax: "<command>", Message: "command.env", Example: "haco env list"},
 	{Path: "env list", Syntax: "[--json]", Message: "command.env.list", Example: "haco env list"},
-	{Path: "env create", Syntax: "--workspace <workspace> [--base <base>] [--resource oci:<store>] [--no-oci] [--json] <name>", Message: "command.env.create", Example: "haco env create --workspace managed:work dev"},
+	{Path: "env create", Syntax: "--workspace <workspace> [--base <base>] [--resource oci:<store>] [--dns host|backend|disabled] [--no-oci] [--json] <name>", Message: "command.env.create", Example: "haco env create --workspace managed:work dev"},
 	{Path: "env status", Syntax: "[--json] <name>", Message: "command.env.status", Example: "haco env status dev"},
 	{Path: "env start", Syntax: "[--json] <name>", Message: "command.env.start", Example: "haco env start dev"},
 	{Path: "env stop", Syntax: "[--json] <name>", Message: "command.env.stop", Example: "haco env stop dev"},

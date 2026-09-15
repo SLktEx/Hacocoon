@@ -34,6 +34,9 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		)
 	}()
 
+	if !spec.DNSMode.Valid() {
+		return core.Environment{}, core.ErrInvalidArgument
+	}
 	name, err := validateEnvironmentName(spec.Name)
 	if err != nil {
 		return core.Environment{}, err
@@ -177,6 +180,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		}
 	}
 	runtimeSpec := core.EnvironmentRuntimeSpec{
+		DNSMode:             spec.DNSMode,
 		Attachments:         attachments,
 		InstanceID:          instanceID,
 		TemporaryWorkspace:  spec.TemporaryWorkspace != nil,
@@ -259,6 +263,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 
 	environment = core.Environment{
+		DNSMode:            spec.DNSMode,
 		Attachments:        lease.Attachments,
 		PersistentResource: persistent.Ref(),
 		Name:               name,

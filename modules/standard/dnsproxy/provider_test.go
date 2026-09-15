@@ -11,6 +11,23 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/nameresolution"
 )
 
+const dnsInstance = "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+type dnsCatalog struct{ environment core.Environment }
+
+func (c *dnsCatalog) GetEnvironment(context.Context, string) (core.Environment, error) {
+	return c.environment, nil
+}
+func (c *dnsCatalog) EnvironmentInstance(_ context.Context, e core.Environment) (string, error) {
+	if !e.Equal(c.environment) {
+		return "", core.ErrCapabilityStale
+	}
+	return dnsInstance, nil
+}
+func ordinaryDNSCatalog() *dnsCatalog {
+	return &dnsCatalog{core.Environment{Name: "dev", RuntimeRef: "runtime:dev"}}
+}
+
 type resolverFunc func(context.Context, string, string) ([]netip.Addr, error)
 
 func (f resolverFunc) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
@@ -50,7 +67,7 @@ func TestDNSUsesPolicyBeforePlatformResolverAndDoesNotGrantConnection(t *testing
 				}
 				return []netip.Addr{netip.MustParseAddr("10.20.30.40")}, nil
 			})
-			service, err := capability.New(policy{decision}, nil, sink, Provider{Resolver: resolver})
+			service, err := capability.New(policy{decision}, nil, sink, Provider{Resolver: resolver, Environments: ordinaryDNSCatalog()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +92,7 @@ func TestDNSAuditAndMalformedInputFailBeforeLookup(t *testing.T) {
 		t.Fatal("unexpected lookup")
 		return nil, nil
 	})
-	service, err := capability.New(policy{core.PolicyAllow}, nil, &audit{failure: true}, Provider{Resolver: lookup})
+	service, err := capability.New(policy{core.PolicyAllow}, nil, &audit{failure: true}, Provider{Resolver: lookup, Environments: ordinaryDNSCatalog()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,6 +100,76 @@ func TestDNSAuditAndMalformedInputFailBeforeLookup(t *testing.T) {
 	for _, host := range []string{"valid.example", "127.0.0.1", "-option", "bad/name", "bad" + string(rune(0))} {
 		if _, err := broker.Resolve(context.Background(), "dev", host); err == nil {
 			t.Fatal("unsafe or unaudited lookup accepted")
+		}
+	}
+}
+
+type backendResolverFunc func(context.Context, string, string, string) ([]netip.Addr, error)
+
+func (f backendResolverFunc) ResolveEnvironmentName(ctx context.Context, ref, instance, name string) ([]netip.Addr, error) {
+	return f(ctx, ref, instance, name)
+}
+func TestDNSModeSelectionAndCreationReplacement(t *testing.T) {
+	for _, mode := range []core.DNSMode{"", core.DNSHost, core.DNSBackend, core.DNSDisabled, "unknown"} {
+		t.Run(string(mode), func(t *testing.T) {
+			catalog := ordinaryDNSCatalog()
+			catalog.environment.DNSMode = mode
+			hostCalls, backendCalls := 0, 0
+			p := Provider{Environments: catalog, Resolver: resolverFunc(func(context.Context, string, string) ([]netip.Addr, error) {
+				hostCalls++
+				return []netip.Addr{netip.MustParseAddr("10.0.0.1")}, nil
+			}), Backend: backendResolverFunc(func(_ context.Context, ref, instance, name string) ([]netip.Addr, error) {
+				backendCalls++
+				if ref != "runtime:dev" || instance != dnsInstance || name != "example.test" {
+					t.Fatal("wrong resolver target")
+				}
+				return []netip.Addr{netip.MustParseAddr("10.0.0.2")}, nil
+			})}
+			req := core.CapabilityRequest{Capability: nameresolution.Capability, Action: nameresolution.Action, Environment: "dev", EnvironmentInstance: dnsInstance, Resource: "example.test"}
+			_, err := p.Execute(context.Background(), req)
+			allowed := mode.Valid() && mode != core.DNSDisabled
+			if (err == nil) != allowed {
+				t.Fatalf("error=%v", err)
+			}
+			wantHost, wantBackend := 0, 0
+			if mode.Effective() == core.DNSHost {
+				wantHost = 1
+			}
+			if mode == core.DNSBackend {
+				wantBackend = 1
+			}
+			if hostCalls != wantHost || backendCalls != wantBackend {
+				t.Fatalf("host=%d backend=%d", hostCalls, backendCalls)
+			}
+			req.EnvironmentInstance = "env-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+			if _, err = p.Execute(context.Background(), req); err == nil {
+				t.Fatal("stale instance accepted")
+			}
+			if hostCalls != wantHost || backendCalls != wantBackend {
+				t.Fatal("stale lookup reached upstream")
+			}
+		})
+	}
+	catalog := ordinaryDNSCatalog()
+	p := Provider{Environments: catalog, Resolver: resolverFunc(func(context.Context, string, string) ([]netip.Addr, error) {
+		catalog.environment.RuntimeRef = "replacement"
+		return []netip.Addr{netip.MustParseAddr("10.0.0.1")}, nil
+	})}
+	req := core.CapabilityRequest{Capability: nameresolution.Capability, Action: nameresolution.Action, Environment: "dev", EnvironmentInstance: dnsInstance, Resource: "example.test"}
+	if _, err := p.Execute(context.Background(), req); !errors.Is(err, core.ErrCapabilityStale) {
+		t.Fatalf("replacement accepted: %v", err)
+	}
+}
+func TestDNSMissingCatalogAndBackendFailClosed(t *testing.T) {
+	req := core.CapabilityRequest{Capability: nameresolution.Capability, Action: nameresolution.Action, Environment: "dev", Resource: "example.test"}
+	catalog := ordinaryDNSCatalog()
+	catalog.environment.DNSMode = core.DNSBackend
+	for _, p := range []Provider{{}, {Environments: catalog, Resolver: resolverFunc(func(context.Context, string, string) ([]netip.Addr, error) {
+		t.Fatal("backend fell back to host")
+		return nil, nil
+	})}} {
+		if _, err := p.Execute(context.Background(), req); err == nil {
+			t.Fatal("missing dependency accepted")
 		}
 	}
 }

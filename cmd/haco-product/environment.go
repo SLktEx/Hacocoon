@@ -65,7 +65,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	}
 	flags := flag.NewFlagSet("haco env "+args[0], flag.ContinueOnError)
 	configureCLIFlags(flags, diagnostic)
-	var workspace, keyPath, base, resource, protocol string
+	var workspace, keyPath, base, resource, protocol, dnsMode string
 	var targetPort int
 	var port int
 	var jsonOutput, noOCI bool
@@ -76,6 +76,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 		flags.IntVar(&port, "port", 0, cliMessage("detail.local_port"))
 		flags.IntVar(&targetPort, "target-port", 0, cliMessage("detail.target_port"))
 	case "create":
+		flags.StringVar(&dnsMode, "dns", "host", cliMessage("flag.dns"))
 		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 		flags.BoolVar(&noOCI, "no-oci", false, cliMessage("flag.no_oci"))
 		flags.StringVar(&workspace, "workspace", "", cliMessage("flag.workspace"))
@@ -107,7 +108,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	if args[0] == "disconnect" {
 		n = 2
 	}
-	if len(pos) != n || (args[0] == "create" && workspace == "") || (args[0] == "ssh" && keyPath == "") {
+	if len(pos) != n || (args[0] == "create" && (workspace == "" || !core.DNSMode(dnsMode).Valid())) || (args[0] == "ssh" && keyPath == "") {
 		return usage()
 	}
 	client, err := controlapi.NewDefaultClient()
@@ -129,7 +130,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "forward":
 		result, err = client.ForwardEnvironment(ctx, pos[0], core.LocalPortRequest{Protocol: protocol, HostPort: port, TargetPort: targetPort})
 	case "create":
-		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
+		result, err = client.CreateEnvironment(ctx, controlapi.EnvironmentCreateRequest{DNSMode: core.DNSMode(dnsMode), Name: pos[0], WorkspacePath: workspace, Base: core.BaseName(base), PersistentResource: resource, SkipDefaultResource: noOCI})
 		if err == nil && strings.HasPrefix(workspace, "managed:") {
 			connectErr := client.ConnectGit(ctx, pos[0])
 			if connectErr != nil && !isUnsupportedControllerError(connectErr) {

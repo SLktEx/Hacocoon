@@ -41,7 +41,7 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 		}
 		bySource[a.Component] = a
 	}
-	m := Manifest{Version: 1, Source: saved.Source.Environment.Name, HasOCI: ordered[len(ordered)-1].Role == "oci"}
+	m := Manifest{DNSMode: saved.Source.Environment.DNSMode, Version: 1, Source: saved.Source.Environment.Name, HasOCI: ordered[len(ordered)-1].Role == "oci"}
 	if workspaces != nil {
 		m.Version = 2
 		m.Workspaces = append([]Workspace(nil), workspaces...)

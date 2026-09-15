@@ -43,6 +43,9 @@ func (p *SandboxProvider) CreateEnvironmentWithReceipt(ctx context.Context, spec
 }
 
 func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
+	if !spec.DNSMode.Valid() {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
 	if len(spec.Attachments) != 0 && (record == nil || p == nil || !p.SupportsEnvironmentResources() || spec.ResourceMaintenance || spec.TemporaryWorkspace) {
 		return core.EnvironmentRuntime{}, core.ErrUnsupported
 	}

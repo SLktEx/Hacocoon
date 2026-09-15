@@ -33,3 +33,23 @@ resolver, ownership, peer-identity and Policy checks remain mandatory.
 Installed repeated-setup acceptance passed at `226991b`. Earlier manager-readiness
 and start-limit failures remain in [acceptance evidence](../status/acceptance-evidence.md#development).
 This success does not establish VPN/NRPT or OS-restart DNS propagation.
+
+## Select the resolver when creating an Environment
+
+`haco env create --workspace managed:work --dns host dev` uses the Physical Host
+resolver. `--dns backend` selects the runtime adapter's normal resolver; on Incus
+this is the owned trusted tooling instance. `--dns disabled` stops the managed
+guest resolver and refuses managed lookups in the controller. Omission selects
+`host`. No mode grants outbound connections or bypasses Policy and audit.
+
+The setting is immutable for an existing creation and remains visible as
+`dns_mode` in JSON Environment status. Snapshot, copy and export/import preserve
+it; imported metadata never carries source approvals. Use a newly created or
+copied Environment for another configuration. Unknown modes fail before creation.
+Source identity is checked before and after resolution. Backend mode has no
+fallback to Host or public DNS. The provider owns the bounded trusted operation;
+Standard has no Incus-specific branching. See [ADR0094](../adr/0094-environment-resolver-selection.md).
+
+Mode selection is implemented in the development candidate. Installed three-mode
+acceptance and DNS changes on networks outside the ordinary configuration remain
+unverified; existing host-mode evidence above is retained at its original scope.
