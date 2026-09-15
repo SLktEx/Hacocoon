@@ -1406,3 +1406,29 @@ with focused regression 23.41s (test execution 0.041s) and lint 17.36s passing.
 Both changes were integrated locally without conflicts at `5980d18f`.
 
 A focused Windows process regression also reproduced loss of completed stdout/stderr phases when the native acceptance wrapper timed out. The correction keeps bounded output on the timeout exception and emits it before failing, without increasing the 30-minute deadline or weakening required markers. The original regression failed with empty captured output; all seven native-runner tests then passed in 1.671s on Windows. This does not identify the running #699 Windows job's cause or establish its success. The integrated `77a4c8cc` normal ten-binary package built in 31.96s without installation or publication.
+
+## Windows acceptance of the catalog-lock integration
+
+#699 head `1ae5b410` passed Windows workflow `34986231470`, job `104438908869`
+and evidence job `104450106625`. Normal installer/restart/reinstall, egress/DNS
+refusal, cold parallel SSH, actual VS Code 1.136.1 editing and terminal, saved
+project setup, reviewed requests, preview, export/import and retained-data
+recreation all passed. The ordinary native TCP tunnel passed eight 1 MiB
+half-close round trips and Ctrl+C listener cleanup. Its phase record shows
+application ready at 234ms, Host ready at 26,234ms, listener at 27,405ms, native
+owner confirmed at 29,875ms and exchange completed at 31,969ms. This successful
+run does not explain #697's earlier reset/accept-timeout failure.
+
+Installed Linux reclamation and the public Windows worker completed. Windows
+allocation fell from 7,730,102,272 to 4,965,007,360 bytes (2,765,094,912 recovered),
+virtual capacity remained 1,099,511,627,776 bytes, and the same WSL resumed.
+Compaction was attempted once after 320 bounded open observations. The Host
+sentinel, detached Workspace/OCI and snapshot restore passed after reclamation.
+Native notification registration/ownership/stale-malformed refusal/subscription
+checks passed. Human toast/fresh GUI decisions and VPN/NRPT were explicitly
+skipped and remain post-release acceptance; no authenticated Git claim is made.
+
+Quality, test, Ubuntu and Windows are successful for this head, but Incus remains
+failed at the completed fixture's persistent lock directory described above.
+Follow-up `d4c264a3` fixes that fixture locally. Main is still `ee8bf7fb`; this
+receipt does not authorize merging a different unverified head.

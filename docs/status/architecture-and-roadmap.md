@@ -142,3 +142,11 @@ authorized response bounded and indexed before the next. A single pack above
 32 MiB remains a functional transport limit; huge-repository performance is deferred.
 The same follow-up retains persistent catalog locks during completed Incus fixture
 cleanup (`d4c264a3`); the original failed Btrfs CI receipt remains recorded.
+
+#699 at `1ae5b410` has successful installed Windows acceptance, including native
+TCP forwarding, restored-work recreation and public reclamation with retained
+Workspace/OCI/snapshot restoration. Human GUI decisions and VPN/NRPT remain
+post-release/skipped. Its Incus Btrfs failure was after the product operations,
+when fixture cleanup met persistent catalog locks; follow-up `d4c264a3` retains
+those locks and has local regression coverage. Revalidate the final PR head
+before main integration; do not erase #697's unexplained earlier tunnel failure.
