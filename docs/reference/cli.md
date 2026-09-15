@@ -64,7 +64,7 @@ See [language coverage](cli-language.md).
 
 ## Cache commands
 
-On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/recovery and additional-data transfer remain incomplete. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
+On the trusted Host, `haco cache settings` displays configured areas, `haco cache configure <file>` applies a JSON document to future Environments, `haco cache status <env>` shows origins/current generations and `haco cache collect <stopped-env> [area]` collects complete areas. Put `--json` before the target. Existing contents are not adopted; history/clear/completed-copy recovery and additional-data transfer are implemented candidates. See [configuration and ordinary use](../design/cache-generations.md#configure-and-collect).
 
 ## Build a Base with Packer
 
@@ -96,3 +96,10 @@ Environment creation accepts `--dns host|backend|disabled` (default `host`); ord
 `haco base import --name <base> [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
 
 See [input, limits and failure handling](../design/base-images-and-custom-environments.md#import-a-container-image-archive).
+
+## Empty Env cache contents
+
+Use `haco cache empty --preview <env> [<area>]` to inspect enrolled areas, stop the
+Env, then run `haco cache empty [--yes] [--json] <env> [<area>]`. `--all` selects all
+Envs. Workspace, OCI, common generations and saved copies remain. Keep an interrupted
+Env stopped and explicitly retry after fresh review. See [scope and limits](../design/cache-generations.md#empty-an-environments-cache).

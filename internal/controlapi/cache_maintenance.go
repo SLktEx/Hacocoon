@@ -55,7 +55,10 @@ func registerCacheMaintenance(server *control.Server, workflow *cache.Workflow) 
 			return err
 		}
 	}
-	return registerCacheCatalog(server, workflow)
+	if err := registerCacheCatalog(server, workflow); err != nil {
+		return err
+	}
+	return registerCacheEmpty(server, workflow)
 }
 
 func (c *Client) CacheHistory(ctx context.Context, name, area string) (CacheMaintenanceResponse, error) {

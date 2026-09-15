@@ -113,12 +113,12 @@ Notification setup follow-up: service refresh identifies fixed failing operation
 Cache history/clear follow-up: implemented candidate. Named history separates
 current selection from retained attempts. Revision-bound clear resets reuse and
 uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
-uncertain copies. Orphan-source browsing remains incomplete; named positive-completion recovery and added-data
+uncertain copies. All-source browsing, named positive-completion recovery and added-data
 transfer are implemented. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
 
 Push reconciliation follow-up: implemented candidate reusing42aa706f. Durable dispatch/confirmation records and current-owner exact-ref reads distinguish original failure from current remote state, without replaying writes or restoring approval. Main clone/fetch grants no push authority. Fresh authenticated installed use and larger Git transport remain separate.
 
-Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
 
 ## Client TCP access
 
@@ -178,3 +178,11 @@ publication/cleanup. Definition, Packer and import builders have finite resource
 budgets. Compressed/VM/split images and automatic crash replay remain unsupported.
 See [Base input](design/base-images-and-custom-environments.md#import-a-container-image-archive);
 repository tests and real-host acceptance remain separate.
+
+## Env cache emptying
+
+**Implemented candidate:** reviewed `cache empty` handles one/all areas or all Envs
+through canonical stopped-owner maintenance. A persisted failure fences resume until
+explicit retry verifies empty contents. Workspace, OCI, common generations and saved
+copies remain. Late enrollment, unknown-copy cancellation and giant-repository
+performance remain incomplete. See the [owning contract](design/cache-generations.md#empty-an-environments-cache).

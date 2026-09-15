@@ -245,3 +245,31 @@ Env内のコピー・Workspace・OCIデータは削除しない。確認後に�
 全グループ・選択世代・正確な所有者・表示Env名をrevisionに固定し、変更があれば最初の変更前に拒否します。
 各グループの処理は既存CAS・所有対象cleanup・不在確認を共用します。Envのデータ・Workspace・OCI・保護されたsnapshotは残ります。
 結果は完了・失敗・未実施を分け、部分完了後は再確認が必要です。論理削除を物理容量回復とは扱わず、コピー結果不明を存在推測で取り消しません。
+
+## Env内のキャッシュを空にする
+
+実装済み候補です。`haco cache empty --preview <env> [<area>]`で登録領域・作業状態・
+保持するsnapshot数を確認し、Envを停止して`haco cache empty <env> [<area>]`を実行します。
+領域省略はそのEnvの全領域、`--all`は全Envが対象です。`--yes`でも対象表示の成功が必要で、
+`--json`は領域ごとの結果を残します。オプションは名前の前に指定し、native IDは入力しません。
+
+再利用元の`clear`とは異なり、`empty`は選んだEnv内のキャッシュ内容だけを削除します。
+Env・rootfs・Workspace・OCI・共通世代・独立コピー・保存済みsnapshotは保持します。
+新しいEnvは共通世代を引き続き再利用でき、再利用元も消す場合は別にclearを確認します。
+論理的な掃除であり、snapshotや共有データ、Windowsディスクの物理容量回復を示しません。
+
+Standardは表示範囲をrevisionに固定し、正確なattachmentを共通Env lifecycleに渡します。
+CoreはEnv/Workspaceのロックと停止した作成実体の所有確認後、provider操作前に子の状態を
+`clearing`として永続化します。通常の起動・接続・snapshot・copy・削除を止め、provider側でも
+正確なvolumeと唯一の停止中利用者を確認します。空になったことと所有権を再確認してから
+`ready`へ戻し、resourceや親leaseの所有権を解放・置換しません。
+
+失敗・中断時は`clearing`を残します。Envは停止したまま、新しいpreviewで確認してemptyを
+再実行してください。同じ所有対象の残りだけを処理し、作り直されたEnvやvolumeは採用しません。
+他のEnvは独立して処理でき、結果は完了・失敗・未実行を分けます。同じEnvの別領域は復旧まで止まります。
+
+Linux Incusでは`file_storage_volume` APIを使い、削除前に全子を列挙して深い順に削除します。
+symlinkをたどらず、volumeのrootを削除せず、guestプログラム実行やHostのmount先推測も行いません。
+初期上限は10万件、深さ64、パス4096 bytes、ディレクトリ応答4 MiB、操作5分です。
+未対応・不正な観測では所有権を保持して停止します。巨大レポ性能の受入は別に残します。
+[ADR 0101](../adr/0101-environment-cache-emptying.ja.md)を参照してください。

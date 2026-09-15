@@ -72,7 +72,7 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 		}
 		return selector.Select(ctx, request)
 	})
-	workflow := &cacheapp.Workflow{Settings: settings, Catalog: store, Collector: svc, Cleaner: resources}
+	workflow := &cacheapp.Workflow{Settings: settings, Catalog: store, Collector: svc, Cleaner: resources, Emptier: svc}
 	cleaned, createdOK := false, false
 	defer func() {
 		// Create owns failed-creation cleanup. A name collision is not authority
@@ -171,6 +171,39 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	}
 	if got := run("exec", next.RuntimeRef, "--project", r.project, "--", "cat", "/root/.cache/haco-e2e-compiler/probe", "/root/.cache/haco-e2e-packages/probe", "/workspace/probe"); got != "changedpackage-datakeep-work" {
 		t.Fatal("clear changed consumer data")
+	}
+	if os.Getenv("HACO_E2E_CACHE_EMPTY") == "1" {
+		run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "mkdir -p /root/.cache/haco-e2e-compiler/nested; printf nested > /root/.cache/haco-e2e-compiler/nested/probe; ln -s /workspace /root/.cache/haco-e2e-compiler/outside-link")
+		must(svc.Stop(ctx, nextName))
+		scope := cacheapp.EmptyScope{Environment: nextName, Area: "compiler"}
+		preview, err := workflow.PreviewEmpty(ctx, scope)
+		must(err)
+		if len(preview.Areas) != 1 {
+			t.Fatal(preview)
+		}
+		empty, err := workflow.Empty(ctx, scope, preview.Revision)
+		must(err)
+		if len(empty.Areas) != 1 || empty.Areas[0].State != "empty" {
+			t.Fatal(empty)
+		}
+		must(svc.Start(ctx, nextName))
+		if got := run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "test -z \"$(ls -A /root/.cache/haco-e2e-compiler)\"; cat /root/.cache/haco-e2e-packages/probe /workspace/probe"); got != "package-datakeep-work" {
+			t.Fatal("empty changed unrelated data")
+		}
+		must(svc.Stop(ctx, nextName))
+		scope = cacheapp.EmptyScope{All: true}
+		preview, err = workflow.PreviewEmpty(ctx, scope)
+		must(err)
+		empty, err = workflow.Empty(ctx, scope, preview.Revision)
+		must(err)
+		if len(empty.Areas) != 2 {
+			t.Fatal(empty)
+		}
+		must(svc.Start(ctx, nextName))
+		if got := run("exec", next.RuntimeRef, "--project", r.project, "--", "sh", "-ceu", "test -z \"$(ls -A /root/.cache/haco-e2e-compiler)\"; test -z \"$(ls -A /root/.cache/haco-e2e-packages)\"; cat /workspace/probe"); got != "keep-work" {
+			t.Fatal("all empty changed Workspace")
+		}
+		t.Log("PASS reviewed single/all Env cache emptying, nested content, outside symlink removal without traversal, independent sibling data, retained common source and Workspace, and ordinary resume")
 	}
 	must(svc.Delete(ctx, nextName))
 	if os.Getenv("HACO_E2E_CACHE_CATALOG") == "1" {

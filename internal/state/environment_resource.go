@@ -141,7 +141,7 @@ func (s *EnvironmentJSONStore) PrepareEnvironmentResourceDeletion(ctx context.Co
 		if !ok || !lease.Equal(expected) {
 			return false, core.ErrCapabilityStale
 		}
-		if snapshotBusy(*data, lease.EnvironmentID) || environmentResourceCopyBusy(*data, lease.EnvironmentID) {
+		if snapshotBusy(*data, lease.EnvironmentID) || environmentResourcesBusy(*data, lease.EnvironmentID) {
 			return false, core.ErrRecoveryRequired
 		}
 		if lease.RuntimeAbsent {
@@ -243,7 +243,10 @@ func validateEnvironmentResources(data environmentFileState) error {
 			if r.RestoreSource != "" && !matchesSavedEnvironmentResource(data, lease, a, r) {
 				return core.ErrIncompatibleState
 			}
-			if lease.State == core.WorkspaceLeaseActive && r.State != "ready" {
+			if lease.State == core.WorkspaceLeaseActive && r.State != "ready" && r.State != "clearing" {
+				return core.ErrIncompatibleState
+			}
+			if r.State == "clearing" && (lease.State != core.WorkspaceLeaseActive || lease.RuntimeAbsent || r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted || r.ImportPending || r.RestoreSource != "") {
 				return core.ErrIncompatibleState
 			}
 			if r.State == "deleting" && !lease.RuntimeAbsent {

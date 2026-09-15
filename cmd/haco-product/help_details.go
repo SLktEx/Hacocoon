@@ -46,6 +46,7 @@ func init() {
 	set([]string{"cache recover"}, []cliui.HelpField{field("[env]", "detail.env"), field("[area]", "cache.recover")}, []cliui.HelpField{json, field("--all", "cache.all")}, "cache.recovered")
 	set([]string{"cache history"}, []cliui.HelpField{field("[env]", "detail.env"), field("[area]", "cache.history")}, []cliui.HelpField{json, field("--all", "cache.all")}, "cache.history")
 	set([]string{"cache clear"}, []cliui.HelpField{field("[env]", "detail.env"), field("[area]", "cache.clear")}, []cliui.HelpField{json, field("--all", "cache.all"), field("--yes", "cache.clear_yes")}, "cache.clear_warning")
+	set([]string{"cache empty"}, []cliui.HelpField{field("[env]", "detail.env"), field("[area]", "cache.empty")}, []cliui.HelpField{json, field("--preview", "cache.empty_preview"), field("--all", "cache.empty_all"), field("--yes", "cache.empty_yes")}, "cache.empty_warning")
 	set([]string{"cache collect"}, []cliui.HelpField{field("<env>", "detail.stopped"), field("[area]", "cache.area_option")}, []cliui.HelpField{json}, "cache.next")
 	set([]string{"version"}, nil, []cliui.HelpField{json})
 	set([]string{"git status", "git reconcile"}, []cliui.HelpField{env}, []cliui.HelpField{json, field("--request <request-id>", "git.recovery.request")}, "git.recovery.next")

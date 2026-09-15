@@ -94,3 +94,10 @@ Env作成時に`--dns host|backend|disabled`を選べます（通常は`host`）
 `haco base import --name <base> [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
 
 [入力・上限・失敗時の扱い](../design/base-images-and-custom-environments.md#import-a-container-image-archive)。
+
+## Env内キャッシュの掃除
+
+`haco cache empty --preview <env> [<area>]`で登録済み領域を確認し、Envを停止して
+`haco cache empty [--yes] [--json] <env> [<area>]`を実行します。`--all`は全Envを選びます。
+Workspace・OCI・共通世代・保存コピーを保持します。途中失敗時は停止したまま確認して再試行します。
+[内容と制限](../design/cache-generations.ja.md#env内のキャッシュを空にする)を参照してください。

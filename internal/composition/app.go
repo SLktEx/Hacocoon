@@ -270,7 +270,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	operations.Handle("/", awsplugin.NewGuestHandler(awsBroker, egressSources))
 
 	return &App{
-		Cache:               &cache.Workflow{Settings: cacheSettings, Catalog: store, Collector: environments, Cleaner: resources, Recoverer: resources},
+		Cache:               &cache.Workflow{Settings: cacheSettings, Catalog: store, Collector: environments, Cleaner: resources, Recoverer: resources, Emptier: environments},
 		Workflow:            &workflow.Service{Repositories: repositories, Environments: environments, Stores: resources},
 		Networks:            networks,
 		transferCatalog:     store,

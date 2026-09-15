@@ -264,3 +264,12 @@ initial Host notification-service readiness remains separately observed. Fresh h
 answers, reclamation while the exact VHDX remains attached, current-data evacuation
 and Env-local cache maintenance are still open. Base archive import and snapshot
 inspection have supported-Incus evidence; giant performance remains deferred.
+
+## Env-local cache maintenance
+
+The M4 candidate adds reviewed single/all-area and all-Env emptying through the
+canonical lifecycle, retaining Workspace/OCI/common sources/saved copies. Explicit
+retry resolves a persisted interrupted clear; unknown-copy cancellation and late
+existing-Env enrollment remain. Current-data replacement, authenticated installed
+use and human GUI answers still need their own evidence. Performance follows usable
+flows. See [the contract](../design/cache-generations.md#empty-an-environments-cache).

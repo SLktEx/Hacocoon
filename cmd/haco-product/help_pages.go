@@ -20,6 +20,7 @@ var helpPages = []helpPage{
 	{Path: "cache recover", Syntax: "[--json] <env> <area>", Message: "cache.recover", Example: "haco cache recover work go-build"},
 	{Path: "cache history", Syntax: "[--json] <env> <area>", Message: "cache.history", Example: "haco cache history work go-build"},
 	{Path: "cache clear", Syntax: "[--yes] [--json] <env> <area>", Message: "cache.clear", Example: "haco cache clear work go-build"},
+	{Path: "cache empty", Syntax: "[--preview] [--yes] [--json] <env> [<area>] | --all", Message: "cache.empty", Example: "haco cache empty --preview work"},
 	{Path: "cache settings", Syntax: "[--json]", Message: "cache.settings", Example: "haco cache settings"},
 	{Path: "cache configure", Syntax: "[--json] <file>", Message: "cache.configure", Example: "haco cache configure cache.json"},
 	{Path: "cache status", Syntax: "[--json] <env>", Message: "cache.status", Example: "haco cache status work"},

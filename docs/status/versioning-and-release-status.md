@@ -178,3 +178,9 @@ Within v0.67, the Windows candidate separates process ownership from presentatio
 readiness and bounds startup independently from predecessor cleanup. This corrects
 a daily-use startup race; it does not complete human answer acceptance or release
 a new package. See [ADR 0100](../adr/0100-notification-session-readiness.md).
+
+## Env cache emptying
+
+The v0.67 M4 candidate adds reviewed cache emptying with retained-data ownership.
+Implementation and real-host acceptance remain distinct; this does not complete
+M4/M5, create a tag or publish a release.

@@ -1,6 +1,23 @@
 package cliui
 
 var commandCatalog = map[string]translation{
+	"cache.empty":             {"Empty enrolled Env caches; retain Workspace, OCI and saved copies", "環境内の対象キャッシュを空にし、Workspace・OCI・保存コピーを保持する"},
+	"cache.empty_usage":       {"Usage: haco cache empty [--preview] [--yes] [--json] <env> [<area>] | --all", "使い方: haco cache empty [--preview] [--yes] [--json] <env> [<area>] | --all"},
+	"cache.empty_yes":         {"Confirm the displayed Env cache cleanup", "表示した環境内キャッシュの削除を確認済みとして実行"},
+	"cache.empty_all":         {"Select enrolled caches in all Environments", "すべての環境の対象キャッシュを選択する"},
+	"cache.empty_preview":     {"Show the scope without changing data", "データを変更せず対象だけ表示する"},
+	"cache.empty_area":        {"%s / %s: %s; %s; saved copies retained: %d", "%s / %s: %s／%s／残る保存コピー: %d"},
+	"cache.empty_warning":     {"Empty only the displayed Env cache contents. Stop these Envs first. Workspace, source, OCI, common generations and saved copies remain. This does not guarantee physical space recovery.", "表示した環境内のキャッシュ内容だけを空にします。先に対象環境を停止してください。Workspace・ソース・OCI・共通世代・保存コピーは残ります。物理容量の回収を保証する操作ではありません。"},
+	"cache.empty_prompt":      {"Empty these Env caches? [y/N] ", "これらの環境内キャッシュを空にしますか？ [y/N] "},
+	"cache.empty_cancelled":   {"Cancelled; Env cache data retained.", "中止しました。環境内のキャッシュを保持しています。"},
+	"cache.empty_partial":     {"Cleanup is incomplete. Keep affected Envs stopped; inspect with cache empty --preview, then repeat with fresh confirmation. An interrupted clear blocks resume until empty contents are verified.", "掃除が未完了です。対象環境は停止したまま、cache empty --preview で確認してから改めて実行してください。途中の掃除は、空になったことを確認できるまで環境の再開を止めます。"},
+	"cache.empty_done":        {"Selected Env caches are empty. Resume development to regenerate them; retained sources and saved copies remain.", "対象の環境内キャッシュを空にしました。開発を再開すると必要なデータが再生成されます。共通元と保存コピーは残っています。"},
+	"cache.empty_none":        {"No enrolled Env caches selected.", "対象の環境内キャッシュはありません。"},
+	"cache.state.clearing":    {"cleanup interrupted; explicit retry required", "掃除途中・確認して再実行が必要"},
+	"cache.state.empty":       {"empty", "空になりました"},
+	"cache.state.ready":       {"ready", "利用可能"},
+	"cache.state.not_started": {"not started", "未実行"},
+
 	"cache.recover":                         {"Resume verified completed collection without copying again", "完了確認済みの収集をコピーし直さず復旧する"},
 	"cache.recovered":                       {"Verified copies recovered. Current sources can be reused; unselected data remains available for reviewed clearing. Check cache status before resuming the producer.", "完了確認済みのコピーを復旧しました。選択中の世代は再利用でき、未選択のデータは確認してクリアできます。元の環境を再開する前に状態を確認してください。"},
 	"cache.history":                         {"List retained collection attempts for a named area", "名前付き領域に残る収集データを確認する"},

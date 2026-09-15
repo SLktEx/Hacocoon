@@ -314,3 +314,40 @@ source CAS, exact-owner cleanup and positive-absence fences. Env data, Workspace
 OCI and protected snapshots remain. Groups report complete, failed or not_started;
 a partial batch requires fresh inspection. Logical cleanup does not imply physical
 space recovery. Unknown copies are retained, never canceled by destination guess.
+
+## Empty an Environment's cache
+
+Implemented candidate: `haco cache empty --preview <env> [<area>]` displays enrolled
+cache directories, their maintenance state and retained snapshot count. Stop the
+Env, then use `haco cache empty <env> [<area>]` to confirm and empty those contents.
+`--all` selects all enrolled Envs; `--yes` skips the prompt only after successful
+scope display. `--json` preserves per-area results. Options precede names.
+Names and configured paths are sufficient; native volume identities are not inputs.
+
+Unlike source `clear`, `empty` preserves common generations and removes only the
+selected Env's cache contents. The Env, rootfs, Workspace, OCI data, independent
+copies and saved snapshots remain. A later new Env may still reuse a common source;
+use source clear separately when intended. This is logical emptying, not a claim
+that snapshot/shared storage or the Windows disk has shrunk.
+
+Standard binds a revision to the complete displayed selection and passes each exact
+attachment to the common Env lifecycle. Core holds Env/Workspace locks, verifies the
+owned stopped runtime and durably changes the child to `clearing` before any provider
+mutation. Normal start/access/snapshot/copy/delete remain fenced. The provider
+independently verifies the owned volume and sole stopped consumer, empties it,
+verifies empty contents and ownership again, then Core commits `ready`. Neither
+resource nor parent lease is released or replaced.
+
+An interrupted/failed area stays `clearing` and blocks that Env's use. Keep it stopped,
+inspect a fresh preview and explicitly repeat emptying. This retry only removes
+remaining contents from the same owner; it cannot adopt a replacement Env/volume.
+Other Envs may continue. Batches retain successful, failed and not_started results;
+another area of the same interrupted Env remains blocked until recovery.
+
+Linux Incus requires the volume file API (`file_storage_volume`). It enumerates
+directory entries before deleting children in postorder, never follows symbolic
+links or deletes the volume root, and never runs a guest executable or guesses Host
+mount paths. Traversal is bounded to 100,000 entries, depth 64, 4096-byte paths and
+4 MiB directory responses under a five-minute operation deadline. Unsupported or
+malformed observations fail closed. These are bounded initial operations, not
+large-repository performance acceptance. See [ADR 0101](../adr/0101-environment-cache-emptying.md).

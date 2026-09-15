@@ -19,6 +19,7 @@ type Workflow struct {
 	Collector Collector
 	Cleaner   GenerationCleaner
 	Recoverer GenerationRecoverer
+	Emptier   EnvironmentEmptier
 }
 
 type AreaStatus struct {
