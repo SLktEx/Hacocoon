@@ -120,6 +120,19 @@ to construct deletion authority.
 
 ## Acceptance layers and remaining limits
 
+During public reclamation, Windows-only CIM observations count `wslhost.exe`,
+`wsl.exe` and `vmmemWSL` processes alongside the existing worker-presence check.
+Changed counts and elapsed time are emitted with fixed fields; helper paths,
+process arguments, environment variables and arbitrary CIM properties are not
+logged. Failure preserves the worker result even if the final observation fails.
+No observation enters WSL, starts/stops a distribution, changes the timeout or
+retries reclamation. These counts cover all WSL processes visible to the Windows
+account, not one distribution. Zero counts are not disk-detachment evidence;
+native disk validation and recorded completion remain authoritative. The record
+can distinguish a remaining Windows WSL process from a disk still attached after
+those processes disappear; it cannot identify a Linux service or prove why it
+remains attached. Unavailable counts do not change the acceptance result.
+
 Windows reclamation retention uses the Base already built through the public CLI
 for the transfer fixture. Its manifest records the exact name and revision, and
 the later reattachment verifies that receipt before and after ordinary

@@ -103,6 +103,17 @@ project の識別子は検証した JSON から取得する。Incus の CSV 表�
 
 ## その他の受入と残る制約
 
+公開容量回収の間は、従来のworker存在確認に加え、Windows側のCIMだけで
+`wslhost.exe`・`wsl.exe`・`vmmemWSL`のプロセス数を観測する。
+個数が変わった時刻と経過時間を固定した項目で出し、helperのパス・引数・環境変数・
+任意のCIM情報はログへ出さない。終端での観測に失敗しても元のworker失敗を保持する。
+観測のためにWSLへ入らず、WSLの起動・停止、期限変更、容量回収の再試行もしない。
+個数はWindowsアカウントから見えるWSL全体のもので、特定のdistributionだけではない。
+0件でもディスク切り離しの証明にはせず、nativeの確認と保存済みの完了結果を正本にする。
+Windows側のWSLプロセスが残っている場合と、それらが消えた後もディスクが接続中の場合を
+区別する材料であり、Linuxサービスの特定や接続継続の原因確定ではない。
+個数の観測不能は、受入の成否を変えない。
+
 Windows reclamation のデータ保持検証には、transfer fixture が公開 CLI で構築済みの
 Base を使う。manifest に正確な名前と revision を記録し、後続の再接続では通常の
 `haco env create --base` の前後でその記録を検証する。Base は保持 fixture とともに残し、
