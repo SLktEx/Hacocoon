@@ -25,14 +25,14 @@ func runTemporary(args []string) int {
 func temporaryCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	flags := flag.NewFlagSet("haco run", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	workspace := flags.String("workspace", "", "existing Workspace to retain (default: temporary)")
-	base := flags.String("base", "", "Environment Base (default: configured Base)")
-	noOCI := flags.Bool("no-oci", false, "skip automatic OCI Store copy")
-	readOnly := flags.Bool("read-only", false, "mount an explicitly selected Workspace read-only")
-	remove := flags.Bool("rm", true, "remove the Environment after execution (always enabled)")
-	asJSON := flags.Bool("json", false, "machine-readable execution and cleanup result")
+	workspace := flags.String("workspace", "", cliMessage("run.flag_workspace"))
+	base := flags.String("base", "", cliMessage("detail.base"))
+	noOCI := flags.Bool("no-oci", false, cliMessage("flag.no_oci"))
+	readOnly := flags.Bool("read-only", false, cliMessage("run.flag_readonly"))
+	remove := flags.Bool("rm", true, cliMessage("run.flag_rm"))
+	asJSON := flags.Bool("json", false, cliMessage("flag.json"))
 	flags.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco run [--rm] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>")
+		commandHelp(diagnostic, "run", cliLanguage())
 	}
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

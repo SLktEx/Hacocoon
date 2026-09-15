@@ -1,13 +1,13 @@
 # Git / GitHub Capability
 
-Status: **roadmap contract implemented on `main`.** Brokered host-side Git push exists; Hacocoon remains pre-1.0 and the concrete capability/CLI contract may still change.
+Status: **implemented in the repository; acceptance is scoped separately.** Brokered host-side Git push exists; Hacocoon remains pre-1.0 and the concrete capability/CLI contract may still change.
 
 ## Goal
 
 The WSL PoC managed-repository workflow is implemented separately from
 the historical shared-path broker below. It uses registered trusted-host
 repositories, independent Incus volume copies and a Git-only remote helper
-endpoint. Approval binds the registered upstream and branch plus old/new OIDs;
+endpoint. Approval binds the registered upstream and exact target ref plus old/new OIDs;
 the Environment never supplies trusted Git configuration or credentials. See
 [ADR 0008](../adr/0008-managed-repository-workspaces.md). The implementation and
 real-host acceptance status remain separate in
@@ -24,9 +24,27 @@ decides its opaque, single-use ID. Approval cancellation or a changed remote
 ref cannot silently authorize another push. Only Git objects cross from the
 Environment; authenticated Git runs in the registered trusted repository.
 
-The initial transport handles one existing SHA-1 branch and packs up to 32 MiB.
+The development candidate reads all upstream heads under an explicit all-heads
+fetch scope. A push can create one absent branch or fast-forward one existing
+branch, under a separate exact-ref decision. Registration selects checkout
+provenance, not the set of permitted push targets.
+Fetch revalidates each requested ref/OID against a fresh Host observation;
+unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
+a 32 MiB aggregate pack are accepted per helper batch. Discovery is checked
+against both the all-heads scope and each exact ref; object fetch executes under
+a new exact-ref decision. An exact-ref deny cannot be bypassed by broad discovery.
+Separate head transfers may repeat shared history, a remaining M4 optimization.
+The initial checkout branch never grants
+push permission. See [ADR 0081](../adr/0081-git-read-and-push-authority.md).
 HTTPS GitHub authentication uses the trusted Host's `gh` credential store.
-Force push, branch creation/deletion, multiple refs, LFS and submodules are
+Creation records absence as the zero OID and requires an empty expected-value
+lease at the remote. A competing creation is refused, including Git's successful
+but unchanged result when the competing OID is identical. The returned porcelain
+receipt must confirm this exact ref/commit mutation. Existing refs require
+ancestry validation and the observed old-OID lease. Saved decisions retain the
+exact ref and distinguish `update_kind: create` from `fast-forward`; neither
+choice authorizes the other. See [ADR 0081](../adr/0081-git-read-and-push-authority.md).
+Force push, branch deletion, multiple-ref pushes, LFS and submodules are
 **deferred**. A transport failure after an external write can leave its result
 unknown; inspect the remote before retrying. Generic retry/recovery is deferred.
 

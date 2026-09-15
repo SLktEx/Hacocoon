@@ -82,8 +82,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.57 | OCI Image Cleanup | partial — implementation and acceptance gaps remain |
 | v0.58 | Daily CLI Entry and Setup Diagnostics | ✅ implemented |
 | v0.59 | Host customization lifecycle and results | ✅ implemented |
+| v0.60 | Git branch read and push authority | ✅ implemented |
 
-The current milestone position is **v0.59**. This declaration and the table mirror YAML.
+The current milestone position is **v0.60**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
@@ -117,3 +118,10 @@ sampling/recommendation and legacy deletion/re-enable state. Current Base and
 persistent OCI image operations remain. Old-version compatibility and migration
 are excluded by the user's 2026-09-15 scope correction; they do not block M0–M5.
 This is code cleanup within the current checkpoint, not a tag or release.
+
+## Git branch workflow integration
+
+v0.60 records all-head reads and explicit new-branch/fast-forward push authority
+reused from #585/#587 on main. It does not mark all of M2 complete or publish a
+release. GUI, authenticated installed use and large-pack transport remain separate;
+see [verification scope](acceptance-evidence.md#main-git-branches).

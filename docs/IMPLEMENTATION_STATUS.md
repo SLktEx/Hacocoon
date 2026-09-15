@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.59**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.60**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -20,7 +20,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
 | [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
-| [Ordinary Git](guides/git-workflow.md) | partial | Fetch/pull and fixed-content push through controller-owned credentials; bounded single-ref fast-forward push approval. Large packs, branch creation/deletion, force push, LFS/submodules and general ambiguous-result recovery remain unsupported in product flow. |
+| [Ordinary Git](guides/git-workflow.md) | partial | All-head fetch with independent per-ref read checks; one new branch or existing fast-forward push with fixed-content approval. Clone/fetch grants no push authority; main remains reviewable. 32 MiB packs, LFS/submodules, force/deletion/multi-ref and general ambiguous-result recovery remain limited or unsupported. Native authenticated use and large repositories need separate acceptance. |
 | [Policy / configuration](reference/configuration.md) | implemented | Revision-bound inspect/edit, exact request approval and saved scopes. Deny precedes require-approval, then allow. Broader provider/desktop acceptance is separate; failed notification delivery never grants permission. |
 | [Network / DNS](design/egress-authorization.md) | implemented | Controller-owned Standard proxy, Incus lower-layer direct-egress guard and trusted source-bound DNS. Resolve and connect permissions are separate. A read-only kernel source-guard observer exists; full packaged Windows and spoofed-packet acceptance remain separate. VPN/NRPT, restart combinations and broad supported-Incus acceptance remain incomplete. |
 | [Setup recipes / preview](design/project-setup.md) | partial | Host recipes apply once per incarnation with explicit script-only retry and private output/exit receipts; Environment Workspace setup, approved restricted HTTP preview and scoped doctor are implemented. Recreation/cancellation, default-browser and wider application acceptance remain. |
@@ -80,3 +80,12 @@ integrity and original exit codes remain. Local notification regressions and
 Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
 remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
 and [installer results](design/installer.md#windows-final-result).
+
+## Detailed guidance and canonical setup
+
+**Implemented candidate:** #592/#593's bilingual argument/option explanations and
+retained-data results are adapted to current main. Deletion warnings share one
+client confirmation helper and preserve controller ownership checks. #659's
+obsolete preliminary Host-tool provisioning is removed. Local validation and
+fresh installed acceptance remain distinct; old-version compatibility/migration
+are outside the requested M0–M5 scope.

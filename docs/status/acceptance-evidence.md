@@ -360,6 +360,72 @@ The candidate was rebased onto main `7e876bc1` without changing the Seed-retirem
 
 After PR #661 merged as main `44211fd2`, this Seed candidate was rebased while preserving both evidence sets. The verified combined source passed the full local test entry (13.96s), CLI E2E (3.41s) and documentation/regressions (4.96s). PR #661 final head passed all five workflows, including Windows run 34890523779. Seed head `8eda58ee` likewise passed all five workflows, including Windows run 34890531022; these remain results for their exact heads, not the rebased candidate.
 
+<a id="main-git-branches"></a>
+## Main Git branch workflow candidate
+
+This candidate reuses #585 (`d93f61fb`) and #587 (`7bdd3db6`) on main
+`7e876bc1`. An immutable source with 1,359 verified files passed Git/common
+review/capability/product tests (2.80s), the CI-pinned golangci-lint 2.13.2
+including new files with uncapped findings (5.00s), maintained local test CI
+(10.98s), related race tests (23.59s), shipped CLI E2E (3.03s) and documentation
+checks/regressions (4.49s), using Go 1.27.1.
+
+Real local Git fixtures cover multiple heads and ref denial, moved/deleted heads,
+new-branch denial, fixed approved commits, separate create/update saved choices,
+main remaining subject to approval, concurrent different/identical creation, and
+refusal of force/deletion/multiple refs. These are component results, not installed
+Incus, authenticated GitHub, human GUI or large-repository acceptance.
+
+The first focused invocation named nonexistent `internal/approvalreview`; the
+existing Git, capability and product packages passed but the invocation failed.
+The corrected package is `internal/review`. The first lint patch incorrectly
+disabled Windows Git newline conversion and included unchanged files; its broad
+findings are not presented as new-code findings. With the correct diff, lint
+found two capitalized error strings and one switch simplification in the reused
+code. They were corrected, then all final checks above passed. The earlier
+invocation/lint failures remain recorded separately.
+
+After Seed retirement merged as main `119e3007bc55333841a076f53d774be22ea5b711`,
+PR #663 was rebased without changing its Git implementation. Combined local tests
+(15.80s), CLI E2E (3.59s) and documentation/regressions (5.16s) passed. The old
+head `6b436e4d` passed all five CI workflows, including Windows 34892114103;
+those results are not substituted for this updated head. Seed #662 final head
+`50e692d6` passed all five workflows, including Windows 34894991920 and the
+same-commit evidence job 104155046690. No earlier failure or human acceptance gap
+is erased by either result.
+
+## Detailed guidance and single Host tool preparation
+
+Candidate `4d7435cc` reuses #592/#593 and #659 on main `44211fd2`. Current
+JSON opt-in, portless SSH, HTTP preview and once-per-Host setup semantics remain.
+Focused CLI/catalog/Host/Incus tests (4.39s), pinned changed-code lint (4.09s),
+full local tests (44.27s), related race (9.69s), CLI E2E (3.64s), documentation
+(5.03s) and workflow policy (1.08s) passed on a verified source archive.
+
+The first focused attempt exposed old fixture language selection and an overly
+broad SSH-port assertion: current `haco open --port` selects HTTP preview. The
+fixtures now use the shared locale selector and distinguish preview from portless
+SSH. The next lint found two unchecked test-file closes; both are checked now.
+These failures remain distinct from the subsequent passes. Fresh installed Host
+preparation and original SSH-failure reproduction were not run for this head;
+#655's original Host apt failure remains historical unresolved evidence.
+
+PR #665 head `e6ef0431` passed repository, quality, Ubuntu and Incus CI, but
+Windows run 34896159890 failed before packaging/installation in the first native
+reclamation protocol subtest (job 104150566559, start, 30.09s timeout; only CLIXML
+on stderr). The other five modes passed; subsequent product steps were skipped.
+No changed file touched that protocol implementation. The same verified source
+was built and run on this Windows PC: all six modes passed in 5.84s (command
+7.67s), with start taking 3.68s. No WSL restart, reclamation, registration change
+or execution-policy relaxation was involved. The CI timeout remains unexplained
+and is not erased by local success. The candidate now includes main `119e3007`.
+
+After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` passed the full local test entry (19.51s), CLI E2E (10.60s), and docs/regressions (5.55s). Windows CI is rerun for the updated head; the earlier protocol timeout remains unresolved evidence.
+
+
+PR #665 head `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa` passed all five CI workflows, including Windows 34900315650. After merging main `9da3ec8f` as `35d5ea81`, combined local tests (13.58s), CLI E2E (3.22s) and docs/regressions (4.65s) passed. The earlier native protocol startup timeout remains unexplained; this later pass does not erase it. No fresh human desktop acceptance is claimed.
+
+
 <a id="main-gui-approval"></a>
 ## Main GUI approval integration candidate
 
