@@ -23,11 +23,12 @@ type SnapshotRequest struct {
 	ID          string `json:"id,omitempty"`
 }
 type SnapshotSummary struct {
-	ID          string `json:"id"`
-	Environment string `json:"environment"`
-	State       string `json:"state"`
-	Workspaces  int    `json:"workspaces"`
-	OCI         bool   `json:"oci"`
+	CreatedAt   time.Time `json:"created_at,omitzero"`
+	ID          string    `json:"id"`
+	Environment string    `json:"environment"`
+	State       string    `json:"state"`
+	Workspaces  int       `json:"workspaces"`
+	OCI         bool      `json:"oci"`
 }
 type SnapshotResponse struct {
 	Snapshots  []SnapshotSummary        `json:"snapshots"`
@@ -105,7 +106,7 @@ func RegisterSnapshots(server *control.Server, service snapshotService) error {
 	})
 }
 func summarizeSnapshot(saved core.Snapshot) SnapshotSummary {
-	summary := SnapshotSummary{ID: saved.ID, Environment: saved.Source.Environment.Name, State: saved.State}
+	summary := SnapshotSummary{CreatedAt: saved.CreatedAt, ID: saved.ID, Environment: saved.Source.Environment.Name, State: saved.State}
 	for _, component := range saved.Components {
 		if strings.HasPrefix(component.Role, "workspace:") {
 			summary.Workspaces++

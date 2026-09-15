@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.67**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.68**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -83,3 +83,7 @@ Windowsの通常経路では、導入済みSSH・エディタ・転送、Workspa
 開発候補・main・配布物は区別し、新しいリリースは作成していない。性能・追加の厳密検証と、
 対象外の旧版再構築を、必要な現在データの保持とは分けて
 [M0〜M5ロードマップ](status/architecture-and-roadmap.md)に記録する。
+
+開発ブランチの後続実装: `snapshot restore --latest <source-env> [new-env]` は
+保存開始日時から最新を選び、共通の復元処理を使います。日時不明・同時刻の場合はID指定が必要です。
+復元に失敗しても別の保存を選び直しません。ローカルと実機の確認は別に記録します。

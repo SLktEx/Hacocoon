@@ -88,8 +88,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.65 | Environment Resolver Selection | 実装済み |
 | v0.66 | Saved Environment data | 実装済み |
 | v0.67 | Portable Environment data | 実装済み |
+| v0.68 | Restore saved work by environment name | 実装済み |
 
-現在のmilestone位置は **v0.67**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.68**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 

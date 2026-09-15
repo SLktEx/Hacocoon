@@ -67,6 +67,12 @@ haco env stop dev
 haco env copy dev independent-dev
 ```
 
+Use `haco snapshot restore --latest dev restored-dev` to restore the newest complete
+save by environment name. If the recorded dates cannot establish a unique newest
+save, select its ID from `haco snapshot list`. Failed/incomplete saves are excluded;
+restoring creates independent data and never replaces the source Environment.
+
+
 Snapshots include independent rootfs, all managed Workspace members, optional OCI
 and metadata. Capture stops a running source and restarts it only after a ready save.
 Copy requires a stopped source. Restore/copy create new resources and security

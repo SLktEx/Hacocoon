@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.67**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.68**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -90,3 +90,8 @@ Candidate, main and released artifacts remain distinct. There is no new release.
 Performance/additional strict validation and excluded old-version reconstruction
 are separated from required current-data retention in the
 [M0–M5 roadmap](status/architecture-and-roadmap.md).
+
+Development follow-up: `snapshot restore --latest <source-env> [new-env]` selects
+by persisted capture time and reuses canonical restore. Unknown/tied times need an
+explicit ID; failed restoration never selects a different save. Local and native
+acceptance remain separately recorded.

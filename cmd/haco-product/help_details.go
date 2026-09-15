@@ -81,7 +81,7 @@ func init() {
 	set([]string{"snapshot create"}, []cliui.HelpField{env}, []cliui.HelpField{json})
 	set([]string{"snapshot inspect"}, []cliui.HelpField{snapshot}, []cliui.HelpField{json, field("--details", "snapshot.inspect.details")})
 	set([]string{"snapshot list"}, []cliui.HelpField{field("[env]", "detail.snapshot_env")}, []cliui.HelpField{json})
-	set([]string{"snapshot restore"}, []cliui.HelpField{snapshot, field("[new-env]", "detail.restore_name")}, []cliui.HelpField{json})
+	set([]string{"snapshot restore"}, []cliui.HelpField{field("<snapshot-id|source-env>", "snapshot.latest_input"), field("[new-env]", "detail.restore_name")}, []cliui.HelpField{json, field("--latest", "snapshot.latest_flag")})
 	set([]string{"snapshot delete"}, []cliui.HelpField{snapshot}, nil)
 	set([]string{"plugin oci store inspect"}, []cliui.HelpField{store}, nil)
 	set([]string{"plugin oci store create"}, []cliui.HelpField{field("<store>", "detail.store_new")}, []cliui.HelpField{field("--from <store>", "detail.store_from")})
