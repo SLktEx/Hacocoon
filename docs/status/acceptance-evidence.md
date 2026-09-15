@@ -1339,3 +1339,33 @@ The #698 package at `023ca03e` built all ten binaries and normal installers in
 `gh auth status` in the running dedicated WSL confirmed no GitHub login. The user
 was given ordinary Host login instructions; no credential was printed/exported,
 and authenticated Git acceptance remains unperformed.
+
+## Installed lifecycle lock collision and read-only Windows readiness
+
+With installed product `e1ec0894`, ordinary public clone and managed Workspace
+creation passed in the dedicated Incus 7.0.1 WSL. Env `tunnel-b60c7032` creation
+failed before provider creation: the Physical Host controller (effective UID 0)
+rejected `/tmp/hacocoon-environment-locks`, owned by UID/GID 1000 at mode 0700.
+The Workspace lock directory had the same owner/mode. The actual protected
+`/var/lib/hacocoon/state` directory is UID/GID 0, mode 0700. The first observation
+inside trusted `haco-host` found neither temporary directory; the controller runs
+on the Physical Host, where the subsequent read-only observation found both.
+No ownership or permission change, deletion, retry, reinstall or restart was used.
+The exact new repo `tunnel-b60c7032-repo` and Workspace `tunnel-b60c7032-work`
+remain retained; Env status was not-found, which alone is not provider-absence
+proof for cleanup.
+
+A read-only Windows client built from `e34c2bf8` used the installed registered
+control route and its normal ten-second preparation budget. One ping completed
+in 46 ms; eight parallel pings completed in 67–101 ms. This confirms control
+readiness only, not actual TCP data forwarding or the cause of #697.
+
+The catalog-lock correction first failed component tests because existing state
+parents may be owner-owned, non-writable by others, but readable at mode 0755.
+The corrected design pins that protected parent and creates an owner-only child
+for locks; it does not chmod the parent or permit other users to write it. State
+and Workspace component regressions then passed in 8.86s. Installed acceptance
+of the correction remains pending. Human login/notification/VS Code answers are
+post-release acceptance, not a main-merge gate; prior CI failures remain failures.
+
+Final local validation of the catalog-lock implementation passed: focused state/Workspace 9.55s, changed-code lint 18.78s, maintained full test entry 30.88s, race 12.11s, CLI E2E 4.18s, docs 8.50s, workflow policy 1.39s and native Incus test compilation 1.94s. After the later documentation/phase-recording edits, Windows-side documentation consistency, fixture syntax and diff checks also passed. The WSL root systemd-user-session warning was observed again; it was not repaired or counted as resolved. No installed acceptance or authenticated/GUI interaction is implied.

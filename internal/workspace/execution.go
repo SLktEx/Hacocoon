@@ -51,7 +51,7 @@ func (s *Service) exec(ctx context.Context, name string, req core.ExecutionReque
 		return core.ExecutionResult{}, core.ErrInvalidArgument
 	}
 	if workspace != "" {
-		unlock, lockErr := lockLifecycle(ctx, "environment", name)
+		unlock, lockErr := s.lockLifecycle(ctx, "environment", name)
 		if lockErr != nil {
 			return core.ExecutionResult{}, lockErr
 		}

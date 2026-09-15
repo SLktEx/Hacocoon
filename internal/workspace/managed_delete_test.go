@@ -41,7 +41,7 @@ func TestManagedWorkspaceDeletionUsesLifecycleLockAndRejectsLease(t *testing.T) 
 	p := &managedDeleteProvider{work: work}
 	catalog := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	s := NewWithProvider(nil, catalog, p)
-	unlock, err := lockWorkspace(ctx, work.ID)
+	unlock, err := s.lockWorkspace(ctx, work.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

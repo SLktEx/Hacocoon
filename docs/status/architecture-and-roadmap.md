@@ -13,6 +13,11 @@ Usable ordinary flows come first. Local checks are primary; independent developm
 continues while hosted CI runs. Main merges are authorized only after all five
 required workflows succeed for the exact PR head. Tags and releases are separate.
 
+User login, human notification/VS Code answers and other person-dependent checks
+are post-release acceptance items, not conditions for merging implemented work
+into main. Keep their unperformed status explicit without holding implementation
+delivery for them. This does not turn a known CI failure into a pass.
+
 Main `2f421006` / [#687](https://github.com/SLktEx/Hacocoon/pull/687) integrates the
 previous Workspace, Git/GUI, network/DNS, Packer, cache, retained-data and notification
 work. Main `ee8bf7fb` / [#688](https://github.com/SLktEx/Hacocoon/pull/688) adds
@@ -128,3 +133,5 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
+
+Installed create failed before provider creation because a different user owned the global temporary lifecycle directory. The development correction moves exclusion into the canonical catalog (ADR 0105); validate it through normal installation without changing the old temporary object. Windows tunnel phase timings now distinguish application readiness, Host entry and native-listener/data exchange, while keeping the previous limits and assertions. The cause of #697 remains unproven.

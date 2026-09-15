@@ -25,7 +25,7 @@ func (s *Service) start(ctx context.Context, name string, expected core.Workspac
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
-	unlock, err := lockLifecycle(ctx, "environment", name)
+	unlock, err := s.lockLifecycle(ctx, "environment", name)
 	if err != nil {
 		return err
 	}

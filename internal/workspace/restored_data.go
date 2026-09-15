@@ -20,7 +20,7 @@ func (s *Service) CleanupRestoredData(ctx context.Context, work core.Workspace, 
 	if !ok {
 		return core.ErrUnsupported
 	}
-	unlock, err := lockWorkspace(ctx, work.ID)
+	unlock, err := s.lockWorkspace(ctx, work.ID)
 	if err != nil {
 		return err
 	}

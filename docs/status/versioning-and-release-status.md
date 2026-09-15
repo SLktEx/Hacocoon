@@ -207,3 +207,5 @@ daily-use gap. Protocols, consent and lifecycle are unchanged; no release is pub
 v0.68 adds latest-ready snapshot selection by recorded capture time. Canonical
 restore still creates independent data. Local regression and one installed
 Incus journey passed; this checkpoint does not complete M5 or publish a release.
+
+The catalog lifecycle-lock correction is a v0.68 usability fix, not a new checkpoint or release. Person-dependent login and GUI acceptance is explicitly post-release and does not gate integration of implemented work.

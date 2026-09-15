@@ -87,6 +87,9 @@ candidate passed Japanese ordinary entry/help/read-only status. See
 [language evidence](status/acceptance-evidence.md#reclamation-language).
 
 Candidate, main and released artifacts remain distinct. There is no new release.
+Person-dependent login and GUI acceptance will be performed after release and do
+not block integration of implemented features into main; unperformed checks remain
+unperformed. Known CI failures still require resolution before merging.
 Performance/additional strict validation and excluded old-version reconstruction
 are separated from required current-data retention in the
 [M0–M5 roadmap](status/architecture-and-roadmap.md).
@@ -99,3 +102,5 @@ acceptance remain separately recorded.
 Development follow-up: reclamation now closes an attached virtual-disk observation
 handle before waiting to reopen the same pinned path. File/parent ownership pins
 remain held; installed acceptance is pending. See [the lifetime decision](adr/0103-virtual-disk-observation-lifetime.md).
+
+Lifecycle operations now use mandatory catalog-scoped locks rather than shared temporary names. This fixes the ownership collision observed during installed Env creation; see [ADR 0105](adr/0105-catalog-lifecycle-locks.md). Installed acceptance of this correction is pending.
