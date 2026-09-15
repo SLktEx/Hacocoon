@@ -206,6 +206,11 @@ func ServeUDP(ctx context.Context, listener *net.UDPConn, spec Spec, dial GuestD
 		case key := <-closed:
 			delete(peers, key)
 		case packet, ok := <-packets:
+			// Cancellation closes the socket and reader channel asynchronously;
+			// either result can win the select alongside ctx.Done().
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if !ok {
 				return io.EOF
 			}

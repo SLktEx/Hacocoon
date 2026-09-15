@@ -255,13 +255,51 @@ func TestLocalUDPAssociationsKeepDatagramsAndPeersSeparate(t *testing.T) {
 		t.Fatal("UDP peer did not retain its own association", requests.Load())
 	}
 	cancel()
-	if err := waitClientResult(t, done); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, net.ErrClosed) {
+	if err := waitClientResult(t, done); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
 		if err := waitClientResult(t, workers); !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
 			t.Fatal("association transport was not closed", err)
 		}
+	}
+}
+
+func TestUDPListenerClosurePreservesCancellationCause(t *testing.T) {
+	for _, cause := range []string{"cancelled", "deadline", "socket-failure"} {
+		t.Run(cause, func(t *testing.T) {
+			for i := 0; i < 1000; i++ {
+				listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Cancellation and the reader's closed-socket result can both be
+				// ready. Exercise the real socket/context without a selected ordering.
+				if err := listener.Close(); err != nil {
+					t.Fatal(err)
+				}
+				ctx := context.Background()
+				cancel := func() {}
+				want := error(net.ErrClosed)
+				switch cause {
+				case "cancelled":
+					ctx, cancel = context.WithCancel(ctx)
+					cancel()
+					want = context.Canceled
+				case "deadline":
+					ctx, cancel = context.WithDeadline(ctx, time.Now().Add(-time.Second))
+					want = context.DeadlineExceeded
+				}
+				err = ServeUDP(ctx, listener, Spec{}, func(context.Context, Spec) (net.Conn, Session, error) {
+					t.Error("closed listener acquired a new association")
+					return nil, Session{}, core.ErrPolicyDenied
+				}, nil)
+				cancel()
+				if !errors.Is(err, want) {
+					t.Fatalf("iteration %d: cause=%v want=%v", i, err, want)
+				}
+			}
+		})
 	}
 }
 
