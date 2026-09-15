@@ -65,6 +65,13 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
+Optional `haco base build --builder <env>` is **implemented on a development
+branch**. It permits ordinary administrator communication rules to name the build
+target in advance, while canonical creation still refuses an existing Env and uses
+fresh temporary ownership. The shared name validator replaces duplicate validation.
+No Policy edit or implicit approval is added. [Packer dependencies and installed
+build/reuse](design/packer-base-builds.md) remain separate acceptance work.
+
 The current-data selection follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703))
 is **implemented on a development branch**: the checkout maintenance helper names
 required data, preserves retain/recreate/exclude decisions and aggregates existing

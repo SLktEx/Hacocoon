@@ -80,6 +80,13 @@ require-approval configuration awaits user input after automatic approval review
 refused its all-Environment scope; it has not been applied. Do not bypass that refusal
 with a test allow rule. Continue independent usability work while it is pending.
 
+The development `--builder <env>` option now allows naming one build target for
+ordinary administrator rules, without adopting an existing Env or changing Policy.
+This removes the need to know a random name in advance. The rejected broad rule
+has not been applied; the new scoped configuration and actual installed Packer
+build/reuse still need their own review and evidence. It is a usability improvement
+within M4, not proof that dependency downloads have succeeded.
+
 Reclamation succeeded with measured allocation recovery in Windows CI, including
 retained Workspace/OCI verification. The dedicated local start previously failed
 at enrollment while a direct Windows observation passed; a later Japanese read-only

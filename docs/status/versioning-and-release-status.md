@@ -233,3 +233,7 @@ Named current-data selection and aggregate restored-tree review are a v0.68 M5
 maintenance follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703)).
 The development helper reuses existing comparison contracts. Local success does
 not complete actual inventory or person-dependent acceptance; no release is published.
+
+Optional named Base builders are a v0.68 usability correction: ordinary network
+settings can target one chosen build name while ownership remains fresh. This does
+not advance a checkpoint or establish actual Packer completion or publication.
