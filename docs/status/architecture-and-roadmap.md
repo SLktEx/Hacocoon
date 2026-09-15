@@ -37,7 +37,10 @@ The main-targeted `codex/main-reclaim-readiness` candidate includes #689–#693 
 observation lifetime. Local full and Windows component checks passed; actual empty
 disk attachment skipped for missing Windows privilege. Keep the previous CI
 failures and current dedicated-WSL concurrent-use uncertainty separate. The new
-candidate still needs all five exact-head workflows before integration.
+candidate passed four workflows, but #697 Windows failed during ordinary tunnel
+exchange after SSH/editor and transfer/recreated-work checks passed. Reclamation
+and native notifications were skipped. Preserve that failure and diagnose the
+reset before integration; do not infer a cause from the application timeout alone.
 
 ## M0–M5 remaining work
 

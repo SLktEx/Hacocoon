@@ -1317,3 +1317,25 @@ and native test compilation 1.69s passed. This is component/real-Git evidence,
 not installed authenticated Git, a main merge, a release or giant-repository
 performance. New pack data above 32 MiB remains unsupported. The v0.68 checkpoint
 is unchanged. See [ADR 0104](../adr/0104-new-branch-git-history.md).
+
+## Integrated candidate Windows tunnel failure
+
+#697 head `b0b2fcbc` passed quality `34979869527`, test `34979869379`, Ubuntu
+`34979869467` and Incus `34979869532`. Windows `34979869494`, job `104417065184`,
+failed after installed SSH/cold reconnect, actual VS Code editing, approval
+webview refusal, saved request decisions, preview and Windows-projected transfer
+with restored work/recreation had passed. The ordinary tunnel's native listener
+was confirmed, but its eight-client exchange received Windows reset `10054`;
+the application fixture also timed out in `accept`. The log does not establish
+whether its 40-second application readiness budget, stream preparation or another
+condition caused the reset. Do not call this a proven product or fixture cause.
+
+Linux/public reclamation and native notifications were **SKIP** in this run. The
+readiness fix has not reached installed reclamation acceptance. Main remains
+`ee8bf7fb`; no retry or merge was made after this failure. Earlier failures remain.
+
+The #698 package at `023ca03e` built all ten binaries and normal installers in
+40.22s; installation is pending concurrent-use clarification. Read-only Host
+`gh auth status` in the running dedicated WSL confirmed no GitHub login. The user
+was given ordinary Host login instructions; no credential was printed/exported,
+and authenticated Git acceptance remains unperformed.
