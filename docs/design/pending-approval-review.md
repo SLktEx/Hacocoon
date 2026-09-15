@@ -210,3 +210,8 @@ Shutdown withdraws readiness before COM revocation and retains mutex ownership
 through private-peer and owned-history cleanup. A failed unpublished startup can
 be replaced after cleanup. Duplicate launch success still requires actual Show;
 no approval is replayed. See [ADR 0100](../adr/0100-notification-session-readiness.md).
+
+The private Linux client also waits for the enabled controller through the shared
+read-only Ping boundary before consuming any private message. This handles a WSL
+process arriving before its controller socket; it starts no service and retries
+no review or answer. The native parent's startup deadline remains authoritative.

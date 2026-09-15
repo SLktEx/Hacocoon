@@ -256,3 +256,11 @@ a temporary builder and the existing publication contract (#183), with finite
 builder resources. Existing cache enrollment/local clearing, installed notification
 reliability, current-data evacuation and broader input/recovery acceptance remain.
 Giant-repository measurements follow ordinary usability.
+
+The notification candidate now separates published presentation readiness from
+process ownership and uses the common cold-controller Ping wait before private
+requests. Installed refusal/subscription passed after ordinary matching installation;
+initial Host notification-service readiness remains separately observed. Fresh human
+answers, reclamation while the exact VHDX remains attached, current-data evacuation
+and Env-local cache maintenance are still open. Base archive import and snapshot
+inspection have supported-Incus evidence; giant performance remains deferred.

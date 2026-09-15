@@ -956,3 +956,46 @@ workflows but [Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actio
 failed job `104309115278` with the same COM activation creation HRESULT
 `-2146959355` as #682, after public reclamation passed. These heads are not
 qualified for main merge; local notification acceptance does not erase the failure.
+
+## Notification ownership, readiness and cold controller
+
+At `e043b740`, native Windows kernel-object regressions passed unpublished-owner,
+closing-owner handoff and failed-start replacement. `lifecycle-local-2` passed the
+Windows component suite (1.84 s). The display attempt initially failed at temporary
+registry creation with access denied under workspace permissions; the same native
+check with normal user registry access passed in 11.28 s (test 11.18 s), including
+English/Japanese XML, history and removal. It did not observe human answers/layout.
+
+`lifecycle-full-2`, covering follow-up `92ce27a5`, passed focused tests (11.02 s),
+complete main-diff lint (21.31 s), maintained tests (35.57 s), private-client/review
+race tests (15.74 s), CLI E2E (4.75 s), docs (10.72 s), workflow policy (1.81 s) and
+native compilation (4.24 s). It checks delayed controller availability before
+consuming a request, refusal without replay, and preserved failed pending reads.
+
+Helper-only installed attempts `installed-review-1` and `-2` failed at private
+readiness while the Linux installation remained `809bfb33`. Read-only diagnostics
+then observed both successful pending reads and `pending_unavailable`, and a missing
+controller socket during WSL startup. No permission, service or Policy override
+was used to turn that failed read into success.
+
+The ordinary Windows package installer updated dedicated WSL
+`Hacocoon-Roadmap-f68a8c6b` and all companions to `92ce27a5` (local package build
+37.42 s, version `v0.0.0-e2e`, unpublished). After terminating only that WSL,
+`installed-review-3` passed actual registration/owned resume/idempotence, foreign
+owner/mismatched activator refusal and stale/malformed request refusal. Its immediate
+Host subscription check failed because the notification service was not yet active;
+a later read observed enabled/active/running, zero restarts and success. This initial
+startup observation remains an unresolved timing result, not an erased failure.
+`installed-review-4` subsequently passed the same route, Host controller subscription,
+absence of audit projection and owned listener cleanup. Human fresh answers remain
+explicitly SKIP. These results do not establish a full CI pass or whole M0–M5 completion.
+
+[PR #684](https://github.com/SLktEx/Hacocoon/pull/684), `a45e936f`, passed four Linux
+workflows but [Windows run 34949250114](https://github.com/SLktEx/Hacocoon/actions/runs/34949250114)
+failed job `104316004120` at `clear/timeout`, 20,013 ms, native progress `decode`,
+after reclamation passed. [PR #685](https://github.com/SLktEx/Hacocoon/pull/685),
+`d6c9fa13`, passed four Linux workflows but
+[Windows run 34951609643](https://github.com/SLktEx/Hacocoon/actions/runs/34951609643)
+failed job `104323633089` at `compact_attached`; Linux reclamation completed,
+Windows compaction was not attempted, resume succeeded and notification acceptance
+was SKIP. No failed head was merged. Earlier COM creation/dispatch failures remain.

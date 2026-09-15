@@ -814,3 +814,35 @@ systemdのrootユーザーセッション起動警告が出たが、コマンド
 [Windows run 34947135337](https://github.com/SLktEx/Hacocoon/actions/runs/34947135337) の
 job `104309115278` は公開reclaim成功後、#682と同じCOM生成HRESULT `-2146959355` で失敗。
 このheadはmainマージ条件を満たさない。ローカルの通知成功で失敗を消さない。
+
+## 通知の所有・準備完了とcontrollerの初回起動
+
+`e043b740`で、実Windowsのkernel objectを使った未準備の所有者・終了待ちの引き継ぎ・
+起動失敗後の再取得が通りました。`lifecycle-local-2`のWindows構成要素試験は1.84秒でPASS。
+通知表示の最初の実行はworkspace権限で一時registry作成を拒否され、通常ユーザーのregistry操作を
+許した同じ試験は11.28秒（test 11.18秒）でPASS。日英XML・履歴・除去を確認し、人の回答・見切れは未確認です。
+
+後続`92ce27a5`を含む`lifecycle-full-2`はfocused 11.02秒、mainとの差分全体lint 21.31秒、
+維持中の全体試験35.57秒、private client/reviewのrace 15.74秒、CLI E2E 4.75秒、
+docs 10.72秒、workflow policy 1.81秒、native compile 4.24秒ですべてPASS。
+遅れて準備されるcontrollerを要求消費前に待つこと、拒否を再送しないこと、一覧取得失敗を成功扱いにしないことを確認します。
+
+Windows helperだけ更新した`installed-review-1`と`-2`は、Linux側が`809bfb33`のままで
+private準備確認に失敗しました。読み取り調査ではpending成功とpending_unavailableの両方を観測し、
+WSL起動時にcontrollerの接続口がまだ無いことを確認しました。権限・サービス・Policyの抜け道は加えていません。
+
+通常のWindowsパッケージインストーラで専用WSL`Hacocoon-Roadmap-f68a8c6b`と全companionを
+`92ce27a5`へ更新しました（ローカルbuild 37.42秒、v0.0.0-e2e、未配布）。このWSLだけ停止した後の
+`installed-review-3`は、実登録・所有対象の再開・冪等性・他所有者とactivator不一致の拒否・
+古い要求と不正な要求の拒否がPASS。直後のHost購読確認は通知サービスの起動前に失敗しました。
+後の読み取りではenabled/active/running、再起動0回、successでした。最初の起動時の結果は未解決の
+タイミングとして保持します。`installed-review-4`は同じ経路とHost controller購読、auditの投影なし、
+所有listenerのcleanupまでPASS。人による新規回答は明示SKIPで、CI全体やM0〜M5全体の完了ではありません。
+
+[PR #684](https://github.com/SLktEx/Hacocoon/pull/684)の`a45e936f`はLinux側4workflowがPASSですが、
+[Windows run 34949250114](https://github.com/SLktEx/Hacocoon/actions/runs/34949250114)のjob
+`104316004120`はreclaim成功後にclear/timeout（20,013 ms、native progress decode）で失敗しました。
+[PR #685](https://github.com/SLktEx/Hacocoon/pull/685)の`d6c9fa13`もLinux側4workflowはPASSですが、
+[Windows run 34951609643](https://github.com/SLktEx/Hacocoon/actions/runs/34951609643)のjob
+`104323633089`はcompact_attachedで失敗しました。Linux回収は完了、Windows圧縮は未実行、再開成功、
+通知受け入れはSKIPです。失敗したheadはマージせず、以前のCOM作成・dispatch失敗も保持します。

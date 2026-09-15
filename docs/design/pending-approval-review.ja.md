@@ -184,3 +184,7 @@ COMで表示できるとは判断しません。初期化完了後に名前付�
 cleanupが終わるまでmutexを保持します。起動失敗時もcleanup後に次の処理へ引き継げます。
 重複起動の成功には実際のShow応答を必要とし、承認を再送しません。
 [ADR 0100](../adr/0100-notification-session-readiness.ja.md)を参照してください。
+
+Linux側のprivate clientも、要求を読む前に共通の読み取り専用Pingでcontrollerを待ちます。
+WSLプロセスより接続口が遅れて準備される場合に対応し、サービスの起動やreview・回答の
+再送は行いません。nativeな親の起動期限を引き続き優先します。
