@@ -50,18 +50,17 @@ func runOpen(args []string) int {
 	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	flags.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]\n       haco open [--repo first,second] [--name name] [--base base] [--oci auto|none|oci:ID] [--client vscode|ssh|none] [--json] <directory>\nReopens an owner-pinned Workspace reference, or prepares one from explicit Host repositories. Existing directory files are not imported. --json is available with --client none. Blank Environment selection cancels.")
-		flags.PrintDefaults()
+		commandHelp(os.Stderr, "open", cliLanguage())
 	}
-	port := flags.Int("port", 0, "open an Environment HTTP port in the browser")
-	closePreview := flags.Bool("close", false, "close the selected preview port")
-	noBrowser := flags.Bool("no-browser", false, "print the preview URL without launching a browser")
-	selected := flags.String("client", "vscode", "desktop client: vscode, ssh or none")
-	repos := flags.String("repo", "", "Host repository IDs for a new path reference")
-	workName := flags.String("name", "", "name for a new path reference")
-	base := flags.String("base", "", "Base when creating the work Env")
-	oci := flags.String("oci", "", "auto, none, or a retained oci: Store")
-	jsonOutput := flags.Bool("json", false, "machine-readable Workspace open result; requires --client none")
+	port := flags.Int("port", 0, cliMessage("detail.preview_port"))
+	closePreview := flags.Bool("close", false, cliMessage("detail.close_preview"))
+	noBrowser := flags.Bool("no-browser", false, cliMessage("detail.no_browser"))
+	selected := flags.String("client", "vscode", cliMessage("detail.client"))
+	repos := flags.String("repo", "", cliMessage("detail.repos_optional"))
+	workName := flags.String("name", "", cliMessage("detail.work_name"))
+	base := flags.String("base", "", cliMessage("detail.base"))
+	oci := flags.String("oci", "", cliMessage("detail.oci"))
+	jsonOutput := flags.Bool("json", false, cliMessage("detail.open_json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -69,7 +68,7 @@ func runOpen(args []string) int {
 		return 2
 	}
 	if flags.NArg() > 1 || (*selected != "vscode" && *selected != "ssh" && *selected != "none") {
-		fmt.Fprintln(os.Stderr, "Usage: haco open [--client vscode|ssh | --port <port> [--close | --no-browser]] [environment]")
+		commandHelp(os.Stderr, "open", cliLanguage())
 		return 2
 	}
 	portSet := false

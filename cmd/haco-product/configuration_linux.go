@@ -42,9 +42,9 @@ func runConfiguration(args []string) int {
 func configurationCommand(ctx context.Context, client configurationClient, args []string, out, diagnostic io.Writer, edit func(context.Context, capability.PolicySnapshot) (capability.PolicySnapshot, string, error)) int {
 	flags := flag.NewFlagSet("haco config", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
-	interactive := flags.Bool("edit", false, "edit policy using VISUAL or EDITOR")
-	file := flags.String("file", "", "apply an edited snapshot from haco config --json")
-	jsonOutput := flags.Bool("json", false, "machine-readable configuration snapshot")
+	interactive := flags.Bool("edit", false, cliMessage("detail.config_edit"))
+	file := flags.String("file", "", cliMessage("detail.config_file"))
+	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0

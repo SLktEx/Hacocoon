@@ -31,7 +31,7 @@ func temporaryCommandWithInput(ctx context.Context, args []string, stdin io.Read
 	flags := flag.NewFlagSet("haco run", flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	workspace := flags.String("workspace", "", cliMessage("run.flag_workspace"))
-	base := flags.String("base", "", cliMessage("flag.base"))
+	base := flags.String("base", "", cliMessage("detail.base"))
 	noOCI := flags.Bool("no-oci", false, cliMessage("flag.no_oci"))
 	readOnly := flags.Bool("read-only", false, cliMessage("run.flag_readonly"))
 	remove := flags.Bool("rm", true, cliMessage("run.flag_rm"))

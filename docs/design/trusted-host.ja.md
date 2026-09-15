@@ -429,3 +429,9 @@ controllerは共有構造化loggerに固定stage/state/reason、所要時間、�
 Host setupには承認操作はありません。busyは別setupの実行中を表し、承認待ちとは異なります。Capability承認は`haco approve`で別に扱います。Ctrl+Cは観測を終了し、既存lifecycle RPC同様controllerの時間制限付き処理は接続断後も続く可能性があります。排他は実際の処理終了まで保持します。通信断、最終応答欠落、古いcontrollerとの不一致から変更処理を再送したり成功表示したりしません。
 
 成功した工程表示はその試行の記録であり、現在のresource一覧ではありません。失敗時は作成済みresourceが残り得るためrollbackを約束しません。requestとdoctorの状態を確認してから明示的な再実行を判断します。保存したcustomizationには副作用があり、安易な再実行を案内しません。観測の追加によってcleanup権限、所有権、lease、network、認可の不変条件を変更しません。
+
+## Hostツール準備の共通化
+
+通常setupはOCI領域とclientの準備後にStandardの共通ツール処理を一度実行します。
+先にGit/ghをaptで重複準備していた旧処理は撤去します。Git・gh・OCIツールは既存のロック、
+導入記録、制限時間と失敗処理を共有します。失敗時も所有資源は保持し、通常setupで再試行できます。
