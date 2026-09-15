@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented in this candidate.
 Use the public commands below on the trusted Host. Existing-Env enrollment,
-unknown-copy recovery and added-data snapshot/transfer remain incomplete.
+unknown-copy recovery and added-data portable transfer remain incomplete.
 Real-host results and large-repository performance are separate acceptance claims.
 
 ## Intended daily use
@@ -82,9 +82,8 @@ A retry after the durable runtime-absence receipt does not delete that runtime n
 again. A missing runtime reference alone is not evidence of absence.
 
 Incus creation with a durable receipt can place these areas in the rootfs or a managed Workspace.
-Restore/archive and snapshot planning still refuse them; snapshot refusal precedes
-quiescing so an unsupported capture does not stop the producer. Existing Envs
-without added areas keep their snapshot/copy/transfer paths. The Standard selector reads the trusted Host settings for each new Environment.
+Snapshot and independent copy retain every enrolled area through the saved aggregate.
+Portable archive transfer still refuses added areas. The Standard selector reads the trusted Host settings for each new Environment.
 Unconfigured installations select no areas.
 
 ## Rootfs placement and resume
@@ -157,8 +156,8 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Existing-Env enrollment, complete copy recovery and added-data
-snapshot/copy/transfer remain incomplete. Unknown copy outcomes retain ownership;
+Existing-Env enrollment, unknown-copy recovery and added-data
+portable transfer remain incomplete. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
 These remaining operations must use canonical lifecycle ownership. Workspace and
 OCI data remain retained when an enrolled Environment is deleted.
@@ -292,3 +291,7 @@ delete it or replay an old publication. Use reviewed clear for retained data.
 Deletion-incomplete candidates report cleanup-required. Unknown copies and failed
 provider checks remain recovery-required and owned, with partial results preserved.
 Unknown native-copy cancellation and orphan-source recovery remain unsupported.
+
+Named-data snapshot/copy support is implemented through the canonical saved aggregate;
+saved bytes do not grant publication into a newer common generation. Portable
+added-data transfer remains in progress. See [snapshot semantics](environment-snapshots.md#named-disposable-data).

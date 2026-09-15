@@ -16,7 +16,9 @@ identity and current security settings. The original stays stopped. Use ordinary
 SSH setup/open for the new name. `--json` before the source returns public names.
 
 Copy preserves independent rootfs, managed Workspace files and Git state, and
-attached OCI Store data. It does not copy running processes, saved snapshot
+attached OCI Store data and every enrolled named disposable data area, including
+uncollected writes. New data children belong to the copied Env and are deleted
+with it; its Workspace and OCI remain retained. It does not copy running processes, saved snapshot
 history, old approvals, management devices or Hacocoon-managed connection identity. Ordinary
 Env deletion preserves both its own persistent data and other independent copies.
 Base is provenance; original Base/image material is unnecessary for the copy.

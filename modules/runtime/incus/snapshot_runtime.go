@@ -13,11 +13,17 @@ import (
 // the saved aggregate and canonical creation lease, supplies new data bindings,
 // records the receipt immediately, and owns failure cleanup/publication.
 func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spec core.EnvironmentRuntimeSpec, saved core.Snapshot, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
-	if len(spec.Attachments) != 0 {
-		return core.EnvironmentRuntime{}, core.ErrUnsupported
-	}
 	if p == nil || p.BaseProvider == nil || p.Runtime == nil || record == nil || !core.ValidEnvironmentInstanceID(spec.InstanceID) || spec.WorkspacePath == "" || spec.TemporaryWorkspace || spec.ResourceMaintenance || spec.Base != "" || saved.State != "ready" {
 		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	if len(spec.Attachments) != len(saved.Source.Environment.Attachments) {
+		return core.EnvironmentRuntime{}, core.ErrInvalidArgument
+	}
+	for i, area := range spec.Attachments {
+		original := saved.Source.Environment.Attachments[i]
+		if area.Attachment.Key != original.Key || area.Attachment.Target != original.Target || area.Attachment.Origin != original.Origin || area.Attachment.Resource == original.Resource || area.Attachment.Resource.Owner == original.Resource.Owner || area.Resource.EnvironmentInstance != spec.InstanceID {
+			return core.EnvironmentRuntime{}, core.ErrCapabilityStale
+		}
 	}
 	ref := "haco-" + spec.Name
 	if err := validateManagedInstanceRef(ref); err != nil {
@@ -54,6 +60,11 @@ func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spe
 	if err != nil {
 		return core.EnvironmentRuntime{}, err
 	}
+	binding, _, err := p.environmentPlacementBinding(ctx, spec.ResourceBinding())
+	if err != nil {
+		return core.EnvironmentRuntime{}, err
+	}
+	config[environmentDataKey] = binding
 	config[environmentInstanceKey] = spec.InstanceID
 	config[managedEnvironmentMarkerKey] = managedEnvironmentMarkerValue
 	config["boot.autostart"] = "false"

@@ -16,10 +16,10 @@ var snapshotIDPattern = regexp.MustCompile(`^snap-[a-f0-9]{32}$`)
 var snapshotOwnerPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func validateSnapshot(s core.Snapshot) error {
-	if len(s.Source.Environment.Attachments) != 0 {
-		return core.ErrUnsupported
+	if !core.ValidEnvironmentAttachments(s.Source.Environment.Attachments) {
+		return core.ErrInvalidArgument
 	}
-	if !snapshotIDPattern.MatchString(s.ID) || !core.ValidEnvironmentInstanceID(s.Source.InstanceID) || s.Source.Environment.Name == "" || s.Source.Environment.RuntimeRef == "" || s.Source.Environment.Workspace.ID == "" || !strings.HasPrefix(s.Source.Environment.Workspace.Path, "managed:") || len(s.Components) < 2 || len(s.Components) > 256 {
+	if !snapshotIDPattern.MatchString(s.ID) || !core.ValidEnvironmentInstanceID(s.Source.InstanceID) || s.Source.Environment.Name == "" || s.Source.Environment.RuntimeRef == "" || s.Source.Environment.Workspace.ID == "" || !strings.HasPrefix(s.Source.Environment.Workspace.Path, "managed:") || len(s.Components) < 2 || len(s.Components) > 256+core.MaxEnvironmentAttachments {
 		return core.ErrInvalidArgument
 	}
 	if s.State != "capturing" && s.State != "ready" && s.State != "recovery-required" && s.State != "deleting" {
@@ -27,6 +27,10 @@ func validateSnapshot(s core.Snapshot) error {
 	}
 	refs := map[string]bool{}
 	roles := map[string]bool{}
+	expectedData := map[string]bool{}
+	for _, a := range s.Source.Environment.Attachments {
+		expectedData["data:"+a.Key] = true
+	}
 	root, work, oci, base := 0, 0, 0, 0
 	for _, c := range s.Components {
 		if len(c.Binding) > 16384 || !utf8.ValidString(c.Binding) || c.NativeRef == "" || len(c.NativeRef) > 1024 || len(c.Role) > 1024 || !snapshotOwnerPattern.MatchString(c.Owner) || refs[c.NativeRef] || roles[c.Role] {
@@ -46,6 +50,8 @@ func validateSnapshot(s core.Snapshot) error {
 			root++
 		case c.Role == "oci":
 			oci++
+		case expectedData[c.Role]:
+			delete(expectedData, c.Role)
 		case strings.HasPrefix(c.Role, "workspace:") && len(c.Role) > 10:
 			work++
 		default:
@@ -61,7 +67,7 @@ func validateSnapshot(s core.Snapshot) error {
 			return core.ErrInvalidArgument
 		}
 	}
-	if root != 1 || work == 0 || base > 1 || (base != 0 && (s.Source.Environment.Base == nil || s.Source.Environment.Base.Name == "" || s.Source.Environment.Base.Revision == "")) {
+	if len(expectedData) != 0 || root != 1 || work == 0 || base > 1 || (base != 0 && (s.Source.Environment.Base == nil || s.Source.Environment.Base.Name == "" || s.Source.Environment.Base.Revision == "")) {
 		return core.ErrInvalidArgument
 	}
 	hasOCI := s.Source.Environment.PersistentResource != (core.PersistentResourceRef{})

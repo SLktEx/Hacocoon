@@ -95,6 +95,17 @@ func (r *Runtime) createSnapshotComponent(ctx context.Context, source core.Snaps
 		if b.Volume.Role == "oci" && (b.Volume.SourceID != source.Environment.PersistentResource.ID || b.Volume.SourceOwner != source.Environment.PersistentResource.Owner) {
 			return core.ErrCapabilityStale
 		}
+		if b.Volume.SourceKind == CacheResourceKind {
+			matched := false
+			for _, a := range source.Environment.Attachments {
+				if b.Volume.Role == "data:"+a.Key && b.Volume.SourceID == a.Resource.ID && b.Volume.SourceOwner == a.Resource.Owner && b.Volume.Path == a.Target && b.Volume.SourceKind == a.Origin.Kind {
+					matched = true
+				}
+			}
+			if !matched {
+				return core.ErrCapabilityStale
+			}
+		}
 		return r.createSnapshotVolume(ctx, *b.Volume)
 	case b.Base != nil:
 		if source.Environment.Base == nil || !reflect.DeepEqual(*source.Environment.Base, b.Base.Base) {

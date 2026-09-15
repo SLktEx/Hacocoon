@@ -78,7 +78,9 @@ func (s *Service) MaterializeEnvironmentResources(ctx context.Context, lease cor
 		if err != nil {
 			return nil, err
 		}
-		if r.CopySource == (core.PersistentResourceRef{}) {
+		if r.RestoreSource != "" {
+			r, err = s.materializeSavedEnvironmentResource(ctx, lease, a, r)
+		} else if r.CopySource == (core.PersistentResourceRef{}) {
 			r, err = s.createReserved(ctx, r, nil)
 		} else {
 			var source core.PersistentResource

@@ -11,7 +11,7 @@ import (
 )
 
 func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
-	for _, mode := range []string{"ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool", "retained", "retained-not-ready", "retained-drift", "retained-lookup-error"} {
+	for _, mode := range []string{"data", "data-owner", "data-path", "data-binding", "data-omitted", "ok", "no-oci", "missing-work", "missing-base", "extra-disk", "duplicate-work", "foreign-owner", "running", "foreign-instance", "missing-volume", "foreign-user", "wrong-image", "missing-image", "readonly-option", "wrong-pool", "retained", "retained-not-ready", "retained-drift", "retained-lookup-error"} {
 		t.Run(mode, func(t *testing.T) {
 			root, instance := rootfsFixture()
 			base := baseSnapshotFixture()
@@ -25,6 +25,31 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 			}
 			devices["persistent-resource"] = map[string]string{"type": "disk", "pool": "pool", "source": "haco-persistent-" + source.Environment.PersistentResource.Owner, "path": OCIStorePath}
 			volumes = append(volumes, persistentVolumeObservation{Name: "haco-persistent-" + source.Environment.PersistentResource.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": source.Environment.PersistentResource.Owner, "user.hacocoon.resource": "oci:dev", "user.hacocoon.kind": OCIStoreKind, "user.hacocoon.source-only": "false"}})
+			if strings.HasPrefix(mode, "data") {
+				resource := core.PersistentResource{ID: "env-data:" + strings.Repeat("1", 32), Owner: strings.Repeat("2", 32), Kind: CacheResourceKind, NativeRef: "pool/haco-persistent-" + strings.Repeat("2", 32), State: "ready", EnvironmentInstance: source.InstanceID}
+				area := core.EnvironmentAttachment{Key: "compiler", Target: "/root/.cache/compiler", Resource: resource.Ref(), Origin: core.ResourceGeneration{Name: "compiler", Kind: CacheResourceKind, Compatibility: strings.Repeat("3", 64), Epoch: strings.Repeat("4", 32)}}
+				source.Environment.Attachments = []core.EnvironmentAttachment{area}
+				devices[environmentDataDevicePrefix+area.Key] = environmentDataDevice(core.EnvironmentRuntimeAttachment{Attachment: area, Resource: resource})
+				config := persistentResourceConfig(resource)
+				if mode == "data-owner" {
+					config[environmentInstanceKey] = "env-" + strings.Repeat("f", 32)
+				}
+				volumes = append(volumes, persistentVolumeObservation{Name: "haco-persistent-" + resource.Owner, Type: "custom", ContentType: "filesystem", Config: config, UsedBy: []string{"/1.0/instances/" + root.Source + "?project=hacocoon"}})
+				binding, err := environmentDataBinding(source.InstanceID, []core.EnvironmentRuntimeAttachment{{Attachment: area, Resource: resource}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				instance.Config[environmentDataKey] = binding
+				if mode == "data-binding" {
+					instance.Config[environmentDataKey] = "changed"
+				}
+				if mode == "data-path" {
+					devices[environmentDataDevicePrefix+area.Key]["path"] = "/root/.ssh"
+				}
+				if mode == "data-omitted" {
+					source.Environment.Attachments = nil
+				}
+			}
 			instance.Devices, instance.ExpandedDevices = devices, devices
 			switch mode {
 			case "no-oci":
@@ -88,13 +113,16 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				return mounts, nil
 			})
 			components, err := r.PlanSnapshot(context.Background(), source, "snap-"+strings.Repeat("e", 32))
-			if mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
+			if mode != "data" && mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
 				if err == nil || len(components) != 0 {
 					t.Fatal("incomplete aggregate accepted", err, components)
 				}
 				return
 			}
 			want := 4
+			if mode == "data" {
+				want++
+			}
 			if mode == "no-oci" {
 				want = 3
 			}

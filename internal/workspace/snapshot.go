@@ -36,11 +36,6 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if err != nil {
 		return err
 	}
-	// Until snapshots preserve the added data, refuse before stopping a running
-	// producer. Reference-only snapshot resume must not strand an enrolled Env.
-	if len(environment.Attachments) != 0 {
-		return core.ErrUnsupported
-	}
 	if !strings.HasPrefix(environment.Workspace.Path, "managed:") || environment.Workspace.ID == "" {
 		return fmt.Errorf("snapshots require a managed Workspace: %w", core.ErrUnsupported)
 	}
@@ -67,6 +62,11 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if err != nil {
 		return err
 	}
+	if len(lease.Attachments) != 0 {
+		if _, err := s.resolveEnvironmentRuntimeResources(ctx, lease); err != nil {
+			return err
+		}
+	}
 	wasRunning := status.State == core.EnvironmentRunning
 	if status.State != core.EnvironmentStopped && (!quiesce || !wasRunning) {
 		return fmt.Errorf("stop the Environment before snapshot: %w", core.ErrIncompatibleState)
@@ -76,7 +76,6 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	}
 	type lifecycleRuntime interface {
 		StopEnvironment(context.Context, string) error
-		StartEnvironment(context.Context, string) error
 	}
 	var lifecycle lifecycleRuntime
 	if wasRunning {
@@ -115,7 +114,7 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 		if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
 			return err
 		}
-		if err := lifecycle.StartEnvironment(ctx, environment.RuntimeRef); err != nil {
+		if err := s.startRuntimeWithLease(ctx, environment, lease); err != nil {
 			return fmt.Errorf("snapshot saved but Environment restart failed: %w", err)
 		}
 		running, err := runtime.InspectEnvironment(ctx, environment.RuntimeRef)
