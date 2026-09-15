@@ -39,3 +39,5 @@ Existence alone cannot prove an interrupted copy completed. Self-service recover
 history/clearing, existing-Env enrollment and added-data snapshot/transfer remain
 explicitly incomplete. No old-version compatibility layer is introduced. Native
 functional acceptance and large-repository measurements are separate evidence.
+
+Recovery follows the same ownership decision: common copy recovery now requires an exact reference, including OCI callers. Standard resolves named candidates; the common service accepts only durable completion, verifies the provider and commits once. Recovery reuses the generation CAS but retains stale complete candidates, since it cannot infer that a historical candidate was never selected. It never replays copying or treats resource existence as a receipt.

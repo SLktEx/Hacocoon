@@ -116,7 +116,7 @@ func (s *Service) DeleteEnvironmentResources(ctx context.Context, lease core.Wor
 			err = core.ErrCapabilityStale
 		}
 		if err == nil && r.State == "creating" && r.CopyCompleted {
-			_, err = s.RecoverCopy(ctx, r.ID)
+			_, err = s.RecoverCopy(ctx, r.Ref())
 		}
 		if err == nil {
 			r, err = store.BeginEnvironmentResourceDelete(ctx, lease.InstanceID, a.Resource)

@@ -44,7 +44,7 @@ func (s WorkspaceStores) RecoverHostCopies(ctx context.Context) error {
 	}
 	for _, target := range resources {
 		if target.State == "creating" && target.CopyCompleted && target.CopySource.ID == HostStoreID {
-			if _, err := s.Resources.RecoverCopy(ctx, target.ID); err != nil {
+			if _, err := s.Resources.RecoverCopy(ctx, target.Ref()); err != nil {
 				return err
 			}
 		}

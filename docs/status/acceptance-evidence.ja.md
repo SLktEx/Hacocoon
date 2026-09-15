@@ -535,3 +535,9 @@ main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを�
 新しい実Incus保守確認はFAIL。TestRealIncusEnvironmentDataPlacementE2E、command251.40秒/test243.38秒、Env data-e2e-c78cf57de85ce050、catalog /var/lib/haco-data-placement-529644104/state.json。既存の再開・access確認で4分の期限に達しsignal: killedとなり、収集・新しい履歴/クリア確認には未到達。成功でもSKIPでもない。前の通常収集の成功はそのソースの範囲で保持し、実機クリアは未確認。正確な所有catalogで片付け結果を確認中。
 
 読み取り確認で、失敗fixtureの正確なcatalogにEnv・lease・永続領域が残っておらず、nativeの名前照会も該当なしと確認した。空の世代項目2件だけが残る。元のタイムアウトは未解決。
+
+## 名前付きキャッシュ完了復旧
+
+#670の後続はライフサイクル/キャッシュ/OCI/CLI/controller集中19.10秒、変更範囲lint15.71秒、全ローカル39.78秒、race14.61秒、CLI7.25秒、文書・回帰10.41秒、workflow2.00秒がPASS。実catalogと段階的provider失敗の試験で、完了記録からコピーし直さず復旧し、検査後に元データの保持を解除すること、リセット後の候補を保持し、不明・provider拒否・所有権違いは拒否することを確認。OCIの共通復旧も正確な所有参照を渡す。部品検証であり、新しいnative復旧やWindows受入ではない。先行の実機保守timeoutは未解決。
+
+最後の復旧の使い方案内と日英ヘルプはCLI/UI/controller9.40秒、文書・回帰12.72秒がPASS。所有権・復旧コードは上記全体確認から変更していない。

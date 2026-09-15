@@ -596,3 +596,9 @@ The follow-up to #669 passed focused tests (15.58s), changed-code lint (4.08s), 
 The new real Incus maintenance attempt FAILED: `TestRealIncusEnvironmentDataPlacementE2E`, command251.40s/test243.38s, Env `data-e2e-c78cf57de85ce050`, catalog `/var/lib/haco-data-placement-529644104/state.json`. The four-minute context expired during existing resume/access steps before collection or the new history/clear assertions, reporting `signal: killed`. This is not a maintenance pass or a SKIP. Earlier ordinary collection success remains scoped to its own source; native clearing still needs acceptance. Cleanup outcome is being checked from the owned catalog.
 
 Read-only follow-up confirmed no Environments, leases or persistent resources remain in that exact failed-fixture catalog, and the native name query returned no instance. Only two empty generation entries remain. The original timeout is unresolved.
+
+## Named cache completion recovery
+
+The follow-up to #670 passed focused lifecycle/cache/OCI/CLI/controller tests19.10s, changed-code lint15.71s, full local39.78s, race14.61s, CLI7.25s, docs/regressions10.41s and workflow2.00s. A real catalog with staged provider failure proves completed copies recover without recopy, original source pins are released only after verification, reset candidates remain retained, and unknown/provider-refused/wrong-owner cases remain blocked. Common OCI recovery now passes the exact owned reference. This is component evidence, not new native recovery or Windows acceptance. The earlier native maintenance timeout remains unresolved.
+
+Final recovery usage text and bilingual help passed CLI/UI/controller tests9.40s and docs/regressions12.72s; ownership/recovery code is unchanged from the full validation above.

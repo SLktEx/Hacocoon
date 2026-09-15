@@ -209,3 +209,5 @@ native acceptance are recorded separately; large-repository performance remains 
 The M4 public cache candidate adds Host settings, creation-time enrollment, stopped collection and named status output. Next: complete history/clearing/recovery and added-data transfer, then installed ordinary workflow acceptance. Large-repository measurements follow usable flows and are not claimed by small fixtures.
 
 Named cache history and reviewed source clearing are implemented in the follow-up to #669. Next: recovery of positively completed copies, orphan-source browsing, existing-Env enrollment and additional-data transfer. Unknown completion remains owned; performance stays deferred.
+
+The cache recovery follow-up completes named positive-receipt recovery and current-generation adoption through shared ownership operations. Unknown native copy reconciliation, orphan-source access, existing-Env enrollment and added-data transfer remain; performance stays deferred.

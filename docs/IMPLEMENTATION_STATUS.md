@@ -112,3 +112,5 @@ current selection from retained attempts. Revision-bound clear resets reuse and
 uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
 uncertain copies. Self-service copy recovery, orphan-source browsing and added-data
 transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
+
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery, existing-Env enrollment and added-data transfer remain incomplete; new real-host recovery acceptance is separate.
