@@ -88,3 +88,9 @@ JSONにも実行済みの結果を残す。再試行前に履歴を確認する�
 通常のHost入口で`haco env tunnel --target-port 8080 demo`を実行し、表示された接続先をアプリで開きます。ポートは自動選択、最大1時間で、Ctrl+Cですべての接続を終了します。Linuxは手元、WSL入口は導入済みWindowsクライアントで待ち受けます。PowerShellからは`& <導入済みhaco-tunnel.exe> --distribution <WSL名> --target-port 8080 demo`を使います。実行ファイルの場所は導入完了時に表示します。[通信と前提](../design/controller-client-transport.ja.md)を参照してください。
 
 Env作成時に`--dns host|backend|disabled`を選べます（通常は`host`）。通常statusにも名前解決設定を表示し、snapshot/copy/転送で保持します。Policy境界と確認範囲は[名前解決](../design/name-resolution.ja.md)を参照してください.
+
+## Baseのアーカイブ取り込み
+
+`haco base import --name <base> [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
+
+[入力・上限・失敗時の扱い](../design/base-images-and-custom-environments.md#import-a-container-image-archive)。

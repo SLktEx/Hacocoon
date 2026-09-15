@@ -78,6 +78,31 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	if d.Packer != nil && s.Packer == nil {
 		return result, core.ErrUnsupported
 	}
+	return s.build(ctx, d.Name, func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
+		return s.Environments.Create(ctx, core.EnvironmentSpec{Name: name, Base: d.From, TemporaryWorkspace: &work, SkipDefaultResource: true, Resources: builderResources()})
+	}, func(execute Execute, result *Result) error {
+		if d.Packer != nil {
+			if err = s.Packer.Provision(ctx, *d.Packer, execute); err != nil {
+				var failure *ProvisionFailure
+				if errors.As(err, &failure) {
+					result.Stage = failure.Stage
+					result.Execution = &failure.Execution
+				}
+				return err
+			}
+		} else {
+			execution, runErr := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
+			if runErr != nil || execution.ExitCode != 0 {
+				return fmt.Errorf("base build script failed (exit %d): %w", execution.ExitCode, core.ErrRuntimeUnavailable)
+			}
+		}
+		return nil
+	})
+}
+
+// build owns the single execution/publication/cleanup sequence for definitions
+// and archive inputs. The creator always uses canonical Environment ownership.
+func (s *Service) build(ctx context.Context, base core.BaseName, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(Execute, *Result) error) (result Result, err error) {
 	work, err := core.NewTemporaryWorkspace()
 	if err != nil {
 		return result, err
@@ -87,8 +112,8 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 		return result, err
 	}
 	name := "build-" + hex.EncodeToString(nonce[:])
-	result = Result{Base: core.BaseInfo{Name: d.Name}, Builder: name, State: "failed"}
-	env, err := s.Environments.Create(ctx, core.EnvironmentSpec{Name: name, Base: d.From, TemporaryWorkspace: &work, SkipDefaultResource: true})
+	result = Result{Base: core.BaseInfo{Name: base}, Builder: name, State: "failed"}
+	env, err := create(ctx, name, work)
 	if err != nil {
 		return result, err
 	}
@@ -112,19 +137,9 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	execute := func(ctx context.Context, request core.ExecutionRequest) (core.ExecutionResult, error) {
 		return s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, request)
 	}
-	if d.Packer != nil {
-		if err = s.Packer.Provision(ctx, *d.Packer, execute); err != nil {
-			var failure *ProvisionFailure
-			if errors.As(err, &failure) {
-				result.Stage = failure.Stage
-				result.Execution = &failure.Execution
-			}
+	if provision != nil {
+		if err = provision(execute, &result); err != nil {
 			return result, err
-		}
-	} else {
-		execution, runErr := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
-		if runErr != nil || execution.ExitCode != 0 {
-			return result, fmt.Errorf("base build script failed (exit %d): %w", execution.ExitCode, core.ErrRuntimeUnavailable)
 		}
 	}
 	// Instance-local cleanup runs only inside the untrusted guest. Never execute
@@ -136,7 +151,7 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	if err = s.Environments.StopForWorkspace(ctx, env.Name, work.ID); err != nil {
 		return result, err
 	}
-	result.Base, err = s.Environments.PublishTemporaryBase(ctx, env.Name, work, d.Name)
+	result.Base, err = s.Environments.PublishTemporaryBase(ctx, env.Name, work, base)
 	if err != nil {
 		preserve = true
 		result.State = "publication-unconfirmed"
@@ -152,3 +167,11 @@ const cleanInstance = `rm -f /etc/ssh/ssh_host_* /var/lib/dbus/machine-id
 rm -rf /root/.ssh /home/*/.ssh /run/hacocoon /var/lib/hacocoon /workspace
 mkdir -p /workspace
 sync`
+
+// Finite defaults apply to every builder before the untrusted rootfs starts.
+func builderResources() core.ResourceBudget {
+	finite := func(value uint64) core.ResourceLimit {
+		return core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: value}
+	}
+	return core.ResourceBudget{CPU: finite(2), MemoryBytes: finite(4 << 30), PIDs: finite(1024), RootBytes: finite(64 << 30)}
+}

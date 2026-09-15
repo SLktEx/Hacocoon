@@ -165,3 +165,9 @@ slice within current contracts, without a tag/release or old-version migration.
 Within v0.67, the M5 candidate adds read-only snapshot component inspection and
 explicit retry guidance. This does not complete M5, release a package, or establish
 underlying storage health. See the [owning contract](../design/environment-snapshots.md#inspect-a-failed-deletion).
+
+## Base archive input
+
+Within v0.67, the M4 candidate adds isolated Base archive import and finite builder
+resources, reusing input staging and the existing publication/cleanup lifecycle.
+This is a development checkpoint, not a release or complete M4/M5 acceptance.

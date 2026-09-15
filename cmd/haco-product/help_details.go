@@ -74,6 +74,7 @@ func init() {
 	set([]string{"git approve", "git deny"}, []cliui.HelpField{field("<id>", "detail.request")}, []cliui.HelpField{field("--save env|all|ask-env|ask-all", "detail.saved")}, "detail.read_access")
 	set([]string{"base list"}, nil, []cliui.HelpField{field("--all", "detail.base_all"), json})
 	set([]string{"base inspect"}, []cliui.HelpField{baseName}, nil)
+	set([]string{"base import"}, []cliui.HelpField{field("<image.tar>", "base.import.archive")}, []cliui.HelpField{field("--name <base>", "base.packer_name"), json})
 	set([]string{"base build"}, []cliui.HelpField{field("<directory | definition.json>", "base.packer_context")}, []cliui.HelpField{field("--name <base>", "base.packer_name"), field("--from <base>", "base.packer_from"), field("--output", "base.packer_output"), json})
 	set([]string{"base delete"}, []cliui.HelpField{field("<name-or-fingerprint>", "detail.base_delete")}, []cliui.HelpField{yes})
 	set([]string{"snapshot create"}, []cliui.HelpField{env}, []cliui.HelpField{json})

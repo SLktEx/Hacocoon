@@ -168,3 +168,12 @@ component, provider presence, volume references and safe retry steps. It uses
 existing ownership validators and locks without changing deletion semantics.
 Underlying Btrfs consistency is explicitly uninspected; this is not a repair or
 whole M5 acceptance. See [snapshot diagnostics](design/environment-snapshots.md#inspect-a-failed-deletion).
+
+## Base archive input candidate
+
+**Implemented candidate:** `haco base import` captures uncompressed Incus image
+bytes, creates an isolated temporary Env and shares existing immutable Base
+publication/cleanup. Definition, Packer and import builders have finite resource
+budgets. Compressed/VM/split images and automatic crash replay remain unsupported.
+See [Base input](design/base-images-and-custom-environments.md#import-a-container-image-archive);
+repository tests and real-host acceptance remain separate.

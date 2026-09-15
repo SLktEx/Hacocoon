@@ -248,3 +248,11 @@ for #523. Provider observations and existing deletion ownership checks are share
 underlying Btrfs consistency remains uninspected. Installed current-data evacuation,
 Base archive import and late cache enrollment/local clearing remain separate work.
 Large-repository performance and extra validation follow ordinary usability.
+
+## Base archive input
+
+The M4 candidate implements explicit uncompressed Incus Base archive import through
+a temporary builder and the existing publication contract (#183), with finite
+builder resources. Existing cache enrollment/local clearing, installed notification
+reliability, current-data evacuation and broader input/recovery acceptance remain.
+Giant-repository measurements follow ordinary usability.

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +77,28 @@ func TestArchiveCanonicalCreationOwnsFailureCleanup(t *testing.T) {
 				t.Fatal("cleanup not owned once", base.deleteRefs)
 			}
 		})
+	}
+}
+
+func TestTemporaryArchiveCreationUsesCanonicalWorkspaceLease(t *testing.T) {
+	ctx := context.Background()
+	_, st, _ := captureFixture(t)
+	work, err := core.NewTemporaryWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &archiveCreateRuntime{receiptRuntime: &receiptRuntime{fakeEnvironmentRuntime: &fakeEnvironmentRuntime{}, t: t, store: st.EnvironmentJSONStore}}
+	svc := New(runtime, st)
+	env, err := svc.CreateFromArchive(ctx, core.EnvironmentSpec{Name: "import-builder", TemporaryWorkspace: &work, SkipDefaultResource: true}, strings.NewReader("rootfs"), t.TempDir(), 1024)
+	if err != nil || env.Workspace != work {
+		t.Fatal(env, err)
+	}
+	lease, err := st.GetWorkspaceLease(ctx, env.Name)
+	if err != nil || lease.WorkspaceID != work.ID || lease.SourcePath != work.Path {
+		t.Fatal(lease, err)
+	}
+	if err := svc.DeleteTemporary(ctx, env.Name, work); err != nil {
+		t.Fatal(err)
 	}
 }
 

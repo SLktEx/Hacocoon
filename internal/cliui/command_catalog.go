@@ -142,6 +142,7 @@ var commandCatalog = map[string]translation{
 	"command.base":                     {"Choose or build starting contents for an environment", "環境のひな形を選ぶ・作る"},
 	"command.base.list":                {"List available starting points", "利用できるひな形を一覧表示する"},
 	"command.base.inspect":             {"Inspect a starting point and its revision", "ひな形とそのリビジョンを確認する"},
+	"command.base.import":              {"Import an archive as an isolated reusable Base", "アーカイブを隔離した作成環境で再利用できるBaseに取り込む"},
 	"command.base.build":               {"Build a Base using Packer HCL2 and external scripts", "Packer HCL2と外部スクリプトからひな形を作成する"},
 	"command.base.delete":              {"Review and delete an owned unused Base image", "所有する未使用のひな形イメージを確認して削除する"},
 	"command.snapshot":                 {"Save and restore independent stopped data", "停止中のデータを独立して保存・復元する"},

@@ -148,3 +148,11 @@ clear・準備・初回reviewは既存の起動待ち20秒を共有し、通常�
 所有関係、使用中の参照数と、安全な再試行手順を表示する。既存の所有確認と
 ロックを使い、削除動作は変えない。Btrfs内部の整合性は明示的に未確認とする。
 自動修復やM5全体の確認完了ではない。[削除診断](design/environment-snapshots.md#inspect-a-failed-deletion)を参照。
+
+## Baseアーカイブ取り込み候補
+
+**実装済み候補:** `haco base import` は非圧縮のIncusイメージを固定し、隔離した一時Envを
+作成して既存の不変Base公開・cleanupを使う。定義・Packer・取り込みの作成環境には
+有限の資源上限を設定する。圧縮・VM・分割イメージと自動的な中断再開は未対応。
+[Base入力](design/base-images-and-custom-environments.md#import-a-container-image-archive)を参照。
+リポジトリ内検証と実機確認は区別する。

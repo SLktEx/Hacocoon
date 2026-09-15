@@ -71,6 +71,9 @@ func main() {
 	if err := controlapi.RegisterBaseBuild(server, app.BaseBuild); err != nil {
 		fail(err)
 	}
+	if err := registerBaseImport(server, app); err != nil {
+		fail(err)
+	}
 	if err := registerEnvironmentExport(server, app); err != nil {
 		fail(err)
 	}
