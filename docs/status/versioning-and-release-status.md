@@ -190,3 +190,8 @@ M4/M5, create a tag or publish a release.
 Within v0.67, bounded failure stages and bilingual next actions improve the ordinary
 Windows reclamation path. This does not complete M5 or publish a release; existing
 attached-disk and installed pre-dispatch failures remain distinct acceptance gaps.
+
+## Restored-tree comparison
+
+The v0.67 M5 candidate adds portable file-tree comparison to the existing maintenance
+evacuation flow. It is a useful comparison step, not full migration acceptance or a release.

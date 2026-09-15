@@ -283,3 +283,12 @@ a diagnostic as permission to replay. Current-data evacuation and authenticated
 restoration remain separate; giant performance stays deferred.
 
 PR #687 passed all five exact-head workflows and is on main at `2f421006`. This integrates the preceding candidate stack, including saved-data inspection, Base archive input, cache maintenance, Workspace composition and notification readiness. Human GUI answers and the dedicated installed reclamation failure remain separate from the successful Windows CI.
+
+## Restored-data comparison
+
+The M5 candidate provides read-only portable manifests and a difference report for
+ordinary restored trees. Next: select current required data from the preserved
+installation inventory, capture/restore and compare it in the appropriate ownership
+namespace, then exercise normal development and authentication. Readable fixture
+restoration is scoped evidence. Old-version reconstruction and replacement of the
+preserved old WSL remain outside the current request. Performance remains deferred.

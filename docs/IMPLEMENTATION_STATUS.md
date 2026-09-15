@@ -194,3 +194,11 @@ and Windows-code diagnostics with bilingual next actions. Saved attached-disk fa
 explain retention and explicit review. Actual ordinary reclamation failed before
 record creation on the dedicated installation; this diagnosis change does not
 establish successful compaction. See [the contract](design/storage-reclamation.md#failure-diagnostics).
+
+## Restored-tree comparison
+
+**Implemented candidate:** maintenance scans and portable manifest comparison cover
+contents, modes, numeric owners, internal links and regular-file/directory xattrs
+using the existing read-only inventory. Differences and incomplete observations are
+explicit; whole-installation restoration and authenticated development remain partial.
+See [the operator workflow](guides/data-evacuation.md#compare-a-restored-tree).
