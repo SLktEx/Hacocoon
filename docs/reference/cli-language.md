@@ -97,3 +97,15 @@ starting an unknown runtime. Normal Windows/WSL entry now selects the display
 language and forwards it to the trusted Host; the installer preserves OS locale.
 Full result translation and packaged language acceptance remain. Validation is recorded in
 [acceptance evidence](../status/acceptance-evidence.md#main-cli-language).
+
+## Detailed command guidance
+
+Required inputs, defaults and advertised options now have English/Japanese
+explanations before controller connection. Current JSON opt-in, portless SSH and
+Host-only recipe reapply/result options remain. Host setup applies saved recipes
+only when unapplied; it is not an unconditional replay.
+
+Base, snapshot, repository, Workspace and OCI results use shared catalogs.
+Retained-data deletion shares one client confirmation helper. Failed warning or
+prompt delivery cannot authorize deletion, even with `--yes`; controller ownership
+and lifecycle checks remain authoritative. Original tool errors and JSON remain unchanged.

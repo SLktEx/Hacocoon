@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,14 +37,14 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 	f := flag.NewFlagSet("haco plugin oci store "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	f.Usage = func() {
-		fmt.Fprintln(diagnostic, "Usage: haco plugin oci store list [--json] | haco plugin oci store delete [--yes] <store>")
+		commandHelp(diagnostic, "plugin oci store "+args[0], cliLanguage())
 	}
 	var yes, machine bool
 	switch args[0] {
 	case "list":
-		f.BoolVar(&machine, "json", false, "machine-readable Stores and references")
+		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, "confirm deletion of this Store and all its OCI data")
+		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
 	default:
 		f.Usage()
 		return 2
@@ -67,7 +66,7 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 	}
 	all, err := c.OCIStore(ctx, controlapi.OCIStoreRequest{Operation: "list"})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
 	if args[0] == "list" {
@@ -85,14 +84,14 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 	for i := range all.Resources {
 		if all.Resources[i].ID == id {
 			if selected != nil {
-				fmt.Fprintln(diagnostic, "haco: duplicate Store identity")
+				_, _ = fmt.Fprintln(diagnostic, cliMessage("store.duplicate"))
 				return 1
 			}
 			selected = &all.Resources[i]
 		}
 	}
 	if selected == nil {
-		fmt.Fprintln(diagnostic, "haco: Store not found")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("store.missing"))
 		return 1
 	}
 	var use *oci.StoreUse
@@ -105,43 +104,35 @@ func ociStoreManageCommand(ctx context.Context, c ociStoreClient, args []string,
 		}
 	}
 	if use == nil {
-		fmt.Fprintln(diagnostic, "haco: Store references unavailable")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("store.references_unavailable"))
 		return 1
 	}
 	if err := writeOCIStores(out, controlapi.OCIStoreResponse{Resources: []core.PersistentResource{*selected}, Uses: []oci.StoreUse{*use}}); err != nil {
 		return 1
 	}
 	if selected.SourceOnly || len(use.Environments) > 0 || len(use.PendingCopies) > 0 {
-		fmt.Fprintln(diagnostic, "haco: Store is referenced or is the protected Host source; retained")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("store.busy"))
 		return 1
 	}
 	if selected.State != "ready" && selected.State != "deleting" {
-		fmt.Fprintln(diagnostic, "haco: incomplete Store creation requires inspection; retained")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("store.incomplete"))
 		return 1
 	}
-	fmt.Fprintln(diagnostic, "This deletes all images, container metadata, build cache and persistent data in this Store. Workspace files, the Host source and independent saved snapshots remain.")
-	if !yes {
-		if !requireInteractiveConfirmation(in, diagnostic) {
-			return 2
-		}
-		fmt.Fprint(diagnostic, "Delete this OCI Store? [y/N] ")
-		answer, err := bufio.NewReader(io.LimitReader(in, 128)).ReadString('\n')
-		answer = strings.ToLower(strings.TrimSpace(answer))
-		if err != nil || (answer != "y" && answer != "yes") {
-			fmt.Fprintln(diagnostic, "Store retained.")
-			return 1
-		}
+	if code := confirmDataDeletion(in, diagnostic, yes, "store.delete_warning", "store.delete_prompt", "store.retained"); code != 0 {
+		return code
 	}
 	if _, err := c.OCIStore(ctx, controlapi.OCIStoreRequest{Operation: "delete", ID: selected.ID, Owner: selected.Owner}); err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
 	}
-	fmt.Fprintln(out, "OCI Store deleted; Workspace, Host source and independent snapshots retained")
+	if _, err := fmt.Fprintln(out, cliMessage("store.deleted")); err != nil {
+		return 1
+	}
 	return 0
 }
 func writeOCIStores(out io.Writer, all controlapi.OCIStoreResponse) error {
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "TYPE\tNAME\tMANAGED ID\tOWNER\tSTATE\tROLE\tWORKSPACE\tENVIRONMENTS\tPENDING COPIES\tSAVED SNAPSHOTS (independent)")
+	_, _ = fmt.Fprintln(table, cliMessage("store.columns"))
 	for _, r := range all.Resources {
 		var use *oci.StoreUse
 		for i := range all.Uses {

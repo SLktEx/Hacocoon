@@ -394,6 +394,38 @@ those results are not substituted for this updated head. Seed #662 final head
 same-commit evidence job 104155046690. No earlier failure or human acceptance gap
 is erased by either result.
 
+## Detailed guidance and single Host tool preparation
+
+Candidate `4d7435cc` reuses #592/#593 and #659 on main `44211fd2`. Current
+JSON opt-in, portless SSH, HTTP preview and once-per-Host setup semantics remain.
+Focused CLI/catalog/Host/Incus tests (4.39s), pinned changed-code lint (4.09s),
+full local tests (44.27s), related race (9.69s), CLI E2E (3.64s), documentation
+(5.03s) and workflow policy (1.08s) passed on a verified source archive.
+
+The first focused attempt exposed old fixture language selection and an overly
+broad SSH-port assertion: current `haco open --port` selects HTTP preview. The
+fixtures now use the shared locale selector and distinguish preview from portless
+SSH. The next lint found two unchecked test-file closes; both are checked now.
+These failures remain distinct from the subsequent passes. Fresh installed Host
+preparation and original SSH-failure reproduction were not run for this head;
+#655's original Host apt failure remains historical unresolved evidence.
+
+PR #665 head `e6ef0431` passed repository, quality, Ubuntu and Incus CI, but
+Windows run 34896159890 failed before packaging/installation in the first native
+reclamation protocol subtest (job 104150566559, start, 30.09s timeout; only CLIXML
+on stderr). The other five modes passed; subsequent product steps were skipped.
+No changed file touched that protocol implementation. The same verified source
+was built and run on this Windows PC: all six modes passed in 5.84s (command
+7.67s), with start taking 3.68s. No WSL restart, reclamation, registration change
+or execution-policy relaxation was involved. The CI timeout remains unexplained
+and is not erased by local success. The candidate now includes main `119e3007`.
+
+After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` passed the full local test entry (19.51s), CLI E2E (10.60s), and docs/regressions (5.55s). Windows CI is rerun for the updated head; the earlier protocol timeout remains unresolved evidence.
+
+
+PR #665 head `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa` passed all five CI workflows, including Windows 34900315650. After merging main `9da3ec8f` as `35d5ea81`, combined local tests (13.58s), CLI E2E (3.22s) and docs/regressions (4.65s) passed. The earlier native protocol startup timeout remains unexplained; this later pass does not erase it. No fresh human desktop acceptance is claimed.
+
+
 <a id="main-interactive-run"></a>
 ## Interactive temporary execution on main
 
@@ -455,3 +487,7 @@ These results do not execute Packer or establish installed acceptance. The sourc
 
 
 After integrating #666 at `629f33ed` as `068c8106`, the canonical checkpoint tool advanced this candidate to v0.62 (Packer HCL2 Base builds). Combined local tests (34.93s), CLI E2E (5.34s) and docs/regressions (6.95s) passed. Both Packer and interactive run are included; this is not a release or full M4 acceptance.
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
+
+
+At #667 head `61aeff8f`, Windows 34916801756 / job104216088784 passed installation, HTTPS, Windows interop, Base creation and initial strict SSH/desktop alias, then failed parallel cold reconnect after fixture WSL termination: exit255, ssh_progress=stream_denied. Reclamation and notification steps were skipped. The root cause remains unresolved; no actual Packer build is established by this run. Other four workflows passed.

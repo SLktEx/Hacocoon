@@ -482,3 +482,10 @@ Inspect the request and current doctor result before choosing an explicit retry.
 Saved customization can have external side effects and must not be blindly
 replayed. This observation change adds no cleanup authority and changes no
 ownership, lease, network or authorization invariants.
+
+## Single Host tool preparation
+
+Normal setup invokes the canonical Standard tooling step once, after OCI storage
+and client readiness. The obsolete preliminary Git/gh apt helper is removed.
+Git, gh and OCI tools share the existing lock, installation metadata and bounded
+failure handling. Failed setup retains owned resources; ordinary setup can retry.

@@ -8,6 +8,7 @@ type translation struct {
 }
 
 var catalog = map[string]translation{
+ "base.packer_context": {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
 	"base.packer_name":               {"Name of the Base to publish.", "作成するひな形の名前。"},
 	"base.packer_from":               {"Starting Base; omit to use the default.", "元にするひな形。省略時は既定値。"},
 	"base.packer_output":             {"Include private failed-build output; it may contain script data.", "失敗したbuildの非公開出力を表示します。スクリプト内の情報を含み得ます。"},
@@ -41,7 +42,7 @@ var catalog = map[string]translation{
 	"error.write_result":             {"haco: cannot write result", "haco: 結果を出力できません。"},
 	"version.long":                   {"Hacocoon\n  checkpoint: %s\n  version: %s\n  commit: %s\n  built: %s\n", "Hacocoon\n  開発段階: %s\n  バージョン: %s\n  コミット: %s\n  ビルド日時: %s\n"},
 	"host.notice":                    {"Entering trusted haco-host. Host authority is available here; use an Environment for ordinary development work.", "信頼済みの haco-host に入ります。ここでは Host 権限を利用できます。通常の開発作業には Environment を使用してください。"},
-	"env.switch_base_disabled":       {"haco: switch-base is currently disabled; its need and UX will be reconsidered in Stage D or later", "haco: switch-baseは現在無効です。必要性と使い方はStage D以降で再検討します。"},
+	"env.switch_base_disabled":       {"haco: switch-base is disabled. Create a new Environment with --base and the retained Workspace.", "haco: switch-baseは利用できません。--baseと保持Workspaceを指定し、新しい環境を作成してください。"},
 	"flag.no_oci":                    {"skip automatic OCI Store copy and attachment", "OCI Storeの自動コピーと接続を行わない"},
 	"flag.workspace":                 {"Workspace path on the controller", "コントローラー側のWorkspaceのパス"},
 	"flag.base":                      {"logical Base name", "開発環境のひな形（Base）の名前"},
