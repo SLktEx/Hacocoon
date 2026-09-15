@@ -66,7 +66,7 @@ func fixture(t *testing.T, protocol string, port int) (*Service, Spec, *testAuth
 	t.Helper()
 	a := &testAuthority{instance: testInstance, revision: "r1", decision: core.PolicyAllow}
 	spec := Spec{Kind: "host", Target: "fixture", Protocol: protocol, Port: port, DurationSeconds: 10}
-	s := &Service{Authority: a, Targets: testTargets{Target{Kind: "host", Name: "fixture", Protocol: protocol, Port: port, Addresses: []netip.Addr{netip.MustParseAddr("127.0.0.1")}, Owner: "svc-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}, CheckInterval: 5 * time.Millisecond}
+	s := &Service{Authority: a, Targets: testTargets{Target{Kind: "host", Name: "fixture", Protocol: protocol, Port: port, Addresses: []netip.Addr{netip.MustParseAddr("127.0.0.1")}, Owner: "svc-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}
 	s.Capabilities = requesterFunc(func(ctx context.Context, r core.CapabilityRequest) (core.CapabilityResult, error) {
 		e, _ := a.Evaluate(ctx, r)
 		if e.Decision == core.PolicyDeny {

@@ -16,14 +16,13 @@ import (
 )
 
 type Service struct {
-	Capabilities  Requester
-	Targets       Targets
-	Authority     Authority
-	DialTarget    func(context.Context, Target, netip.Addr) (net.Conn, error)
-	Dial          func(context.Context, string, string) (net.Conn, error)
-	CheckInterval time.Duration
-	mu            sync.Mutex
-	sessions      map[string]*active
+	Capabilities Requester
+	Targets      Targets
+	Authority    Authority
+	DialTarget   func(context.Context, Target, netip.Addr) (net.Conn, error)
+	Dial         func(context.Context, string, string) (net.Conn, error)
+	mu           sync.Mutex
+	sessions     map[string]*active
 }
 
 type active struct {
@@ -257,10 +256,7 @@ var errDNSResolution = errors.New("name resolution failed")
 var errPolicyChanged = errors.New("connection Policy expired or changed")
 
 func (s *Service) monitor(a *active) {
-	interval := s.CheckInterval
-	if interval <= 0 {
-		interval = 500 * time.Millisecond
-	}
+	const interval = 500 * time.Millisecond
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
