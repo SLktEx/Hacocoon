@@ -23,6 +23,10 @@ forward_spec = importlib.util.spec_from_file_location("installed_forward", Path(
 forward = importlib.util.module_from_spec(forward_spec)
 forward_spec.loader.exec_module(forward)
 SERVER = forward.SERVER
+# Application readiness precedes ordinary Host entry and native helper startup.
+# Keep this fixture alive for the bounded terminal journey, including cold WSL
+# entry and listener ownership observation, before all eight clients arrive.
+TERMINAL_TIMEOUT_SECONDS = 180
 
 
 def exchange(port):
@@ -65,7 +69,8 @@ def main():
     if not shutil.which("pwsh"):
         raise RuntimeError("PowerShell 7 is required for native listener observation")
     application = subprocess.Popen(["wsl.exe", "-d", args.distro, "-u", "root", "--exec", "incus", "exec", "haco-" + args.env,
-                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER], stdout=subprocess.PIPE)
+                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER,
+                                    "--accept-timeout", str(TERMINAL_TIMEOUT_SECONDS)], stdout=subprocess.PIPE)
     readiness = queue.Queue(maxsize=1)
     def read_ready():
         readiness.put(application.stdout.readline(4096))
@@ -96,6 +101,8 @@ def main():
                 if match:
                     port = int(match.group(1))
                     assert_native_owner(port)
+                    if application.poll() is not None:
+                        raise RuntimeError("application fixture exited before tunnel exchange")
                     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as workers:
                         list(workers.map(exchange, [port] * 8))
                     if application.wait(timeout=15) != 0:
@@ -115,7 +122,7 @@ def main():
             elif stage == 4 and driver.cmd_prompt_count(fresh):
                 process.write("exit\r\n")
                 stage = 5
-        terminal.run(on_output=drive, timeout=180)
+        terminal.run(on_output=drive, timeout=TERMINAL_TIMEOUT_SECONDS)
         if stage != 5:
             raise RuntimeError("ordinary Windows tunnel entry did not complete")
         print("WINDOWS AUTOMATIC TUNNEL / NATIVE OWNER / 8x1MiB / HALF-CLOSE / CTRL+C CLEANUP: PASS")

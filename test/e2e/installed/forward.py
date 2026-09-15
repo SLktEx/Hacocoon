@@ -14,8 +14,13 @@ import subprocess
 import time
 
 SERVER = r'''
-import socket,threading
-s=socket.socket();s.bind(("127.0.0.1",0));s.listen(16);s.settimeout(40)
+import argparse,socket,threading
+parser=argparse.ArgumentParser()
+parser.add_argument("--accept-timeout",type=int,default=40)
+args=parser.parse_args()
+if not 1 <= args.accept_timeout <= 300:
+    parser.error("accept timeout must be between 1 and 300 seconds")
+s=socket.socket();s.bind(("127.0.0.1",0));s.listen(16);s.settimeout(args.accept_timeout)
 print(s.getsockname()[1],flush=True)
 def handle(c):
     with c:
