@@ -186,3 +186,28 @@ lifetime are unchanged.
 
 
 See [native validation](../status/acceptance-evidence.md#development-branch-integration) for the scoped acceptance and remaining gaps.
+
+
+## Named disposable data
+
+Implemented candidate: portable export includes every enrolled data area as a
+numbered data archive, after Workspace and optional OCI archives. Ordered names,
+guest paths and supported data kinds describe placement; source resource IDs,
+generation epochs, publication permissions and Host mount settings are absent.
+The same envelope verifies complete inventory, bytes and bounded metadata before
+import. Up to 32 areas retain their uncollected contents.
+
+Import creates fresh local source families and disposable child ownership in the
+canonical Env/Workspace reservation. The durable import-pending flag requires
+matching archive input and prevents empty creation after interruption. Native
+completion is recorded before verification; only shared publication clears the
+flag. Unknown completion keeps the parent reservation and blocks destructive
+cleanup. Imported children are deleted with their Env; Workspace and OCI survive.
+
+The current provider rechecks guest placement and protected paths, replaces native
+ownership and preserves only required filesystem idmap bookkeeping. It never
+replays native devices, old grants or Host credentials. Import does not enroll
+source data into a destination's current shared cache or implicitly add its Host
+cache settings. Incus 7.0 LTS remains required; older 6.0.5 lacks the existing
+volume-export flag and repository-placement API. Native acceptance is recorded
+separately in [acceptance evidence](../status/acceptance-evidence.md).

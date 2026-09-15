@@ -89,8 +89,8 @@ func (e *Exporter) ExportStopped(ctx context.Context, source string, limit int64
 				if err != nil {
 					return err
 				}
-				count := len(components) - 1
-				if components[len(components)-1].Role == "oci" {
+				count := len(components) - 1 - len(current.Source.Environment.Attachments)
+				if current.Source.Environment.PersistentResource.ID != "" {
 					count--
 				}
 				if err := (Manifest{Version: 2, Workspaces: workspaces}).validateWorkspaces(count); err != nil {

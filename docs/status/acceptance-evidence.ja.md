@@ -578,3 +578,11 @@ hacocoon-secondの実Incus、Btrfs pool haco-local-default、cached Ubuntu image
 DNS #674 head a44c0cc5はLinux4CI成功、Windows34930836374/job104258506823は導入・HTTPS・SSH・Linux回収成功後、公開回収がcompact_attachedで失敗（open1回、圧縮未開始、未再開）。通知SKIP。Git/GUI #672 head7454efabもLinux4CI成功、Windows34931359363/job104260056333は並行cold SSH再接続でstream_denied/exit255。回収・通知SKIP。いずれもmain未マージであり、以前の成功や通知失敗と区別して保持する。DNSは98c0ddd2としてこの候補へ統合し、追加データ検査とDNS検査の重なりだけ競合解消した。
 
 DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒、全ローカル29.81秒、race11.90秒、CLI4.77秒、文書8.15秒、workflow1.50秒PASS。上記の実機追加データの証拠は変更していないライフサイクル/provider処理を対象とする。新しいWindows成功とは扱わない。
+
+## 名前付きEnvironmentデータの持ち出し
+
+#675のfa6c1312を基にしたv0.67候補で、既存export/import形式と共通Environmentライフサイクルへ追加データを統合した。最終の固定ソースでfocused16.47秒、main差分全体lint15.45秒、ローカル全体27.39秒、race12.82秒、CLI4.59秒、文書・回帰8.38秒、workflow1.48秒がPASS。全データ、新しいローカル所有ID、import専用予約、配置の完全性、Workspace作成前の未対応provider拒否、cleanup不明時の所有保持を確認した。full-1はfixtureの一時stagingディレクトリが非公開でなくFAILし、0700へ厳格化して修正。full-2はfocused12.92秒PASS後、テストreaderのClose結果2件の未確認でlint FAILし、結果確認を追加した。製品の権限を緩めていない。
+
+実機portability-native-1は46.36秒（build6.16秒/test41.23秒）でFAIL。import前に所有snapshot volumeのexportが利用できなかった。fixture saved-data-f7c512b0ca4392e9、台帳 /var/lib/haco-saved-data-2912432684/state.json、snapshot volume haco-snapshot-342b7e71e895c7a826c2d337efe90156。Envと保存処理は共通cleanupを使い、保持されたWorkspace fixtureは所有対象を確認して回収する。一括削除していない。
+
+追跡でhacocoon-secondのIncus client/serverは6.0.5と判明した。既存exportが使う--forceと、リポジトリ配下の配置に必要なfile_storage_volumeがない。現行製品の対象はIncus7.0 LTS（>=7.0.1、<7.1）。以前のDNSおよびrootfsのsnapshot/copy成功は6.0.5での限定的な観測で、対応基盤の受入成功ではない。旧provider向けの回避処理は追加していない。対応版での新規インストール、実機持ち出し、リポジトリ内配置は確認待ち。巨大レポ・性能測定はユーザー指示で後続。既存Windowsのreclaim・並列SSH失敗も未解決のまま保持する。

@@ -1,6 +1,6 @@
 # 保存するEnv追加データ
 
-状態: 採用済み。snapshot/copyは実装済み、ポータブル転送は実装中。[English](0095-saved-environment-data.md)
+状態: 採用済み。snapshot/copyとポータブル転送は実装済み。provider受入は別に確認する。[English](0095-saved-environment-data.md)
 
 ## 決定
 
@@ -28,3 +28,12 @@ Env削除後もWorkspaceとOCIを保持する契約は継続し、子データ�
 
 [snapshot](../design/environment-snapshots.md)、[転送](../design/environment-transfer.ja.md)、
 [キャッシュ](../design/cache-generations.ja.md)を参照してください。
+
+## ポータブル入力の所有権
+
+転送する追加データは順序付きの名前、guest配置、種類と検証した内容を持ち、
+元の資源IDや世代公開の権限を持ちません。importは新しいローカル世代と子領域を
+native要求前に予約します。import待ちを明示し、中断後に空の通常createへ変わることを防ぎます。
+入力の種類を一致させて作成を開始し、完了記録・公開・削除は共通処理を使います。
+現在のproviderが配置を検査し、新しい所有権だけを書きます。archiveの設定でHostの
+パスをmountしたり管理権限を得たりすることはできません。

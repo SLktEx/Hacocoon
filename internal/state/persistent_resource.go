@@ -104,6 +104,7 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 			return core.ErrRecoveryRequired
 		}
 		r.State = "ready"
+		r.ImportPending = false
 		r.RestoreSource = ""
 		r.CopySource = core.PersistentResourceRef{}
 		r.CopyCompleted = false
@@ -231,6 +232,9 @@ func (s *EnvironmentJSONStore) FinalizePersistentResourceDelete(_ context.Contex
 
 func validatePersistentResourceState(data environmentFileState) error {
 	for id, r := range data.PersistentResources {
+		if r.ImportPending && (r.EnvironmentInstance == "" || !core.ValidEnvironmentResourceRef(r.Ref()) || r.SourceOnly || r.WorkspaceID != "" || r.RestoreSource != "" || r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted || r.State == "ready") {
+			return core.ErrIncompatibleState
+		}
 
 		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting" && (r.State != "planned" || r.EnvironmentInstance == "")) {
 			return fmt.Errorf("invalid persistent resource catalog: %w", core.ErrIncompatibleState)

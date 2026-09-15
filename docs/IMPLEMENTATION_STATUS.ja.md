@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.66**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.67**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -93,7 +93,7 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 ## キャッシュ世代管理の共通処理
 
-**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。既存Envへの後付け登録と追加領域のポータブル転送は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
+**部分実装:** `haco cache settings/configure/status/collect`でHost設定、新規Envの対象登録、停止中の領域全体の収集、独立した世代コピーの再利用を扱います。名前付き履歴・クリア・完了記録付き復旧は実装済みです。snapshot/copyは未収集データを保持します。追加領域のポータブル転送は新しい所有権で取り込む実装済み候補で、対応Incusでの実機受入は未確認です。既存Envへの後付け登録は未完成です。Workspace・OCI保持は別に維持します。[キャッシュ世代管理](design/cache-generations.ja.md)を参照してください。
 
 ## PackerによるBase作成の候補
 
@@ -101,10 +101,9 @@ Windows/SSH確認とExplorer操作は別の残件です。
 
 キャッシュ履歴・クリアの後続: 実装済み候補。名前付き履歴で現在の再利用元と保持中の候補を分ける。
 確認時のrevisionで固定して再利用元をリセットし、共通の所有権付き削除を使う。
-既存Env・Workspace・OCIデータと結果不明のコピーは保持する。コピー復旧・孤立した再利用元の一覧・
-追加データ転送は部分実装。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
+既存Env・Workspace・OCIデータと結果不明のコピーは保持する。名前付き完了記録の復旧と追加データ転送は実装済み、孤立した再利用元の一覧は未完成。[キャッシュ操作](design/cache-generations.ja.md#収集データの確認とクリア)を参照。
 
-キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加、追加データ転送は未完了。新しい実機復旧の受入は別に確認する。
+キャッシュ完了復旧: 名前付き領域の完了記録があるコピーと世代選択を復旧する実装済み候補。共通復旧はOCIも含め対象の所有権を固定する。native完了が不明な場合、孤立source、既存Envへの追加は未完了。新しい実機復旧の受入は別に確認する。
 
 ## 手元のアプリからTCP接続
 

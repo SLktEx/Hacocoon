@@ -13,6 +13,9 @@ type PersistentResourceRef struct {
 }
 
 type PersistentResource struct {
+	// ImportPending requires supplied archive bytes; never replace them with an
+	// ordinary empty create after interruption. Cleared only at publication.
+	ImportPending bool `json:"import_pending,omitempty"`
 	// PublicationOrigin and Producer are immutable receipts for whole-generation
 	// publication recovery and history. They never keep the producer alive after
 	// copy completion; CopySource alone is the in-flight reservation.

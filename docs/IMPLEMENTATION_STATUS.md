@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.66**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.67**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -101,7 +101,7 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 
 ## Cache generation foundation
 
-**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Named history/clear and positive-completion recovery are implemented. Snapshot/copy preserve uncollected data; existing-Env enrollment and added-data portable transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
+**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Named history/clear and positive-completion recovery are implemented. Snapshot/copy and portable transfer preserve uncollected data with fresh destination ownership; existing-Env enrollment remains incomplete. Supported-Incus transfer acceptance is pending. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
 
 ## Packer Base build candidate
 
@@ -110,10 +110,10 @@ migration/fallback cleanup is excluded. New local and native acceptance are sepa
 Cache history/clear follow-up: implemented candidate. Named history separates
 current selection from retained attempts. Revision-bound clear resets reuse and
 uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
-uncertain copies. Self-service copy recovery, orphan-source browsing and added-data
-transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
+uncertain copies. Orphan-source browsing remains incomplete; named positive-completion recovery and added-data
+transfer are implemented. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
 
-Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery, existing-Env enrollment and added-data transfer remain incomplete; new real-host recovery acceptance is separate.
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
 
 ## Client TCP access
 

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"io"
 	"path"
 	"strings"
 	"unicode"
@@ -8,6 +9,14 @@ import (
 )
 
 const MaxEnvironmentAttachments = 32
+
+// EnvironmentResourceImport contains portable data, never source ownership.
+// The lifecycle owner creates fresh local identities and retains the input only
+// for this invocation. Provider placement restrictions still apply.
+type EnvironmentResourceImport struct {
+	Key, Target, Kind, Digest string
+	Archive                   io.ReadSeeker
+}
 
 // EnvironmentAttachment is an immutable placement and source-generation receipt.
 // Its resource is independently owned, writable and disposable with this Env.
@@ -67,7 +76,7 @@ func ValidEnvironmentAttachments(attachments []EnvironmentAttachment) bool {
 		if !resourceSourceName.MatchString(a.Key) || a.Key <= previous || !ValidEnvironmentResourceRef(a.Resource) || refs[a.Resource.ID] || !ValidResourceGeneration(a.Origin) {
 			return false
 		}
-		if len(a.Target) > 1024 || !utf8.ValidString(a.Target) || !strings.HasPrefix(a.Target, "/") || a.Target == "/" || path.Clean(a.Target) != a.Target || strings.ContainsFunc(a.Target, unicode.IsControl) {
+		if !ValidEnvironmentDataPath(a.Target) {
 			return false
 		}
 		for _, before := range attachments[:i] {
@@ -79,6 +88,12 @@ func ValidEnvironmentAttachments(attachments []EnvironmentAttachment) bool {
 		previous = a.Key
 	}
 	return true
+}
+
+// ValidEnvironmentDataPath checks portable syntax only; providers additionally
+// exclude protected locations and inspect every ancestor without following links.
+func ValidEnvironmentDataPath(target string) bool {
+	return len(target) <= 1024 && utf8.ValidString(target) && strings.HasPrefix(target, "/") && target != "/" && path.Clean(target) == target && !strings.ContainsFunc(target, unicode.IsControl)
 }
 
 func ValidEnvironmentResourceRef(ref PersistentResourceRef) bool {

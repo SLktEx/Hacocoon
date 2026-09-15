@@ -41,12 +41,16 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 		}
 		bySource[a.Component] = a
 	}
-	m := Manifest{DNSMode: saved.Source.Environment.DNSMode, Version: 1, Source: saved.Source.Environment.Name, HasOCI: ordered[len(ordered)-1].Role == "oci"}
+	m := Manifest{DNSMode: saved.Source.Environment.DNSMode, Version: 1, Source: saved.Source.Environment.Name, HasOCI: saved.Source.Environment.PersistentResource.ID != ""}
+	for _, a := range saved.Source.Environment.Attachments {
+		m.Data = append(m.Data, Data{Key: a.Key, Target: a.Target, Kind: a.Origin.Kind})
+	}
 	if workspaces != nil {
 		m.Version = 2
 		m.Workspaces = append([]Workspace(nil), workspaces...)
 	}
 	readers := make([]io.Reader, 0, len(ordered))
+	dataIndex := 0
 	for i, c := range ordered {
 		a, found := bySource[c]
 		if !found {
@@ -56,6 +60,10 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 		if i > 0 && strings.HasPrefix(c.Role, "workspace:") {
 			role = workspaceRole(i - 1)
 		}
+		if strings.HasPrefix(c.Role, "data:") {
+			role = dataRole(dataIndex)
+			dataIndex++
+		}
 		m.Components = append(m.Components, Component{Role: role, Bytes: a.Bytes, SHA256: a.SHA256})
 		readers = append(readers, a.Data)
 	}
@@ -64,12 +72,13 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []SnapshotArchiv
 
 // Validate the full inventory before a producer creates any transport resource.
 func snapshotComponents(saved core.Snapshot) ([]core.SnapshotComponent, error) {
-	if saved.State != "ready" || !core.ValidEnvironmentInstanceID(saved.Source.InstanceID) || !sourceName.MatchString(saved.Source.Environment.Name) ||
+	if saved.State != "ready" || !core.ValidEnvironmentAttachments(saved.Source.Environment.Attachments) || !core.ValidEnvironmentInstanceID(saved.Source.InstanceID) || !sourceName.MatchString(saved.Source.Environment.Name) ||
 		len(saved.Components) < 2 || len(saved.Components) > maxComponents+1 {
 		return nil, ErrInvalidBundle
 	}
 	var root, oci *core.SnapshotComponent
 	var work []core.SnapshotComponent
+	data := map[string]core.SnapshotComponent{}
 	baseSeen := false
 	refs := map[string]bool{}
 	roles := map[string]bool{}
@@ -92,6 +101,8 @@ func snapshotComponents(saved core.Snapshot) ([]core.SnapshotComponent, error) {
 			baseSeen = true
 		case strings.HasPrefix(c.Role, "workspace:") && len(c.Role) > len("workspace:"):
 			work = append(work, c)
+		case strings.HasPrefix(c.Role, "data:"):
+			data[strings.TrimPrefix(c.Role, "data:")] = c
 		default:
 			return nil, ErrInvalidBundle
 		}
@@ -103,6 +114,16 @@ func snapshotComponents(saved core.Snapshot) ([]core.SnapshotComponent, error) {
 	ordered := append([]core.SnapshotComponent{*root}, work...)
 	if oci != nil {
 		ordered = append(ordered, *oci)
+	}
+	if len(data) != len(saved.Source.Environment.Attachments) {
+		return nil, ErrInvalidBundle
+	}
+	for _, a := range saved.Source.Environment.Attachments {
+		c, ok := data[a.Key]
+		if !ok || a.Origin.Kind != "build-cache" {
+			return nil, ErrInvalidBundle
+		}
+		ordered = append(ordered, c)
 	}
 	return ordered, nil
 }
