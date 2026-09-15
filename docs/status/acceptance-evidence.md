@@ -709,3 +709,5 @@ Native PowerShell7 installer components passed with both installed binary types:
 After the v0.64 checkpoint and installation guidance update, presentation/build-identity tests2.81s, architecture/checksum/corrupt-archive packaging0.54s, docs5.72s and workflow1.11s passed. Windows CI now expects the actual ten build entries and requires the tunnel artifact; published amd64/arm64 targets stay intact.
 
 The candidate rebased over corrected recovery c35f6610 as c682faaa passed focused4.22s, main-diff lint16.99s, full local104.53s, race36.42s, CLI18.56s, docs19.60s and workflow2.66s. Recovery #671 then passed all five workflows and merged as main df22a1a5. Its file tree exactly matches c35f6610, so reparenting the forwarding commit as11823e02 changed no files.
+
+After integrating main forwarding 2f995027 as14b8fb9a, the Git/GUI/notification candidate passed full local53.41s, CLI8.88s, docs/regressions19.00s and workflow2.79s. Both private entry points and the union of native Windows client tests are retained; notification process behavior is unchanged from the native8.22s pass.
