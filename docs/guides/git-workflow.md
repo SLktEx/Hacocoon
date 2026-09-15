@@ -185,3 +185,20 @@ Native imported fetch/push acceptance remains pending.
 The authority details are in [Git design](../design/git-and-github-capability.md).
 Commit-bound successes, failures and retained fixture evidence belong in
 [acceptance evidence](../status/acceptance-evidence.md), not this procedure.
+
+## Change the repository collection
+
+Stop the source Env, prepare an empty destination directory, then select the
+copy's complete membership:
+
+```bash
+haco env stop work-task
+mkdir task-next
+haco workspace fork --repo first,third --path ./task-next --name task-next ./task
+haco open ./task-next
+```
+
+`first` retains its source changes; `third` must already be registered with
+`haco repo clone`. Unselected members remain in the original work. OCI data is
+copied independently. Omit `--repo` to keep the whole collection. See
+[copy semantics](../design/workspace-workflow.md#choose-the-copys-repositories).

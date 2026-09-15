@@ -119,3 +119,9 @@ Git push照合の後続: 42aa706fを再利用した実装済み候補。送信�
 Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Hostスレッドを識別する。[ADR0096](adr/0096-calling-thread-network-identity.ja.md)を参照。Host名前空間への接続拒否は維持し、スレッド実機回帰と導入後Windows再接続の受入を分ける。
 
 リポジトリ内追加データのsnapshot計画も、作成・再開・importと同じ配置照合でWorkspaceのstorage所有関係を保持する。対応Incus7.0.1で保存・コピー・持ち出しを確認した。範囲は受入記録を参照。
+
+## Workspaceのレポ選択
+
+実装済み候補: `workspace fork --repo first,third`で選んだ既存レポのGit状態を保持し、登録済みHostレポを独立追加します。
+共通の復元・削除処理を使い、元の作業とOCIは残します。linked worktree入力と巨大レポの実測は別途残件です。
+[仕様](design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。

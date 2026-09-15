@@ -679,3 +679,13 @@ f71ab282に基づく修正後固定候補で集中16.88秒、main全差分lint15
 通常導入後のPackerサンプルは依存導入で10.39秒FAILし、非公開診断付き再試行も6.56秒FAIL。UbuntuのHTTP取得に通常proxyが403を返した。公開configはdefault=deny・ruleなしであり、試験専用の許可を追加していない。実Packer実行は通常の通信設定待ち。#676 head f68a8c6bのWindows34935395589/job104272085316は導入・並列cold SSH・実VS Code編集・setup・preview・通常export/importに成功後、通常Windows tunnelでtimeout/connection resetとなりFAIL。回収・通知は未実施。過去の失敗原因も解決扱いにしない。
 
 統合候補b42be03eは現main a3d0f4fd、Git/GUI #672、リポジトリ内配置 #679を含みます。focused21.73秒、main全差分lint23.92秒、ローカル全体41.13秒、race21.73秒、CLI5.39秒、docs/regressions11.17秒、workflow1.75秒が成功しました。実namespace・配置の検証済み実装は変更していません。#677はf71ab282で5ワークフローすべて成功し、a3d0f4fdとしてmainへ反映しました。#676は取り込み済みとして閉じましたが、同PRのWindowsトンネル失敗は上記の別結果として残します。
+
+## Workspaceのレポ選択
+
+6b376a62に基づく候補でfocused10.58秒、main全差分lint16.44秒、全ローカル25.61秒、race27.75秒、CLI2.86秒、docs/regressions8.59秒、workflow1.36秒、実機試験compile1.55秒が成功しました。
+先行full-1も成功し、full-2では追加レポのコピー失敗時の参照保持と実機試験を追加しています。
+
+Hacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）のmembership-native-1は16.98秒/test16.95秒で成功しました。
+fixture selection-c393aee4e83d、台帳 /var/lib/haco-selection-154075238/state.json。
+試験用にローカルで作ったGitデータと実リポジトリbackend、共通snapshot/Env lifecycleを使い、未コミット変更・HEAD・indexの保持、通常のGit準備による登録済みレポ追加、選ばなかったレポの元側保持、独立編集、元Env削除、コピー先再開、所有対象のcleanupを確認しました。
+Policyの変更やEnvへの管理権限追加はありません。OCIの選択は既存の関連データ処理の部品検証範囲です。この実機試験ではOCI・認証付きGit・公開CLI・巨大レポ性能は検証していません。

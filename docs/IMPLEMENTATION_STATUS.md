@@ -16,7 +16,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Workspace path entry / forks](design/workspace-workflow.md) | implemented | Explicit repository preparation, owner-pinned path reopen and stopped independent Git/OCI data forks through canonical lifecycle. Recovery-required copies retain ownership; Windows automatic entry and large-repository performance remain unverified. |
 | [TCP/UDP development connections](design/network-connections.md) | implemented | Explicit guest loopback listeners, source-generation-bound Policy/approval, optional rule expiry and active revocation. Existing HTTP/SNI and source guards remain. Dedicated provider acceptance is scoped; outbound Internet/VPN and full Windows UI remain incomplete. |
 | [Installation / Host](guides/installation.md) | implemented | Ubuntu 26.04+ / dedicated WSL 2, controller-backed setup and doctor, persistent trusted `haco-host`. Native Ubuntu retains its login shell; no native Windows `haco.exe`. Managed-user preparation tolerates a validated pre-existing non-root access group. Current binfmt P/PF and fresh Japanese-Windows entry still need packaged acceptance. |
-| [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Membership editing and general interrupted-preparation recovery remain incomplete. |
+| [Repository / Workspace](guides/git-workflow.md) | implemented | Clone an existing branch; create independent managed copies and collections. Exclusive leases survive stop. Selected membership in independent forks is implemented in the candidate; in-place editing is unsupported. General interrupted-preparation recovery remains incomplete. |
 | [Environment lifecycle](guides/data-lifetime.md) | implemented | Managed/external Workspace creation, status/list, stop/start/delete. Rootfs is disposable; Workspace and Store survive deletion. Ownership ambiguity blocks release. `switch-base` is disabled/on hold. |
 | [SSH / editor](design/client-and-interactive-access.md) | implemented | Repeatable key/config setup, `haco open` selection, pinned portless SSH through ProxyCommand and controller UDS, default VS Code or `--client ssh`; proxy environment is automatic. Broader IDE/Windows and AHP acceptance remains client-dependent. |
 | [Interactive terminal sizing](design/controller-client-transport.md#interactive-terminal-dimensions) | implemented | Host/Env shells carry initial dimensions and bounded, separately negotiated resize controls; Linux uses a private raw PTY. Component/real-PTY tests cover editing, resize, bytes, exit and restoration. Installed Incus/Windows/WSL acceptance remains pending. |
@@ -129,3 +129,11 @@ Resolver selection: implemented candidate. Environment creation accepts `--dns h
 The Incus network dialer identifies the calling Host thread when preparing concurrent SSH/forwarding connections; see [ADR0096](adr/0096-calling-thread-network-identity.md). The Host-namespace guard remains enforced. Native thread regression is separate from installed Windows reconnect acceptance.
 
 Snapshot planning now reuses the create/resume/import placement binding for data inside a repository, preserving its Workspace storage identity. The supported Incus7.0.1 regression covers capture, copy and portable transfer; see the acceptance evidence.
+
+## Workspace membership selection
+
+Implemented candidate: `workspace fork --repo first,third` retains selected saved
+Git state and independently adds registered Host repositories through the same
+restore/cleanup transition. Source work and OCI remain intact. Linked-worktree
+input and giant-repository measurement remain separate. See
+[the contract](design/workspace-workflow.md#choose-the-copys-repositories).

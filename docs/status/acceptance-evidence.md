@@ -770,3 +770,21 @@ The earlier rootfs-only supported transfer passed76.26s/test76.23s at f68a8c6b. 
 Ordinary installed Packer sample builds FAILED at dependency installation:10.39s, then6.56s with private failure output. Ubuntu HTTP downloads returned403 from the normal proxy. The public config showed default=deny with zero rules; no test-specific allow was introduced. Actual Packer execution remains pending normal communication configuration. #676 head f68a8c6b Windows34935395589/job104272085316 passed installation, parallel cold SSH, actual VS Code editing, setup, preview and ordinary export/import, then FAILED the ordinary Windows tunnel with timeout/connection reset; reclamation and notification steps did not run. Earlier failures are not relabeled as resolved.
 
 The combined candidate b42be03e includes current main a3d0f4fd, Git/GUI #672 and repository placement #679. Focused21.73s, complete main-diff lint23.92s, full local41.13s, race21.73s, CLI5.39s, docs/regressions11.17s and workflow1.75s passed. The existing native namespace and repository-placement evidence applies to unchanged implementations. #677 passed all five workflows at f71ab282 and merged as a3d0f4fd; #676 was closed by incorporation. Its separate Windows tunnel failure above remains recorded.
+
+## Selected Workspace membership
+
+The candidate based on6b376a62 passed focused10.58s, complete main-diff lint16.44s,
+full local25.61s, race27.75s, CLI2.86s, docs/regressions8.59s, workflow1.36s and
+native-test compilation1.55s. Earlier full-1 also passed; full-2 adds the actual
+registered-copy failure/source pin regression and native acceptance test.
+
+On Hacocoon-Roadmap-f68a8c6b, Ubuntu26.04.1/Incus7.0.1, membership-native-1
+PASSED16.98s/test16.95s. Fixture selection-c393aee4e83d, catalog
+/var/lib/haco-selection-154075238/state.json, used test-authored local Git data,
+the real repository backend and canonical snapshot/Env lifecycle. It preserved
+saved dirty files, HEAD and index, added a registered source through the normal
+Git preparation, left an omitted member in the source, and proved independent
+edits, source Env deletion, destination restart and exact owned cleanup. No Policy
+changes or guest management authority were introduced. OCI selection is covered
+at the existing associated-data component boundary; native OCI, authenticated Git,
+public CLI and giant-repository performance were not exercised by this native test.

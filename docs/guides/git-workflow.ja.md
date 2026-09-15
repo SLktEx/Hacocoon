@@ -169,3 +169,19 @@ Workspaceの記録が接続先として使っている取得元は削除でき�
 
 権限境界は[Git設計](../design/git-and-github-capability.md)、
 コミットごとの成功・失敗・保持した検証データは[受入記録](../status/acceptance-evidence.ja.md)にあります。
+
+## レポの構成を変える
+
+元のEnvを停止し、コピー先の空ディレクトリを用意して、使うレポ全体を選びます。
+
+```bash
+haco env stop work-task
+mkdir task-next
+haco workspace fork --repo first,third --path ./task-next --name task-next ./task
+haco open ./task-next
+```
+
+`first`は元の変更を引き継ぎます。`third`は先に`haco repo clone`で登録してください。
+選ばなかったレポも元の作業には残り、OCIデータは独立して複製します。
+`--repo`を省略すると全レポを引き継ぎます。
+[複製の仕様](../design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。

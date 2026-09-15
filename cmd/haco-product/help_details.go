@@ -68,7 +68,7 @@ func init() {
 	set([]string{"repo delete"}, []cliui.HelpField{field("<id>", "detail.repo")}, []cliui.HelpField{yes})
 	set([]string{"workspace create"}, []cliui.HelpField{field("<workspace>", "detail.workspace_new")}, []cliui.HelpField{repos})
 	set([]string{"workspace prepare"}, nil, []cliui.HelpField{path, repos, name, base, oci})
-	set([]string{"workspace fork"}, []cliui.HelpField{field("<source>", "detail.workspace_source")}, []cliui.HelpField{path, name, field("--base <base>", "detail.fork_base")})
+	set([]string{"workspace fork"}, []cliui.HelpField{field("<source>", "detail.workspace_source")}, []cliui.HelpField{path, name, field("--repo <first,second>", "detail.fork_repos"), field("--base <base>", "detail.fork_base")})
 	set([]string{"workspace delete"}, []cliui.HelpField{field("<workspace>", "detail.workspace")}, []cliui.HelpField{yes})
 	set([]string{"git approve", "git deny"}, []cliui.HelpField{field("<id>", "detail.request")}, []cliui.HelpField{field("--save env|all|ask-env|ask-all", "detail.saved")}, "detail.read_access")
 	set([]string{"base list"}, nil, []cliui.HelpField{field("--all", "detail.base_all"), json})

@@ -47,7 +47,7 @@ var helpPages = []helpPage{
 	{Path: "workspace", Syntax: "<command>", Message: "command.workspace", Example: "haco workspace list"},
 	{Path: "workspace create", Syntax: "--repo <id[,id...]> [--json] <workspace>", Message: "command.workspace.create", Example: "haco workspace create --repo source work"},
 	{Path: "workspace prepare", Syntax: "[--json] --path <directory> --repo <id[,id...]> [--name <name>] [--base <base>] [--oci auto|none|oci:<store>]", Message: "command.workspace.prepare", Example: "haco workspace prepare --path . --repo source --name work"},
-	{Path: "workspace fork", Syntax: "[--json] --path <directory> [--name <name>] [--base <base>] <source>", Message: "command.workspace.fork", Example: "haco workspace fork --path ../branch --name branch work"},
+	{Path: "workspace fork", Syntax: "[--json] --path <directory> [--name <name>] [--repo <first,second>] [--base <base>] <source>", Message: "command.workspace.fork", Example: "haco workspace fork --path ../branch --name branch work"},
 	{Path: "workspace list", Syntax: "[--json]", Message: "command.workspace.list", Example: "haco workspace list"},
 	{Path: "workspace delete", Syntax: "[--yes] <workspace>", Message: "command.workspace.delete", Example: "haco workspace delete work"},
 	{Path: "git", Syntax: "<command>", Message: "command.git", Example: "haco git pending"},

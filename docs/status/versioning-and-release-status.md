@@ -139,3 +139,9 @@ v0.61 records stdin/TTY and streamed output with exact creation-bound cleanup.
 It follows the main-targeted Git checkpoint in #663. This is development progress,
 not all of M3 or Windows/Incus acceptance and not a release. See
 [verification](acceptance-evidence.md#main-interactive-run).
+
+## Workspace membership selection
+
+Within the current v0.67 development checkpoint, stopped forks can select retained
+members and add registered repositories. This M2 completion slice creates no tag
+or release; linked-worktree input and native acceptance remain separate.
