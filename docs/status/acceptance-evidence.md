@@ -1633,3 +1633,26 @@ with no changes to selection code/tests, local CI or workflow from `fe23cf53`.
 Documentation conflicts preserve both independent results. Earlier #704 head
 `9a8a7d07` had four successful workflows and Windows still running when replaced;
 these are not proof of the new combined head. The new exact head needs its own CI.
+
+### Named Base builder
+
+Implementation `f79744c38445021f5498e70ed87956669e3345da` adds optional builder
+names through CLI, controller and canonical Base orchestration. The normal Env
+name validator is shared; each repeated name gets a fresh temporary Workspace.
+Creation failure does not trigger cleanup, while uncertain publication and failed
+cleanup preserve their named target. No network rule is changed or approval granted.
+
+Local checks passed: focused Core/Base/workspace/controller/CLI/Packer tests13.09s,
+changed-code lint19.97s, full test65.21s, related race18.46s, CLI E2E5.68s,
+docs11.01s, workflow policy1.68s and native-test compile1.84s. After incorporating
+#704 unchanged, selected-tree tests0.11s, comparison0.13s, combined full test76.30s,
+docs10.65s and workflow policy1.43s passed. The same commit generated the normal
+Linux/Windows ten-binary installer candidate in35.38s, without installation or release.
+The generated `haco base build --help` also passed in English and Japanese, including the named-builder option.
+The WSL root-user-session warning remains; no service or permission repair was used.
+
+This is repository, local filesystem and package-build evidence. The earlier
+ordinary Packer dependency HTTP403 remains unresolved until reviewed scoped settings
+and actual download/build/publication/reuse succeed. The proposed all-Environment
+rule remains unapplied after automatic review refusal; named builders introduce no
+exception. Human approval/login acceptance remains post-release.
