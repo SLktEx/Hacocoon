@@ -82,6 +82,13 @@ writes or add product provisioning to the test path.
 
 ## Boundaries retained
 
+Managed controller streams require the negotiated completion identity. The old
+fallback that accepted a peer without a session ID is removed: EOF cannot prove
+the process exit status, and the missing identity prevents completion/cancellation
+control. Pre-1.0 clients and controllers must be updated together. Raw streams
+remain for current methods whose application protocol owns its own result or
+event framing; they are not a substitute for a negotiated managed session.
+
 Base build, asset retention and reviewed image cleanup remain separate packages.
 Env routing, copy and transfer remain distinct from snapshot restore and the
 canonical Workspace lifecycle. A saved snapshot is not owned by a live Env.

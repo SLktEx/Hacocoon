@@ -9,7 +9,7 @@ import (
 )
 
 // Process framing is negotiated by a distinct method, never inferred from bytes
-// on a legacy raw stream. Input EOF is a frame; socket EOF means disconnection.
+// on a raw stream. Input EOF is a frame; socket EOF means disconnection.
 const (
 	processInput byte = iota + 1
 	processInputEOF

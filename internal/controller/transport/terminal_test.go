@@ -85,7 +85,7 @@ func TestTerminalControlNegotiationAndByteIsolation(t *testing.T) {
 	}
 }
 
-func TestTerminalControlLegacyAndNonTerminalSessions(t *testing.T) {
+func TestTerminalControlRawStreamsAndNonTerminalSessions(t *testing.T) {
 	for _, managed := range []bool{false, true} {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		server := NewServer()
@@ -117,7 +117,7 @@ func TestTerminalControlLegacyAndNonTerminalSessions(t *testing.T) {
 		conn.Close()
 		cancel()
 		if err != nil || string(data) != "plain bytes" {
-			t.Fatalf("legacy/non-terminal output = %q, %v", data, err)
+			t.Fatalf("raw/non-terminal output = %q, %v", data, err)
 		}
 	}
 }

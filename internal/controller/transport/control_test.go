@@ -151,11 +151,11 @@ func TestOpenSessionReportsPostHandshakeFailure(t *testing.T) {
 	}
 }
 
-func TestLegacyOpenStreamRetainsEOFOnlyCompletion(t *testing.T) {
+func TestRawStreamLeavesCompletionToApplicationProtocol(t *testing.T) {
 	client, cancel := startTestServer(t, func(server *Server) {
-		if err := server.RegisterStream("legacy-fail", func(context.Context, json.RawMessage) (Stream, error) {
+		if err := server.RegisterStream("raw-fail", func(context.Context, json.RawMessage) (Stream, error) {
 			return func(context.Context, net.Conn) error {
-				return errors.New("legacy failure")
+				return errors.New("application failure")
 			}, nil
 		}); err != nil {
 			t.Fatal(err)
@@ -163,13 +163,13 @@ func TestLegacyOpenStreamRetainsEOFOnlyCompletion(t *testing.T) {
 	})
 	defer cancel()
 
-	stream, err := client.OpenStream(context.Background(), "legacy-fail", nil)
+	stream, err := client.OpenStream(context.Background(), "raw-fail", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stream.Close()
 	if _, err := io.ReadAll(stream); err != nil {
-		t.Fatalf("legacy stream unexpectedly changed completion semantics: %v", err)
+		t.Fatalf("raw stream unexpectedly interpreted application completion: %v", err)
 	}
 }
 

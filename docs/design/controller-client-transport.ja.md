@@ -194,11 +194,15 @@ haco-host doctor
 
 Stream handshakeでは可能な検証を成功 acknowledgementより前に行い、その後同じUnix-domain 通信上でbidirectional バイト列を流します。
 
-現在はinteractive Environment シェルに利用し、クライアント half-closeも維持します。今後のframingでは次を追加できます。
+現在は対話シェル、非対話実行の標準入出力・標準エラーと終了情報、TCPの双方向転送に
+利用します。プロセスと双方向転送の管理セッションでは、接続時の完了確認用識別子を
+必須とします。peerが識別子を省略した場合、clientは接続を閉じてプロトコルエラーを
+返します。EOFだけをプロセス終了の証拠にはしません。pre-1.0のclientとcontrollerは
+一緒に更新してください。[互換処理を廃止する判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
 
-- streamed 非対話 stdin/stdout/stderrとexit メタデータ
-- Environment TCP 転送
-- その他の上限付きの controller-mediated ストリーム
+setup進捗やデータ転送など、結果・イベントの形式を独自に定めるAPIには生の
+ストリームを使います。通信層が返すのはバイト列とEOFであり、完了確認は各APIの
+プロトコルが担当します。
 
 `Session`を新しい公開 domain conceptにはしません。StreamはExecutionまたはクライアント接続の実装詳細です。
 

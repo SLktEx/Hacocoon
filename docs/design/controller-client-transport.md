@@ -196,11 +196,16 @@ The `haco-host env ...` surface remains useful during migration, but ordinary En
 
 The stream handshake validates the request before acknowledging success where possible, then carries bidirectional bytes over the same Unix-domain transport.
 
-The current implementation uses it for interactive Environment shell traffic and preserves client half-close semantics. Future framing may add:
+Current uses include interactive shells, framed non-interactive stdin/stdout/stderr
+with exit metadata, and TCP byte relays. Managed process and byte-relay sessions
+require a completion identity in the handshake. If the peer omits it, the client
+closes the connection and reports a protocol error; EOF alone is not process
+completion. Update pre-1.0 clients and controllers together. See
+[the compatibility decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
 
-- streamed non-interactive stdin/stdout/stderr plus exit metadata;
-- Environment TCP forwarding;
-- other bounded controller-mediated streams.
+Raw streams remain for methods that define their own result/event framing, such
+as setup progress and transfer. Their transport supplies bytes and EOF; each
+application protocol owns its completion checks.
 
 `Session` is not introduced as a new public domain concept; the stream is an implementation detail for an Execution or client connection.
 

@@ -63,23 +63,23 @@ func (c *Client) Call(ctx context.Context, method string, request, response any)
 	return nil
 }
 
-// OpenStream opens the legacy raw byte-stream mode. It deliberately retains
-// EOF-only completion semantics for compatibility with older peers.
+// OpenStream opens a raw byte stream. The method's application protocol owns
+// completion; this transport reports only bytes and EOF.
 func (c *Client) OpenStream(ctx context.Context, method string, request any) (net.Conn, error) {
 	conn, _, err := c.openStream(ctx, method, request, false)
 	return conn, err
 }
 
 // OpenSession opens a raw byte stream while negotiating an independent
-// completion/control identity. If the peer is older and does not return a
-// session id, it safely falls back to the legacy EOF-only stream behavior.
+// completion/control identity. A peer that omits the identity is rejected.
 func (c *Client) OpenSession(ctx context.Context, method string, request any) (net.Conn, error) {
 	conn, response, err := c.openStream(ctx, method, request, true)
 	if err != nil {
 		return nil, err
 	}
 	if response.SessionID == "" {
-		return conn, nil
+		_ = conn.Close()
+		return nil, ErrProtocol
 	}
 	return &sessionConn{
 		resize: response.TerminalResize,
