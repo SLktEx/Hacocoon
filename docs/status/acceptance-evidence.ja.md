@@ -763,3 +763,28 @@ installed-review-1は実COM登録・所有再開/反復・別所有者/activator
 統合候補2f49460fは通知準備修正#682も含みます。
 focused15.09秒、main全差分lint14.42秒、全ローカル28.63秒、race11.70秒、CLI4.18秒、docs/regressions8.27秒、workflow1.48秒が成功しました。
 対応Incus・実Windowsで別途確認した両実装は変更していません。
+
+## 保存データの削除診断候補
+
+実装 `9c2736db` の `snapshot-full-3` で、対象回帰17.96秒、main差分全体のlint
+10.05秒、保守対象の全体テスト25.99秒、ライフサイクル/APIのrace検査16.47秒、
+CLI E2E 4.12秒、文書8.06秒、workflow policy 1.51秒、実Incus用ビルド1.51秒が成功。
+初回は表示書式と試験側の要求オブジェクトに残った項目で失敗し、修正した。
+2回目は対象回帰成功後、新しい診断出力のerrcheckで失敗。修正後の3回目が全成功。
+
+専用WSL `Hacocoon-Roadmap-f68a8c6b` / Incus 7.0.1 の `snapshot-native-2` は
+25.75秒（試験25.71秒）で成功。試験名 `saved-data-61784250e8f288f3`、台帳
+`/var/lib/haco-saved-data-3210844539/state.json`。rootfs、Workspace 2件、管理データ
+2領域の存在・所有を読み取り専用で確認し、通常削除、独立コピー、元Env削除、
+コピー再開、正確な所有対象のcleanupまで成功した。サービスとproviderの確認であり、
+インストール済みCLI、Btrfs内部の整合性、OCI実行、人による承認、巨大レポ性能の確認
+ではない。`snapshot-native-1` は実機試験の指定漏れにより **SKIP**。終了コード0を成功とは数えない。
+
+## 通知起動のCI残件
+
+[PR #682](https://github.com/SLktEx/Hacocoon/pull/682)、`bd83251b` はLinux系4項目成功、
+[Windows run 34946460934](https://github.com/SLktEx/Hacocoon/actions/runs/34946460934) は
+job `104306922882` の通知起動で失敗。COM生成のHRESULTは `-2146959355`、native進捗は未観測。
+その前のインストール、厳格なSSH/editor、転送、公開reclaim、切り離したWorkspace/OCI/snapshot
+の復元は成功している。ローカルのインストール済み通知確認成功で、この失敗や以前のdispatch
+タイムアウトは消さない。#683はこの変更を含み、候補自身の確認が必要。

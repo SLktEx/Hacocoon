@@ -896,3 +896,33 @@ The combined cache candidate2f49460f also includes notification readiness #682.
 Focused15.09s, complete main-diff lint14.42s, full local28.63s, race11.70s,
 CLI4.18s, docs/regressions8.27s and workflow1.48s passed. Both native implementations
 are unchanged from the separately recorded supported-Incus and Windows checks.
+
+## Snapshot deletion inspection candidate
+
+At implementation `9c2736db`, local `snapshot-full-3` passed focused regressions
+(17.96 s), lint against the complete main diff (10.05 s), maintained full tests
+(25.99 s), lifecycle/API race checks (16.47 s), CLI E2E (4.12 s), docs (8.06 s),
+workflow policy (1.51 s) and native test compilation (1.51 s). The first focused
+run failed human message formatting and a stale request field in the test fixture;
+both were corrected. The second run passed focused tests but failed errcheck on
+the new diagnostic write; that was corrected before the full third run.
+
+On dedicated WSL `Hacocoon-Roadmap-f68a8c6b`, Incus 7.0.1,
+`snapshot-native-2` passed in 25.75 s (test 25.71 s), fixture
+`saved-data-61784250e8f288f3`, catalog
+`/var/lib/haco-saved-data-3210844539/state.json`. It observed rootfs, two Workspace
+members and two managed data volumes, then passed ordinary deletion, independent
+copy, source deletion, copied resume and exact-owned cleanup. This is provider and
+service acceptance, not installed CLI, underlying Btrfs health, OCI runtime,
+human approval or giant-repository performance acceptance. `snapshot-native-1`
+was **SKIP** because the fixture opt-in was omitted; its exit zero is not a pass.
+
+## Notification startup CI remains incomplete
+
+[PR #682](https://github.com/SLktEx/Hacocoon/pull/682), `bd83251b`, passed the four
+Linux workflows, but [Windows run 34946460934](https://github.com/SLktEx/Hacocoon/actions/runs/34946460934)
+failed native review in job `104306922882`: activation creation HRESULT
+`-2146959355`, no observed native progress. Prior installation, strict SSH/editor,
+transfer, public reclamation and detached Workspace/OCI/snapshot restore passed.
+The local installed review pass does not erase this COM activation failure or the
+earlier dispatch timeout. #683 includes the change and needs its own acceptance.
