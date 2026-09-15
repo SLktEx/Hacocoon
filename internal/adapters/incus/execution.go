@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"errors"
 	"os/exec"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -42,23 +41,14 @@ func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
 	if err := validateManagedInstanceRef(ref); err != nil {
 		return err
 	}
-	_, err := r.execInteractive(ctx, ref, []string{"/bin/bash"})
-	return err
+	return r.execInteractive(ctx, ref, []string{"/bin/bash"})
 }
 
-func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) (core.ExecResult, error) {
+func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) error {
 	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)
 	cmd.Stdin = r.stdin
 	cmd.Stdout = r.stdout
 	cmd.Stderr = r.stderr
-	err := cmd.Run()
-	if err == nil {
-		return core.ExecResult{ExitCode: 0}, nil
-	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return core.ExecResult{ExitCode: exit.ExitCode()}, err
-	}
-	return core.ExecResult{ExitCode: -1}, err
+	return cmd.Run()
 }

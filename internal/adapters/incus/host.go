@@ -194,8 +194,7 @@ func (r *Runtime) ShellTrustedHost(ctx context.Context) error {
 	if err := r.EnsureTrustedHost(ctx); err != nil {
 		return err
 	}
-	_, err := r.execInteractive(ctx, trustedHostName, []string{"/bin/bash", "-l"})
-	return err
+	return r.execInteractive(ctx, trustedHostName, []string{"/bin/bash", "-l"})
 }
 
 func (r *Runtime) ensureTrustedHostClientEnvironment(ctx context.Context) error {

@@ -9,14 +9,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func (r *Runtime) Probe(ctx context.Context) (core.RuntimeCapabilities, error) {
-	output, err := r.readIncusOutput(ctx, "version")
-	if err != nil {
-		return core.RuntimeCapabilities{Available: false, Details: []string{"incus unavailable"}}, nil
-	}
-	return core.RuntimeCapabilities{Available: true, Details: []string{strings.TrimSpace(output)}}, nil
-}
-
 // readIncusOutput is the read-only observation boundary. A partial or failed
 // command can never establish absence, ownership or an egress source identity.
 func (r *Runtime) readIncusOutput(ctx context.Context, args ...string) (string, error) {
@@ -96,19 +88,4 @@ func (r *Runtime) InspectEnvironment(ctx context.Context, ref string) (core.Envi
 		}
 	}
 	return status, nil
-}
-
-func (r *Runtime) Inspect(ctx context.Context, ref string) (core.RuntimeState, error) {
-	status, err := r.InspectEnvironment(ctx, ref)
-	if err != nil {
-		return core.RuntimeState{}, err
-	}
-	observed := core.ObservedUnknown
-	switch status.State {
-	case core.EnvironmentRunning:
-		observed = core.ObservedRunning
-	case core.EnvironmentStopped:
-		observed = core.ObservedStopped
-	}
-	return core.RuntimeState{Observed: observed}, nil
 }

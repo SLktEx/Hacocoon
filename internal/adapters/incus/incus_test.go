@@ -257,16 +257,6 @@ func TestDeleteEnvironmentIsProjectScopedAndForced(t *testing.T) {
 	assertRunnerCall(t, runner.calls[0], "incus", "delete", "haco-demo", "--project", defaultProject, "--force")
 }
 
-func TestProbeReportsIncusAvailability(t *testing.T) {
-	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, _ []string) (host.Result, error) {
-		return host.Result{Stdout: "6.12\n"}, nil
-	}}
-	caps, err := New(runner).Probe(context.Background())
-	if err != nil || !caps.Available || !reflect.DeepEqual(caps.Details, []string{"6.12"}) {
-		t.Fatalf("caps=%#v err=%v", caps, err)
-	}
-}
-
 func assertRunnerCall(t *testing.T, call runnerCall, name string, args ...string) {
 	t.Helper()
 	if call.name != name || !reflect.DeepEqual(call.args, args) {

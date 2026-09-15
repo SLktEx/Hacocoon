@@ -25,9 +25,6 @@ func TestIncusObservationsRejectIncompleteCommandResults(t *testing.T) {
 		if _, err := r.ResolveRuntimeRef(context.Background(), net.ParseIP("10.200.0.23")); err == nil {
 			t.Fatal("partial authority accepted")
 		}
-		if caps, err := r.Probe(context.Background()); err != nil || caps.Available {
-			t.Fatalf("failed probe became available: %#v %v", caps, err)
-		}
 	}
 }
 

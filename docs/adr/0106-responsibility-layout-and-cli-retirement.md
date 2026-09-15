@@ -27,6 +27,11 @@ catalogs and canonical transitions; they do not read that Session store. The
 unregistered `switch-base` implementation is also removed. Its existing CLI
 refusal remains, with no replacement operation or automatic data migration.
 
+The unused Runtime availability probe and Session-state observation wrapper are
+also removed. Environment observation keeps its exact-identity checks. Interactive
+execution returns the original process error directly; the extra result conversion
+was ignored by every caller. Exit status remains available through that error.
+
 The Agent Host helper also uses one explicit command dispatch. Its `init`-time
 interceptor, duplicate prepare parser, stdout capture and legacy-output adapter
 are removed. Prepare and lookup render the same typed session descriptor directly;

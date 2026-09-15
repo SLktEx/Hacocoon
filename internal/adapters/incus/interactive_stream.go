@@ -31,8 +31,7 @@ func (r *Runtime) ShellEnvironmentStream(ctx context.Context, ref string, stdin 
 		"environment",
 		core.TerminalMetadataFromContext(ctx),
 	)
-	_, err := r.execInteractiveStream(ctx, ref, argv, stdin, stdout, stderr)
-	return err
+	return r.execInteractiveStream(ctx, ref, argv, stdin, stdout, stderr)
 }
 
 // PrepareTrustedHostShellStream reconciles the trusted logical Host before the
@@ -57,8 +56,7 @@ func (r *Runtime) PrepareTrustedHostShellStream(ctx context.Context) (func(conte
 			"trusted-host",
 			terminal,
 		)
-		_, err := r.execInteractiveStream(runCtx, trustedHostName, argv, stdin, stdout, stderr)
-		return err
+		return r.execInteractiveStream(runCtx, trustedHostName, argv, stdin, stdout, stderr)
 	}, nil
 }
 
@@ -110,29 +108,19 @@ func safePromptLabel(value string) string {
 	return b.String()
 }
 
-func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []string, stdin io.Reader, stdout, stderr io.Writer) (core.ExecResult, error) {
+func (r *Runtime) execInteractiveStream(ctx context.Context, ref string, argv []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(argv) == 0 {
-		return core.ExecResult{}, core.ErrInvalidArgument
+		return core.ErrInvalidArgument
 	}
 	args := append([]string{"exec", ref, "--project", r.project, "--force-interactive", "--"}, argv...)
 	cmd := exec.CommandContext(ctx, "incus", args...)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	terminal := core.TerminalMetadataFromContext(ctx)
-	var err error
 	if terminal.Columns != 0 || terminal.Rows != 0 {
-		err = runSizedInteractiveCommand(ctx, cmd, stdin, terminal)
-	} else {
-		err = runInteractiveCommand(cmd, stdin)
+		return runSizedInteractiveCommand(ctx, cmd, stdin, terminal)
 	}
-	if err == nil {
-		return core.ExecResult{ExitCode: 0}, nil
-	}
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return core.ExecResult{ExitCode: exit.ExitCode()}, err
-	}
-	return core.ExecResult{ExitCode: -1}, err
+	return runInteractiveCommand(cmd, stdin)
 }
 
 // runInteractiveCommand lets process exit complete independently of an open
