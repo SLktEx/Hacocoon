@@ -59,3 +59,5 @@ or Incus access. Invalid arguments retain stderr and nonzero exits. Explanations
 wrap with aligned indentation at 60 columns. Wrapping long command syntax and
 copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
+
+`haco git status [--json] [--request <request-id>] <environment>` shows the latest or selected recorded push. `haco git reconcile` accepts the same arguments and requests a fresh Policy-controlled read. Neither repeats a push. See [Git recovery](../guides/git-workflow.md).

@@ -165,6 +165,7 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		t.Fatal(err)
 	}
 	audit := &gitAudit{}
+	broker.PushAudit = audit
 	capabilities, err := capabilityapp.New(capabilityapp.NewFilePolicyEvaluator(policyPath), nil, audit, broker)
 	if err != nil {
 		t.Fatal(err)

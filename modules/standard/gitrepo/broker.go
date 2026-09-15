@@ -75,16 +75,19 @@ type Broker struct {
 	Repositories    *RepositoryService
 	Environments    EnvironmentStore
 	Capabilities    CapabilityService
+	PushAudit       capabilityapp.AuditSink
+	AuditHistory    AuditHistory
 	SocketDirectory string
 	mu              sync.Mutex
 	ctx             context.Context
 	servers         map[string]boundServer
 	pending         map[string]pendingProposal
 	operations      map[string]preparedOperation
+	active          map[string]bool
 }
 
 func NewBroker(repos *RepositoryService, environments EnvironmentStore, sockets string) *Broker {
-	return &Broker{Repositories: repos, Environments: environments, SocketDirectory: sockets, servers: map[string]boundServer{}, pending: map[string]pendingProposal{}, operations: map[string]preparedOperation{}}
+	return &Broker{Repositories: repos, Environments: environments, SocketDirectory: sockets, servers: map[string]boundServer{}, pending: map[string]pendingProposal{}, operations: map[string]preparedOperation{}, active: map[string]bool{}}
 }
 func (*Broker) Capability() string { return Capability }
 
@@ -415,14 +418,39 @@ func (b *Broker) perform(ctx context.Context, bound binding, proposal Proposal, 
 		if err := b.validateBinding(ctx, bound); err != nil {
 			return Response{}, err
 		}
+		var receipt core.CapabilityAuditEvent
+		if proposal.Operation == "push" {
+			var err error
+			receipt, err = b.beginPush(ctx, bound, request)
+			if err != nil {
+				return Response{}, err
+			}
+		}
 		var err error
 		response, err = execute(ctx)
+		if err == nil && proposal.Operation == "push" {
+			if response.Ref != proposal.Ref || response.OID != proposal.NewOID || response.Error != "" {
+				return Response{}, core.ErrRecoveryRequired
+			}
+			receipt.Type = pushConfirmed
+			receipt.Time = time.Now().UTC()
+			if recordErr := b.PushAudit.Record(ctx, receipt); recordErr != nil {
+				return Response{}, errors.Join(core.ErrAuditIncomplete, core.ErrRecoveryRequired, recordErr)
+			}
+		}
 		return response, err
 	}}
 	b.mu.Lock()
 	b.operations[proposal.ID] = operation
+	b.active[proposal.ID] = true
 	b.mu.Unlock()
-	defer func() { b.mu.Lock(); delete(b.operations, proposal.ID); delete(b.pending, proposal.ID); b.mu.Unlock() }()
+	defer func() {
+		b.mu.Lock()
+		delete(b.operations, proposal.ID)
+		delete(b.pending, proposal.ID)
+		delete(b.active, proposal.ID)
+		b.mu.Unlock()
+	}()
 	ctx = context.WithValue(ctx, operationContextKey{}, proposal.ID)
 	completed := make(chan decisionCompletion, 1)
 	decide := func(ctx context.Context, prompt core.ApprovalRequest) (capabilityapp.ApprovalDecision, error) {

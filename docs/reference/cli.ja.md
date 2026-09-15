@@ -58,3 +58,5 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 説明は60桁を基準にインデントを揃えて折り返します。長いコマンド引数の構文と
 コピー可能な実行例の改行改善、補助haco-hostヘルプは残件です。
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
+
+`haco git status [--json] [--request <request-id>] <environment>` は最新または指定したpushの保存記録を表示する。`haco git reconcile` も同じ引数で、現Policyに従った新しい読み取りを要求する。どちらもpushを再送しない。[Gitの案内](../guides/git-workflow.ja.md)を参照。

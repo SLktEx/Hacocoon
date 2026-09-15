@@ -615,3 +615,7 @@ The main notification-setup integration reuses 5a6fb54c over GUI aef58798 and ma
 After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.
 
 After merging current main5121b205 as ac145abc, the combined GUI/notification candidate passed full local tests50.00s, CLI12.86s and docs/regressions31.34s. The aef58798 installed notification-setup failure remains unresolved pending new fixed-operation evidence.
+
+## Git push reconciliation integration
+
+The main candidate reuses 42aa706f over GUI/notification source 8d509399. Focused tests (9.31s), changed-code lint (12.57s), maintained local tests (25.06s), race (28.69s), CLI E2E (4.44s), documentation/regressions (8.66s), and workflow policy (1.50s) passed with Go 1.27.1. The first lint attempt found an unchecked audit-fixture close; the fixture was fixed before the complete pass. Tests exercise real Git repositories and read-only remote observation, including ambiguous receipts and replaced Environment identity. Authenticated remote Git and human approval acceptance were not run. Reconciliation never repeats a push or infers its original success from current branch equality.

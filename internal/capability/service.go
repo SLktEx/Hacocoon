@@ -291,7 +291,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 			return baseResult, core.ErrCapabilityStale
 		}
 	}
-	result, execErr := provider.Execute(ctx, req)
+	result, execErr := provider.Execute(context.WithValue(ctx, executionRequestKey{}, requestID), req)
 	result.RequestID = requestID
 	result.SavedChoice = baseResult.SavedChoice
 	if execErr == nil {

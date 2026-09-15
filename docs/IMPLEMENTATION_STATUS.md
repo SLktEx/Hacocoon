@@ -105,3 +105,5 @@ Notification setup follow-up: service refresh identifies fixed failing operation
 ## Cache generation foundation
 
 **Partial:** atomic generation adoption, independent CoW resources, exact Env-owned disposable attachments and Host target selection are implemented components. Production selection is disabled until stopped collection and public configuration/cleanup are connected. Added attachments currently refuse snapshot/copy/transfer instead of dropping data. Existing Workspace/OCI retention is unchanged. See [cache generations](design/cache-generations.md).
+
+Push reconciliation follow-up: implemented candidate reusing42aa706f. Durable dispatch/confirmation records and current-owner exact-ref reads distinguish original failure from current remote state, without replaying writes or restoring approval. Main clone/fetch grants no push authority. Fresh authenticated installed use and larger Git transport remain separate.

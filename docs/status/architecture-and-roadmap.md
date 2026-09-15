@@ -214,3 +214,5 @@ streams in main's split lifecycle files. It preserves shared cleanup outcomes
 and requires current run identity rather than adding legacy migration. DNS modes
 and client-side forwarding remain independent work. Local regression and new
 native acceptance are recorded separately; large-repository performance remains deferred.
+
+The M2 reconciliation candidate reuses42aa706f for durable push receipts and exact-ref observation under fresh read authority. GUI answers remain in #664; authenticated installed acceptance and larger Git transport remain separate. No old-version compatibility is added.
