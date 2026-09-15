@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
+	"time"
 )
 
 type Dialer func(context.Context) (net.Conn, error)
@@ -150,6 +152,7 @@ func (c *Client) openStream(ctx context.Context, method string, request any, man
 
 type contextConn struct {
 	net.Conn
+	ctx  context.Context
 	stop func() bool
 }
 
@@ -157,9 +160,41 @@ func bindContext(ctx context.Context, conn net.Conn) net.Conn {
 	if ctx == nil || ctx.Done() == nil {
 		return conn
 	}
-	bound := &contextConn{Conn: conn}
+	bound := &contextConn{Conn: conn, ctx: ctx}
 	bound.stop = context.AfterFunc(ctx, func() { _ = conn.Close() })
 	return bound
+}
+
+func (c *contextConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	return n, c.ioError(err)
+}
+
+func (c *contextConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	return n, c.ioError(err)
+}
+
+func (c *contextConn) SetDeadline(deadline time.Time) error {
+	return c.ioError(c.Conn.SetDeadline(deadline))
+}
+
+func (c *contextConn) ioError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if ctxErr := c.ctx.Err(); ctxErr != nil {
+		return errors.Join(ctxErr, err)
+	}
+	// The socket deadline can fire before the context's timer is scheduled.
+	// Keep the caller's expired deadline recognizable in either ordering.
+	var timeout net.Error
+	if errors.As(err, &timeout) && timeout.Timeout() {
+		if deadline, ok := c.ctx.Deadline(); ok && !time.Now().Before(deadline) {
+			return errors.Join(context.DeadlineExceeded, err)
+		}
+	}
+	return err
 }
 
 func (c *contextConn) Close() error {
