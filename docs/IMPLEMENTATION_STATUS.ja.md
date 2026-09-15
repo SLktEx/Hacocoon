@@ -30,7 +30,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
 | [ネットワーク・DNS](design/egress-authorization.ja.md) | 実装済み | コントローラー所有のStandardプロキシ、Incus下位層の直接通信防止、信頼済み送信元に結び付けたDNS。名前解決と接続の許可は別。カーネルの送信元保護を観測する処理は実装済みだが、Windowsパッケージ全工程と偽装パケットの検証は別途必要。VPN/NRPT・再起動の組合せ・広いIncus構成の確認は未完了。 |
 | [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host実体ごとの自動設定、明示的なscriptのみの再適用と非公開出力・終了値の記録、EnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
-| [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。出力取得のみで対話stdin/TTYは非対応。後始末失敗時は所有記録を保持。 |
+| [一時実行](design/temporary-execution.ja.md) | 実装済み | `haco run`は一時Envを作り、終了時に後始末を行う。明示したWorkspaceは保持。既定は出力取得、`-i/-it`で入力・対話端末に対応し実Incusで確認済み。Windowsの逐次実行は未確認。後始末失敗時は所有記録を保持。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCIと独立保存rootfsを対象に、新しいEnvと権限を作成。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |

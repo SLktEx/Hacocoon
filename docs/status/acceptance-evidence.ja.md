@@ -389,3 +389,20 @@ mainには既に前景処理の開始を待つPTY resize回帰があるため、
 CLI E2E2.95秒、文書と回帰4.95秒、workflow policy1.02秒がすべてPASS。
 Gitと一時実行の両方を含む結果です。新しい実Incus・Windowsの逐次実行の受入は
 通常の環境確認として別に残ります。
+
+
+PR #666のhead `7ed40fe53850747ebd06231c09f9df9fc4a87959`はtest、quality、
+Ubuntu installer、実IncusがPASS。Incus run34900137450 / job104163854329で、
+製品の一時実行を通したバイナリ入力、実PTYの編集・サイズ変更、終了17、端末復元、
+中止時cleanup、Workspace保持が成功しました。既存snapshot/copy/transferもfixtureの
+範囲内でPASS。これは実Incusの逐次実行の受入です。
+
+Windows run34900137466 / job104163854107のstep19は公開reclaimでFAIL。
+Linux側回収完了後、Windows停止を要求しましたが、`compact_attached`で接続中VHDを拒否。
+圧縮・再開は未試行、native errorは未記録です。通知stepはSKIP。Windows回収の未解決失敗であり、
+逐次実行の受入やworker修復とは扱いません。接続中ディスクの保護は緩めません。
+人のGUI回答、Windows逐次実行、認証Git、巨大レポ性能は未確認です。
+
+#663がmain `9da3ec8f`へ反映された後、#666を`18073ee7`へrebaseしました。
+`7ed40fe5`と全ファイルが同一で、その後は本記録と状態の要約だけを更新しています。
+既存のソース別成功は保持し、新headのCI成功へ読み替えません。

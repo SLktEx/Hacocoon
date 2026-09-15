@@ -423,3 +423,24 @@ On the combined `8b4d00a2` source plus canonical v0.61 metadata, focused tests
 (8.51s), CLI E2E (2.95s), docs/regressions (4.95s) and workflow policy (1.02s)
 all passed. Both the Git and run changes were included. Fresh real Incus and
 Windows streamed-run acceptance still require their ordinary environment checks.
+
+
+PR #666 head `7ed40fe53850747ebd06231c09f9df9fc4a87959` passed test,
+quality, Ubuntu installer and real Incus workflows. Incus run 34900137450,
+job 104163854329 passed binary stdin, real PTY editing/resize, exit 17,
+terminal restoration, cancellation cleanup and retained Workspace checks through
+the product run route. Existing snapshot/copy/transfer checks also passed within
+that fixture's scope. This establishes real Incus streamed-run acceptance.
+
+Windows run 34900137466 failed at public reclaim (job 104163854107, step 19):
+Linux reclamation completed, Windows stop was requested, but `compact_attached`
+refused an attached VHD. Compaction and resume were not attempted; no native error
+was recorded. The notification step was skipped. This is an unresolved Windows
+reclaim failure, not streamed-run acceptance or evidence of a repaired worker.
+Do not relax the attached-disk guard. Fresh human GUI, Windows stream use,
+authenticated Git and large-repository performance remain unverified.
+
+After #663 merged as main `9da3ec8f`, #666 was rebased to `18073ee7` with
+an identical file tree to `7ed40fe5`. Only this evidence and status summary were
+then updated; the prior source-bound results are preserved, not relabeled as CI
+success for a new head.
