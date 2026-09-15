@@ -2,19 +2,57 @@ package controlapi
 
 import (
 	"context"
+	"errors"
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/workspace"
+	"reflect"
+	"strconv"
 	"testing"
 )
 
 type managedWorkspaceFixture struct {
-	calls    int
-	received core.Workspace
+	calls      int
+	received   core.Workspace
+	workspaces []workspace.ManagedWorkspace
+	failure    error
 }
 
 func (f *managedWorkspaceFixture) ListManagedWorkspaces(context.Context) ([]workspace.ManagedWorkspace, error) {
-	return []workspace.ManagedWorkspace{}, nil
+	return f.workspaces, f.failure
+}
+
+func TestManagedWorkspaceListWirePreservesOwnersAndRetainedReferences(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		t.Run(strconv.FormatBool(failed), func(t *testing.T) {
+			items := []workspace.ManagedWorkspace{{Workspace: core.Workspace{ID: "workspace:managed:owner", Path: "managed:work"}, Name: "work", State: "ready", Repositories: []string{"source"}, Environments: []string{"dev"}, Snapshots: []string{"saved"}, Stores: []string{"oci:retained"}}}
+			f := &managedWorkspaceFixture{workspaces: items}
+			if failed {
+				f.failure = core.ErrRecoveryRequired
+			}
+			path := doctorTestSocket(t, func(s *control.Server) {
+				if err := RegisterManagedWorkspaces(s, f); err != nil {
+					t.Fatal(err)
+				}
+			})
+			client, err := NewClient(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := client.ListManagedWorkspaces(context.Background())
+			if failed {
+				var status *control.StatusError
+				if !errors.As(err, &status) || status.Code != "recovery_required" {
+					t.Fatal("workspace recovery hidden", got, err)
+				}
+			} else if err != nil || !reflect.DeepEqual(got, items) {
+				t.Fatal("workspace review lost ownership/references", got, err)
+			}
+			if f.calls != 0 {
+				t.Fatal("list deleted a Workspace", f.calls)
+			}
+		})
+	}
 }
 func (f *managedWorkspaceFixture) DeleteManagedWorkspace(ctx context.Context, w core.Workspace) error {
 	f.calls++

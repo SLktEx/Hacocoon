@@ -140,19 +140,24 @@ func (c *Client) StreamEvents(ctx context.Context, sinceOffset int64, emit func(
 			return nextOffset, fmt.Errorf("events stream returned negative offset: %w", control.ErrProtocol)
 		}
 		if frame.Error != nil {
+			if frame.Event != nil || frame.Done || frame.NextOffset < nextOffset {
+				return nextOffset, fmt.Errorf("invalid events stream error frame: %w", control.ErrProtocol)
+			}
 			return frame.NextOffset, responseError(frame.Error)
 		}
 		if frame.Event != nil {
 			if frame.Done {
 				return nextOffset, fmt.Errorf("events stream frame cannot contain event and done: %w", control.ErrProtocol)
 			}
-			nextOffset = frame.NextOffset
-			if frame.Event.NextOffset != nextOffset {
+			if frame.Event.NextOffset != frame.NextOffset || frame.NextOffset <= nextOffset {
 				return nextOffset, fmt.Errorf("events stream offset mismatch: %w", control.ErrProtocol)
 			}
 			if err := emit(*frame.Event); err != nil {
 				return nextOffset, err
 			}
+			// Match the event service: resume after the last successfully emitted
+			// record, never after an invalid frame or an uncommitted callback.
+			nextOffset = frame.NextOffset
 			continue
 		}
 		if frame.Done {
