@@ -1510,3 +1510,15 @@ structured log fields or the underlying Policy implementation.
 The ordinary ten-binary Linux/Windows package built from #701 head
 `f354464337f84e876a97628ded69249fa84f13f6` in 45.28s. No installation or
 release was performed. #701 is a development-branch follow-up to #700.
+
+## Configuration language guidance
+
+`c3fb376f` adds bilingual configuration help, inspection/save guidance and
+unconfirmed-save/retained-editor notices. Local focused tests passed in 10.64s,
+changed-code lint in 15.93s, maintained full tests in 36.01s, race in 13.90s,
+CLI E2E in 4.23s, docs in 9.80s, workflow policy in 1.37s and native-test
+compilation in 1.71s. JSON inspection/apply receipts are byte-identical in both
+languages; exact Policy and revision inputs, conflict retention, original errors
+and one apply on output failure are covered. The first lint attempt found five
+unhandled diagnostic writes; they were made explicit before the full pass.
+These checks do not change a live Policy or establish installed/human acceptance.
