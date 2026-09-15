@@ -31,128 +31,81 @@ func Main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	standardEgress, err := controllerMode(os.Args[1:])
+	if err := run(ctx, os.Args[1:]); err != nil && !errors.Is(err, context.Canceled) {
+		logging.Root().Error("controller failed", "component", "control", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(parent context.Context, args []string) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	standardEgress, err := controllerMode(args)
 	if err != nil {
-		fail(err)
+		return err
 	}
 	app, err := composition.Controller(ctx)
 	if err != nil {
-		fail(err)
-	}
-	server := control.NewServer()
-	if err := controlapi.RegisterWorkflow(server, app.Workflow); err != nil {
-		fail(err)
+		return err
 	}
 	defer app.Networks.Close()
-	if err := controlapi.RegisterNetworkRules(server, app.Networks, app.Configuration); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterNetwork(server, app.Networks); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterReviews(server, app.Reviews); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterCache(server, app.Cache); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterConfiguration(server, app.Configuration); err != nil {
-		fail(err)
-	}
-	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterForwardStreams(server, app.Clients); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterBaseManage(server, app.BaseManage); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterBaseBuild(server, app.BaseBuild); err != nil {
-		fail(err)
-	}
-	if err := registerBaseImport(server, app); err != nil {
-		fail(err)
-	}
-	if err := registerEnvironmentExport(server, app); err != nil {
-		fail(err)
-	}
-	if err := registerWorkspaceImport(server, app); err != nil {
-		fail(err)
-	}
-	if err := registerEnvironmentImport(server, app); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterEnvironmentCopy(server, app.EnvironmentCopy); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterSnapshotRestore(server, app.SnapshotRestore); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterSnapshots(server, app.Environments); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterEnvironmentStreams(server, app.Clients); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterStart(server, app.Environments); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterStop(server, app.Environments); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterAWS(server, app.AWS); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterManagedWorkspaces(server, app.Environments); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterOCIImages(server, app.OCIImages); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterOCIStores(server, app.PersistentResources); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterHost(server, app); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterProjectSetup(server, app.ProjectSetup); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterSetup(server, app); err != nil {
-		fail(err)
-	}
-	if err := registerReclamation(server, app); err != nil {
-		fail(err)
-	}
-	if err := controlapi.RegisterDoctor(server, app); err != nil {
-		fail(err)
+	server := control.NewServer()
+	// Register every management contract before publishing the endpoint. Any
+	// collision or invalid service prevents the whole controller from serving.
+	if err := errors.Join(
+		controlapi.RegisterWorkflow(server, app.Workflow),
+		controlapi.RegisterNetworkRules(server, app.Networks, app.Configuration),
+		controlapi.RegisterNetwork(server, app.Networks),
+		controlapi.RegisterReviews(server, app.Reviews),
+		controlapi.RegisterCache(server, app.Cache),
+		controlapi.RegisterConfiguration(server, app.Configuration),
+		controlapi.Register(server, app.Environments, app.Clients),
+		controlapi.RegisterForwardStreams(server, app.Clients),
+		controlapi.RegisterBaseManage(server, app.BaseManage),
+		controlapi.RegisterBaseBuild(server, app.BaseBuild),
+		registerBaseImport(server, app),
+		registerEnvironmentExport(server, app),
+		registerWorkspaceImport(server, app),
+		registerEnvironmentImport(server, app),
+		controlapi.RegisterEnvironmentCopy(server, app.EnvironmentCopy),
+		controlapi.RegisterSnapshotRestore(server, app.SnapshotRestore),
+		controlapi.RegisterSnapshots(server, app.Environments),
+		controlapi.RegisterEnvironmentStreams(server, app.Clients),
+		controlapi.RegisterStart(server, app.Environments),
+		controlapi.RegisterStop(server, app.Environments),
+		controlapi.RegisterAWS(server, app.AWS),
+		controlapi.RegisterManagedWorkspaces(server, app.Environments),
+		controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker),
+		controlapi.RegisterOCIImages(server, app.OCIImages),
+		controlapi.RegisterOCIStores(server, app.PersistentResources),
+		controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities),
+		controlapi.RegisterHost(server, app),
+		controlapi.RegisterProjectSetup(server, app.ProjectSetup),
+		controlapi.RegisterSetup(server, app),
+		registerReclamation(server, app),
+		controlapi.RegisterDoctor(server, app),
+	); err != nil {
+		return err
 	}
 
 	var proxyListener net.Listener
 	if standardEgress {
 		executable, sourceErr := os.Executable()
 		if sourceErr != nil {
-			fail(sourceErr)
+			return sourceErr
 		}
 		if sourceErr = app.Runtime.ConfigureEnvironmentDNS(filepath.Join(filepath.Dir(executable), "haco")); sourceErr != nil {
-			fail(sourceErr)
+			return sourceErr
 		}
 		prepareCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		address, prepareErr := app.Runtime.PrepareEgressProxy(prepareCtx)
 		cancel()
 		if prepareErr != nil {
-			fail(fmt.Errorf("prepare Standard egress substrate failed"))
+			return fmt.Errorf("prepare Standard egress substrate failed")
 		}
 		proxyListener, err = net.Listen("tcp4", address)
 		if err != nil {
-			fail(fmt.Errorf("bind Standard egress endpoint: %w", err))
+			return fmt.Errorf("bind Standard egress endpoint: %w", err)
 		}
 		defer func() { _ = proxyListener.Close() }()
 	}
@@ -160,24 +113,22 @@ func Main() {
 	path := control.SocketPath()
 	listener, err := controllerListener(path)
 	if err != nil {
-		fail(err)
+		return err
 	}
 	defer func() { _ = listener.Close() }()
-	if err := app.GitBroker.Start(ctx); err != nil {
-		fail(err)
-	}
 	defer app.GitBroker.Close()
+	if err := app.GitBroker.Start(ctx); err != nil {
+		return err
+	}
 
-	logger = logging.Root().With("component", "control")
+	logger := logging.Root().With("component", "control")
 	logger.InfoContext(ctx, "controller listening", "socket_path", path)
 	services := []func(context.Context) error{func(ctx context.Context) error { return server.Serve(ctx, listener) }}
 	if proxyListener != nil {
 		services = append(services, func(ctx context.Context) error { return app.EgressProxy.Serve(ctx, proxyListener) })
 		logging.Root().InfoContext(ctx, "Standard egress proxy listening", "component", "proxy", "operation", "serve_http")
 	}
-	if err := serveControllerServices(ctx, services...); err != nil && !errors.Is(err, context.Canceled) {
-		fail(err)
-	}
+	return serveControllerServices(ctx, services...)
 }
 
 // The installed unit explicitly enables the replaceable Standard component.
@@ -266,9 +217,4 @@ func productionControlGroupGID() (int, error) {
 		return 0, fmt.Errorf("%s must not resolve to the root group", controlGroupGIDEnv)
 	}
 	return int(parsed), nil
-}
-
-func fail(err error) {
-	logging.Root().Error("controller failed", "component", "control", "error", err)
-	os.Exit(1)
 }

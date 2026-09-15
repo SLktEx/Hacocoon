@@ -27,6 +27,12 @@ func TestControllerServiceFailureStopsPeers(t *testing.T) {
 	}
 }
 
+func TestControllerRequiresAtLeastOneService(t *testing.T) {
+	if err := serveControllerServices(context.Background()); err == nil {
+		t.Fatal("controller reported success with no active service")
+	}
+}
+
 func TestControllerShutdownWaitsForBothServices(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	started := make(chan struct{}, 2)

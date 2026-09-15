@@ -57,6 +57,16 @@ done
 # Go module directories are read-only and must not become disposable user data.
 export HOME="$root/home"
 
+# Only the executable entrypoint owns logging setup. Invalid configuration
+# must fail once, without a package initializer silently selecting defaults.
+if HACO_LOG_LEVEL=invalid "$bin/haco-controller" >"$root/controller-log.out" 2>"$root/controller-log.err"; then
+  echo 'controller accepted invalid logging configuration' >&2
+  exit 1
+fi
+[[ ! -s "$root/controller-log.out" ]]
+printf '%s\n' 'controller logging configuration is invalid' >"$root/controller-log.expected"
+cmp "$root/controller-log.expected" "$root/controller-log.err"
+
 # Product identity/help must be available before any Incus/runtime/controller
 # initialization. The new haco deliberately exposes no legacy namespaces yet.
 "$bin/haco" --version >"$root/haco-version-short.out" 2>"$root/haco-version-short.err"
