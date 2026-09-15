@@ -69,7 +69,7 @@ On the trusted Host, `haco cache settings` displays configured areas, `haco cach
 ## Build a Base with Packer
 
 ```sh
-haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--builder <env>] [--output] [--json] <directory>
 ```
 
 The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.

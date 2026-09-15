@@ -16,6 +16,7 @@ var catalog = map[string]translation{
 	"base.packer_context":            {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
 	"base.packer_name":               {"Name of the Base to publish.", "作成するひな形の名前。"},
 	"base.packer_from":               {"Starting Base; omit to use the default.", "元にするひな形。省略時は既定値。"},
+	"base.builder_name":              {"Optional build Environment name for scoped network settings; existing Environments are never reused.", "通信設定の対象にするビルド用環境名（任意）。既存環境は再利用しません。"},
 	"base.packer_output":             {"Include private failed-build output; it may contain script data.", "失敗したbuildの非公開出力を表示します。スクリプト内の情報を含み得ます。"},
 	"base.packer_failed":             {"Check the HCL/scripts, Base tools and normal network approvals. Use --output for private build output. Review any retained builder before retrying.", "HCL・スクリプト、元のひな形のツール、通常のネットワーク承認を確認してください。build出力は--outputで確認できます。再試行前に残ったbuild環境を確認してください。"},
 	"flags.usage":                    {"Usage of %s:", "%s の使い方:"},

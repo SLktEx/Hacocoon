@@ -21,12 +21,20 @@ var NamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,62}$`)
 type Definition struct {
 	Name core.BaseName `json:"name"`
 	From core.BaseName `json:"from,omitempty"`
+	// BuilderName scopes ordinary policy by an operator-selected name. Ownership
+	// still uses a fresh temporary Workspace and the canonical Env lease.
+	BuilderName string `json:"builder_name,omitempty"`
 	// Run is the simple guest shell definition; exactly one engine is selected.
 	Run    string          `json:"run,omitempty"`
 	Packer *PackerTemplate `json:"packer,omitempty"`
 }
 
 func (d Definition) Validate() error {
+	if d.BuilderName != "" {
+		if err := core.ValidateEnvironmentName(d.BuilderName); err != nil {
+			return err
+		}
+	}
 	if !NamePattern.MatchString(string(d.Name)) || d.Name == d.From {
 		return core.ErrInvalidArgument
 	}
@@ -78,7 +86,7 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	if d.Packer != nil && s.Packer == nil {
 		return result, core.ErrUnsupported
 	}
-	return s.build(ctx, d.Name, func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
+	return s.build(ctx, d.Name, d.BuilderName, func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
 		return s.Environments.Create(ctx, core.EnvironmentSpec{Name: name, Base: d.From, TemporaryWorkspace: &work, SkipDefaultResource: true, Resources: builderResources()})
 	}, func(execute Execute, result *Result) error {
 		if d.Packer != nil {
@@ -102,16 +110,18 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 
 // build owns the single execution/publication/cleanup sequence for definitions
 // and archive inputs. The creator always uses canonical Environment ownership.
-func (s *Service) build(ctx context.Context, base core.BaseName, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(Execute, *Result) error) (result Result, err error) {
+func (s *Service) build(ctx context.Context, base core.BaseName, name string, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(Execute, *Result) error) (result Result, err error) {
 	work, err := core.NewTemporaryWorkspace()
 	if err != nil {
 		return result, err
 	}
-	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return result, err
+	if name == "" {
+		var nonce [16]byte
+		if _, err = rand.Read(nonce[:]); err != nil {
+			return result, err
+		}
+		name = "build-" + hex.EncodeToString(nonce[:])
 	}
-	name := "build-" + hex.EncodeToString(nonce[:])
 	result = Result{Base: core.BaseInfo{Name: base}, Builder: name, State: "failed"}
 	env, err := create(ctx, name, work)
 	if err != nil {
