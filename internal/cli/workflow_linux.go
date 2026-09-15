@@ -228,6 +228,11 @@ func workflowCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	} else {
 		ref.State = "recovery-required"
 	}
+	// The workflow service publishes ready only after the independent copy is
+	// complete. A missing completion observation must not become CLI success.
+	if err == nil && ref.State != "ready" {
+		err = core.ErrRecoveryRequired
+	}
 	err = errors.Join(err, h.Save(ref))
 	if writeErr := writeCLIResult(out, ref, *jsonOutput); writeErr != nil {
 		return 1
