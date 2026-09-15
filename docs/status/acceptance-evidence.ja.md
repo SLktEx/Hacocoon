@@ -677,3 +677,5 @@ f71ab282に基づく修正後固定候補で集中16.88秒、main全差分lint15
 対応版rootfs限定の持ち出しはf68a8c6bで76.26秒/test76.23秒PASS。通常Windowsインストールでdoctor・DNS/HTTPS・Windows登録・通知登録が完了し、hacocoon-secondは保持。現行schema一覧も保持中の6.0.5 fixture台帳と実体を2.89秒で読み取り照合でき、authority=falseを維持した。
 
 通常導入後のPackerサンプルは依存導入で10.39秒FAILし、非公開診断付き再試行も6.56秒FAIL。UbuntuのHTTP取得に通常proxyが403を返した。公開configはdefault=deny・ruleなしであり、試験専用の許可を追加していない。実Packer実行は通常の通信設定待ち。#676 head f68a8c6bのWindows34935395589/job104272085316は導入・並列cold SSH・実VS Code編集・setup・preview・通常export/importに成功後、通常Windows tunnelでtimeout/connection resetとなりFAIL。回収・通知は未実施。過去の失敗原因も解決扱いにしない。
+
+統合候補b42be03eは現main a3d0f4fd、Git/GUI #672、リポジトリ内配置 #679を含みます。focused21.73秒、main全差分lint23.92秒、ローカル全体41.13秒、race21.73秒、CLI5.39秒、docs/regressions11.17秒、workflow1.75秒が成功しました。実namespace・配置の検証済み実装は変更していません。#677はf71ab282で5ワークフローすべて成功し、a3d0f4fdとしてmainへ反映しました。#676は取り込み済みとして閉じましたが、同PRのWindowsトンネル失敗は上記の別結果として残します。
