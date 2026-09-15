@@ -1365,3 +1365,17 @@ docs18.25秒、workflow policy1.98秒が成功した。開始前にWSLのroot用
 独立した保存先、idmap間の所有者対応、認証付きエディタ・build・OCI・Gitの確認ではない。
 削除権限は付与しない。本人操作はリリース後の確認として残し、同一headの必須CI成功後の
 main反映を止めない。
+
+### Git転送のmain統合と対象選択の載せ替え
+
+main `6cdfe5d02bd1531da37ecd08c8c1e91134498c4e` は#702を統合し、
+head `821cecb6dae26efacb2ca3c77dc20e20e8c02c8c` とのtree一致を確認した。
+quality35004194444、test35004194464、Ubuntu35004194454、Incus35004194621、
+Windows35004194439がすべて成功。Windows job104499736879は導入済みSSH/エディタ、
+Linux/公開容量回収、native通知確認に成功し、証拠job104509492624も成功した。
+実Incus経由の大容量Gitや、新しい本人回答の確認とは区別する。
+
+#704の対象選択を `db1ac9aafc1f0833898d21e5609be056bd38754e` として載せ替えた。
+`fe23cf53` から対象選択の実装・試験・ローカルCI・workflowは変更していない。
+文書競合は双方の独立した結果を保持した。旧head `9a8a7d07` は置換時点で4系統成功、
+Windows実行中だった。この結果を新しい統合headの証明にはせず、同一headのCIで再確認する。

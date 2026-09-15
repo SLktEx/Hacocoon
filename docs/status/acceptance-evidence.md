@@ -1618,3 +1618,18 @@ actual operator inventory completeness, independent retained storage, owner-idma
 equivalence or authenticated editor/build/OCI/Git acceptance. The helper never
 grants deletion authority. Person-dependent checks remain post-release and do not
 block main integration after the required exact-head CI succeeds.
+
+### Git streaming main integration and selection rebase
+
+Main `6cdfe5d02bd1531da37ecd08c8c1e91134498c4e` integrates #702, with the same
+tree as head `821cecb6dae26efacb2ca3c77dc20e20e8c02c8c`. Quality35004194444,
+test35004194464, Ubuntu35004194454, Incus35004194621 and Windows35004194439
+all passed. Windows job104499736879 passed installed SSH/editor, Linux/public
+reclamation and native notification review; evidence job104509492624 also passed.
+This does not establish actual large Git through Incus or fresh human answers.
+
+#704's selection implementation is rebased as `db1ac9aafc1f0833898d21e5609be056bd38754e`
+with no changes to selection code/tests, local CI or workflow from `fe23cf53`.
+Documentation conflicts preserve both independent results. Earlier #704 head
+`9a8a7d07` had four successful workflows and Windows still running when replaced;
+these are not proof of the new combined head. The new exact head needs its own CI.

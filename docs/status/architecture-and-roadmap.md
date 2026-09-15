@@ -43,6 +43,12 @@ their respective main integration.
 
 ## M0–M5 remaining work
 
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) now contains
+the Git streaming correction after all five exact-head workflows passed. The
+single-pack functional limit is resolved within the documented 16 GiB budget;
+representative huge-repository performance remains deferred. #704 is rebased onto
+this main and awaits its new exact-head CI; its earlier results are retained separately.
+
 | Stage and useful outcome | Remaining implementation or acceptance |
 |---|---|
 | M0 — use existing improvements together | Main integrates #687–#688 and #699. The same-version installation, ordinary SSH/editor/forwarding, stop/resume and retained-data cycle passed packaged Windows and Incus CI. Broader configurations remain separate. |

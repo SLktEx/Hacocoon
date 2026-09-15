@@ -116,8 +116,10 @@ includes #700 setup guidance, network/configuration guidance and a correction
 to the installed TCP fixture's readiness timing. All five exact-head workflows and installed Windows acceptance passed; person-dependent checks remain post-release. #700's two distinct Windows failures remain in
 [acceptance evidence](status/acceptance-evidence.md#forwarding-fixture-readiness-correction).
 
-The Git streaming development candidate replaces whole-pack base64 with bounded
+Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) replaces whole-pack base64 with bounded
 binary frames on both existing transport boundaries. It removes the 32 MiB
 single-pack restriction, retains separate exact-ref push approval and checks a
-final byte-count receipt. Local real Git over 32 MiB and full repository validation pass; installed
-validation is pending. See [ADR 0106](adr/0106-streaming-git-packs.md).
+final byte-count receipt. Local real Git over 32 MiB and full repository validation pass.
+All five exact-head workflows passed, including the ordinary Windows installation,
+SSH/editor, reclamation and notification route. Actual large Git through Incus and
+person-dependent acceptance remain separate. See [ADR 0106](adr/0106-streaming-git-packs.md).
