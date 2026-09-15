@@ -588,3 +588,5 @@ main `5e89597a`を`075fc746`へ統合後、Packerと現行の詳細ヘルプを�
 新しい実Incus保守確認はFAIL。TestRealIncusEnvironmentDataPlacementE2E、command251.40秒/test243.38秒、Env data-e2e-c78cf57de85ce050、catalog /var/lib/haco-data-placement-529644104/state.json。既存の再開・access確認で4分の期限に達しsignal: killedとなり、収集・新しい履歴/クリア確認には未到達。成功でもSKIPでもない。前の通常収集の成功はそのソースの範囲で保持し、実機クリアは未確認。正確な所有catalogで片付け結果を確認中。
 
 読み取り確認で、失敗fixtureの正確なcatalogにEnv・lease・永続領域が残っておらず、nativeの名前照会も該当なしと確認した。空の世代項目2件だけが残る。元のタイムアウトは未解決。
+
+main4cd0c7dcを611bedafへ統合し、Git/GUI/Packer/キャッシュを合わせた全ローカル14.30秒、CLI3.36秒、文書・回帰5.62秒が通りました。前のGUI8d509399のWindows34923857407はSSHと公開reclaimが成功し、通知clearは8024ms、progress=decodeで失敗しました。このPCの通常Windows権限で同じ固定処理を専用テストIDに実行すると0.53秒/0.23秒で成功しました。制限付き実行枠は通知処理前に拒否しました。CI失敗や人による回答の解決を示す結果ではありません。
