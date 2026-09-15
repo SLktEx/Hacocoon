@@ -176,6 +176,8 @@ def main():
     def drive(output, process):
         nonlocal stage, sent_at, terminal_confirmed
         fresh = output[sent_at:]
+        if stage in (1, 4):
+            driver.reject_failed_host_entry(fresh)
         host = re.search(r"(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$", fresh)
         if stage == 0 and driver.cmd_prompt_count(fresh):
             process.write("wsl -d Hacocoon\r\n")

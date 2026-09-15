@@ -43,3 +43,20 @@ func TestHostToolsStageIsPreserved(t *testing.T) {
 		t.Fatalf("events=%+v", events)
 	}
 }
+
+func TestNotificationFailureDoesNotExposeUnknownOperation(t *testing.T) {
+	failure := &NotificationServiceFailure{Operation: "SECRET-backend-command"}
+	if failure.Error() != "failed" || Reason(failure) != "failed" {
+		t.Fatal("unknown operation became public", failure)
+	}
+	for _, operation := range []string{"enable_state", "activity", "disable", "reload", "failure_state", "reset", "enable", "restart"} {
+		failure := &NotificationServiceFailure{Operation: operation}
+		var events []Event
+		ctx := Observe(context.Background(), func(e Event) { events = append(events, e) })
+		err := Step(ctx, "notification_setup", func() error { return failure })
+		stage, reason := Details(err)
+		if stage != "notification_setup" || reason != failure.reason() || !ValidReason(reason) || len(events) != 2 || events[1].State != "failed" || events[1].Reason != reason {
+			t.Fatal("lost notification operation", stage, reason, events)
+		}
+	}
+}

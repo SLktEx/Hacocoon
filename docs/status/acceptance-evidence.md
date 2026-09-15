@@ -426,6 +426,79 @@ After merging main `119e3007`, the combined guidance/setup candidate `3c2d4c5c` 
 PR #665 head `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa` passed all five CI workflows, including Windows 34900315650. After merging main `9da3ec8f` as `35d5ea81`, combined local tests (13.58s), CLI E2E (3.22s) and docs/regressions (4.65s) passed. The earlier native protocol startup timeout remains unexplained; this later pass does not erase it. No fresh human desktop acceptance is claimed.
 
 
+<a id="main-gui-approval"></a>
+## Main GUI approval integration candidate
+
+The VS Code portion reuses #588 (`e7ba7987`) on main `7e876bc1`.
+Focused desktop/common review/control/product tests (2.67s) and changed-code
+golangci-lint 2.13.2 (4.49s) passed. The first full local run passed Go and all
+32 renderer/client tests, then failed both VSIX packaging tests because our
+verification archive assigned epoch-zero timestamps to uncommitted new files.
+The Windows checkout packaging tests passed; product packaging rules were not
+weakened. Correctly preserving source timestamps fixed the verification copy.
+The subsequent full local test entry (13.99s), related race (6.18s), CLI E2E
+(3.49s) and docs/regressions (4.51s) passed. This is repository/component evidence,
+not fresh installed Webview or human answers. Historical #588 acceptance remains
+scoped to its own source and cannot establish this main integration.
+
+The combined candidate `da064d83` adds Windows notification-contained choices
+from #611 (`667ae5bf`) plus duplicate-refusal and cancellation diagnostics
+(`7de0ad51`, `8eeac2b8`). On the verified source, focused tests (2.84s), pinned
+changed-code lint (4.38s), the full local test entry (10.77s), related race
+(6.64s), CLI E2E (2.93s), docs (4.59s) and workflow policy (1.02s) passed.
+The first lint attempt found three unchecked test-stream closes and one error
+capitalization; those were corrected before this successful run.
+
+Windows amd64 test/GUI-adapter builds and Windows-target vet passed. Actual
+Windows review components (4.27s), shared desktop review tests (0.30s) and the
+isolated registration test (2.27s) passed. This includes the ordinary initial
+owned-history clear, English/Japanese ToastGeneric selection XML accepted by
+Windows history, removal, COM activation/refusal, cancellation/process reaping,
+and exact registration ownership. The registration fixture cleaned only its
+fresh keys/files; no installation, execution policy or pending user request was
+changed. A first test harness launch stopped before tests because its PowerShell
+path variable was missing; selecting the current executable resolved that
+harness error without altering execution policy.
+
+These results do not establish human button answers, visible layout or the
+installed notification-to-controller journey. Earlier development candidates'
+8-second notification clear timeouts remain unexplained failures; a successful
+isolated current-component run does not erase them. Fresh installed VS Code
+answers and authenticated Git also remain unverified.
+
+PR #664 head `8c1cc435` passed repository, quality, Ubuntu and Incus workflows.
+Windows run 34894187686 failed at installed native notification review (job
+104143946090): stage=clear, reason=timeout, child exit=1, duration=8023 ms,
+no native HRESULT. Installation, strict SSH and both reclamation stages passed
+before it. The root cause remains unknown; component success does not erase it.
+The follow-up adds bounded fixed progress observations without extending deadlines
+or bypassing notification history. Fresh validation is recorded below.
+
+The follow-up on main `119e3007` (`ffb31f2b`) passed focused checks 2.48s, lint
+3.49s, full local tests 10.53s, race 6.15s, CLI E2E 2.91s, docs 4.83s and workflow
+policy 1.04s. Windows test/GUI builds and vet passed; actual Windows review tests
+(11.41s), desktop tests (0.42s) and isolated registration (2.38s) also passed.
+Fixed progress parsing covers partial reads, unrelated/oversized output and child
+failure; the ordinary initial clear/show/history/remove path was exercised again.
+The installed CI clear timeout still needs a result from this updated candidate.
+
+A preceding validation archive was captured while the merge commit was completing
+and incorrectly retained a removed Seed fixture. Its full test run failed on that
+fixture's source-guard mismatch. This is retained as an invalid-source validation
+failure, not evidence for the merged candidate. Archive creation now pins one
+commit and rejects a moving source before validation; a fresh exact archive
+produced the results above. No product guard or timeout was relaxed.
+
+
+At #664 head `38dc1ffe`, Windows run 34914309433 / job 104208480202 passed installation, strict SSH and public reclaim, then failed native review step 20. The new fixed report was `stage=activation, reason=unavailable`; native HRESULT, child duration and renderer progress were unobserved. After about ten seconds, the missing-request probe did not receive the expected no-longer-pending refusal. This is a separate unresolved activation failure, not proof of repair of earlier clear timeouts. Fresh human answers remain unverified.
+
+
+The activation diagnostic follow-up records fixed COM initialize/register/create/dispatch HRESULTs and preserves read-only timeout/cancellation across COM and private peer shutdown. Focused regressions (1.22s), docs/regressions (10.37s), native Windows review (4.75s), desktop (0.44s), isolated registration (2.81s), Windows build/vet and PowerShell probe parsing passed. Final formatting only changes whitespace. This does not establish that the installed activation failure is fixed; its failing run remains above.
+
+
+After integrating main `ef443132` as `effc7801`, the combined GUI candidate passed the full local test entry (72.69s), CLI E2E (6.79s), and docs/regressions (8.14s). Native installed activation and earlier clear failures remain unresolved pending the updated Windows run.
+
+
 <a id="main-interactive-run"></a>
 ## Interactive temporary execution on main
 
@@ -533,5 +606,12 @@ The main candidate reuses `2a0e9499`, `c4b7af50`, `094cc930`, `3a6e2bbc` and `2b
 Final focused tests (12.86s), uncapped changed-code lint (10.84s), maintained local tests (22.15s), related race (9.78s), CLI E2E (4.01s), docs/regressions (6.96s) and workflow policy (1.34s) passed with Go 1.27.1. Earlier lint found read-response closes, fixture writes and boolean simplifications; fixed before these results. Historical provider measurements above are not relabeled as new native acceptance. The old ambiguous fixture pool remains untouched. Public configuration, stopped-Env publication, history/clear and added-data snapshot/copy/transfer remain incomplete, so production enrollment is disabled.
 Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.
 
+At #664 head `aef58798`, Windows34918511743/job104221234323 passed installation, strict SSH and Linux reclamation. Public reclamation Host re-entry failed at 02:08:10 UTC with `stage=notification_setup reason=failed`; the observer then waited until 02:37:51 and timed out. The public reclaim operation was not reached and notification step20 was skipped. Other four workflows passed. This differs from the earlier clear/COM activation failures. The follow-up reuses `5a6fb54c` classification and failed-entry detection, without claiming a root-cause fix.
+
+The main notification-setup integration reuses 5a6fb54c over GUI aef58798 and main 5e89597a. Focused tests4.37s, notification Python regressions0.69s, changed-code lint30.66s, full local117.79s, race20.22s, CLI11.78s, docs17.46s and workflow2.88s passed. Initial integration testing failed at import of a future stream acceptance script absent on main; its unrelated test import was removed while retaining the existing native entry regression. Windows execution of the native observer tests passed6 tests0.555s. No new installed notification success is claimed.
+
+
 
 After integrating main `5e89597a` as `3d8c2877`, the cache foundation passed full local tests (13.62s), CLI E2E (3.27s) and docs/regressions (4.86s). Earlier head `22b119d8` passed all five workflows, including Windows34917359766. Public collection is a separate follow-up; this foundation does not enable enrollment.
+
+After merging current main5121b205 as ac145abc, the combined GUI/notification candidate passed full local tests50.00s, CLI12.86s and docs/regressions31.34s. The aef58798 installed notification-setup failure remains unresolved pending new fixed-operation evidence.

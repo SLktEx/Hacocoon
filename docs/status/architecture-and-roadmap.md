@@ -197,6 +197,16 @@ M4 public cache/Packer and current-version M5 cleanup remain active. Old-version
 compatibility/migration are excluded; new installed acceptance remains distinct.
 
 
+## GUI approval integration
+
+The optional VS Code client now reuses #588 to show current requests and complete
+explicit allow/deny and saved-scope choices inside a local GUI. Fresh human answers
+and installed GUI acceptance remain separate. Windows notification-contained
+answers now reuse #611 and subsequent refusal/cancellation corrections; both
+clients use the existing common review and Policy services. Fresh installed
+answers and visible notification layout still require acceptance. Old-version compatibility/migration are outside M0–M5.
+
+
 ## Temporary execution on main
 
 The M3 candidate reuses #590/#591 creation-bound cleanup and bounded input/TTY

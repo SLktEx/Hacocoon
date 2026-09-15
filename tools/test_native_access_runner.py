@@ -12,6 +12,11 @@ spec = importlib.util.spec_from_file_location('native_runner', Path(__file__).wi
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
+driver_spec = importlib.util.spec_from_file_location('native_entry_driver', Path(__file__).with_name('windows-installer-user-path-e2e.py'))
+entry_driver = importlib.util.module_from_spec(driver_spec)
+sys.modules[driver_spec.name] = entry_driver
+driver_spec.loader.exec_module(entry_driver)
+
 class NativeRunnerTests(unittest.TestCase):
     def test_cold_checks_have_no_retained_host_terminal(self):
         terminals, checks = [], []
@@ -43,7 +48,8 @@ class NativeRunnerTests(unittest.TestCase):
                 self.alive = False
 
         driver = SimpleNamespace(TerminalProcess=Terminal,
-                                 cmd_prompt_count=lambda output: output.count('CMD>'))
+                                 cmd_prompt_count=lambda output: output.count('CMD>'),
+                                 reject_failed_host_entry=entry_driver.reject_failed_host_entry)
 
         def check(name):
             active = sum(terminal.alive for terminal in terminals)
@@ -56,6 +62,32 @@ class NativeRunnerTests(unittest.TestCase):
             'test_windows_host_interop.ps1'])
         self.assertEqual(len(terminals), 2)
         self.assertFalse(any(terminal.alive for terminal in terminals))
+
+    def test_failed_entry_stops_before_checks_or_session_timeout(self):
+        class Terminal:
+            def __init__(self):
+                self.proc = self
+                self.alive = True
+                self.writes = []
+            def isalive(self): return self.alive
+            def terminate(self, force): self.alive = False
+            def write(self, text): self.writes.append(text)
+            def run(self, on_output, **kwargs):
+                on_output('CMD>', self)
+                on_output('CMD>\nhaco: enter trusted haco-host: internal: Host setup failed: stage=notification_setup reason=failed\nCMD>', self)
+                raise AssertionError('waited past the reported product failure')
+
+        def checks(): raise AssertionError('checks started without successful entry')
+        for entry in (lambda driver: runner.run_in_host_terminal(driver, checks),):
+            with self.subTest(entry=entry):
+                terminal = Terminal()
+                driver = SimpleNamespace(TerminalProcess=lambda: terminal,
+                                         cmd_prompt_count=lambda output: output.count('CMD>'),
+                                         reject_failed_host_entry=entry_driver.reject_failed_host_entry)
+                with self.assertRaisesRegex(RuntimeError, 'product: ordinary Host entry failed'):
+                    entry(driver)
+                self.assertEqual(terminal.writes, ['wsl -d Hacocoon\r\n'])
+                self.assertFalse(terminal.alive)
 
     def test_result_requires_success_and_all_markers(self):
         name = 'test_windows_environment_ssh.ps1'

@@ -392,6 +392,49 @@ main `119e3007`取り込み後の案内・準備の統合候補`3c2d4c5c`は、�
 PR #665のhead `108dd40cca4ea7bad0d0c8d1ddcc977a282d98aa`はWindows34900315650を含む全5CIがPASS。main `9da3ec8f`を`35d5ea81`へ統合後、全ローカル13.58秒、CLI E2E3.22秒、文書と回帰4.65秒がPASSしました。先行するnative protocol起動timeoutの原因は未解明のまま保持し、後の成功で消しません。新しい人のデスクトップ操作の受入とは扱いません。
 
 
+<a id="main-gui-approval"></a>
+## main向け画面内承認
+
+VS Code部分は #588（`e7ba7987`）をmain `7e876bc1`へ再利用しました。
+desktop・共通review・control・製品の集中試験（2.67秒）と変更差分の
+golangci-lint 2.13.2（4.49秒）はPASS。最初の全体確認はGoとrenderer/clientの32試験が
+PASSした後、検証archiveの未コミット新規ファイルに日時0を付けたためVSIX作成2試験がFAIL。
+Windowsのcheckout上でのパッケージ試験はPASSし、製品の作成条件は緩めていません。
+検証コピーが元の日時を保持するように直し、標準ローカル試験（13.99秒）、
+関連race（6.18秒）、CLI E2E（3.49秒）、文書と回帰（4.51秒）がPASSしました。
+新しく導入した実Webviewや人の回答の受入ではありません。
+#588の過去の受入を今回のmain統合の成功に読み替えません。
+
+PR #664のhead `8c1cc435`は通常・品質・Ubuntu・IncusがPASSしましたが、
+Windows実行34894187686の導入済み通知確認（job104143946090）はFAIL。
+stage=clear、reason=timeout、子の終了1、8023ms、HRESULT未取得でした。
+それ以前のインストール、厳格なSSH、2段階の容量回収はPASSです。原因は未確定で、
+コンポーネント成功で消しません。後続修正は固定した進行段階だけを上限付きで観測し、
+期限延長や履歴処理の省略はしていません。追加の検証結果は別に記録します。
+
+main `119e3007`取り込み後の`ffb31f2b`は、集中2.48秒、lint3.49秒、全ローカル
+10.53秒、race6.15秒、CLI E2E2.91秒、文書4.83秒、workflow policy1.04秒がPASS。
+Windows試験・GUI形式の構築とvetに加え、実Windows review11.41秒、desktop0.42秒、
+一時登録2.38秒もPASSです。段階の分割受信・無関係な出力・上限超過・子の失敗を確認し、
+通常の初回clear・表示・履歴・削除も再確認しました。導入CIのclear期限切れは
+更新候補での確認待ちとして保持します。
+
+先行する検証用アーカイブはmerge commit完了中に取得したため、削除済みSeed fixtureが
+混入し、そのsource guard不一致で全体試験がFAILしました。これは誤った検証ソースの
+失敗として残し、統合候補の証拠には使いません。作成時のcommitを固定し途中の変更を
+拒否するようにした新しい正確なアーカイブで、上記が成功しました。製品の保護や期限は
+緩和していません。
+
+
+#664 head `38dc1ffe`のWindows run34914309433 / job104208480202は導入・厳密SSH・公開reclaimまでPASSし、通知review step20でFAILしました。固定診断は`stage=activation, reason=unavailable`、HRESULT・child所要時間・renderer進捗は未観測。約10秒で、存在しない要求への期待された「承認待ちではない」拒否に到達しませんでした。これは先行clear timeoutとは別の未解決activation失敗で、以前の問題の修復とは扱いません。新しい人のGUI回答は未確認です。
+
+
+起動診断の追補はCOMのinitialize/register/create/dispatchと数値HRESULTを記録し、読み取り専用の期限切れ・中止をCOM応答と非公開peer終了後も保持します。集中1.22秒、文書と回帰10.37秒、実Windows通知4.75秒、desktop0.44秒、専用登録2.81秒、Windows build/vet、PowerShell probe構文がPASS。最後の整形は空白のみです。導入済み起動失敗の修復とは主張せず、上記の失敗runを保持します。
+
+
+main `ef443132`を`effc7801`へ統合後、GUI候補の全ローカル72.69秒、CLI E2E6.79秒、文書と回帰8.14秒がPASSしました。導入済み起動と先行clearの失敗は未解決で、更新headのWindows実行を待ちます。
+
+
 <a id="main-interactive-run"></a>
 ## main向け一時実行の対話操作
 
@@ -484,5 +527,12 @@ native／子終了／経過時間は未記録です。新規の人の通知回�
 最終結果はGo1.27.1の集中12.86秒、件数制限なしの変更lint10.84秒、全ローカル22.15秒、関連race9.78秒、CLI E2E4.01秒、文書と回帰6.96秒、workflow policy1.34秒がPASS。先行lintの応答close・fixture write・条件式も修正後の結果です。上記の過去実測を新しい実機受入には読み替えず、曖昧な旧fixture poolは操作していません。公開設定、停止Envからの採用、履歴・クリア、追加データのsnapshot/copy/transferは未完成のため通常の適用は無効です。
 main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。
 
+#664のhead aef58798、Windows34918511743/job104221234323は導入・厳密SSH・Linux回収に成功。公開回収のHost再入場で02:08:10 UTCにstage=notification_setup reason=failedとなり、観測側が02:37:51まで待ってタイムアウトした。公開reclaim本体には到達せず、通知step20はSKIP。他4CIは成功。以前のclear/COM起動失敗とは別の失敗として保持する。後続は5a6fb54cの分類と入場失敗検出を再利用し、原因修復の成功とは主張しない。
+
+通知準備のmain統合はGUI aef58798とmain5e89597aへ5a6fb54cを再利用。集中4.37秒、通知Python回帰0.69秒、変更範囲lint30.66秒、全ローカル117.79秒、race20.22秒、CLI11.78秒、文書17.46秒、workflow2.88秒がPASS。初回はmainにない将来のstream受入scriptのimportでFAIL。無関係なimportを除き、既存の通常入場回帰を保持した。Windows上のnative観測回帰6件も0.555秒でPASS。新しい導入済み通知の成功は主張しない。
+
+
 
 main `5e89597a`を`3d8c2877`へ統合後、キャッシュ基盤の全ローカル13.62秒、CLI E2E3.27秒、文書と回帰4.86秒がPASS。先行head `22b119d8`はWindows34917359766を含む全5workflowがPASSしました。公開収集は別の追補で、この基盤だけでは登録を有効化しません。
+
+現main5121b205をac145abcへ統合し、GUI/通知候補の全ローカル50.00秒、CLI12.86秒、文書・回帰31.34秒がPASS。aef58798の導入済み通知準備失敗は未解決で、新しい固定操作分類の証拠を待つ。

@@ -2,7 +2,7 @@
 
 [English](pending-approval-review.md) | 日本語
 
-状態: **リポジトリの一段階を実装済み。VS Code 確認は実装済み、Windows 通知の起動導線は実装済み、D2 受け入れは部分実装です。**
+状態: **VS Code GUIとWindows通知内の確認を開発候補で実装済み。導入済み新規回答の受け入れはpartialです。**
 リポジトリのテストと、導入済みのネットワーク・デスクトップ・GitHub 受け入れは区別します。
 
 ## 通常の使い方
@@ -90,54 +90,82 @@ native Windows 通知の起動導線は実装済み、D2 受け入れは部分�
 信頼しない remote terminal で管理コマンドを動かしたりしません。
 [ADR 0028](../adr/0028-pending-approval-sessions.ja.md) を参照してください。
 
-## VS Code からのローカル承認
+## VS Code GUIでの承認
 
-状態: **リポジトリ実装済み、導入済み受け入れは未確認**。
-任意のデスクトップ VS Code 拡張で通知の Review、または Hacocoon: Review Pending Approvals を選ぶと、
-ローカル UI extension Host が通常の `haco approve` を専用 terminal で開きます。
-クリック自体では回答しません。信頼された現在の要求と再利用範囲を確認し、単発回答または保存を選び、
-ask には別途今回の yes/no を入力します。
+状態: **開発候補で実装済み。導入済みGUIの受け入れは確認待ち**。
+任意のローカルUI拡張で通知のReview、または **Hacocoon: Review Pending Approvals** を選ぶと、
+Webviewが開きます。今回の操作全体と保存範囲を確認し、**今回は許可する** または **今回は拒否する**
+を選びます。terminal入力は不要です。表示はVS Codeの日英設定に従い、command paletteは通知bridgeなしでも使えます。
 
-Windows はローカルの導入済み Hacocoon WSL distribution と既定の利用者を使用し、
-Linux はローカル Physical Host の導入済み CLI を使用します。実行ファイルは絶対パス固定、
-引数は分離し、環境変数は許可リストに限定します。workspace の実行設定やコントローラー override、
-remote シェルは使いません。別の WSL distribution はローカル利用者設定だけで指定できます。
-Web、remote extension Host、信頼されていない window、非対応 platform は承認を開けません。
+初期値は設定を保存しない「今回のみ」です。選択肢は共通Policy builderが返した範囲だけです。
+Gitのref／更新種別、networkのhostname／protocol／portなど、保存するruleを省略せず表示します。
+Env単位は今回の作成identityに限定し、全Env共通は今後作成するEnvも含みます。毎回確認を保存する場合も、
+今回の許可・拒否は明示的に回答します。通知を開く、選ぶ、更新するだけでは回答しません。
 
-同じ要求の画面は再利用し、入力と出力を制限します。子プロセスの制御文字は terminal を操作できません。
-閉じる操作・Ctrl-C/D・15 分の期限はローカルの子プロセスを終了させますが、送信済み回答の取消しや
-再実行はしません。失敗・不明な結果は未確認として示します。Windows の起動導線は後述し、Linux デスクトップの起動は未実装の計画です。
-[ADR 0029](../adr/0029-local-desktop-approval-review.ja.md) を参照してください。
+固定した導入済みローカルCLIのprivate子プロセスpipeから既存management APIを使用します。
+WindowsのWSL distributionはローカル利用者設定だけで選び、LinuxはPhysical Hostを使います。
+Web／remote extension Host、非信頼window、非対応platformは拒否します。workspace設定・provider出力・
+公開eventは実行ファイル・認証・管理socketを指定できません。通常Envへ管理権限を投影しません。
 
-JavaScript テストは実行先、入力、終了処理、失敗、通知クリックを確認します。
-実 VS Code GHA には予測不能な古い要求 ID で local terminal から導入済みコントローラーの拒否を確認する
-検査を追加しましたが、結果は未確認です。新しい要求への人間の実回答や OS 通知クリックを証明するものではありません。
+privateな選択tokenを表示内容全体に束縛します。回答直前にEnv作成identityと保存範囲を含めて再取得・比較し、
+共通decision serviceを呼びます。単一回答の取得、Policy検証・保存・監査・実行は既存serviceが担当します。
+tokenはargv・log・URL・読み取り専用event bridgeへ出しません。既存management endpointの認可も必要です。
 
-実機検証では VS Code API 全体の列挙が確認起動前に失敗したため、observer は必要な安定 API だけを明示的に渡します。失敗時も作成確認済みの editor/terminal 検証ファイルを削除し、生の subprocess 出力を含まない固定段階と真偽値だけを記録します。実機で通常 CLI の HTTPS 承認は別途成功し、修正 observer は実機 VS Code 1.136.1 で編集・terminal・古い要求拒否を確認し、検証用構成後始末も成功しました（導入済み 6771f2f、observer 05c8206）。
+ローカル画面は一つを再利用し、待機中は5秒ごとに承認待ちを更新します。回答の選択は失敗し得る呼出し前に
+消費します。閉じる操作と15分の表示期限はローカル子プロセスを終了させ、自動再送や取消しはしません。
+queueのより短い要求期限は維持します。取得・protocol・通信失敗では選択を無効にし、送信後の不明な結果は
+未確認と表示します。拒否、実行成功、保存設定、監査未完了をreceiptで区別し、不確かな結果の再試行前には
+設定と監査を確認します。
 
-## Windows 通知から開く
+Webviewはnetwork／command URI／local file resourceを許可せず、nonce CSPとtextContentを使います。
+権限に関する値は省略せず文字列として表示します。snapshot、待機数、入出力、stderrには上限を設けます。
+private protocolは表示用内部interfaceで、公開plugin APIではありません。
+[ADR 0082](../adr/0082-local-gui-approval-session.md)を参照してください。
 
-Windows インストーラーは対象 WSL 専用の native 確認アダプターを登録し、信頼済み
-`haco-host` の所有する通知サービスを有効にします。`-SkipDesktopReview` は登録を省略し、
-サービスを無効にします。通常の Host setup が通知バイナリを配置し、コントローラー経由で購読します。
-監査ファイルは投影しません。通知からその要求の既存 `haco approve` console を開き、
-範囲を確認して通常の回答を入力します。開くだけで回答・Policy 保存・再実行はしません。
-Windows のインストール済み自動起動の受け入れは未完了です。
-[通知の配送](../reference/interaction-events.ja.md)を参照してください。
+実rendererのclick、保存範囲、古い／変更された要求、trust取消し、重複回答、不正出力、取消しを回帰試験します。
+導入済み検証は実Webviewの起動通知と実コントローラーの古い要求拒否を観測し、回答を注入しません。
+新しい実機結果は確認待ちです。旧custom terminalの成功はhistoricalであり、GUIの成功へ読み替えません。
+[検証証拠](../status/acceptance-evidence.ja.md)を参照してください。Windows通知内だけでの新規回答は
+Issue #568の別の残件です。
 
-distribution ごとにユーザー単位のプロトコルと通知識別を分けるため、検証 instance
-の導入で別 instance の通知先を変えません。helper は正規の要求 URI だけを受け取り、
-実行ファイルと設定済み distribution を固定し、環境の上書きを除去します。
-不正リンク・余分な引数・古い要求は拒否します。登録がない場合は承認起動のない通知です。
-Linux デスクトップの起動は未実装の計画で、VS Code は引き続き任意です。
+## Windows通知内で回答する
 
-実機 Windows では、正しいプロトコル URI を持つ通知履歴、対応 helper の Windows
-プロトコル起動、導入済みコントローラーの古い要求拒否を確認しました。
-終了済みの専用 HTTPS 検証要求を使った結果であり、OS 通知からの新規回答と人間による
-画面上の toast click は未確認です。[ADR 0030](../adr/0030-windows-notification-review.ja.md)を参照してください。
+状態: **開発候補で実装済み。導入済みの新規要求への回答と、表示の見切れ確認は未完了**。
 
-`4bb8dad` の Windows run 34176272125 は、native アダプターの checksum 検証が
-使用できない `Get-FileHash` に依存していたため、デスクトップ受け入れ前に失敗しました。
-.NET で直接 hash を計算するよう修正し、`Get-FileHash` を使えない条件の PowerShell 5.1
-構成要素回帰は成功しました。修正後の実 Windows インストールと通知サービス自動起動は
-未完了です。失敗 run の後続検査は SKIP であり、成功ではありません。
+Windowsインストーラーは自分のWSLディストリビューション用に、非表示helper、照合用protocol、
+通知識別子とCOM受信を登録します。所有するHostのsetupは既存controllerから通知を購読します。
+`-SkipDesktopReview`は引き続き登録を省略し、所有する通知サービスを無効にします。
+
+承認待ちはOS通知内で確認します。「次へ」「前へ」で今回のすべての条件を読み、設定を保存するか
+選び、保存する正確な条件を確認してから今回の許可・拒否を回答します。既定は保存しない選択です。
+このEnv限定は今回の作成分だけ、全Envは今後作成するものも含みます。「毎回確認」の保存時も今回の
+回答を明示します。本文クリック・表示・閉じる・開き直し・URLでは回答しません。実装上は端末・
+ブラウザー・別管理画面の起動を必要としません。
+
+長い条件は省略せず次のページへ続けます。外部値は文字列で表示し、制御文字・双方向表示文字を
+可視化します。選択欄には共通処理が返した保存候補だけを使います。表示に成功したページごとに
+一度だけ使えるnative nonceを発行します。最後の選択は別の非公開子プロセスで再取得し、表示した
+要求全体・保存候補と照合してから共通処理へ渡します。controllerのtoken・回答はargv、URL、
+公開イベントへ載せません。CoreにWindows固有のPolicy・実行処理を追加せず、通常Envの権限も増やしません。
+
+helperはユーザー・ディストリビューション単位の登録所有権と固定起動先を検証します。二重起動は
+既存COM受信へ読み取り専用の表示を依頼し、実際のShow後に応答します。最大16件を扱い、3秒ごとに
+待機状態を確認して一度に1件まで新しい通知を追加します。消えた要求のボタンを撤去し、Windows通知
+自身にも2分の期限を設定します。helperと非公開接続は最大15分、回答の子プロセスはその範囲で最大5分です。
+終了時は所有する子プロセスを停止・回収し、所有する確認通知を削除します。削除失敗でも古いnonceは無効です。
+
+表示・protocol・登録・接続の失敗で許可しません。回答は失敗し得る呼び出しの前に消費し、自動再送
+しません。拒否、監査付きの操作成功、確認できた設定保存、操作失敗、結果未確認を分けて表示します。
+結果不明時は再試行前に現在の設定と監査を確認します。native診断は固定の段階名・状態値に限定し、
+生の子プロセス出力を露出しません。
+
+[ADR 0083](../adr/0083-notification-contained-approval.ja.md)を参照してください。Windows実COM受信と
+英日選択XMLの通知履歴には構成要素の検証がありますが、見切れ・人のクリック・導入済み新規回答の
+証拠ではありません。以前のconsole/URI受け入れ、過去のchecksum失敗、実機残件は
+[検証証拠](../status/acceptance-evidence.ja.md)に保持します。Linux native起動は計画のままです。
+
+main向け統合では `7de0ad51` / `8eeac2b8` の後続修正も再利用します。
+消えた要求は通常の拒否として扱い、既存の表示セッションを壊しません。
+終了させた子プロセスが成功マーカーを出していても、中止・期限切れは失敗のままです。
+共通loggerには固定した段階・理由、範囲を制限したHRESULT・終了値・経過時間だけを渡し、
+子プロセスの生出力を記録せず、回答を再実行しません。
