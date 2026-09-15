@@ -95,7 +95,10 @@ In the Environment, use ordinary `git status`, `git fetch origin`,
 The helper fetches up to 1024 SHA-1 branch heads per batch, with
 an aggregate 32 MiB pack limit. Fetch reuses known local branch history, and
 existing-branch pushes omit the listed old history when available locally.
-New-branch pushes and more than 32 MiB of new pack data remain limited.
+New-branch pushes also reuse an available advertised ancestor after a fresh read
+check. If that head moved or its read is denied, inspect the error and fetch again
+before retrying; no push has been dispatched. Without such an ancestor, the full
+pack is needed. More than 32 MiB of new pack data remains unsupported.
 Use `git branch -r` to see them, then for example
 `git switch --track origin/feature/example` to work on an existing branch.
 The helper supports one new branch or one existing fast-forward

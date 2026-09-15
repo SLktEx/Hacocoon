@@ -84,8 +84,10 @@ as performed, failed or unperformed independently of repository tests.
 Large-repository performance, additional strict validation, broader OCI/runtime
 compatibility are deferred until ordinary use works. Functional Git transfer
 limits remain M4 work: the incremental candidate avoids resending known history
-for fetch and existing-target push. The 32 MiB new-pack limit and complete
-new-target push remain known constraints, not completed giant-repository support. Measure representative
+for fetch and existing-target push. The later new-branch candidate also reuses one
+advertised ancestor through an independent exact-ref read. The 32 MiB new-pack
+limit and complete packs without an available advertised ancestor remain known
+constraints, not completed giant-repository support. Measure representative
 large repositories before claiming the intended capacity/speed benefit; small
 fixtures do not prove it. LFS, submodules, force/delete/multi-ref push are not
 additional M2 completion conditions.

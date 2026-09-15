@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -120,6 +121,68 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 		t.Fatal("preparation changed remote")
 	}
 	t.Logf("existing random data=%d bytes; fetch=%d bytes; prepared push=%d bytes", len(data), received, len(pack))
+	var operations []string
+	var newBranchBytes int
+	newBranchExchange := func(ctx context.Context, request Request) (Response, error) {
+		operations = append(operations, request.Operation)
+		if request.Operation != "push" {
+			return exchange(ctx, request)
+		}
+		if request.OldOID != ZeroOID || request.Ref != "refs/heads/feature/new" || request.NewOID != local {
+			t.Fatal("history reuse changed the proposed target", request.Ref, request.OldOID)
+		}
+		newBranchBytes = len(request.Pack)
+		agent := req
+		agent.Operation, agent.Ref, agent.OldOID, agent.NewOID, agent.Pack = "prepare", request.Ref, request.OldOID, request.NewOID, request.Pack
+		return RunAgent(ctx, agent, repos, "") // No external write in this component check.
+	}
+	output.Reset()
+	if err := Helper(ctx, []string{"origin", "haco://demo"}, strings.NewReader("list for-push\npush HEAD:refs/heads/feature/new\n\n\n"), &output, &output, newBranchExchange); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(operations, ",") != "list,fetch,push" || newBranchBytes == 0 || newBranchBytes > 64<<10 || !strings.Contains(output.String(), "ok refs/heads/feature/new") {
+		t.Fatalf("new branch: operations=%v bytes=%d output=%s", operations, newBranchBytes, output.String())
+	}
+	if got := testGit(t, remote, "for-each-ref", "--format=%(refname)", "refs/heads/"); got != "refs/heads/main" {
+		t.Fatal("new-branch preparation mutated the remote", got)
+	}
+	t.Logf("new-branch prepared pack=%d bytes; same expected-absent target retained", newBranchBytes)
+}
+
+func TestNewBranchRefReadFailureNeverReachesPush(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/git"); err != nil {
+		t.Skip("Linux Git is required")
+	}
+	guest := t.TempDir()
+	testGit(t, guest, "init", "--initial-branch=main")
+	base := testCommit(t, guest, "base.txt", "base\n")
+	_ = testCommit(t, guest, "work.txt", "work\n")
+	t.Chdir(guest)
+	for _, failure := range []string{"denied", "moved", "wrong confirmation"} {
+		t.Run(failure, func(t *testing.T) {
+			var operations []string
+			exchange := func(_ context.Context, request Request) (Response, error) {
+				operations = append(operations, request.Operation)
+				response := Response{Ref: "refs/heads/main", OID: base, Heads: []Head{{Ref: "refs/heads/main", OID: base}}}
+				if request.Operation == "list" {
+					return response, nil
+				}
+				if request.Operation != "fetch" || len(request.Heads) != 1 || request.Heads[0] != response.Heads[0] || len(request.Haves) != 1 || request.Haves[0] != base {
+					t.Fatal("failed basis read reached another operation", request.Operation)
+				}
+				if failure == "wrong confirmation" {
+					response.OID, response.Pack = strings.Repeat("a", 40), []byte("pack")
+					return response, nil
+				}
+				return Response{}, fmt.Errorf("basis read %s", failure)
+			}
+			var output bytes.Buffer
+			err := Helper(context.Background(), []string{"origin", "haco://demo"}, strings.NewReader("list for-push\npush HEAD:refs/heads/new\n\n\n"), &output, &output, exchange)
+			if err == nil || strings.Join(operations, ",") != "list,fetch" {
+				t.Fatal("read failure did not stop before push", operations, err)
+			}
+		})
+	}
 }
 
 func TestFetchExcludesOnlyAncestorsOfAuthorizedHead(t *testing.T) {

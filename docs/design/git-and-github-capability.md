@@ -37,8 +37,13 @@ Fetch accepts at most 32 distinct local commit hints. Only ancestors of the fres
 verified authorized head are excluded from its pack; missing or unrelated hints
 are ignored and never select another Host ref. Existing-target pushes exclude the
 listed old commit when it exists locally; preparation still fetches and verifies
-that exact remote target. New-target pushes retain complete packs. See
-[the incremental transport decision](../adr/0102-incremental-git-history.md).
+that exact remote target. A new-target push can reuse one advertised ancestor
+after a separate exact-ref fetch confirms and retains it on the Host. A denied or
+moved basis stops the operation before push. The target's old OID remains zero;
+the normal creation approval and expected-absent lease still apply. Without an
+available advertised ancestor, the helper retains the bounded complete pack. See
+[incremental transport](../adr/0102-incremental-git-history.md) and
+[new-branch history reuse](../adr/0104-new-branch-git-history.md).
 The initial checkout branch never grants
 push permission. See [ADR 0081](../adr/0081-git-read-and-push-authority.md).
 HTTPS GitHub authentication uses the trusted Host's `gh` credential store.

@@ -45,12 +45,49 @@ func helperHaves(ctx context.Context) ([]string, error) {
 
 func helperPushPack(ctx context.Context, next, old string) ([]byte, error) {
 	revisions := next + "\n"
-	// The trusted agent fetches and rechecks this exact old target before
-	// importing the pack. New branches retain a complete pack for now.
+	// Existing targets are fetched during preparation. A new branch's basis
+	// must first pass the separate exact-ref fetch in helperNewBranchBasis.
 	if old != ZeroOID {
 		if _, err := helperGit(ctx, nil, "cat-file", "-e", old+"^{commit}"); err == nil {
 			revisions += "^" + old + "\n"
 		}
 	}
 	return helperGit(ctx, []byte(revisions), "pack-objects", "--stdout", "--revs")
+}
+
+// helperNewBranchBasis reuses one advertised ancestor through the ordinary
+// exact-ref read path. It never changes the expected-absent push target or
+// converts read permission into push permission.
+func helperNewBranchBasis(ctx context.Context, repo, next string, listed Response, exchange Exchange) (string, error) {
+	heads, err := validateHeads(listed.Heads)
+	if err != nil || !ValidOID(next) || next == ZeroOID || heads[listed.Ref] != listed.OID {
+		return "", fmt.Errorf("invalid new-branch history selection")
+	}
+	// Prefer the registered checkout head, then a bounded number of alternatives.
+	candidates := []Head{{Ref: listed.Ref, OID: listed.OID}}
+	for _, head := range listed.Heads {
+		if head.Ref != listed.Ref && len(candidates) < maxHaves {
+			candidates = append(candidates, head)
+		}
+	}
+	for _, head := range candidates {
+		if _, err := helperGit(ctx, nil, "merge-base", "--is-ancestor", head.OID, next); err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			continue
+		}
+		// The Host fetches only this freshly authorized ref and checks its exact
+		// OID. Supplying the same have yields an empty pack; no history is sent
+		// back to the guest. The Host's read-cache ref retains the basis objects.
+		response, err := exchange(ctx, Request{Operation: "fetch", Repository: repo, Heads: []Head{head}, Haves: []string{head.OID}})
+		if err != nil {
+			return "", err // A denied or moved ref never triggers another read/push.
+		}
+		if response.Error != "" || response.Ref != head.Ref || response.OID != head.OID || len(response.Pack) == 0 || len(response.Pack) > MaxPack {
+			return "", fmt.Errorf("invalid new-branch history confirmation")
+		}
+		return head.OID, nil
+	}
+	return ZeroOID, nil // No advertised ancestor: retain the bounded complete pack.
 }

@@ -23,7 +23,8 @@ For an existing-target push, omit the listed old commit's history when available
 locally. Existing preparation fetches and rechecks that exact target before strict
 object import. Approval still fixes the same repository, ref and old/new OIDs;
 execution retains its lease and separate decision. New-target pushes keep complete
-packs until a separately reviewed negotiation exists.
+packs in this original decision; [ADR 0104](0104-new-branch-git-history.md) adds
+advertised-ancestor reuse through a separate exact-ref read.
 
 Use ordinary [Git revision packing](https://git-scm.com/docs/git-pack-objects)
 and [strict object import](https://git-scm.com/docs/git-index-pack). Do not enable

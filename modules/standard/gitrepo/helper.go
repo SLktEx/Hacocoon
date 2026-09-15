@@ -153,7 +153,14 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 			if !ValidOID(oid) || oid == ZeroOID {
 				return fmt.Errorf("invalid local commit")
 			}
-			pack, err := helperPushPack(ctx, oid, oldOID)
+			basis := oldOID
+			if oldOID == ZeroOID {
+				basis, err = helperNewBranchBasis(ctx, repo, oid, listed, exchange)
+				if err != nil {
+					return err
+				}
+			}
+			pack, err := helperPushPack(ctx, oid, basis)
 			if err != nil {
 				return err
 			}
