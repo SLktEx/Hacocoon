@@ -86,8 +86,9 @@ Current feature scope and remaining work are consolidated in implementation stat
 | v0.61 | Interactive temporary execution | ✅ implemented |
 | v0.62 | Packer HCL2 Base builds | ✅ implemented |
 | v0.63 | Ordinary Environment cache collection | ✅ implemented |
+| v0.64 | Client TCP Forwarding | ✅ implemented |
 
-The current milestone position is **v0.63**. This declaration and the table mirror YAML.
+The current milestone position is **v0.64**. This declaration and the table mirror YAML.
 
 Concrete cloud implementation is currently deferred. Local Registry infrastructure is deferred and unversioned. Automatic Base filesystem retention (historical v0.47–v0.49) was replaced by the independent saved-rootfs model in [ADR 0040](../adr/0040-incus-first-snapshots.md).
 

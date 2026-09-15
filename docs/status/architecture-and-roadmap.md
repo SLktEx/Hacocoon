@@ -211,3 +211,5 @@ The M4 public cache candidate adds Host settings, creation-time enrollment, stop
 Named cache history and reviewed source clearing are implemented in the follow-up to #669. Next: recovery of positively completed copies, orphan-source browsing, existing-Env enrollment and additional-data transfer. Unknown completion remains owned; performance stays deferred.
 
 The cache recovery follow-up completes named positive-receipt recovery and current-generation adoption through shared ownership operations. Unknown native copy reconciliation, orphan-source access, existing-Env enrollment and added-data transfer remain; performance stays deferred.
+
+Client loopback TCP forwarding now reuses the shared controller sessions, framed WSL process transport, Windows companion placement and foreground-owned cancellation. Remaining M3 work is selectable DNS modes and actual use in environments other than ordinary networks; installed forwarding evidence is tracked separately.

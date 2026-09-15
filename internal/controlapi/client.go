@@ -24,7 +24,13 @@ func NewClient(path string) (*Client, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, control.ErrInvalidArgument
 	}
-	wire, err := control.NewClient(control.UnixDialer(path))
+	return NewClientWithDialer(control.UnixDialer(path))
+}
+
+// NewClientWithDialer keeps operations and session controls on the same transport.
+// The dialer must open a fresh connection to the trusted controller each time.
+func NewClientWithDialer(dial control.Dialer) (*Client, error) {
+	wire, err := control.NewClient(dial)
 	if err != nil {
 		return nil, err
 	}

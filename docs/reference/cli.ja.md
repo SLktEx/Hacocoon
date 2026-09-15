@@ -81,3 +81,7 @@ haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <
 JSONにも実行済みの結果を残す。再試行前に履歴を確認する。[キャッシュ世代](../design/cache-generations.ja.md#収集データの確認とクリア)を参照。
 
 `haco cache recover [--json] <env> <area>` は正確な所有権とprovider確認を通して、完了記録のある収集を復旧する。削除確認やコピー再実行は行わない。選択中の世代は再利用でき、古い完成候補は保持する。結果不明はエラーのまま。[復旧](../design/cache-generations.ja.md#完了記録がある収集の復旧)を参照。
+
+## 手元のアプリ用転送
+
+通常のHost入口で`haco env tunnel --target-port 8080 demo`を実行し、表示された接続先をアプリで開きます。ポートは自動選択、最大1時間で、Ctrl+Cですべての接続を終了します。Linuxは手元、WSL入口は導入済みWindowsクライアントで待ち受けます。PowerShellからは`& <導入済みhaco-tunnel.exe> --distribution <WSL名> --target-port 8080 demo`を使います。実行ファイルの場所は導入完了時に表示します。[通信と前提](../design/controller-client-transport.ja.md)を参照してください。

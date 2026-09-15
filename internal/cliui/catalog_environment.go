@@ -3,6 +3,16 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"forward.distribution":           {"Installed Hacocoon WSL distribution on this PC", "このPCに導入済みのHacocoon WSL名"},
+	"forward.windows_next":           {"Next: open WSL %s and run haco doctor; check that the Environment and its application service are running.", "次にWSL %s を開いて haco doctor を実行し、開発環境と接続先アプリが起動しているか確認してください。"},
+	"forward.windows_unavailable":    {"The Windows connection could not be opened for this installation. Run haco doctor and check Windows integration and the installed tunnel client, then retry. No local fallback listener was opened.", "このインストール先のWindows接続を開始できませんでした。haco doctor でWindows連携と導入済みの転送クライアントを確認してから再実行してください。代わりのローカル待受は開始していません。"},
+	"forward.delegate_invalid":       {"The Windows tunnel request was incomplete, invalid or expired. Run haco env tunnel again.", "Windows転送の要求が不完全・不正、または期限切れです。haco env tunnel を再実行してください。"},
+	"forward.command":                {"Forward a local TCP listener through the controller to an Environment", "手元のTCP接続をcontroller経由で開発環境へ転送する"},
+	"forward.address":                {"Numeric loopback destination inside the Environment (default: 127.0.0.1)", "開発環境内のループバック宛先（既定: 127.0.0.1）"},
+	"forward.listen":                 {"Local numeric loopback address and port (default: 127.0.0.1:0; automatic port)", "手元のループバックアドレスとポート（既定: 127.0.0.1:0、自動選択）"},
+	"forward.duration":               {"Listener lifetime, 1s–1h (default: 1h)", "転送を続ける時間、1秒〜1時間（既定: 1時間）"},
+	"forward.ready":                  {"Listening at %s → %s %s:%d for %s. Connect your application here; Ctrl+C closes the listener and active connections.\n", "%s → 開発環境 %s の %s:%d へ %s 転送します。この接続先をアプリで開いてください。Ctrl+Cで待受と転送中の接続を終了します。\n"},
+	"forward.failed":                 {"Connection failed; check the Environment and target service:", "接続に失敗しました。開発環境と接続先サービスを確認してください:"},
 	"env.status.header":              {"Environment: %s\nState:       %s\nWorkspace:   %s\nAccess:      %s\n", "開発環境: %s\n状態:     %s\n作業場所: %s\nアクセス: %s\n"},
 	"env.status.base":                {"Base:        %s\nRevision:    %s\n", "ひな形（Base）: %s\nリビジョン:     %s\n"},
 	"env.status.stopped":             {"Workspace retained; this Environment is stopped.", "この開発環境は停止しています。作業データは保持されています。"},
