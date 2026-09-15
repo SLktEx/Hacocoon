@@ -16,6 +16,9 @@ var snapshotIDPattern = regexp.MustCompile(`^snap-[a-f0-9]{32}$`)
 var snapshotOwnerPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func validateSnapshot(s core.Snapshot) error {
+	if len(s.Source.Environment.Attachments) != 0 {
+		return core.ErrUnsupported
+	}
 	if !snapshotIDPattern.MatchString(s.ID) || !core.ValidEnvironmentInstanceID(s.Source.InstanceID) || s.Source.Environment.Name == "" || s.Source.Environment.RuntimeRef == "" || s.Source.Environment.Workspace.ID == "" || !strings.HasPrefix(s.Source.Environment.Workspace.Path, "managed:") || len(s.Components) < 2 || len(s.Components) > 256 {
 		return core.ErrInvalidArgument
 	}

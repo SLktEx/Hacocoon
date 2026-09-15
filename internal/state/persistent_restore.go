@@ -38,5 +38,5 @@ func (s *EnvironmentJSONStore) BeginPersistentResourceDeleteOwned(ctx context.Co
 	if !core.ValidPersistentResourceRef(r.Ref()) {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, r.ID, "", r.Owner, false)
+	return s.beginPersistentResourceDelete(ctx, r.ID, persistentResourceDeletion{Identity: r.Ref()})
 }

@@ -32,12 +32,14 @@ type environmentStore interface {
 }
 
 type Service struct {
-	defaultResource func(context.Context, core.Workspace) (core.PersistentResource, error)
-	runtime         environmentRuntime
-	store           environmentStore
-	provider        WorkspaceProvider
-	now             func() time.Time
-	cleanupTimeout  time.Duration
+	environmentResources       EnvironmentResources
+	selectEnvironmentResources func(context.Context, core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error)
+	defaultResource            func(context.Context, core.Workspace) (core.PersistentResource, error)
+	runtime                    environmentRuntime
+	store                      environmentStore
+	provider                   WorkspaceProvider
+	now                        func() time.Time
+	cleanupTimeout             time.Duration
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {

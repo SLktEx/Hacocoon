@@ -72,12 +72,29 @@ func (s *Service) create(ctx context.Context, id, kind string, sourceOnly bool, 
 	if err := s.Store.BeginPersistentResourceCreate(ctx, r); err != nil {
 		return core.PersistentResource{}, err
 	}
+	return s.createReserved(ctx, r, prepare)
+}
+
+// createReserved is shared by ordinary resources and atomically reserved Env
+// children. It never allocates a second identity or repeats the reservation.
+func (s *Service) createReserved(ctx context.Context, r core.PersistentResource, prepare func(context.Context, core.PersistentResource) error) (core.PersistentResource, error) {
 	if err := s.Backend.Create(ctx, r); err != nil {
-		return r, fmt.Errorf("resource creation incomplete; inspect or delete %s: %w: %w", id, core.ErrRecoveryRequired, err)
+		return r, fmt.Errorf("resource creation incomplete; inspect %s: %w: %w", r.ID, core.ErrRecoveryRequired, err)
+	}
+	if r.EnvironmentInstance != "" {
+		store, ok := s.Store.(environmentResourceStore)
+		if !ok {
+			return r, core.ErrRecoveryRequired
+		}
+		created, err := store.RecordEnvironmentResourceCreated(ctx, r)
+		if err != nil {
+			return r, fmt.Errorf("record resource creation: %w: %w", core.ErrRecoveryRequired, err)
+		}
+		r = created
 	}
 	if prepare != nil {
 		if err := prepare(ctx, r); err != nil {
-			return r, fmt.Errorf("source publication incomplete; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
+			return r, fmt.Errorf("source publication incomplete; inspect %s: %w: %w", r.ID, core.ErrRecoveryRequired, err)
 		}
 	}
 	if err := s.Backend.Verify(ctx, r); err != nil {
@@ -102,10 +119,7 @@ func (s *Service) DeleteForWorkspace(ctx context.Context, id string, workspace c
 	if err != nil {
 		return err
 	}
-	if err := s.Backend.Delete(ctx, resource); err != nil {
-		return fmt.Errorf("temporary resource cleanup incomplete: %w: %w", core.ErrRecoveryRequired, err)
-	}
-	return s.Store.FinalizePersistentResourceDelete(ctx, resource)
+	return s.finishDelete(ctx, resource)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
@@ -113,10 +127,19 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	return s.finishDelete(ctx, r)
+}
+
+// finishDelete is the common positive-absence boundary after a catalog has
+// excluded attachments, copies and source selection for this exact owner.
+func (s *Service) finishDelete(ctx context.Context, r core.PersistentResource) error {
 	if err := s.Backend.Delete(ctx, r); err != nil {
 		return fmt.Errorf("resource retained for recovery; retry explicit delete: %w: %w", core.ErrRecoveryRequired, err)
 	}
-	return s.Store.FinalizePersistentResourceDelete(ctx, r)
+	if err := s.Store.FinalizePersistentResourceDelete(ctx, r); err != nil {
+		return fmt.Errorf("resource cleanup not finalized; retry explicit delete: %w: %w", core.ErrRecoveryRequired, err)
+	}
+	return nil
 }
 
 // Copy creates an independent offline resource without exposing its contents to
@@ -135,7 +158,7 @@ func (s *Service) CopyForWorkspace(ctx context.Context, id, kind, sourceID strin
 }
 
 func (s *Service) copy(ctx context.Context, id, kind, sourceID string, workspaceID core.WorkspaceID) (core.PersistentResource, error) {
-	copier, ok := s.Backend.(interface {
+	_, ok := s.Backend.(interface {
 		Copy(context.Context, core.PersistentResource, core.PersistentResource) error
 	})
 	if !ok {
@@ -164,11 +187,21 @@ func (s *Service) copy(ctx context.Context, id, kind, sourceID string, workspace
 	if err := s.Store.BeginPersistentResourceCopy(ctx, source, target); err != nil {
 		return core.PersistentResource{}, err
 	}
+	return s.copyReserved(ctx, source, target)
+}
+
+func (s *Service) copyReserved(ctx context.Context, source, target core.PersistentResource) (core.PersistentResource, error) {
+	copier, ok := s.Backend.(interface {
+		Copy(context.Context, core.PersistentResource, core.PersistentResource) error
+	})
+	if !ok {
+		return target, core.ErrUnsupported
+	}
 	incomplete := func(err error) (core.PersistentResource, error) {
 		if target.CopyCompleted {
-			return target, fmt.Errorf("copy completed; retry the operation to finish restoration and publication; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
+			return target, fmt.Errorf("copy completed; retry the operation to finish restoration and publication; inspect %s: %w: %w", target.ID, core.ErrRecoveryRequired, err)
 		}
-		return target, fmt.Errorf("copy incomplete; source and destination retained for recovery; inspect %s: %w: %w", id, core.ErrRecoveryRequired, err)
+		return target, fmt.Errorf("copy incomplete; source and destination retained for recovery; inspect %s: %w: %w", target.ID, core.ErrRecoveryRequired, err)
 	}
 	completed := func() error {
 		if err := s.Backend.Verify(ctx, target); err != nil {

@@ -99,3 +99,9 @@ recreation; current split ownership and cleanup-outcome handling remain. Old-ver
 migration/fallback cleanup is excluded. New local and native acceptance are separate.
 
 Notification setup follow-up: service refresh identifies fixed failing operations and user-path observers stop when Host entry has already failed. Reuses `5a6fb54c` on current main and GUI #664. This improves diagnosis and avoids idle waits; it does not establish that Windows activation or service startup is fixed.
+
+
+
+## Cache generation foundation
+
+**Partial:** atomic generation adoption, independent CoW resources, exact Env-owned disposable attachments and Host target selection are implemented components. Production selection is disabled until stopped collection and public configuration/cleanup are connected. Added attachments currently refuse snapshot/copy/transfer instead of dropping data. Existing Workspace/OCI retention is unchanged. See [cache generations](design/cache-generations.md).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -16,22 +17,22 @@ import (
 // Environment can be committed. Independent metadata/lease mutation APIs are
 // deliberately absent; this transition owns their aggregate reservation.
 func (s *EnvironmentJSONStore) BeginEnvironmentCreate(ctx context.Context, lease core.WorkspaceLease) error {
-	if lease.SnapshotSource != "" {
+	if lease.SnapshotSource != "" || len(lease.Attachments) != 0 {
 		return core.ErrInvalidArgument
 	}
-	return s.beginEnvironmentCreate(ctx, lease, nil)
+	return s.beginEnvironmentCreate(ctx, lease, nil, nil)
 }
 
 // BeginEnvironmentCreateFromSnapshot atomically reserves the immutable saved
 // source alongside the ordinary generation/data lease. It needs no source Env.
 func (s *EnvironmentJSONStore) BeginEnvironmentCreateFromSnapshot(ctx context.Context, lease core.WorkspaceLease, saved core.Snapshot) error {
-	if validateSnapshot(saved) != nil || saved.State != "ready" || lease.SnapshotSource != saved.ID || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID {
+	if len(lease.Attachments) != 0 || validateSnapshot(saved) != nil || saved.State != "ready" || lease.SnapshotSource != saved.ID || !core.ValidEnvironmentInstanceID(lease.InstanceID) || lease.InstanceID == saved.Source.InstanceID {
 		return core.ErrInvalidArgument
 	}
-	return s.beginEnvironmentCreate(ctx, lease, &saved)
+	return s.beginEnvironmentCreate(ctx, lease, &saved, nil)
 }
 
-func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease core.WorkspaceLease, saved *core.Snapshot) error {
+func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease core.WorkspaceLease, saved *core.Snapshot, plans []core.EnvironmentResourcePlan) error {
 	if err := validateEnvironmentCreateReservation(lease); err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease c
 	}
 	if lease.PersistentResource != (core.PersistentResourceRef{}) {
 		resource, ok := data.PersistentResources[lease.PersistentResource.ID]
-		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceReservation(data, lease)) {
+		if !ok || resource.Ref() != lease.PersistentResource || resource.State != "ready" || resource.SourceOnly || resource.EnvironmentInstance != "" || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceReservation(data, lease)) {
 			return fmt.Errorf("persistent resource is unavailable or changed: %w", core.ErrIncompatibleState)
 		}
 		if persistentCopyReserved(data, resource.ID) {
@@ -91,6 +92,9 @@ func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease c
 		}
 	}
 
+	if err := reserveEnvironmentResources(&data, lease, plans); err != nil {
+		return err
+	}
 	data.Leases[lease.EnvironmentID] = lease
 	return s.writeEnvironments(data)
 }
@@ -156,7 +160,7 @@ func (s *EnvironmentJSONStore) CommitEnvironmentCreate(_ context.Context, enviro
 	}
 	if existingEnvironment, ok := data.Environments[environment.Name]; ok {
 		existingLease, leaseOK := data.Leases[environment.Name]
-		if leaseOK && existingEnvironment == environment && existingLease == publishedLease(lease) {
+		if leaseOK && existingEnvironment.Equal(environment) && existingLease.Equal(publishedLease(lease)) {
 			return nil
 		}
 		return fmt.Errorf("environment %q already has different committed state: %w", environment.Name, core.ErrIncompatibleState)
@@ -176,6 +180,12 @@ func (s *EnvironmentJSONStore) CommitEnvironmentCreate(_ context.Context, enviro
 		return fmt.Errorf("environment %q runtime ownership was not durably recorded before ready commit: %w", environment.Name, core.ErrIncompatibleState)
 	}
 
+	for _, attachment := range lease.Attachments {
+		r, ok := data.PersistentResources[attachment.Resource.ID]
+		if !ok || r.Ref() != attachment.Resource || r.State != "ready" || r.EnvironmentInstance != lease.InstanceID {
+			return core.ErrRecoveryRequired
+		}
+	}
 	data.Environments[environment.Name] = environment
 	data.Leases[environment.Name] = publishedLease(lease)
 	return s.writeEnvironments(data)
@@ -249,12 +259,25 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 	if !environmentExists && !leaseExists {
 		return nil
 	}
+	if lease, ok := data.Leases[environmentID]; ok && len(lease.Attachments) != 0 {
+		if !lease.RuntimeAbsent || lease.State != core.WorkspaceLeaseCleanupRequired {
+			return core.ErrRecoveryRequired
+		}
+		for _, a := range lease.Attachments {
+			if _, exists := data.PersistentResources[a.Resource.ID]; exists {
+				return core.ErrRecoveryRequired
+			}
+		}
+	}
 	delete(data.Environments, environmentID)
 	delete(data.Leases, environmentID)
 	return s.writeEnvironments(data)
 }
 
 func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
+	if lease.RuntimeAbsent || !core.ValidEnvironmentAttachments(lease.Attachments) || (len(lease.Attachments) != 0 && !core.ValidEnvironmentInstanceID(lease.InstanceID)) {
+		return core.ErrInvalidArgument
+	}
 	if lease.Ephemeral && !core.ValidEnvironmentInstanceID(lease.InstanceID) {
 		return core.ErrInvalidArgument
 	}
@@ -277,6 +300,7 @@ func validateEnvironmentCreateReservation(lease core.WorkspaceLease) error {
 
 func validateEnvironmentRuntimeReservation(lease core.WorkspaceLease) error {
 	if err := validateEnvironmentCreateReservation(core.WorkspaceLease{
+		Attachments: lease.Attachments, RuntimeAbsent: lease.RuntimeAbsent,
 		Ephemeral:          lease.Ephemeral,
 		InstanceID:         lease.InstanceID,
 		PersistentResource: lease.PersistentResource,
@@ -315,6 +339,9 @@ func publishedLease(lease core.WorkspaceLease) core.WorkspaceLease {
 }
 
 func validateSameLeaseReservation(existing, next core.WorkspaceLease) error {
+	if !slices.Equal(existing.Attachments, next.Attachments) || existing.RuntimeAbsent != next.RuntimeAbsent {
+		return core.ErrCapabilityStale
+	}
 	if existing.SnapshotSource != next.SnapshotSource {
 		return core.ErrCapabilityStale
 	}

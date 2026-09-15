@@ -478,8 +478,59 @@ Linux側回収完了後、Windows停止を要求しましたが、`compact_attac
 既存のソース別成功は保持し、新headのCI成功へ読み替えません。
 
 
+<a id="cache-generation-foundation"></a>
+## キャッシュ世代管理の基盤
+
+実装 `2a0e94990710bd3db9143f97d8fa5c4934b6a664`（v0.69）で共通元の排他的採用と、
+未接続の`build-cache`領域を追加しました。Go 1.26.8のCore・state・保存領域・
+責務検査・Incus回帰と、対象を絞ったrace 3回がPASSです。
+最終検証コピーとこのcommitの1,474ファイルはbyte単位で一致しました。
+文書整合性と18件の文書検査回帰もPASSです。
+
+製品変更に対する標準ローカル試験（Go 1.27.1、shuffle 615）は、他packageがPASSした一方、
+既存`TestLoginBootstrapPTYDoesNotStartHostSetup`のBash入力待ち表示でFAILしました（6.64秒）。
+以前の失敗も未解決です。この実行の後続段階はSKIPでしたが、別実行で`go vet`、
+クライアント構文、通知クライアント32試験、packaging 2試験がPASSしました。
+分離した成功を全体CIの成功へ読み替えません。新しい明示実行用キャッシュ実機fixtureは、
+この全体試験の後に追加して別途実行しました。
+
+実Incus 6.0.5/Btrfsでは専用1 GiBプールとランダムな8 MiBの試験データを使用しました。
+独立コピー2つの作成は3.837846024秒でした。変更前の`btrfs filesystem du --raw -s`は、
+元と2コピーの各領域でtotal/shared各8,388,608 byte、exclusive 0を示しました。
+内容一致、独立変更、現在世代の削除拒否、リセット・元削除後のコピー保持、
+native snapshot参照による削除拒否、試験所有領域の回収がPASSです（全体16.45秒）。
+小さな合成データのextent計測であり、プール全体の使用量や巨大レポ性能の証拠ではありません。
+
+初回の実機試験は、daemon固有の保存領域マウント空間を試験プロセスから参照できず、公開前にFAILしました。
+プール／プロジェクト`haco-cache-15c4cf3cbcded3c0`とカタログ
+`/var/lib/haco-cache-generation-2844418008/state.json`に、作成途中の所有領域と第0世代を保持しています。
+カタログの強制編集やcleanupの抜け道は使用していません。
+成功した試行は同じ試験バイナリを既存daemonのマウント空間で実行し、隔離・承認設定を変更せず、
+自分のプール／プロジェクト`haco-cache-969c95ea6a2e3bc9`を回収しました。
+初回に保持した領域の回収・解決を意味しません。この権限付きfixtureは自分の領域だけへ試験データを書いて観測するもので、
+通常Envからの収集や導入済みクライアントの受入ではありません。
+
+Host指定パス、互換性による登録、Envの複数領域接続、停止時の自動収集、履歴・クリア操作、
+巨大レポ実測は[キャッシュ契約](../design/cache-generations.ja.md)の残件です。
+
+親のPacker PR #643（`80a687d0`）は、後続確認でtest34778540239・Ubuntu34778540205・
+Incus34778540180がPASSです。Windows34778540191/job103781180868はstep13〜20がPASSし、
+tunnel終了0も確認しましたが、通知step21は`stage=activation, reason=unavailable`でFAILしました。
+native／子終了／経過時間は未記録です。新規の人の通知回答と実Packerの完走は未確認のままです。
+
+
+
+## main向けキャッシュ共通処理の統合
+
+対話実行`7ed40fe5`へ`2a0e9499`・`c4b7af50`・`094cc930`・`3a6e2bbc`・`2b3a5b56`を再利用し、責務分割と一時実行の正確な所有識別子を保持しました。旧版移行は追加していません。初回集中試験で正規化時の世代検査の統合漏れと旧schema受入fixtureを検出。検査を復元し、fixtureを現行所有データの保持確認へ整理後、破損拒否もPASSしました。
+
+最終結果はGo1.27.1の集中12.86秒、件数制限なしの変更lint10.84秒、全ローカル22.15秒、関連race9.78秒、CLI E2E4.01秒、文書と回帰6.96秒、workflow policy1.34秒がPASS。先行lintの応答close・fixture write・条件式も修正後の結果です。上記の過去実測を新しい実機受入には読み替えず、曖昧な旧fixture poolは操作していません。公開設定、停止Envからの採用、履歴・クリア、追加データのsnapshot/copy/transferは未完成のため通常の適用は無効です。
 main `ef443132`を`a0352044`へ統合した初回の全ローカルは52.96秒でFAIL。自動統合でrunのヘルプ項目3件が重複し、コンパイルとmilestone blackboxの構築が失敗しました。その試行の後続確認は未実施。同一内容の重複を削除した統合ソースは全ローカル57.89秒、CLI E2E8.06秒、文書と回帰9.86秒がPASSしました。先行Windowsのcompact_attached失敗は原因未解明として保持します。
 
 #664のhead aef58798、Windows34918511743/job104221234323は導入・厳密SSH・Linux回収に成功。公開回収のHost再入場で02:08:10 UTCにstage=notification_setup reason=failedとなり、観測側が02:37:51まで待ってタイムアウトした。公開reclaim本体には到達せず、通知step20はSKIP。他4CIは成功。以前のclear/COM起動失敗とは別の失敗として保持する。後続は5a6fb54cの分類と入場失敗検出を再利用し、原因修復の成功とは主張しない。
 
 通知準備のmain統合はGUI aef58798とmain5e89597aへ5a6fb54cを再利用。集中4.37秒、通知Python回帰0.69秒、変更範囲lint30.66秒、全ローカル117.79秒、race20.22秒、CLI11.78秒、文書17.46秒、workflow2.88秒がPASS。初回はmainにない将来のstream受入scriptのimportでFAIL。無関係なimportを除き、既存の通常入場回帰を保持した。Windows上のnative観測回帰6件も0.555秒でPASS。新しい導入済み通知の成功は主張しない。
+
+
+
+main `5e89597a`を`3d8c2877`へ統合後、キャッシュ基盤の全ローカル13.62秒、CLI E2E3.27秒、文書と回帰4.86秒がPASS。先行head `22b119d8`はWindows34917359766を含む全5workflowがPASSしました。公開収集は別の追補で、この基盤だけでは登録を有効化しません。
