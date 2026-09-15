@@ -1247,3 +1247,26 @@ On installed candidate `e1ec0894`, the subsequent native interop observation fai
 WSLInterop binfmt handler was absent. Ordinary installed `haco setup` restored the
 WSL-owned registration, and a Windows executable printed the expected marker.
 This recovery does not establish a successful reclamation start.
+
+## Incremental ordinary Git history
+
+Development implementation `6088e6c542ffb9b13e0a2b3650c4d992c8a57435`
+([#695](https://github.com/SLktEx/Hacocoon/issues/695)) passed local focused tests
+11.52s, lint 24.76s, maintained full tests 29.90s, Git race tests 36.27s, CLI 9.34s,
+docs 9.28s, workflow policy 1.38s and native test compilation 1.75s.
+The real-Git component regression uses 34,603,008 bytes of existing random data:
+fetch transferred 293 bytes and push preparation 319 bytes for its small changes.
+Preparation left the remote unchanged. Existing broker approval tests passed.
+
+The first run found that embedded `bytes.Buffer.ReadFrom` let subprocess output
+bypass the capped writer. Removing that embedding made the full-history limit
+regression and the actual pipe-copy regression pass. This is a local 33 MiB
+functional result, not installed Incus/Windows/authenticated Git acceptance or
+representative giant-repository performance. New-target and large-new-pack limits
+remain; this fix does not advance the v0.68 checkpoint or publish a release.
+
+Windows retry job `104394453906` for #692 head `4e7a45a7` passed SSH/editor and
+Linux reclamation, then failed public reclamation with `compact_attached`:
+stop requested, one open, no compaction attempted, same-target resume successful.
+Native notification was skipped. The earlier HTTP503 and unexplained failures
+remain independent; this head is not approved for main integration.

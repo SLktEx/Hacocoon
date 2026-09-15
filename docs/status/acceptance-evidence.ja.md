@@ -1055,3 +1055,23 @@ WSL全体停止・新しい容量回収開始は行っていない。
 導入候補 `e1ec0894` で後続の登録情報観測は、WSLInterop binfmt登録が存在せず、Windows実行前に失敗しました。
 導入済みの通常 `haco setup` でWSL自身の登録を復旧し、Windowsプログラムから
 期待する文字列を返すことを確認しました。容量回収の開始成功を意味しません。
+
+## 通常Gitの既存履歴再利用
+
+開発実装 `6088e6c542ffb9b13e0a2b3650c4d992c8a57435`
+（[#695](https://github.com/SLktEx/Hacocoon/issues/695)）で、対象11.52秒、lint24.76秒、
+通常全体29.90秒、Git race36.27秒、CLI9.34秒、docs9.28秒、workflow policy1.38秒、
+nativeテストのコンパイル1.75秒が成功しました。実Gitのcomponent回帰では既存の
+ランダムデータ34,603,008 bytesに対し、小さな変更のfetch293 bytes、push準備319 bytesを
+確認しました。準備でリモートは変化せず、既存brokerの承認テストも成功しています。
+
+初回は埋め込んだ `bytes.Buffer.ReadFrom` により、プロセス出力が上限付きWriteを
+経由しない不具合を検出しました。埋め込みを除去後、全履歴上限と実pipe転送の回帰が
+成功しました。33 MiBのローカル機能確認であり、導入済みIncus/Windows・認証Gitの受入や
+代表的な巨大レポ性能ではありません。新規target・新しいpack自体の上限は残ります。
+この修正でv0.68のcheckpointは進めず、リリースもしていません。
+
+#692 head `4e7a45a7` のWindows再実行job `104394453906` はSSH/editorとLinux回収に成功後、
+公開回収で `compact_attached` となりました。停止要求あり、open1回、compaction未実行、
+同じtargetの再開は成功です。通知試験はSKIP。初回HTTP503と以前の未解明失敗は別に保持し、
+このheadをmainへ反映する条件は未達です。
