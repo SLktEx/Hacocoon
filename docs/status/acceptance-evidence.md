@@ -1296,3 +1296,24 @@ The systemd journal recorded intervening startup, and a separate Windows process
 was running bash in the target. Its ownership/use is awaiting clarification;
 no process was killed. This attempt is inconclusive about handle lifetime and
 separate from CI #692's `compact_attached` result. Existing failures remain.
+
+The normal ten-binary installer package for #697 head `b0b2fcbc` built in 34.90s.
+It has not been installed over the dedicated WSL while concurrent use is unresolved;
+installed `e1ec0894` and its existing data remain. This is packaging, not public
+reclamation acceptance.
+
+## New-branch Git history reuse
+
+Development implementation `e17e5132e0ce9769a7c6446ac496797baa7df209` extends the
+existing-history fix to ordinary new-branch preparation. The real-Git component
+regression used 34,603,008 bytes of existing random data and sent a 322-byte pack
+for its small new-branch change. It kept the expected-absent target and left the
+remote unchanged. Ref read denial, movement and mismatched confirmation stopped
+before push; existing ordinary broker approval regressions passed.
+
+Focused checks passed in 13.70s, then final focused 13.85s, lint 24.54s, maintained
+full tests 40.22s, Git race 33.37s, CLI 4.34s, docs 11.65s, workflow policy 1.72s
+and native test compilation 1.69s passed. This is component/real-Git evidence,
+not installed authenticated Git, a main merge, a release or giant-repository
+performance. New pack data above 32 MiB remains unsupported. The v0.68 checkpoint
+is unchanged. See [ADR 0104](../adr/0104-new-branch-git-history.md).
