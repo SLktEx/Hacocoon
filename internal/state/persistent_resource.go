@@ -61,7 +61,7 @@ func (s *EnvironmentJSONStore) GetPersistentResource(ctx context.Context, id str
 }
 
 func (s *EnvironmentJSONStore) BeginPersistentResourceCreate(_ context.Context, r core.PersistentResource) error {
-	if !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.State != "creating" || r.CreatedAt.IsZero() || r.RestoreSource != "" || (r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted) {
+	if r.EnvironmentInstance != "" || core.ValidEnvironmentResourceRef(r.Ref()) || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.State != "creating" || r.CreatedAt.IsZero() || r.RestoreSource != "" || (r.CopySource != (core.PersistentResourceRef{}) || r.CopyCompleted) {
 		return core.ErrInvalidArgument
 	}
 	return s.resourceTransaction(func(d *environmentFileState) error {
@@ -94,6 +94,9 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || (r.State != "creating" && r.State != "created") {
 			return core.ErrIncompatibleState
 		}
+		if r.EnvironmentInstance != "" && r.CopySource == (core.PersistentResourceRef{}) && r.State != "created" {
+			return core.ErrRecoveryRequired
+		}
 		if r.RestoreSource != "" && r.State != "created" {
 			return core.ErrRecoveryRequired
 		}
@@ -115,11 +118,11 @@ func (s *EnvironmentJSONStore) BeginPersistentResourceDeleteReviewed(ctx context
 	if !core.ValidPersistentResourceRef(ref) {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, ref.ID, "", ref.Owner, true)
+	return s.beginPersistentResourceDelete(ctx, ref.ID, persistentResourceDeletion{Identity: ref, Reviewed: true})
 }
 
 func (s *EnvironmentJSONStore) BeginPersistentResourceDelete(ctx context.Context, id string) (core.PersistentResource, error) {
-	return s.beginPersistentResourceDelete(ctx, id, "", "", false)
+	return s.beginPersistentResourceDelete(ctx, id, persistentResourceDeletion{})
 }
 
 // Workspace ownership is compared in the same transaction that excludes new attachments.
@@ -127,18 +130,41 @@ func (s *EnvironmentJSONStore) BeginWorkspaceResourceDelete(ctx context.Context,
 	if work == "" {
 		return core.PersistentResource{}, core.ErrInvalidArgument
 	}
-	return s.beginPersistentResourceDelete(ctx, id, work, "", false)
+	return s.beginPersistentResourceDelete(ctx, id, persistentResourceDeletion{Workspace: work})
 }
 
-func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, expected core.WorkspaceID, owner string, reviewed bool) (r core.PersistentResource, err error) {
+type persistentResourceDeletion struct {
+	Workspace           core.WorkspaceID
+	Identity            core.PersistentResourceRef
+	Reviewed            bool
+	EnvironmentInstance string
+}
+
+func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, id string, request persistentResourceDeletion) (r core.PersistentResource, err error) {
+	expected, owner, reviewed, instance := request.Workspace, request.Identity.Owner, request.Reviewed, request.EnvironmentInstance
 	err = s.resourceTransaction(func(d *environmentFileState) error {
 		var ok bool
 		r, ok = d.PersistentResources[id]
 		if !ok {
 			return core.ErrNotFound
 		}
-		if owner != "" && r.Owner != owner {
+		if request.Identity != (core.PersistentResourceRef{}) && r.Ref() != request.Identity {
 			return core.ErrCapabilityStale
+		}
+		if r.EnvironmentInstance != "" || instance != "" {
+			lease, bound := environmentResourceLease(*d, r)
+			if r.EnvironmentInstance != instance || !bound || !lease.RuntimeAbsent || lease.State != core.WorkspaceLeaseCleanupRequired {
+				return core.ErrStorageBusy
+			}
+			if r.State == "creating" {
+				return core.ErrRecoveryRequired
+			}
+		}
+		if generationReferences(*d, id) {
+			return core.ErrStorageBusy
+		}
+		if core.ValidGenerationResource(r.Ref()) && !r.SourceOnly {
+			return core.ErrIncompatibleState
 		}
 		if reviewed && (r.SourceOnly || (r.State != "ready" && r.State != "deleting")) {
 			return core.ErrRecoveryRequired
@@ -153,6 +179,10 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 		if expected != "" && (r.WorkspaceID != expected || r.SourceOnly) {
 			return core.ErrIncompatibleState
 		}
+		if r.State == "planned" && instance != "" {
+			// No provider request can start after the parent absence fence.
+			r.CopySource = core.PersistentResourceRef{}
+		}
 		if r.CopySource != (core.PersistentResourceRef{}) || (r.SourceOnly && r.State == "creating") {
 			return core.ErrRecoveryRequired
 		}
@@ -166,11 +196,11 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 			}
 		}
 		for _, l := range d.Leases {
-			if l.PersistentResource.ID == id {
+			if leaseHasResource(l, id) && (instance == "" || l.InstanceID != instance || !l.RuntimeAbsent) {
 				return core.ErrStorageBusy
 			}
 		}
-		if r.State != "ready" && r.State != "creating" && r.State != "created" && r.State != "deleting" {
+		if r.State != "ready" && r.State != "creating" && r.State != "created" && r.State != "deleting" && (r.State != "planned" || instance == "") {
 			return core.ErrRecoveryRequired
 		}
 		r.State = "deleting"
@@ -183,11 +213,14 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 // Only the provider-owning service may finalize after positively proving absence.
 func (s *EnvironmentJSONStore) FinalizePersistentResourceDelete(_ context.Context, r core.PersistentResource) error {
 	return s.resourceTransaction(func(d *environmentFileState) error {
+		if generationReferences(*d, r.ID) {
+			return core.ErrStorageBusy
+		}
 		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || r.State != "deleting" {
 			return fmt.Errorf("persistent resource ownership changed: %w", core.ErrIncompatibleState)
 		}
 		for _, l := range d.Leases {
-			if l.PersistentResource.ID == r.ID {
+			if leaseHasResource(l, r.ID) && (r.EnvironmentInstance == "" || l.InstanceID != r.EnvironmentInstance || !l.RuntimeAbsent) {
 				return core.ErrStorageBusy
 			}
 		}
@@ -198,16 +231,16 @@ func (s *EnvironmentJSONStore) FinalizePersistentResourceDelete(_ context.Contex
 
 func validatePersistentResourceState(data environmentFileState) error {
 	for id, r := range data.PersistentResources {
-		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting") {
+		if (r.SourceOnly && r.WorkspaceID != "") || id != r.ID || !core.ValidPersistentResourceRef(r.Ref()) || r.Kind == "" || r.NativeRef == "" || r.CreatedAt.IsZero() || (r.State != "creating" && r.State != "created" && r.State != "ready" && r.State != "deleting" && (r.State != "planned" || r.EnvironmentInstance == "")) {
 			return fmt.Errorf("invalid persistent resource catalog: %w", core.ErrIncompatibleState)
 		}
 	}
 
 	for _, r := range data.PersistentResources {
-		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && (data.Version != 13 && data.Version != environmentStateVersion) {
+		if (r.State == "created" || r.RestoreSource != "") && data.Version != 11 && data.Version != 12 && (data.Version < 13 || data.Version > environmentStateVersion) {
 			return core.ErrIncompatibleState
 		}
-		if r.State == "created" && (r.RestoreSource == "" || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{})) {
+		if r.State == "created" && ((r.RestoreSource == "" && r.EnvironmentInstance == "") || r.SourceOnly || r.CopySource != (core.PersistentResourceRef{})) {
 			return core.ErrIncompatibleState
 		}
 		if r.RestoreSource != "" {
@@ -223,11 +256,11 @@ func validatePersistentResourceState(data environmentFileState) error {
 			continue
 		}
 		source, ok := data.PersistentResources[r.CopySource.ID]
-		if !ok || r.State != "creating" || source.State != "ready" || source.Ref() != r.CopySource || source.Kind != r.Kind || source.ID == r.ID || source.Owner == r.Owner || source.NativeRef == r.NativeRef {
+		if !ok || (r.State != "creating" && (r.State != "planned" || r.EnvironmentInstance == "")) || source.State != "ready" || source.Ref() != r.CopySource || source.Kind != r.Kind || source.ID == r.ID || source.Owner == r.Owner || source.NativeRef == r.NativeRef {
 			return fmt.Errorf("invalid persistent copy reservation: %w", core.ErrIncompatibleState)
 		}
 		for _, lease := range data.Leases {
-			if lease.PersistentResource.ID == source.ID {
+			if leaseHasResource(lease, source.ID) {
 				return fmt.Errorf("copy source is attached: %w", core.ErrIncompatibleState)
 			}
 		}
@@ -239,7 +272,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 			continue
 		}
 		resource, ok := data.PersistentResources[ref.ID]
-		if !ok || resource.Ref() != ref || resource.State != "ready" || resource.SourceOnly || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceLease(data, lease)) {
+		if !ok || resource.Ref() != ref || resource.State != "ready" || resource.SourceOnly || resource.EnvironmentInstance != "" || (resource.WorkspaceID != "" && resource.WorkspaceID != lease.WorkspaceID && !resourceMaintenanceLease(data, lease)) {
 			return fmt.Errorf("invalid persistent resource reservation: %w", core.ErrIncompatibleState)
 		}
 		if _, duplicate := held[ref.ID]; duplicate {
@@ -261,32 +294,42 @@ func validatePersistentResourceState(data environmentFileState) error {
 // BeginPersistentResourceCopy atomically reserves the source and records the
 // exact destination identity before the provider can start copying.
 func (s *EnvironmentJSONStore) BeginPersistentResourceCopy(_ context.Context, source, target core.PersistentResource) error {
-	if !core.ValidPersistentResourceRef(target.Ref()) || target.ID == source.ID || target.Owner == source.Owner || target.Kind != source.Kind || target.NativeRef == "" || target.NativeRef == source.NativeRef || target.State != "creating" || target.CreatedAt.IsZero() || (target.CopySource != source.Ref() || target.CopyCompleted) {
+	if target.EnvironmentInstance != "" || core.ValidEnvironmentResourceRef(target.Ref()) || target.State != "creating" {
 		return core.ErrInvalidArgument
 	}
-	return s.resourceTransaction(func(d *environmentFileState) error {
-		if _, exists := d.PersistentResources[target.ID]; exists {
-			return core.ErrAlreadyExists
-		}
-		if current, ok := d.PersistentResources[source.ID]; !ok || current != source || current.State != "ready" {
-			return core.ErrIncompatibleState
-		}
-		if persistentCopyReserved(*d, source.ID) {
+	return s.resourceTransaction(func(d *environmentFileState) error { return reservePersistentResourceCopy(d, source, target) })
+}
+
+func reservePersistentResourceCopy(data *environmentFileState, source, target core.PersistentResource) error {
+	if !core.ValidPersistentResourceRef(target.Ref()) || target.ID == source.ID || target.Owner == source.Owner || target.Kind != source.Kind || target.NativeRef == "" || target.NativeRef == source.NativeRef || (target.State != "creating" && (target.State != "planned" || target.EnvironmentInstance == "")) || target.CreatedAt.IsZero() || target.CopySource != source.Ref() || target.CopyCompleted {
+		return core.ErrInvalidArgument
+	}
+	if _, exists := data.PersistentResources[target.ID]; exists {
+		return core.ErrAlreadyExists
+	}
+	if current, ok := data.PersistentResources[source.ID]; !ok || current != source || current.State != "ready" {
+		return core.ErrIncompatibleState
+	}
+	if persistentCopyReserved(*data, source.ID) {
+		return core.ErrStorageBusy
+	}
+	for _, lease := range data.Leases {
+		if leaseHasResource(lease, source.ID) {
 			return core.ErrStorageBusy
 		}
-		for _, lease := range d.Leases {
-			if lease.PersistentResource.ID == source.ID {
+	}
+	for _, env := range data.Environments {
+		if env.PersistentResource.ID == source.ID {
+			return core.ErrStorageBusy
+		}
+		for _, a := range env.Attachments {
+			if a.Resource.ID == source.ID {
 				return core.ErrStorageBusy
 			}
 		}
-		for _, env := range d.Environments {
-			if env.PersistentResource.ID == source.ID {
-				return core.ErrStorageBusy
-			}
-		}
-		d.PersistentResources[target.ID] = target
-		return nil
-	})
+	}
+	data.PersistentResources[target.ID] = target
+	return nil
 }
 
 func persistentCopyReserved(d environmentFileState, id string) bool {

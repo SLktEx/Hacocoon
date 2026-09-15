@@ -36,6 +36,11 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 	if err != nil {
 		return err
 	}
+	// Until snapshots preserve the added data, refuse before stopping a running
+	// producer. Reference-only snapshot resume must not strand an enrolled Env.
+	if len(environment.Attachments) != 0 {
+		return core.ErrUnsupported
+	}
 	if !strings.HasPrefix(environment.Workspace.Path, "managed:") || environment.Workspace.ID == "" {
 		return fmt.Errorf("snapshots require a managed Workspace: %w", core.ErrUnsupported)
 	}

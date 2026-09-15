@@ -276,7 +276,7 @@ func TestExportWaitRequiresTerminalSuccess(t *testing.T) {
 func TestExportMetadataResponseIsBounded(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, strings.Repeat("x", (1<<20)+1)) }))
 	defer server.Close()
-	transport := &imageExportTransport{base: http.DefaultTransport.(*http.Transport).Clone()}
+	transport := &localIncusTransport{base: http.DefaultTransport.(*http.Transport).Clone()}
 	defer transport.base.CloseIdleConnections()
 	request, err := http.NewRequest(http.MethodGet, server.URL+"/1.0/images/metadata", nil)
 	if err != nil {

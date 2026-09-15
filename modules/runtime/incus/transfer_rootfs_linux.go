@@ -20,53 +20,23 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	incusclient "github.com/lxc/incus/v6/client"
 	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/cliconfig"
 	"golang.org/x/sys/unix"
 )
 
 const exportImageOwnerKey = "user.hacocoon.export-owner"
 
-type imageExportConnect func(context.Context) (incusclient.InstanceServer, error)
-
-// localImageExportConnect resolves the same Incus CLI configuration once. Remote
-// HTTPS export is explicitly unsupported in this initial local/WSL implementation.
-// Never silently fall back from a configured remote to the local daemon.
-func localImageExportConnect(project string) (imageExportConnect, error) {
-	config, err := cliconfig.LoadConfig("")
-	if err != nil {
-		return nil, err
-	}
-	remote, ok := config.Remotes[config.DefaultRemote]
-	socket, unixRemote := strings.CutPrefix(remote.Addr, "unix:")
-	if !ok || remote.Public || remote.Protocol != "incus" || !unixRemote {
-		return nil, core.ErrUnsupported
-	}
-	socket = strings.TrimPrefix(socket, "//")
-	return func(ctx context.Context) (incusclient.InstanceServer, error) {
-		server, err := incusclient.ConnectIncusUnixWithContext(ctx, socket, &incusclient.ConnectionArgs{SkipGetEvents: true, TransportWrapper: func(base *http.Transport) incusclient.HTTPTransporter { return &imageExportTransport{base: base} }})
-		if err != nil {
-			return nil, err
-		}
-		if server.IsClustered() {
-			server.Disconnect()
-			return nil, core.ErrUnsupported
-		}
-		return server.UseProject(project), nil
-	}, nil
-}
-
 // ExportSnapshotRootfs publishes the independent saved rootfs, streams its native
 // unified image archive, and removes only this invocation's transport image.
 // The caller must hold ReadSnapshot's source-use boundary until it returns.
 func (r *Runtime) ExportSnapshotRootfs(ctx context.Context, c core.SnapshotComponent, root string, limit int64) (*NativeArchive, error) {
-	connect, err := localImageExportConnect(r.project)
+	connect, err := localDaemonConnect(r.project)
 	if err != nil {
 		return nil, err
 	}
 	return r.exportSnapshotRootfs(ctx, c, root, limit, connect)
 }
 
-func (r *Runtime) exportSnapshotRootfs(ctx context.Context, c core.SnapshotComponent, root string, limit int64, connect imageExportConnect) (archive *NativeArchive, err error) {
+func (r *Runtime) exportSnapshotRootfs(ctx context.Context, c core.SnapshotComponent, root string, limit int64, connect localIncusConnect) (archive *NativeArchive, err error) {
 	binding, err := r.decodeSnapshotComponent(c)
 	if err != nil {
 		return nil, err
@@ -167,22 +137,6 @@ func waitExportOperation(ctx context.Context, operation incusclient.Operation) e
 		return core.ErrRecoveryRequired
 	}
 	return nil
-}
-
-// The native SDK handles metadata decoding. Bound its input; only the separate
-// image export endpoint uses the caller's larger streaming archive budget.
-type imageExportTransport struct{ base *http.Transport }
-
-func (t *imageExportTransport) Transport() *http.Transport { return t.base }
-func (t *imageExportTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	response, err := t.base.RoundTrip(request)
-	if err != nil {
-		return response, err
-	}
-	if request.Method != http.MethodGet || !strings.HasSuffix(request.URL.Path, "/export") {
-		response.Body = http.MaxBytesReader(nil, response.Body, 1<<20)
-	}
-	return response, nil
 }
 
 func verifyExportImage(server incusclient.InstanceServer, fingerprint, owner string) error {

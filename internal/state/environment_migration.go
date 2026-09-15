@@ -7,9 +7,17 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
+func supportedEnvironmentStateVersion(version int) bool {
+	return version == 0 || (version >= previousEnvironmentStateVersion && version <= 8) || (version >= 10 && version <= 12) || version == environmentStateVersion
+}
+
 func normalizeEnvironmentState(data *environmentFileState) error {
-	if data.Version != 0 && data.Version != 3 && data.Version != 4 && data.Version != 5 && data.Version != 6 && data.Version != 7 && data.Version != 8 && data.Version != 10 && data.Version != 11 && data.Version != 12 && data.Version != previousEnvironmentStateVersion && data.Version != environmentStateVersion {
+	if !supportedEnvironmentStateVersion(data.Version) {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
+	}
+
+	if err := validateEnvironmentResources(*data); err != nil {
+		return err
 	}
 
 	for id, copy := range data.WorkspaceCopies {
@@ -150,6 +158,9 @@ func normalizeEnvironmentState(data *environmentFileState) error {
 		return err
 	}
 	if err := validatePersistentResourceState(*data); err != nil {
+		return err
+	}
+	if err := validateResourceGenerations(*data); err != nil {
 		return err
 	}
 	data.Version = environmentStateVersion

@@ -24,6 +24,9 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 			guardPresent := scenario != "missing-guard" && scenario != "running-missing-guard"
 			guardWrites := 0
 			runner := &fakeRunner{run: func(_ context.Context, _ int, command string, args []string) (host.Result, error) {
+				if command == "incus" && len(args) == 2 && args[0] == "query" && args[1] == "/1.0/instances/haco-demo?project=hacocoon" {
+					return host.Result{Stdout: `{"config":{},"devices":{},"expanded_config":{},"expanded_devices":{}}`}, nil
+				}
 				if command == "sudo" && len(args) > 6 && args[2] == "nft" && args[6] == routedSandboxGuardTable("haco-demo") {
 					if args[3] == "list" && !guardPresent {
 						return host.Result{Stderr: "No such file or directory"}, errors.New("missing volatile guard")
