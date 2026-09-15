@@ -59,3 +59,12 @@ or Incus access. Invalid arguments retain stderr and nonzero exits. Explanations
 wrap with aligned indentation at 60 columns. Wrapping long command syntax and
 copyable examples, and companion haco-host help, remain follow-up work.
 See [language coverage](cli-language.md).
+
+
+## Build a Base with Packer
+
+```sh
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+```
+
+The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.

@@ -80,3 +80,8 @@ integrity and original exit codes remain. Local notification regressions and
 Windows BAT/ConPTY checks pass; fresh packaged Windows/SSH and Explorer acceptance
 remain separate. See [interaction events](reference/interaction-events.md#repeated-native-failure-notifications)
 and [installer results](design/installer.md#windows-final-result).
+
+
+## Packer Base build candidate
+
+**Partial:** actual Packer HCL2 and external scripts run inside an ordinary builder Env. The optional adapter shares canonical Base publication and cleanup. Full Packer/download/installed Windows acceptance remains pending; see [Packer builds](design/packer-base-builds.md).

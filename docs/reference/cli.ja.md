@@ -58,3 +58,12 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 説明は60桁を基準にインデントを揃えて折り返します。長いコマンド引数の構文と
 コピー可能な実行例の改行改善、補助haco-hostヘルプは残件です。
 日英の対応範囲は[表示言語](cli-language.ja.md)を参照してください。
+
+
+## Packerでひな形を作る
+
+```sh
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+```
+
+フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。

@@ -10,7 +10,9 @@ Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 Existing Environments retain their original immutable revision when a name moves.
 No switch-base step is required.
 
-To add a reusable tool, save this definition as `base.json`:
+For actual Packer HCL2 and external shell scripts, use [Packer Base builds](packer-base-builds.md). The optional plugin provisions only the owned ordinary builder; the publication and cleanup rules below remain authoritative.
+
+For a simple shell definition, save this as `base.json`:
 
 ```json
 {

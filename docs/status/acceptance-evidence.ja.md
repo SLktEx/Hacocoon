@@ -364,3 +364,11 @@ CLI E2E3.59秒、文書と回帰5.16秒がPASS。旧head `6b436e4d`の全5CI
 （Windows34892114103を含む）成功は、新headの結果へ読み替えません。
 Seed #662の最終head `50e692d6`もWindows34894991920を含む全5CIと、
 同一commitの証拠job104155046690が成功しています。過去の失敗や人の確認待ちは保持します。
+
+
+<a id="main-packer-builds"></a>
+## main向けPacker HCL2によるBase作成
+
+候補はmain `9da3ec8f`へ`1103505b`の実Packer・HCL2入力と外部スクリプト、任意adapter、共通Baseライフサイクル、失敗段階の非公開出力を再利用しました。Go1.27.1で集中31.91秒、変更部分lint38.45秒、標準ローカル全体45.78秒、関連race12.70秒、CLI E2E11.78秒、文書と回帰8.50秒、workflow policy1.88秒がPASS。初回lintのread handle終了未確認・エラー表現・switchを修正後の結果です。初回patchはmainにないヘルプcatalogで拒否されファイル未変更、現行の共通表示へ合わせました。
+
+これらはPacker完走や導入済み受入ではありません。元候補の全体試験PTY timeoutとdownload HTTP403は未解決の履歴として保持します。通常Envでのdownload/fmt/init/validate/build完走、Base公開・再利用、arm64、独自plugin失敗、Windows入口は未確認です。試験専用の権限付与やHost上のHCL実行は追加していません。既存の単純なJSON shell定義は現行機能で、旧版移行の要求ではありません。

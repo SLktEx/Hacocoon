@@ -393,3 +393,11 @@ those results are not substituted for this updated head. Seed #662 final head
 `50e692d6` passed all five workflows, including Windows 34894991920 and the
 same-commit evidence job 104155046690. No earlier failure or human acceptance gap
 is erased by either result.
+
+
+<a id="main-packer-builds"></a>
+## Packer HCL2 builds on main
+
+The candidate reuses `1103505b` on main `9da3ec8f`: actual guest-local Packer, HCL2 context and external scripts, optional composition, canonical Base lifecycle and private failed-stage output. Focused tests (31.91s), changed-code lint (38.45s), maintained local tests (45.78s), related race (12.70s), CLI E2E (11.78s), docs/regressions (8.50s) and workflow policy (1.88s) passed with Go 1.27.1. Initial lint found unchecked read-handle closes, one error string and a switch simplification; corrected before these passes. Initial patch application targeted help catalogs absent from main and was refused without changing files; current main metadata was adapted instead.
+
+These results do not execute Packer or establish installed acceptance. The source candidate's earlier whole-suite PTY timeout and download HTTP 403 remain unresolved historical failures, not a successful build. Full guest download/fmt/init/validate/build, Base publication/reuse, arm64, custom plugin failures and Windows entry remain unverified. No test-only policy grant or Host-side HCL execution is introduced. The existing simple JSON shell definition remains a current feature, not an old-version migration requirement.

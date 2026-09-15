@@ -76,3 +76,8 @@ Experimental VS Codeの既存動作を保持します。通常のWindows起動�
 Windows/SSH確認とExplorer操作は別の残件です。
 [通知仕様](reference/interaction-events.ja.md#同じ失敗によるnative通知の連発)と
 [インストーラの結果](design/installer.md#windows-final-result)を参照してください。
+
+
+## PackerによるBase作成の候補
+
+**部分実装:** 実際のPacker HCL2と外部スクリプトを通常のbuild用Envで実行します。追加adapterは既存のBase公開・cleanupを共有します。Packerの完走・download・導入済みWindowsの受入は未確認です。[Packerの操作](design/packer-base-builds.ja.md)を参照してください。
