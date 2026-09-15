@@ -265,6 +265,25 @@ func TestLocalUDPAssociationsKeepDatagramsAndPeersSeparate(t *testing.T) {
 	}
 }
 
+func TestUDPListenerCancellationClosesBeforeReturn(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err = ServeUDP(ctx, listener, Spec{}, nil, nil)
+		// Observe the exact owned socket. Rebinding the released port alone
+		// cannot distinguish incomplete cleanup from another process using it.
+		_, writeErr := listener.WriteToUDP([]byte("closed"), listener.LocalAddr().(*net.UDPAddr))
+		_ = listener.Close()
+		if !errors.Is(err, context.Canceled) || !errors.Is(writeErr, net.ErrClosed) {
+			t.Fatalf("iteration %d: serve=%v, owned socket write=%v", i, err, writeErr)
+		}
+	}
+}
+
 func TestUDPListenerClosurePreservesCancellationCause(t *testing.T) {
 	for _, cause := range []string{"cancelled", "deadline", "socket-failure"} {
 		t.Run(cause, func(t *testing.T) {

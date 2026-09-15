@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -173,8 +174,16 @@ func ServeUDP(ctx context.Context, listener *net.UDPConn, spec Spec, dial GuestD
 	if err := validateLoopback(listener.LocalAddr().String()); err != nil {
 		return err
 	}
-	stop := context.AfterFunc(ctx, func() { listener.Close() })
-	defer stop()
+	closeListener := sync.OnceFunc(func() { _ = listener.Close() })
+	stop := context.AfterFunc(ctx, closeListener)
+	defer func() {
+		stop()
+		if ctx.Err() != nil {
+			// Cancellation may win before its callback starts. Close once here
+			// or wait for that callback's close before reporting completion.
+			closeListener()
+		}
+	}()
 	type incoming struct {
 		peer *net.UDPAddr
 		data []byte
