@@ -11,7 +11,7 @@ import (
 )
 
 func confirmReclamation(ctx context.Context, in io.Reader, out io.Writer) (bool, error) {
-	if _, err := fmt.Fprint(out, "Continue? [y/N] "); err != nil {
+	if _, err := fmt.Fprint(out, cliLanguage().Text("reclaim.text.confirm")); err != nil {
 		return false, err
 	}
 	answers := make(chan bool, 1)
@@ -33,65 +33,65 @@ func reclaimReviewCommand(ctx context.Context, args []string, in io.Reader, out,
 	review func(context.Context, reclamation.WSLTarget, string, string) error,
 ) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(out, "Usage: haco reclaim --review [--yes]\nRetain an unsuccessful operation without starting another run.")
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("reclaim.text.review_help"))
 		return 0
 	}
 	yes := len(args) == 1 && args[0] == "--yes"
 	if len(args) > 0 && !yes {
-		fmt.Fprintln(diagnostic, "Usage: haco reclaim --review [--yes]")
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_usage"))
 		return 2
 	}
 	selected, err := target(ctx)
 	if err != nil || selected.Validate() != nil {
-		fmt.Fprintln(diagnostic, "Managed Windows installation unavailable.")
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_unavailable"))
 		return 1
 	}
 	raw, err := invoke(ctx, selected, "status")
 	if err != nil {
-		fmt.Fprintln(diagnostic, "Saved reclamation result unavailable; nothing was reviewed.")
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_read_failed"))
 		return 1
 	}
 	result, err := parseReclamationStatus(raw)
 	if err != nil {
-		fmt.Fprintln(diagnostic, err)
+		_, _ = fmt.Fprintln(diagnostic, err)
 		return 1
 	}
 	if result.State == "none" {
-		fmt.Fprintln(out, "No saved reclamation result to review.")
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("reclaim.text.review_none"))
 		return 0
 	}
 	if result.State == "complete" {
-		fmt.Fprintln(out, "Completed reclamation needs no review.")
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("reclaim.text.review_complete"))
 		return 0
 	}
 	if result.State == "interrupted" {
-		fmt.Fprintln(out, "Interrupted evidence is already retained. Run haco reclaim separately to start a new operation.")
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("reclaim.text.review_interrupted"))
 		return 0
 	}
 	// Freeze target and operation before consent. Never select a newer operation.
-	if _, err := fmt.Fprintf(out, "Review %s operation %s. Original evidence will be retained; an interrupted outcome remains unknown. This may reopen the enrolled WSL for identity checking. No reclamation or retry will start.\n", result.State, result.Operation); err != nil {
+	if _, err := fmt.Fprintf(out, cliLanguage().Text("reclaim.text.review_warning"), reclamationValue(result.State), result.Operation); err != nil {
 		return 1
 	}
 	if !yes {
 		confirmed, err := confirmReclamation(ctx, in, out)
 		if err != nil {
-			fmt.Fprintln(diagnostic, "Confirmation unavailable; nothing was reviewed.")
+			_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_confirmation_failed"))
 			return 1
 		}
 		if !confirmed {
-			fmt.Fprintln(out, "Canceled.")
+			_, _ = fmt.Fprintln(out, cliLanguage().Text("reclaim.text.canceled"))
 			return 0
 		}
 	}
 	if ctx.Err() != nil {
-		fmt.Fprintln(diagnostic, "Review canceled before Windows invocation.")
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_canceled"))
 		return 1
 	}
 	if err := review(ctx, selected, result.Operation, result.State); err != nil {
-		fmt.Fprintln(diagnostic, "Review could not be confirmed. Inspect haco reclaim --status; a live or changed operation is not replaced.")
+		_, _ = fmt.Fprintln(diagnostic, cliLanguage().Text("reclaim.text.review_unknown"))
 		return 1
 	}
-	if _, err := fmt.Fprintln(out, "Original evidence retained. No new operation was started. Run haco reclaim separately when ready."); err != nil {
+	if _, err := fmt.Fprintln(out, cliLanguage().Text("reclaim.text.review_retained")); err != nil {
 		return 1
 	}
 	return 0

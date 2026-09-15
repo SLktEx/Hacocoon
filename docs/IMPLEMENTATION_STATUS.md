@@ -202,3 +202,9 @@ contents, modes, numeric owners, internal links and regular-file/directory xattr
 using the existing read-only inventory. Differences and incomplete observations are
 explicit; whole-installation restoration and authenticated development remain partial.
 See [the operator workflow](guides/data-evacuation.md#compare-a-restored-tree).
+
+## Reclamation language completion
+
+**Implemented candidate:** the public reclamation/review flow, retained evidence and
+capacity results now use the shared bilingual catalog. This presentation work does
+not resolve the separately recorded installed enrollment-visibility discrepancy.

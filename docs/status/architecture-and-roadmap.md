@@ -292,3 +292,9 @@ installation inventory, capture/restore and compare it in the appropriate owners
 namespace, then exercise normal development and authentication. Readable fixture
 restoration is scoped evidence. Old-version reconstruction and replacement of the
 preserved old WSL remain outside the current request. Performance remains deferred.
+
+## Reclamation language
+
+The M1 follow-up covers ordinary reclamation/result-review guidance and capacity
+results in English/Japanese. Continue the separate installed enrollment diagnosis,
+Packer dependency access and current-data/authenticated use; defer performance.

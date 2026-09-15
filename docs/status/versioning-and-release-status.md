@@ -195,3 +195,8 @@ attached-disk and installed pre-dispatch failures remain distinct acceptance gap
 
 The v0.67 M5 candidate adds portable file-tree comparison to the existing maintenance
 evacuation flow. It is a useful comparison step, not full migration acceptance or a release.
+
+## Reclamation language coverage
+
+Within v0.67, shared English/Japanese result and review presentation closes another
+daily-use gap. Protocols, consent and lifecycle are unchanged; no release is published.
