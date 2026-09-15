@@ -105,6 +105,7 @@ func (s *Service) createReserved(ctx context.Context, r core.PersistentResource,
 	}
 	r.State = "ready"
 	r.RestoreSource = ""
+	r.ImportPending = false
 	return r, nil
 }
 

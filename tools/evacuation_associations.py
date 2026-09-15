@@ -30,6 +30,7 @@ def native_reference(ref):
 
 def compare_associations(native, catalog=None, repositories=None):
     result = {"authority": False, "review_required": True, "rows": [], "native_review": [], "errors": []}
+    result["catalog_links"] = catalog_links(catalog, result["errors"])
     index = {}
     for project in native.get("projects", []):
         for item in project.get("instances", []):
@@ -58,6 +59,9 @@ def compare_associations(native, catalog=None, repositories=None):
                     yield source, row, "saved-instance"
                 elif row["section"] in ("environments", "workspace_leases"):
                     yield source, row, "runtime"
+                elif row["section"] == "resource_generations":
+                    # This is a catalog selection, not a provider object.
+                    continue
                 else:
                     yield source, row, "unreviewed"
         if repositories:
@@ -120,3 +124,44 @@ def compare_associations(native, catalog=None, repositories=None):
                       "reference-and-marker-observed" if key in referenced else "no-supported-reference")
             result["native_review"].append({"kind": key[0], **candidate, "status": status})
     return result
+
+
+def catalog_links(catalog, errors):
+    """Report exact catalog references separately from native observations."""
+    records = (catalog or {}).get("records", [])
+    resources = {}
+    for row in records:
+        if row.get("section") == "persistent_resources":
+            resources.setdefault(row.get("id"), []).append(row)
+    links = []
+
+    def references(row):
+        for item in row.get("attachments", []):
+            yield "attachment:" + item["key"], item["resource"]
+            yield "origin:" + item["key"], item["origin"].get("current", {})
+        for field in ("persistent_resource", "copy_source", "producer"):
+            if field in row:
+                yield field, row[field]
+        for field in ("generation", "publication_origin"):
+            if field in row:
+                yield field, row[field].get("current", {})
+
+    for row in records:
+        for relation, ref in references(row):
+            if not ref.get("id") and not ref.get("owner"):
+                continue  # An empty selection is not a missing native volume.
+            if len(links) >= LIMIT:
+                errors.append("catalog-link-budget-exhausted")
+                return links
+            matches = resources.get(ref.get("id"), [])
+            if len(matches) > 1:
+                status = "ambiguous-catalog-reference"
+            elif not matches:
+                status = "catalog-reference-not-observed"
+            elif not ref.get("owner") or ref.get("owner") != matches[0].get("owner"):
+                status = "catalog-owner-mismatch"
+            else:
+                status = "catalog-reference-observed"
+            links.append({"source": {"section": row["section"], "key": row["key"]},
+                          "relation": relation, "reference": dict(ref), "status": status})
+    return links

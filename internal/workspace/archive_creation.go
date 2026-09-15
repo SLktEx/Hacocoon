@@ -15,6 +15,10 @@ type archiveRuntimeCreator interface {
 // ownership. The source reader stays caller-owned; no snapshot catalog or Base
 // is synthesized. The provider owns only its temporary transport image.
 func (s *Service) CreateFromArchive(ctx context.Context, spec core.EnvironmentSpec, source io.ReadSeeker, privateRoot string, limit int64) (core.Environment, error) {
+	return s.CreateFromArchiveWithData(ctx, spec, source, privateRoot, limit, nil)
+}
+
+func (s *Service) CreateFromArchiveWithData(ctx context.Context, spec core.EnvironmentSpec, source io.ReadSeeker, privateRoot string, limit int64, inputs []core.EnvironmentResourceImport) (core.Environment, error) {
 	provider, ok := s.runtime.(archiveRuntimeCreator)
 	if !ok {
 		return core.Environment{}, core.ErrUnsupported
@@ -25,5 +29,5 @@ func (s *Service) CreateFromArchive(ctx context.Context, spec core.EnvironmentSp
 	spec.SkipDefaultResource = spec.PersistentResource == ""
 	return s.create(ctx, spec, nil, func(ctx context.Context, runtimeSpec core.EnvironmentRuntimeSpec, record func(core.EnvironmentRuntime) error) (core.EnvironmentRuntime, error) {
 		return provider.CreateEnvironmentFromArchive(ctx, runtimeSpec, source, privateRoot, limit, record)
-	})
+	}, inputs)
 }

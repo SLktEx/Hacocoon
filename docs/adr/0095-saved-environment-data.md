@@ -1,6 +1,6 @@
 # Saved Environment data
 
-Status: accepted; snapshot/copy implemented, portable transfer remains in progress. [日本語](0095-saved-environment-data.ja.md)
+Status: accepted; snapshot/copy and portable transfer implemented; provider acceptance is separate. [日本語](0095-saved-environment-data.ja.md)
 
 ## Decision
 
@@ -34,3 +34,17 @@ catalog duplicates lifecycle state and makes ambiguous cleanup release too early
 See [snapshots](../design/environment-snapshots.md),
 [transfer](../design/environment-transfer.md) and
 [cache generations](../design/cache-generations.md).
+
+## Portable input ownership
+
+Portable named data carries ordered names, guest placement, kind and verified
+payload bytes, never source resource identities or publication rights. Import
+assigns a fresh local generation family and child ownership before native import.
+An explicit pending-import receipt prevents an interrupted import from becoming
+an empty ordinary create. Materialization must claim the matching input mode;
+positive completion, publication and deletion use the existing shared resource
+transition. The current provider validates placement and writes only fresh native
+ownership; archive config cannot mount Host paths or grant management access.
+
+
+Snapshot planning uses the same provider placement binding as Environment create, start and import. Repository-subdirectory data binds the leased Workspace storage identities as well as the data areas. A data-only digest cannot stand in for that complete binding. The helper lives on the shared Incus runtime so every adapter path uses the same contract.

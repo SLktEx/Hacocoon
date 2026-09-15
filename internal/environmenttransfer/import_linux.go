@@ -23,6 +23,10 @@ type ImportEnvironments interface {
 	StartForWorkspace(context.Context, string, core.WorkspaceID) error
 	CleanupRestoredData(context.Context, core.Workspace, func(context.Context) error) error
 }
+
+type dataImportEnvironments interface {
+	CreateFromArchiveWithData(context.Context, core.EnvironmentSpec, io.ReadSeeker, string, int64, []core.EnvironmentResourceImport) (core.Environment, error)
+}
 type ImportWorkspaces interface {
 	ImportWorkspace(context.Context, string, string, string, string, io.ReadSeeker) (gitrepo.Object, error)
 	ImportWorkspaceSet(context.Context, string, []gitrepo.WorkspaceImport) (gitrepo.Object, error)
@@ -53,11 +57,15 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 	}
 	defer func() { resultErr = errors.Join(resultErr, staged.Close()) }()
 	manifest := staged.Manifest()
-	count := len(manifest.Components) - 1
+	count := len(manifest.Components) - 1 - len(manifest.Data)
 	if manifest.HasOCI {
 		count--
 	}
 	if count > 8 || (manifest.HasOCI && (s.Stores == nil || s.StoreKind == "")) {
+		return result, core.ErrUnsupported
+	}
+	dataEnvironments, supportsData := s.Environments.(dataImportEnvironments)
+	if len(manifest.Data) != 0 && !supportsData {
 		return result, core.ErrUnsupported
 	}
 	if name == "" {
@@ -110,6 +118,15 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 		inputs = append(inputs, gitrepo.WorkspaceImport{Repository: descriptor.Name, Remote: remote, Branch: branch, Archive: data})
 	}
 	var nonce [8]byte
+	dataInputs := make([]core.EnvironmentResourceImport, 0, len(manifest.Data))
+	for i, d := range manifest.Data {
+		reader, err := staged.ComponentReader(dataRole(i))
+		if err != nil {
+			return result, err
+		}
+		component := manifest.Components[len(manifest.Components)-len(manifest.Data)+i]
+		dataInputs = append(dataInputs, core.EnvironmentResourceImport{Key: d.Key, Target: d.Target, Kind: d.Kind, Digest: component.SHA256, Archive: reader})
+	}
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return result, err
 	}
@@ -175,11 +192,17 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 			return result, core.ErrRecoveryRequired
 		}
 	}
-	environment, err := s.Environments.CreateFromArchive(ctx, core.EnvironmentSpec{DNSMode: manifest.DNSMode, Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, ExpectedResource: resource.Ref(), SkipDefaultResource: resource.ID == ""}, rootfs, s.Root, limit)
+	spec := core.EnvironmentSpec{DNSMode: manifest.DNSMode, Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, ExpectedResource: resource.Ref(), SkipDefaultResource: resource.ID == ""}
+	var environment core.Environment
+	if len(dataInputs) != 0 {
+		environment, err = dataEnvironments.CreateFromArchiveWithData(ctx, spec, rootfs, s.Root, limit, dataInputs)
+	} else {
+		environment, err = s.Environments.CreateFromArchive(ctx, spec, rootfs, s.Root, limit)
+	}
 	if err != nil {
 		return fail(err)
 	}
-	if environment.Name != name || environment.Workspace != work || environment.PersistentResource != resource.Ref() {
+	if environment.Name != name || environment.Workspace != work || environment.PersistentResource != resource.Ref() || len(environment.Attachments) != len(manifest.Data) {
 		result.State = "cleanup-required"
 		return result, core.ErrRecoveryRequired
 	}

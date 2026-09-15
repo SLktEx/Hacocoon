@@ -170,3 +170,22 @@ OCIの後始末が不明ならWorkspaceも保持し、起動失敗ならEnvと�
 
 
 [限定された実機検証](../status/acceptance-evidence.ja.md#development-branch-integration)を参照してください。
+
+
+## 名前付きの使い捨てデータ
+
+実装済み候補: exportは登録した全領域をWorkspace・任意OCIの後に番号付きarchiveとして含めます。
+順序付きの名前、guestパス、対応する種類が配置を表し、元の資源ID・世代ID・公開許可・Hostの
+mount設定は含みません。共通envelopeが全構成と内容、metadata上限をimport前に検証します。
+最大32領域の未収集の内容を保持します。
+
+importは新しいローカル世代と使い捨て子領域を共通Env/Workspace予約で所有します。
+import待ちを永続化し、対応するarchiveなしで空の作成へ置き換わらないようにします。
+native完了を検証前に記録し、共通の公開処理だけがimport待ちを解除します。完了不明なら
+親の予約を保持して破壊的cleanupを止めます。子領域はEnvとともに削除し、Workspace・OCIは残します。
+
+現在のproviderがguest配置と保護パスを検査し、native所有権を置き換え、必要なfilesystem idmap
+だけを保持します。元のdevice・許可・Host認証情報は再現しません。転送元のデータを移設先の
+現在の共有キャッシュへ登録したり、移設先Host設定を暗黙に追加したりしません。
+Incus 7.0 LTSが必要です。6.0.5には既存volume-exportのflagとレポ配置APIがありません。
+実機結果は[受入記録](../status/acceptance-evidence.ja.md)で区別します。

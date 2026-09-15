@@ -251,7 +251,7 @@ def catalog_references(data):
     # Schema 9 was an unpublished replacement prototype and remains unsupported.
     if isinstance(data, dict) and type(data.get("version")) is int:
         result["version"] = data["version"]
-    if result.get("version") not in (10, 11, 12, 13):
+    if result.get("version") not in (10, 11, 12, 13, 16):
         result["errors"].append("unsupported-catalog-schema")
         return result
     result["state_validated"] = False
@@ -264,11 +264,12 @@ def catalog_references(data):
             elif entries:
                 result["unprojected_records"].append({"section": section, "count": len(entries), "review_required": True})
     fields = {
-        "environments": ("name", "runtime_ref", "access_mode"),
-        "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source"),
+        "environments": ("name", "runtime_ref", "access_mode", "dns_mode"),
+        "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source", "environment_instance"),
         "base_assets": ("id", "owner", "native_ref", "state"),
         "workspace_leases": ("workspace_id", "environment_id", "owner", "instance_id", "runtime_ref", "state", "snapshot_source"),
         "snapshots": ("id", "state"),
+        "resource_generations": (),
     }
     def reference(value):
         value = text(value)
@@ -278,12 +279,52 @@ def catalog_references(data):
         if "://" in value:
             raise ValueError("unreportable URI")
         return value
+
+    def resource_ref(value):
+        if not isinstance(value, dict):
+            raise ValueError("invalid resource reference")
+        return {f: reference(value[f]) for f in ("id", "owner") if f in value}
+
+    def generation(value):
+        if not isinstance(value, dict):
+            raise ValueError("invalid generation")
+        record = {f: reference(value[f]) for f in ("name", "kind", "compatibility", "epoch")}
+        number = value["number"]
+        if type(number) is not int or not 0 <= number < 2**64:
+            raise ValueError("invalid generation number")
+        record["number"] = number
+        if "current" in value:
+            record["current"] = resource_ref(value["current"])
+        return record
+
+    def attachments(value):
+        if not isinstance(value, list) or len(value) > 32:
+            raise ValueError("invalid data attachments")
+        result, seen = [], set()
+        for item in value:
+            if not isinstance(item, dict):
+                raise ValueError("invalid data attachment")
+            key = reference(item["key"])
+            if key in seen:
+                raise ValueError("duplicate data attachment")
+            seen.add(key)
+            target = text(item["target"])
+            if not target.startswith("/") or any(ord(c) < 32 or ord(c) == 127 for c in target):
+                raise ValueError("invalid guest placement")
+            result.append({"key": key, "target": target,
+                           "resource": resource_ref(item["resource"]),
+                           "origin": generation(item["origin"])})
+        return result
+
     for section, allowed in fields.items():
         rows = data.get(section, {})
         if not isinstance(rows, dict) or len(rows) > LIMIT:
             result["errors"].append(section)
             continue
         for index, (key, value) in enumerate(rows.items()):
+            if len(result["records"]) >= LIMIT:
+                result["errors"].append("catalog-record-budget-exhausted")
+                break
             try:
                 if not isinstance(value, dict):
                     raise ValueError("invalid catalog row")
@@ -291,6 +332,23 @@ def catalog_references(data):
                 for field in allowed:
                     if field in value:
                         row[field] = reference(value[field])
+                if section in ("environments", "workspace_leases") and "attachments" in value:
+                    row["attachments"] = attachments(value["attachments"])
+                if section == "resource_generations":
+                    row["generation"] = generation(value)
+                if section == "persistent_resources":
+                    for field in ("copy_source", "producer"):
+                        if field in value:
+                            row[field] = resource_ref(value[field])
+                    if "publication_origin" in value:
+                        row["publication_origin"] = generation(value["publication_origin"])
+                booleans = {"persistent_resources": ("source_only", "copy_completed", "import_pending"),
+                            "workspace_leases": ("runtime_absent", "ephemeral")}
+                for field in booleans.get(section, ()):
+                    if field in value:
+                        if type(value[field]) is not bool:
+                            raise ValueError("invalid lifecycle flag")
+                        row[field] = value[field]
                 if section == "environments":
                     workspace = value.get("workspace")
                     if not isinstance(workspace, dict):

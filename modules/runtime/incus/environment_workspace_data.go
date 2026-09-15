@@ -18,7 +18,7 @@ func repositoryDataTarget(target string) bool { return strings.HasPrefix(target,
 // Resolve only from the leased Workspace's trusted catalog, never from devices
 // returned by the instance. The digest pins native storage ownership as well as
 // placement so a changed catalog or recycled Workspace cannot authorize resume.
-func (p *SandboxProvider) environmentPlacementBinding(ctx context.Context, request core.EnvironmentResourceBinding) (string, []WorkspaceAttachment, error) {
+func (r *Runtime) environmentPlacementBinding(ctx context.Context, request core.EnvironmentResourceBinding) (string, []WorkspaceAttachment, error) {
 	digest, err := environmentDataBinding(request.InstanceID, request.Attachments)
 	if err != nil {
 		return "", nil, err
@@ -31,10 +31,10 @@ func (p *SandboxProvider) environmentPlacementBinding(ctx context.Context, reque
 		return digest, nil, nil
 	}
 	workID, managed := strings.CutPrefix(request.WorkspacePath, "managed:")
-	if request.ReadOnly || !managed || !gitrepo.ValidID(workID) || p == nil || p.BaseProvider == nil || p.Runtime == nil || p.managedWorkspace == nil {
+	if request.ReadOnly || !managed || !gitrepo.ValidID(workID) || r == nil || r.managedWorkspace == nil {
 		return "", nil, core.ErrUnsupported
 	}
-	mounts, err := p.managedWorkspace(ctx, request.WorkspacePath)
+	mounts, err := r.managedWorkspace(ctx, request.WorkspacePath)
 	if err != nil {
 		return "", nil, err
 	}

@@ -2,7 +2,7 @@
 
 [日本語](IMPLEMENTATION_STATUS.ja.md) | English
 
-The current milestone position is **v0.66**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
+The current milestone position is **v0.67**. See [versioning and release status](status/versioning-and-release-status.md) for numbering authority and history.
 
 This page describes current code reality on main. Start with the [getting started guide](guides/getting-started.md) to use Hacocoon. [Acceptance evidence](status/acceptance-evidence.md) owns commit-bound real-host passes, failures and skips; the [roadmap](status/architecture-and-roadmap.md) owns remaining development direction.
 
@@ -32,7 +32,7 @@ This page describes current code reality on main. Start with the [getting starte
 | [Individual OCI images](design/oci-image-deletion.md) | partial | Attached, Host and detached nerdctl image list/delete, including reviewed unused candidates. Detached delivery is Linux amd64 only; full installed-controller acceptance and detached Docker remain incomplete. |
 | [Storage / reclamation](design/storage-reclamation.md) | implemented | Incus-owned Btrfs pool (`compress=zstd:3`), managed rootfs/data routing and enrolled Windows/WSL reclaim with measured CI recovery. Absent current history yields a read-only no-result response; malformed history still fails. Existing-installation and real interrupted-worker review remain unverified. |
 | [Environment export/import](design/environment-transfer.md) | partial | Stopped managed bundle, verified Linux delivery, installed controller and Windows projected-file route; one managed cross-WSL fixture and stopped containerd image/writable-data transfer accepted. Not live migration or a whole-installation backup; imported authenticated Git and broader runtime consistency remain incomplete. |
-| [Evacuation / replacement](guides/data-evacuation.md) | partial | Read-only inventory and explicit ordinary-tree archives exist, including isolated failed-snapshot fixtures. Native Incus export/import accepted two split images; unified images/new-Env boot are unverified. Whole-installation classification/capture/restored comparison and final replacement are not complete. |
+| [Evacuation / replacement](guides/data-evacuation.md) | partial | Read-only inventory includes current schema16 named data, generation references and pending lifecycle receipts; explicit ordinary-tree archives exist, including isolated failed-snapshot fixtures. Native Incus export/import accepted two split images; unified images/new-Env boot are unverified. Whole-installation classification/capture/restored comparison and final replacement are not complete. |
 | [AWS S3](design/aws-operations.md) | partial | Approved bounded listing and verified object download, including source-bound guest requests. Repository and synthetic native tests exist; authenticated real AWS acceptance was skipped. This is not an EC2 Environment provider. |
 | [Notifications / client APIs](reference/interaction-events.md) | implemented | Minimized events and optional adapters. VS Code GUI and Windows notification pages complete explicit answers through common review/Policy; opening alone never answers. Fresh installed GUI/human answers and Linux activation remain unverified; native/component evidence is scoped separately. |
 | [Seed retirement](design/oci-seed-and-cow.md) | implemented candidate | Seed runtime/build/harvest/catalog/sampling/recommendation and its old image deletion/re-enable state are removed. Current Base, managed images and OCI Stores remain; optional Docker integration is independent. Old-version compatibility/migration is out of scope. |
@@ -104,7 +104,7 @@ Notification setup follow-up: service refresh identifies fixed failing operation
 
 ## Cache generation foundation
 
-**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Named history/clear and positive-completion recovery are implemented. Snapshot/copy preserve uncollected data; existing-Env enrollment and added-data portable transfer remain incomplete. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
+**Partial:** Host-configured creation-time cache enrollment, stopped whole-area collection and independent generation reuse are available through `haco cache settings/configure/status/collect`. Named history/clear and positive-completion recovery are implemented. Snapshot/copy and portable transfer preserve uncollected data with fresh destination ownership; existing-Env enrollment remains incomplete. Supported-Incus transfer acceptance is pending. Workspace/OCI retention remains separate. See [cache generations](design/cache-generations.md).
 
 ## Packer Base build candidate
 
@@ -113,12 +113,12 @@ Notification setup follow-up: service refresh identifies fixed failing operation
 Cache history/clear follow-up: implemented candidate. Named history separates
 current selection from retained attempts. Revision-bound clear resets reuse and
 uses canonical exact-owner cleanup, retaining existing Env/Workspace/OCI data and
-uncertain copies. Self-service copy recovery, orphan-source browsing and added-data
-transfer remain partial. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
+uncertain copies. Orphan-source browsing remains incomplete; named positive-completion recovery and added-data
+transfer are implemented. See [cache operations](design/cache-generations.md#inspect-and-clear-collected-data).
 
 Push reconciliation follow-up: implemented candidate reusing42aa706f. Durable dispatch/confirmation records and current-owner exact-ref reads distinguish original failure from current remote state, without replaying writes or restoring approval. Main clone/fetch grants no push authority. Fresh authenticated installed use and larger Git transport remain separate.
 
-Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery, existing-Env enrollment and added-data transfer remain incomplete; new real-host recovery acceptance is separate.
+Cache completion recovery: implemented candidate for named, positively completed copies and generation selection. Common recovery pins the exact target owner, including OCI callers. Unknown native completion, orphan-source recovery and existing-Env enrollment remain incomplete; new real-host recovery acceptance is separate.
 
 ## Client TCP access
 
@@ -127,3 +127,5 @@ Cache completion recovery: implemented candidate for named, positively completed
 Resolver selection: implemented candidate. Environment creation accepts `--dns host|backend|disabled`, defaults to the Physical Host, and preserves the setting through snapshot/copy/transfer. Disabled mode refuses controller lookups even if guest tooling is restarted. Three-mode installed acceptance is pending; see [name resolution](design/name-resolution.md).
 
 The Incus network dialer identifies the calling Host thread when preparing concurrent SSH/forwarding connections; see [ADR0096](adr/0096-calling-thread-network-identity.md). The Host-namespace guard remains enforced. Native thread regression is separate from installed Windows reconnect acceptance.
+
+Snapshot planning now reuses the create/resume/import placement binding for data inside a repository, preserving its Workspace storage identity. The supported Incus7.0.1 regression covers capture, copy and portable transfer; see the acceptance evidence.

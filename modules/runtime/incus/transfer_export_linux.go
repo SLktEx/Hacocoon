@@ -19,7 +19,7 @@ func (r *Runtime) ExportSnapshotComponent(ctx context.Context, c core.SnapshotCo
 	switch {
 	case c.Role == "rootfs":
 		archive, err = r.ExportSnapshotRootfs(ctx, c, root, limit)
-	case c.Role == "oci" || strings.HasPrefix(c.Role, "workspace:"):
+	case c.Role == "oci" || strings.HasPrefix(c.Role, "workspace:") || strings.HasPrefix(c.Role, "data:"):
 		archive, err = r.ExportSnapshotVolume(ctx, c, root, limit)
 	default:
 		return nil, core.ErrInvalidArgument
