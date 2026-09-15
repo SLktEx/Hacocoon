@@ -33,7 +33,7 @@ func runConfiguration(args []string) int {
 	defer stop()
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco: cannot open configuration client")
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.controller"))
 		return 1
 	}
 	return configurationCommand(ctx, client, args, os.Stdout, os.Stderr, editConfiguration)
@@ -41,7 +41,7 @@ func runConfiguration(args []string) int {
 
 func configurationCommand(ctx context.Context, client configurationClient, args []string, out, diagnostic io.Writer, edit func(context.Context, capability.PolicySnapshot) (capability.PolicySnapshot, string, error)) int {
 	flags := flag.NewFlagSet("haco config", flag.ContinueOnError)
-	flags.SetOutput(diagnostic)
+	configureCLIFlags(flags, diagnostic)
 	interactive := flags.Bool("edit", false, cliMessage("detail.config_edit"))
 	file := flags.String("file", "", cliMessage("detail.config_file"))
 	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
@@ -52,7 +52,7 @@ func configurationCommand(ctx context.Context, client configurationClient, args 
 		return 2
 	}
 	if flags.NArg() != 0 || (*interactive && *file != "") {
-		fmt.Fprintln(diagnostic, "Usage: haco config [--json] [--edit | --file <snapshot.json>]")
+		flags.Usage()
 		return 2
 	}
 	var snapshot capability.PolicySnapshot
@@ -78,26 +78,35 @@ func configurationCommand(ctx context.Context, client configurationClient, args 
 		snapshot, err = client.ReplaceConfiguration(ctx, snapshot)
 	}
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: configuration was not acknowledged; read current configuration before retrying:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("config.unconfirmed"), err)
 		if retained != "" {
-			fmt.Fprintln(diagnostic, "Edited policy retained:", retained)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("config.edit_retained", displayCell(retained)))
 		}
 		return 1
 	}
 	if snapshot.Revision == "" || !json.Valid(snapshot.Policy) {
-		fmt.Fprintln(diagnostic, "haco: controller returned an invalid configuration receipt")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("config.invalid_receipt"))
 		if retained != "" {
-			fmt.Fprintln(diagnostic, "Edited policy retained:", retained)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("config.edit_retained", displayCell(retained)))
 		}
 		return 1
 	}
 	if retained != "" {
 		if err := removeConfigurationEdit(retained); err != nil {
-			fmt.Fprintln(diagnostic, "haco: saved; editor files retained:", filepath.Dir(retained))
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("config.files_retained", displayCell(filepath.Dir(retained))))
 		}
 	}
 	if err := writeCLIResult(out, snapshot, *jsonOutput); err != nil {
 		return 1
+	}
+	if !*jsonOutput {
+		key := "config.inspect"
+		if *interactive || *file != "" {
+			key = "config.saved"
+		}
+		if _, err := fmt.Fprintln(out, cliMessage(key)); err != nil {
+			return 1
+		}
 	}
 	return 0
 }

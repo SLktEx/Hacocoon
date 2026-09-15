@@ -157,3 +157,12 @@ See [commit-bound acceptance and unresolved Windows-service failures](../status/
 ## Client application access
 
 `haco env tunnel` places the listener in the client network namespace through the existing private controller. It creates no persistent Incus proxy. [Client transport](controller-client-transport.md#client-tcp-listeners) owns its creation identity, Windows delegation and cancellation. Guest-originated network connections retain their separate authority above.
+
+## CLI feedback
+
+Host registration, rule saving, revocation, empty lists, listener readiness and
+failure recovery guidance follow the client's English/Japanese language. Registering
+a Host service still grants no access, and listener readiness does not prove that
+an upstream connection was authorized. Original error details, diagnostic state
+values and structured logs stay intact. `--json` emits the same results without
+human notices; displaying a result never replays a mutation or broadens a rule.

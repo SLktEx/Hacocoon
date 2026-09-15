@@ -118,3 +118,26 @@ values, byte counts, operation identities and confirmation scope remain unchange
 Numeric Windows errors remain diagnostic codes; the surrounding explanation and
 next action follow the selected language. The public Windows journey recognizes
 both presentations while still checking exact worker receipts for completion.
+
+## Setup outcomes
+
+**Implemented:** Host/project setup completion, saved-script removal, missing recipes,
+truncation and failure recovery guidance use the shared English/Japanese catalog.
+`haco setup --help` uses the shared vertical command page. Script stdout/stderr,
+request IDs, progress state/reason tokens and structured logging remain unchanged.
+Language selection cannot replay a recipe or change a failure into success.
+
+## Network operation guidance
+
+Host service registration/removal, rule-saving and connection revocation results,
+empty lists, listener readiness and next actions use the shared catalog. Human
+notices distinguish a prepared listener or registered service from permission to
+connect. JSON, target identities, rule scope/expiry, error details and structured
+logs remain unchanged. Setup and network validation share the general logging
+configuration message instead of maintaining duplicate translations.
+
+## Configuration guidance
+
+`haco config` uses shared English/Japanese help, inspection/save guidance and
+unconfirmed-save/retained-editor notices. Policy values, JSON and original error
+details stay unchanged; a failed result write cannot replay the operation.

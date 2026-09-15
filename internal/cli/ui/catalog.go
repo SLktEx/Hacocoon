@@ -8,6 +8,7 @@ type translation struct {
 }
 
 var catalog = map[string]translation{
+	"error.logging":                  {"haco: invalid logging configuration", "haco: ログ設定が無効です。HACO_LOG_LEVELとHACO_LOG_FORMATを確認してください。"},
 	"base.import.archive":            {"Uncompressed Incus container image tar with metadata.yaml and rootfs; at most 64 GiB. Source files stay unchanged.", "metadata.yamlとrootfsを含む非圧縮のIncusコンテナイメージtar。上限64 GiB。元ファイルは変更しません。"},
 	"base.import.failed":             {"Base import did not complete. Check the archive, available storage and reported builder before retrying. A retry starts a new builder.", "Baseの取り込みは完了していません。アーカイブ、空き容量、表示された作成環境を確認してください。再試行は新しい作成環境から始まります。"},
 	"base.import.retained":           {"Builder retained: %s (%s). Inspect haco env status before explicit cleanup.\n", "作成環境を保持: %s（%s）。haco env statusで確認してから明示的に整理してください。\n"},

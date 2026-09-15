@@ -23,10 +23,7 @@ import time
 forward_spec = importlib.util.spec_from_file_location("installed_forward", Path(__file__).resolve().parents[1] / "installed/forward.py")
 forward = importlib.util.module_from_spec(forward_spec)
 forward_spec.loader.exec_module(forward)
-SERVER = forward.SERVER
-# Application readiness precedes ordinary Host entry and native helper startup.
-# Keep this fixture alive for the bounded terminal journey, including cold WSL
-# entry and listener ownership observation, before all eight clients arrive.
+SERVER, arm_application = forward.SERVER, forward.arm_application
 TERMINAL_TIMEOUT_SECONDS = 180
 
 
@@ -75,8 +72,7 @@ def main():
                           "phase": name, "duration_ms": int((time.monotonic() - started) * 1000)}), flush=True)
     phase("application_start")
     application = subprocess.Popen(["wsl.exe", "-d", args.distro, "-u", "root", "--exec", "incus", "exec", "haco-" + args.env,
-                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER,
-                                    "--accept-timeout", str(TERMINAL_TIMEOUT_SECONDS)], stdout=subprocess.PIPE)
+                                    "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     readiness = queue.Queue(maxsize=1)
     def read_ready():
         readiness.put(application.stdout.readline(4096))
@@ -114,6 +110,8 @@ def main():
                     phase("native_owner_confirmed")
                     if application.poll() is not None:
                         raise RuntimeError("application fixture exited before tunnel exchange")
+                    arm_application(application)
+                    phase("application_armed")
                     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as workers:
                         list(workers.map(exchange, [port] * 8))
                     phase("exchange_completed")
@@ -146,6 +144,8 @@ def main():
     finally:
         if terminal is not None and terminal.proc.isalive():
             terminal.proc.terminate(force=True)
+        if not application.stdin.closed:
+            application.stdin.close()
         if application.poll() is None:
             application.terminate()
             try:

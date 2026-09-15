@@ -31,6 +31,13 @@ haco config --file configuration.json
 方針です。同じ照合に参加し、deny、require-approval、allow の順に優先します。
 保存方針を消しても管理者の制約は消えません。env 単位の保存は作成 ID に結び付き、
 全 env の方針は明示的に `environment: "*"` を使います。
+
+確認・保存成功・失敗からの復帰手順は、共通の日英表示で案内します。
+`--json`、Policyの値、revisionの確認は言語によって変わりません。
+保存完了を確認できない場合は、再実行する前に現在の設定を確認します。
+失敗時は編集したファイルを残します。保存成功だけでは接続中の通信を取り消しません。
+表示に失敗しても、設定の再適用や新たな許可は行いません。
+
 Git はリポジトリ・remote・ref・fast-forward を固定します。
 [Policy の意味](../design/policy-and-capability-foundation.md)と
 [Git の手順](../guides/git-workflow.ja.md)を参照してください。

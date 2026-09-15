@@ -67,3 +67,8 @@ passed at `347ca50`; package installation with scoped Policy passed in later
 development gates. Real recreation and cancellation/descendant cleanup remain
 separate acceptance gaps. The CRLF harness failure, dropped stdin-interface failure
 and subsequent preview failure are retained in [acceptance evidence](../status/acceptance-evidence.md#development).
+
+Setup result guidance follows the client's selected English/Japanese language.
+Guest script output stays verbatim and separate from localized completion/failure
+messages. The client preserves failure status and does not replay the operation
+when presenting recovery guidance.

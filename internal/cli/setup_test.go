@@ -32,13 +32,16 @@ func productSetupServer(t *testing.T, failure error) string {
 }
 func productSetupServiceServer(t *testing.T, service interface {
 	SetupHost(context.Context, recipes.Update) error
-}) string {
+}, register ...func(*control.Server)) string {
 	t.Helper()
 	server := control.NewServer()
 	_ = server.Register(controlapi.MethodPing, func(context.Context, json.RawMessage) (any, error) {
 		return controlapi.PingResponse{ProtocolVersion: control.ProtocolVersion}, nil
 	})
 	_ = controlapi.RegisterSetup(server, service)
+	for _, add := range register {
+		add(server)
+	}
 
 	path := filepath.Join(t.TempDir(), "control.sock")
 	listener, err := control.ListenUnix(path, 0600)

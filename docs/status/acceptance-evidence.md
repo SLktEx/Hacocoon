@@ -1432,3 +1432,120 @@ Quality, test, Ubuntu and Windows are successful for this head, but Incus remain
 failed at the completed fixture's persistent lock directory described above.
 Follow-up `d4c264a3` fixes that fixture locally. Main is still `ee8bf7fb`; this
 receipt does not authorize merging a different unverified head.
+
+## Setup outcome language
+
+`e5a4e1e8` moves Host/project setup outcomes and next actions into the shared
+English/Japanese catalog and reuses vertical help. Local checks passed: focused
+8.62s, lint 18.14s, whole test entry 34.72s, race 13.73s, CLI 4.84s, docs 8.58s,
+workflow policy 1.91s and native-test compilation 1.55s. Final lint including new
+files passed in 22.42s; all nine approval-runner regressions passed on Linux in
+0.57s. Windows ran the six applicable runner tests, with three Linux terminal
+checks explicitly skipped (0.021s test time). The runner still requires the exact
+success marker and exactly one valid English/Japanese completion line.
+
+An initial harness invocation failed before tests because Linux Git could not
+resolve Windows worktree metadata; the patch is now generated on Windows.
+The first focused run caught double-formatting of Host result fields, which was
+corrected before the successful suite; the first changed-line lint also rejected
+unchecked output returns. Existing exit status, script output, private-result
+access, explicit replay and structured diagnostic boundaries are preserved.
+This is repository/component evidence, not a new installed or human-GUI pass.
+
+## Main integration of retained-data and lifecycle fixes
+
+[#699](https://github.com/SLktEx/Hacocoon/pull/699) merged as main
+`e4d99700b976e2166a4a0b27dc9f37cf3aaaacc1`. Its exact head `51ba4f24`
+passed quality `34989824960`, test `34989824791`, Ubuntu `34989824936`,
+Incus `34989824882` and Windows `34989824868`. The merged tree is identical
+to that head. Core, standalone, Btrfs and evidence jobs all passed, including
+the aggregate fixture cleanup that failed at the earlier head.
+
+Windows job `104451279682` passed ordinary installation, Environment HTTPS and
+direct-egress refusal, native entry/SSH/editor/forwarding, Linux and public
+reclamation, retained Workspace/OCI/snapshot restore and native notification
+ownership/refusal/subscription. Public operation
+`{68E10593-EC50-41D2-875E-F71D4F303386}` recovered **2,840,592,384 bytes**:
+Windows allocation 7,797,211,136 → 4,956,618,752; virtual capacity
+1,099,511,627,776 was unchanged. Compaction completed after 252 open attempts;
+the same WSL resumed. Human toast clicks/fresh GUI decisions and VPN/NRPT
+remain skipped. Earlier failures and the dedicated local enrollment issue
+remain distinct; success does not establish their causes.
+
+The setup-language follow-up was rebased without a tree difference from
+`724adc2d` onto this main (`e5a4e1e8` → `8b95f79a`). Its normal ten-binary
+Linux/Windows package built from `724adc2d` in 45.49s, without installation,
+WSL termination or publication. These scopes do not claim a new release.
+
+## Setup candidate Windows reclamation failure
+
+At #700 head `5e2ee17bcdc6e2ee36766f00ed2877485777e2c8`, quality
+`34993511402`, test `34993511349`, Ubuntu `34993511337` and Incus
+`34993511396` passed. Windows `34993511328`, first-attempt job
+`104463877953`, failed public reclamation: both Linux stages completed and the
+Windows stop request succeeded, but 359 observations exhausted the existing
+90-second detached-disk wait. `compact_attached` prevented compaction; the same
+WSL resumed. Native notification acceptance was skipped. Ordinary installation,
+SSH/editor/forwarding and the preceding installed Linux reclamation passed.
+
+The cause is unproven. The setup change does not modify shutdown or compaction.
+One failed-jobs rerun was requested for this exact head to check reproducibility;
+it cannot erase the first attempt. No timeout, disk-attachment check or WSL-wide
+setting was relaxed. Person-dependent acceptance remains post-release.
+
+## Network command language
+
+`0387258d` adds shared English/Japanese network result and next-action messages.
+Focused CLI/catalog/relay tests passed in 11.76s, changed-code lint in 26.63s,
+the maintained full test entry in 44.33s, race in 15.72s, CLI E2E in 4.40s,
+docs in 10.50s, workflow policy in 1.58s and native-test compilation in 2.00s.
+Tests compare JSON across languages, preserve exact revocation and ask-rule
+scope/expiry, keep unrelated Git approval rules and default denial while editing
+Host registrations, and retain original error details. Result-write failure
+does not replay the mutation. Actual Linux loopback TCP/UDP listeners were
+opened, canceled and rebound at their exact emitted addresses without opening
+an upstream connection. This is local CLI/relay evidence, not installed network,
+external-service, VPN or human UI acceptance. Catalog selection does not change
+structured log fields or the underlying Policy implementation.
+The ordinary ten-binary Linux/Windows package built from #701 head
+`f354464337f84e876a97628ded69249fa84f13f6` in 45.28s. No installation or
+release was performed. #701 is a development-branch follow-up to #700.
+
+## Configuration language guidance
+
+`c3fb376f` adds bilingual configuration help, inspection/save guidance and
+unconfirmed-save/retained-editor notices. Local focused tests passed in 10.64s,
+changed-code lint in 15.93s, maintained full tests in 36.01s, race in 13.90s,
+CLI E2E in 4.23s, docs in 9.80s, workflow policy in 1.37s and native-test
+compilation in 1.71s. JSON inspection/apply receipts are byte-identical in both
+languages; exact Policy and revision inputs, conflict retention, original errors
+and one apply on output failure are covered. The first lint attempt found five
+unhandled diagnostic writes; they were made explicit before the full pass.
+These checks do not change a live Policy or establish installed/human acceptance.
+
+## Forwarding fixture readiness correction
+
+The one #700 retry at the same head also failed: Windows run `34993511328`,
+job `104476272439`, stopped in ordinary native TCP forwarding. The application
+was ready at 187 ms, the Host at 26,577 ms, the listener at 28,015 ms and native
+ownership at 38,859 ms. Failure at 41,375 ms included application `accept`
+`TimeoutError` and a mismatched binary response. The fixture's 40-second accept
+wait started before Host preparation, so almost all its budget was consumed
+before the actual exchange. Subsequent Linux/public reclamation and notification
+steps were skipped; evidence job `104483624401` failed. This neither resolves
+nor erases the first attempt's separate `compact_attached` failure.
+
+The #701 follow-up arms the shared application only after listener readiness
+and Windows native-owner confirmation. An independent 180-second startup bound
+fails on missing readiness; the original 40-second accept budget, eight binary
+exchanges, half-close, product lifetime and cancellation assertions remain.
+The real-process/TCP regression delays preparation beyond the accept budget, then
+checks all eight exact responses; missing clients, no arming and EOF still fail.
+It runs in the maintained local and repository CI entries.
+
+Local validation passed: application regression 1.80s, Windows observer regression
+1.44s, focused tests 11.36s, changed-code lint 34.51s, full tests 96.28s, race
+15.82s, CLI E2E 4.50s, docs 9.54s, workflow policy 1.47s and native-test compile
+1.73s. This is component evidence; the updated installed Windows journey remains
+pending. #701 contains #700's exact head and is the combined main candidate;
+#700 stays open until that integration is proven.

@@ -28,15 +28,14 @@ func runSetup(args []string) int {
 
 func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("haco setup", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	configureCLIFlags(flags, stderr)
 	scriptPath := flags.String("script", "", cliMessage("detail.setup_script"))
 	clear := flags.Bool("clear-script", false, cliMessage("detail.setup_clear"))
 	reapply := flags.Bool("reapply-script", false, cliMessage("detail.setup_reapply"))
 	resultOnly := flags.Bool("script-result", false, cliMessage("detail.setup_result"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stdout, "Usage: haco setup [--script <path> | --clear-script] [environment]")
-			fmt.Fprintln(stdout, "       haco setup --reapply-script | --script-result  (Host only)")
+			commandHelp(stdout, "setup", cliLanguage())
 			return 0
 		}
 		return 2
@@ -48,32 +47,32 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	})
 	if flags.NArg() > 1 || (scriptSelected && (*scriptPath == "" || *clear)) {
-		fmt.Fprintln(stderr, "haco: usage: haco setup [--script <path> | --clear-script] [environment]")
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.invalid_usage"))
 		return 2
 	}
 	update := recipes.Update{Clear: *clear, Reapply: *reapply, ResultOnly: *resultOnly}
 	if *scriptPath != "" {
 		data, err := recipes.ReadScript(*scriptPath)
 		if err != nil {
-			fmt.Fprintln(stderr, "haco: cannot read a regular UTF-8 setup script (maximum 1 MiB)")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.script_unreadable"))
 			return 1
 		}
 
 		text := string(data)
 		update.Script = &text
 		if err := update.Validate(); err != nil {
-			fmt.Fprintln(stderr, "haco:", err)
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.invalid_script_options"))
 			return 2
 		}
 	}
 	if err := update.Validate(); err != nil || (flags.NArg() == 1 && (*reapply || *resultOnly)) {
-		fmt.Fprintln(stderr, "haco: select one script option; --reapply-script and --script-result are Host-only")
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.select_option"))
 		return 2
 	}
 
 	logger, err := logging.NewFromEnv(stderr)
 	if err != nil {
-		fmt.Fprintln(stderr, "haco: invalid logging configuration")
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.logging"))
 		return 1
 	}
 	logging.SetRoot(logger)
@@ -83,11 +82,13 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	client, err := controlapi.NewDefaultClient()
 	if err != nil {
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.client_failed"))
 		return fail("Cannot open the Physical Host controller client; rerun the installer")
 	}
 	if flags.NArg() == 1 {
 		response, err := client.SetupProject(ctx, flags.Arg(0), update)
 		if err != nil {
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.project_request_failed"))
 			return fail("Project setup request failed")
 		}
 		result := response.Result
@@ -98,83 +99,86 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		if result.Execution.StdoutTruncated || result.Execution.StderrTruncated {
-			fmt.Fprintln(stderr, "haco: setup output was truncated")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.truncated"))
 		}
 		if response.Failed {
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.project_failed"))
 			stage, code := safeProjectSetupFailure(result.FailureStage, response.FailureCode)
 			logging.Root().ErrorContext(ctx, "Project setup failed; correct the script or Environment and rerun haco setup", "component", "cli", "operation", "setup", "stage", stage, "error_code", code, "exit_code", result.Execution.ExitCode)
 			return 1
 		}
 		if result.Cleared {
-			fmt.Fprintln(stdout, "Saved project setup removed.")
+			_, _ = fmt.Fprintln(stdout, cliMessage("setup.project_cleared"))
 		} else if result.Applied {
-			fmt.Fprintln(stdout, "Project setup completed.")
+			_, _ = fmt.Fprintln(stdout, cliMessage("setup.project_completed"))
 		} else {
-			fmt.Fprintln(stdout, "No saved project setup. Use haco setup --script <path> <environment>.")
+			_, _ = fmt.Fprintln(stdout, cliMessage("setup.project_empty"))
 		}
 		return 0
 	}
-	fmt.Fprintln(stderr, "[running] controller_readiness")
+	_, _ = fmt.Fprintln(stderr, "[running] controller_readiness")
 	readyCtx, cancelReady := context.WithTimeout(ctx, controllerStartupTimeout)
 	readyErr := waitForSetupController(readyCtx, client)
 	cancelReady()
 	if readyErr != nil {
-		fmt.Fprintf(stderr, "[failed] controller_readiness reason=%s\n", hostsetup.Reason(readyErr))
-		fmt.Fprintln(stderr, "No setup request sent. Check haco doctor and the controller service on the WSL/Linux Physical Host.")
+		_, _ = fmt.Fprintf(stderr, "[failed] controller_readiness reason=%s\n", hostsetup.Reason(readyErr))
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.not_sent"))
 		return 1
 	}
-	fmt.Fprintln(stderr, "[succeeded] controller_readiness")
+	_, _ = fmt.Fprintln(stderr, "[succeeded] controller_readiness")
 	requestID := ""
 	setupErr := client.SetupHostProgress(ctx, update, func(id string, e hostsetup.Event) {
 		if requestID == "" {
 			requestID = id
-			fmt.Fprintln(stderr, "Setup request:", id)
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.request"), id)
 		}
-		fmt.Fprintf(stderr, "[%s] %s", e.State, e.Stage)
+		_, _ = fmt.Fprintf(stderr, "[%s] %s", e.State, e.Stage)
 		if e.Reason != "" {
-			fmt.Fprint(stderr, " reason=", e.Reason)
+			_, _ = fmt.Fprint(stderr, " reason=", e.Reason)
 		}
-		fmt.Fprintln(stderr)
+		_, _ = fmt.Fprintln(stderr)
 	}, func(result recipes.HostResult) {
-		fmt.Fprintf(stderr, "Host script: state=%s sha256=%s exit_code=%d\n", result.State, result.Digest, result.Execution.ExitCode)
+		_, _ = fmt.Fprint(stderr, cliMessage("setup.host_result", result.State, result.Digest, result.Execution.ExitCode))
 		if *resultOnly {
-			fmt.Fprint(stdout, result.Execution.Stdout)
-			fmt.Fprint(stderr, result.Execution.Stderr)
+			_, _ = fmt.Fprint(stdout, result.Execution.Stdout)
+			_, _ = fmt.Fprint(stderr, result.Execution.Stderr)
 			if result.Execution.StdoutTruncated || result.Execution.StderrTruncated {
-				fmt.Fprintln(stderr, "haco: saved script output was truncated")
+				_, _ = fmt.Fprintln(stderr, cliMessage("setup.saved_truncated"))
 			}
 		} else if result.State == "failed" || result.State == "running" {
-			fmt.Fprintln(stderr, "Inspect output: haco setup --script-result. Reapply deliberately: haco setup --reapply-script.")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.inspect_result"))
 		}
 	})
 	if err := setupErr; err != nil {
-		fmt.Fprintln(stderr, "Setup completion is not confirmed. Completed stages are shown above; resources may remain. Current resource state is unknown until inspected.")
-		fmt.Fprintln(stderr, "Next: haco doctor. Do not delete resources or blindly replay a saved customization script.")
-		fmt.Fprintln(stderr, "Diagnostics (WSL/Linux Physical Host, administrator): journalctl -u haco-controller.service --since '30 minutes ago' --no-pager")
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.unconfirmed"))
+		_, _ = fmt.Fprintln(stderr, cliMessage("setup.inspect_before_retry"))
+		_, _ = fmt.Fprintln(stderr, cliMessage("daily.journal"))
 		if requestID != "" {
-			fmt.Fprintln(stderr, "Find request_id:", requestID)
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.find_request"), requestID)
 		}
 
 		var status *control.StatusError
 		switch {
 		case ctx.Err() != nil:
-			fmt.Fprintln(stderr, "Observation canceled or timed out; controller setup may still be running. Inspect diagnostics before another operation.")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.observation_ended"))
 			return 1
 		case errors.Is(err, control.ErrUnavailable):
-			fmt.Fprintln(stderr, "Controller unavailable; inspect the controller service before another operation.")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.unavailable"))
 			return 1
 		case errors.Is(err, control.ErrProtocol):
-			fmt.Fprintln(stderr, "Controller progress protocol unavailable or incomplete; inspect diagnostics and installed client/controller versions.")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.protocol"))
 			return 1
 		case errors.As(err, &status) && status.Code == "busy":
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.busy"))
 			return fail("[running] setup reason=busy; another setup owns the operation. Wait and inspect its diagnostics")
 		case errors.As(err, &status) && status.Code == "customization_failed":
-			fmt.Fprintln(stderr, "haco: stage=customization reason=failed; Host prepared, but customization failed; fix your script and rerun haco setup --script <path>, or use --clear-script")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.customization_failed"))
 			return 1
 		case errors.As(err, &status) && status.Code == "setup_failed":
-			fmt.Fprintln(stderr, "haco: Host setup failed; inspect haco doctor and the setup request in the journal")
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.host_failed"))
 			return 1
 		default:
+			_, _ = fmt.Fprintln(stderr, cliMessage("setup.host_failed"))
 			return fail("Host setup failed; inspect haco doctor and the setup request in the journal")
 		}
 	}
@@ -182,14 +186,14 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if *clear {
-		fmt.Fprintln(stdout, "Saved Host script removed; previous effects and last result retained.")
+		_, _ = fmt.Fprintln(stdout, cliMessage("setup.host_cleared"))
 		return 0
 	}
 	if *reapply {
-		fmt.Fprintln(stdout, "Host script completed.")
+		_, _ = fmt.Fprintln(stdout, cliMessage("setup.host_completed"))
 		return 0
 	}
-	if _, err := fmt.Fprintln(stdout, "Host resources prepared. Run haco doctor to verify readiness."); err != nil {
+	if _, err := fmt.Fprintln(stdout, cliMessage("setup.ready")); err != nil {
 		return fail("Could not write setup result")
 	}
 	return 0

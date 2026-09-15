@@ -469,3 +469,9 @@ read-only controller readiness wait as login before reading a review request or
 forwarding client bytes. WSL process startup does not prove the controller socket
 exists. Only transport-unavailable ping is retried; rejection and actual operations
 are not replayed. Parent cancellation still terminates the exact private child.
+
+The installed forwarding fixture starts its application's 40-second accept wait
+only after client-listener readiness (and native Windows ownership observation).
+A private fixture-input byte arms the application within a separate 180-second
+startup bound; missing input, EOF and incomplete exchanges fail. Product tunnel
+lifetimes, application exchange assertions and cancellation checks are unchanged.
