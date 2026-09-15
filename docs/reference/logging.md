@@ -122,7 +122,7 @@ Record `duration_ms` for operations where latency helps distinguish failure mode
 
 - Environment create/exec/delete;
 - Incus lifecycle operations;
-- image acquisition and Seed construction;
+- image acquisition and Base builds;
 - network/storage initialization;
 - Git fetch/push;
 - cleanup and recovery.

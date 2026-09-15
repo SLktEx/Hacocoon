@@ -29,8 +29,7 @@ Incus pool: haco-local-default
         v
 /var/lib/incus/storage-pools/haco-local-default
   |- cached Base image volumes
-  |- Tooling Base builders
-  |- Seed builders / cached Seed image volumes
+  |- Base builder Environments
   |- trusted haco-host rootfs
   |- Environment rootfs volumes
   `- Incus snapshots / clones
@@ -40,18 +39,17 @@ Incus owns creation of the backing image, loop attachment, Btrfs formatting, mou
 
 ## Sparse file versus WSL sparse VHD
 
-Incus' loop-backed Btrfs pool uses a sparse **Linux file**. The logical 128 GiB pool size is not eagerly allocated in full. This is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design; Windows-host VHDX reclamation remains an explicit Host/operator concern.
+Incus' loop-backed Btrfs pool uses a sparse **Linux file**. The logical 128 GiB pool size is not eagerly allocated in full. This is separate from WSL's `sparseVhd` / sparse-VHDX mode. Hacocoon does not enable WSL sparse-VHD mode as part of this storage design; Windows-host VHDX reclamation is an explicit [reclamation operation](storage-reclamation.md).
 
 ## Why rootfs objects share one pool
 
-Base, Tooling, Seed, trusted-host, and Environment rootfs data share the Hacocoon Btrfs pool so Incus can apply its Btrfs storage-driver behavior across their lifecycle:
+Base images, builder Environments, trusted-host and ordinary Environment rootfs data share the Hacocoon Btrfs pool so Incus can apply its Btrfs storage-driver behavior across their lifecycle:
 
 - transparent Btrfs compression reduces physical bytes where data is compressible;
 - Incus Btrfs snapshots and clones can preserve copy-on-write sharing;
-- Seed-derived Environments can share unchanged extents where supported;
 - storage maintenance stays scoped to Hacocoon rootfs data rather than arbitrary Host data.
 
-Hacocoon does not create a separate Btrfs filesystem or loop image per Environment or Seed merely for isolation. Incus volumes/subvolumes provide logical isolation inside the shared pool.
+Hacocoon does not create a separate Btrfs filesystem or loop image per Environment merely for isolation. Incus volumes/subvolumes provide logical isolation inside the shared pool.
 
 ## Managed mount policy
 
@@ -69,7 +67,7 @@ Mount options mainly affect newly written extents. Hacocoon does not automatical
 
 The local composition configures a lazy storage provider. Opening a command that does not need Incus root storage does not create the pool.
 
-Before the first Environment, Tooling Base builder, Seed builder, or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. Subsequent Hacocoon-owned rootfs operations reuse that pool rather than the Host's unrelated Incus default-profile pool.
+Before the first Environment, Base builder or trusted host needs root storage, the provider checks for `haco-local-default`. If it does not exist, Hacocoon asks Incus to create the Btrfs loop pool with the desired size and mount options. Subsequent Hacocoon-owned rootfs operations reuse that pool rather than the Host's unrelated Incus default-profile pool.
 
 When `haco-local-default` already exists, Hacocoon reconciles `btrfs.mount_options` to `compress=zstd:3,noatime,nodiscard` before reuse. The populated pool is not destructively recreated; Incus remains the lifecycle and remount owner.
 

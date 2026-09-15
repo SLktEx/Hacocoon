@@ -29,8 +29,7 @@ Incus pool: haco-local-default
         v
 /var/lib/incus/storage-pools/haco-local-default
   |- cached Base image volumes
-  |- Tooling Base builders
-  |- Seed builders / cached Seed image volumes
+  |- Base builder Environments
   |- trusted haco-host rootfs
   |- Environment rootfs volumes
   `- Incus snapshots / clones
@@ -40,18 +39,17 @@ backing イメージ作成、loop attach、Btrfs 形式、mount/unmount ライ�
 
 ## sparse file と WSL sparse VHD は別物
 
-Incus の loop-backed Btrfs プールはスパースな **Linux ファイル** を使い、logical 128GiB を最初から全量 physical allocate しない。これは WSL の `sparseVhd` / sparse-VHDX モードとは別で、Hacocoon はこのストレージ design のために WSL sparse-VHD モードを有効化しない。Windows Host 側 VHDX の reclamation は明示的な Host/operator 運用として扱う。
+Incusのloop-backed Btrfsプールはスパースな **Linuxファイル** を使い、論理サイズ128GiBを最初から全量確保しない。これはWSLの`sparseVhd`/sparse-VHDXモードとは別で、Hacocoonはこのstorage設計のためにWSL sparse-VHDモードを有効化しない。Windows Host側VHDXの回収は、明示的な[容量回収操作](storage-reclamation.ja.md)として扱う。
 
 ## なぜ rootfs object を同じ pool で共有するのか
 
-Base、Tooling、Seed、信頼された Host、Environment の rootfs データを同じ Hacocoon Btrfs プールへ置き、Incus の Btrfs storage-driver behavior をライフサイクル全体へ適用する。
+Base image、ビルド用Environment、信頼されたHost、通常のEnvironmentのrootfsデータを同じHacocoon Btrfsプールへ置き、IncusのBtrfs storage driverによる処理をライフサイクル全体へ適用する。
 
 - 圧縮しやすいデータは Btrfs transparent compression で physical バイト列を減らせる。
 - Incus Btrfs スナップショット / clone で copy-on-write sharing を維持できる。
-- ストレージ driver が共有できる範囲では Seed 由来 Environment が unchanged extent を共有できる。
 - ストレージ maintenance を任意の Host データではなく Hacocoon rootfs データへ限定できる。
 
-隔離のためだけに Environment や Seed ごとへ別 Btrfs ファイルシステム / loop イメージを作らない。論理隔離は共有プール内の Incus ボリューム / subvolume が担当する。
+隔離のためだけにEnvironmentごとへ別Btrfsファイルシステムやloop imageを作らない。論理隔離は共有プール内のIncus volume/subvolumeが担当する。
 
 ## managed mount policy
 
@@ -69,7 +67,7 @@ compress=zstd:3,noatime,nodiscard
 
 local 構成はストレージプロバイダーを lazy に設定する。Incus root ストレージを必要としないコマンドを開いただけではプールを作らない。
 
-最初に Environment、Tooling Base ビルダー、Seed ビルダー、信頼された Host などが root ストレージを必要とした時点で `haco-local-default` を確認し、存在しなければ desired size とマウントオプションを Incus へ渡して loop-backed Btrfs プールを作成させる。その後の Hacocoon-owned rootfs operation は Host の無関係な Incus default-profile プールではなくこのプールを使う。
+最初にEnvironment、Baseビルダー、信頼されたHostなどがroot storageを必要とした時点で`haco-local-default`を確認し、存在しなければ指定のサイズとmount optionをIncusへ渡してloop-backed Btrfsプールを作成させる。その後のHacocoon所有rootfsの操作は、Hostの無関係なIncus default-profileプールではなくこのプールを使う。
 
 既存の `haco-local-default` がある場合は、再利用前に `btrfs.mount_options` を `compress=zstd:3,noatime,nodiscard` へ照合・調整する。populated プールを破壊・再作成せず Incus プール設定を更新し、lifecycle/remount 所有権も Incus に残す。
 
