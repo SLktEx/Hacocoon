@@ -476,3 +476,6 @@ After #663 merged as main `9da3ec8f`, #666 was rebased to `18073ee7` with
 an identical file tree to `7ed40fe5`. Only this evidence and status summary were
 then updated; the prior source-bound results are preserved, not relabeled as CI
 success for a new head.
+
+
+Integrating main `ef443132` as `a0352044` initially failed the full local entry (52.96s): the automatic merge duplicated three `run` help catalog keys, preventing compilation and the milestone blackbox build. Later checks were not run in that attempt. Removing the identical duplicate entries fixed the build; the corrected combined source passed full local tests (57.89s), CLI E2E (8.06s) and docs/regressions (9.86s). The earlier Windows `compact_attached` failure remains unexplained.

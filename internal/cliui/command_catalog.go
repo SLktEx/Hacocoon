@@ -1,9 +1,6 @@
 package cliui
 
 var commandCatalog = map[string]translation{
-	"run.flag_workspace":               {"existing Workspace to retain (default: temporary)", "保持する既存Workspace（省略時は一時領域）"},
-	"run.flag_readonly":                {"mount the selected Workspace read-only", "指定したWorkspaceを読み取り専用にする"},
-	"run.flag_rm":                      {"remove the Environment after execution (always enabled)", "実行後にEnvを削除する（常に有効）"},
 	"help.daily.footer":                {"Options go before the target. Progress/diagnostics use stderr. Build/test in the Env after open. Blank terminal selection cancels; scripts should name the Env.", "オプションは対象の前に指定します。進捗と診断はstderrへ出力します。open後の環境でビルドやテストを実行してください。端末での未入力は中止です。スクリプトでは環境名を指定してください。"},
 	"help.daily.delete":                {"Delete the Env rootfs; retain Workspace/OCI/snapshots", "環境のrootfsを削除し、Workspace・OCIデータ・snapshotを保持する"},
 	"help.daily.stop":                  {"Stop work, keeping the Env and data", "環境とデータを残して停止する"},
