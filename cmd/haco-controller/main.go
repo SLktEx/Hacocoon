@@ -62,6 +62,9 @@ func main() {
 	if err := controlapi.Register(server, app.Environments, app.Clients); err != nil {
 		fail(err)
 	}
+	if err := controlapi.RegisterForwardStreams(server, app.Clients); err != nil {
+		fail(err)
+	}
 	if err := controlapi.RegisterBaseManage(server, app.BaseManage); err != nil {
 		fail(err)
 	}

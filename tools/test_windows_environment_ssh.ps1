@@ -542,6 +542,11 @@ fi
         Write-Host 'SKIP: automatic desktop SSH setup acceptance uses the disposable GHA Windows profile'
     }
 
+    # Reuse this exact test-owned Env; the ordinary terminal chooses its
+    # installed Windows client without a helper path or distribution flag.
+    & python (Join-Path $PSScriptRoot 'windows-tunnel-entry-e2e.py') --env $EnvironmentName --distro $Distro
+    if ($LASTEXITCODE -ne 0) { throw 'Ordinary Windows tunnel acceptance failed.' }
+
     # A changed key must fail closed before any remote command is executed.
     $wrongKey = (Get-Content -Raw -LiteralPath $PublicKey).Trim() -split '\s+'
     [IO.File]::WriteAllText($KnownHosts, "haco-$EnvironmentName $($wrongKey[0]) $($wrongKey[1])`n", [Text.UTF8Encoding]::new($false))

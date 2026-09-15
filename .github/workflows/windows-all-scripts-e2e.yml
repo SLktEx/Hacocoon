@@ -30,7 +30,7 @@ jobs:
       - name: "[fixture] Test native Windows reclamation boundaries"
         shell: pwsh
         run: |
-          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl
+          go test -v -timeout 3m ./internal/wslreclaim ./internal/reclaimclient ./cmd/haco-wsl ./cmd/haco-tunnel ./internal/clientforward ./internal/wsllaunch ./internal/streamio
           if ($LASTEXITCODE -ne 0) { throw "Native Windows reclamation tests failed." }
 
       - name: "[infrastructure] Install pinned GoReleaser"
@@ -69,8 +69,8 @@ jobs:
           $releaseConfig = Get-Content -LiteralPath ./.goreleaser.yaml -Raw
           $matrix = "goarch: [amd64, arm64]"
           $matrixCount = ([regex]::Matches($releaseConfig, [regex]::Escape($matrix))).Count
-          if ($matrixCount -ne 9) {
-            throw "Expected 9 dual-arch GoReleaser build matrices, found $matrixCount; review the E2E projection before changing release config."
+          if ($matrixCount -ne 10) {
+            throw "Expected 10 dual-arch GoReleaser build matrices, found $matrixCount; review the E2E projection before changing release config."
           }
           $releaseConfig = $releaseConfig.Replace($matrix, "goarch: [amd64]")
           $e2eConfig = Join-Path $env:RUNNER_TEMP "goreleaser-windows-amd64-e2e.yaml"
@@ -82,6 +82,7 @@ jobs:
             "dist/haco_linux_amd64.tar.gz",
             "dist/haco_review_windows_amd64.zip",
             "dist/haco_wsl_windows_amd64.zip",
+            "dist/haco_tunnel_windows_amd64.zip",
             "dist/checksums.txt"
           ) | ForEach-Object {
             if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {

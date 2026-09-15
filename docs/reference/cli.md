@@ -83,3 +83,7 @@ the whole group's future Environments. Partial cleanup returns nonzero and retai
 its result in JSON; inspect history before retrying. See [cache generations](../design/cache-generations.md#inspect-and-clear-collected-data).
 
 `haco cache recover [--json] <env> <area>` resumes positively completed collection through exact ownership and provider verification. It does not prompt for deletion or copy data again. A current source is reusable; stale completed candidates remain retained. Unknown completion remains an error. See [recovery](../design/cache-generations.md#recover-completed-collection).
+
+## Local application tunnel
+
+Run `haco env tunnel --target-port 8080 demo` from ordinary Host entry and connect an application to the address it prints. The default port is automatic, the maximum duration is one hour, and Ctrl+C closes all connections. Native Linux listens locally; WSL entry uses the installed Windows client. Direct PowerShell use: `& <installed-haco-tunnel.exe> --distribution <WSL-name> --target-port 8080 demo`. The installer prints its location. See [transport and prerequisites](../design/controller-client-transport.md#client-tcp-listeners).

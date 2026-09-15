@@ -155,3 +155,5 @@ preserved. This setting changes only the final wait, not installation checks.
 $env:HACO_INSTALL_NO_PAUSE = '1'
 cmd /c .\install-windows.bat
 ```
+
+For local application services, ordinary Host entry supports `haco env tunnel --target-port 8080 demo`. Connect to the printed address and stop it with Ctrl+C. The installed Windows companion owns the listener when launched from WSL. Its fixed installation path is also printed by the installer for direct PowerShell use; no PATH change is needed. See [client transport](../design/controller-client-transport.md#client-tcp-listeners).

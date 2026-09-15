@@ -14,6 +14,10 @@ func (*Runtime) DialEnvironmentNetwork(context.Context, string, string, string, 
 	return nil, core.ErrUnsupported
 }
 
+func (*Runtime) DialEnvironmentTCP(context.Context, string, string, string, int) (net.Conn, error) {
+	return nil, core.ErrUnsupported
+}
+
 func (*Runtime) HostNetworkAddress(context.Context, netip.Addr) error { return core.ErrUnsupported }
 func (*Runtime) DialDevelopmentNetwork(context.Context, netip.Addr, string, int, bool) (net.Conn, error) {
 	return nil, core.ErrUnsupported

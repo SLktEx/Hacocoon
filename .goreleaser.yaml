@@ -95,6 +95,15 @@ builds:
     flags: [-trimpath]
     ldflags: [-s -w]
 
+  - id: haco-tunnel
+    main: ./cmd/haco-tunnel
+    binary: haco-tunnel
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
 archives:
   - id: haco
     ids:
@@ -117,6 +126,11 @@ archives:
     ids: [haco-wsl]
     formats: [zip]
     name_template: "haco_wsl_{{ .Os }}_{{ .Arch }}"
+
+  - id: windows-tunnel
+    ids: [haco-tunnel]
+    formats: [zip]
+    name_template: "haco_tunnel_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt

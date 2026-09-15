@@ -148,3 +148,7 @@ Capability sessions.
 ## Development acceptance
 
 See [commit-bound acceptance and unresolved Windows-service failures](../status/acceptance-evidence.md#development-branch-integration).
+
+## Client application access
+
+`haco env tunnel` places the listener in the client network namespace through the existing private controller. It creates no persistent Incus proxy. [Client transport](controller-client-transport.md#client-tcp-listeners) owns its creation identity, Windows delegation and cancellation. Guest-originated network connections retain their separate authority above.

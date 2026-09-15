@@ -4,7 +4,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY 制御、汎用ポート転送 CLI、遠隔通信は未実装です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
 
 ## 概要
 
@@ -335,3 +335,94 @@ Windows 操作権限も与えません。[対象識別の取得](storage-reclama
 接続切断時は中断し、結果や通信完了が確認できなければ不明として残します。既存の端末サイズ制御と
 providerの任意の実行契約を使い、clientにIncus管理権限を渡しません。[一時実行](temporary-execution.ja.md)と
 [ADR 0085](../adr/0085-bounded-process-streams.md)を参照してください。
+
+## client側TCP待受
+
+状態: private UDSを使うLinux clientの**実装候補**。
+`haco env tunnel --target-port 8080 demo`は、通常のLinuxでは実行場所で、WSL／trusted Hostの
+入口では導入済みWindowsクライアントへ自動委譲して待ち受けます。接続ごとにcontroller byte sessionへ流します。出力は接続先と次の操作を
+案内します。`--listen`の既定は`127.0.0.1:0`（自動port）、`--address`はEnv内の
+`127.0.0.1`、`--duration`は`1h`（`1s`〜`1h`）です。数値ループバックIPv4/IPv6を
+指定でき、hostname・zone・mapped IPv6・非ループバック宛先は拒否します。
+Ctrl+Cと期限切れで待受と転送中の接続を終了します。同時16接続を超える接続は
+upstreamを開かずに閉じます。
+
+`environment.forward.prepare`が作成世代付きの選択を返し、
+`environment.forward.stream`がready metadata・active lease・実行状態・正確な
+provider世代を検証して接続します。guest endpointには登録しません。管理socketの
+既存アクセス制御を使用し、guest発のnetwork Capability権限とは独立しています。
+adapterはEnvのIPを使い回さず対象namespaceを固定します。controllerは所有された
+stream callback内でsocketを開き、アプリbyteより先に接続結果を返し、最終session
+結果も区別します。半切断は直ちに伝え、両方向終了後に完了を待ちます。
+途中のcloseはprivate管理endpointの`_control.session.cancel`で終了を求め、
+stream回収後の応答を最大6秒待ちます。失敗・キャンセル時はsocketを閉じてcopy
+workerの終了を待ちます。controllerへ到達できなければ遠隔の回収は未確認であり、
+controller側の1時間の絶対期限が上限です。EOFを無視する接続先も、応答済みの
+キャンセル後には残りません。
+
+永続Incus転送deviceは作りません。既存の`env forward`とSSH／previewは利用できます。
+Windows側待受から`wsl.exe`を通す公開companionは以下の実装候補です。導入済み
+Windows／WSL経由の受入は未確認です。通常のLinuxのtrusted Host clientはHost内で待ち受けます。
+汎用process callerの統合もpartialです。[ADR 0091](../adr/0091-client-stream-forwarding.ja.md)を参照してください。
+
+## Windowsのプロセス転送
+
+状態: **開発候補としてpartial**。`internal/wsllaunch`が選択した同一PCのWSLに対する
+固定の非表示`System32\wsl.exe`起動を組み立てます。controller転送の入力検証・最小限の環境変数をここで管理します。通知回答との起動処理の共通化は別途進めます。`haco _control-stdio`は継承した接続先設定を
+使わず、Physical Hostの固定UDSだけへ接続します。通常のWSL利用者とsocketの
+アクセス制御を維持し、rootへの変更・通常Envへの管理接続投影・TCP管理待受は
+追加しません。型付きclientは操作と別接続のsession制御の双方で同じdialerを使います。
+
+pipeでは上限付きデータと明示的な半切断frameを使い、pipe自体のEOFは異常切断です。
+headerはkind 1 byteとbig-endian長4 byteです。データはkind `0x10`・長さ1〜32768、
+EOFはkind `0x11`・長さ0です。不明kind・過大・途中切断・EOF後のframeは拒否します。
+期限切れは接続全体を終了し、期限更新後に古いtimerが接続を閉じる競合を防ぎます。
+キャンセルで所有pipeと起動した子だけを回収します。pipeの明示的な所有により、
+子の終了時にも受信済み応答を欠落させません。接続は最大10秒、橋渡しは最大1時間です。
+
+Windows→WSLの実fixtureによるbyte配送と導入済み製品の受入は別です。Windows側で
+待ち受ける公開companion・配置とWSLの通常入口からの自動委譲は**実装候補**です。内部stdio入口を
+利用者向けCLIとは扱いません。[ADR 0092](../adr/0092-wsl-process-transport.ja.md)を参照してください。
+
+## Windowsの公開転送クライアント
+
+`haco-tunnel.exe --distribution <WSL名> --target-port <ポート> [options] <Env名>`は
+Windows上で待ち受け、固定のWSL controller接続を使います。distribution指定は転送
+optionより先に置きます。Linux/Windowsで引数・対象準備・同時16接続・半切断・
+最大1時間・中断回収を共有します。Incus操作、管理待受、rootへのfallback、認証情報の
+取り込みは追加しません。日英の共通縦ヘルプはcontrollerなしで表示でき、失敗時は
+対象WSLの`haco doctor`と接続先アプリの確認を案内します。
+
+インストーラがamd64/arm64に対応したclientを恒久配置し、絶対path付きヘルプコマンドを
+表示します。利用者のPATH変更は不要です。`haco-wsl.exe`は導入・容量回収の責務を
+維持します。[配置と所有権](installer.md#windows-client-placement)を参照してください。
+明示的な公開入口も利用できます。WSLの`haco env tunnel`は導入済みWindowsクライアントを
+自動選択します。導入済みWindows/WSL/Incusの受入は残件です。
+
+## SSHとTCP転送の共通処理
+
+SSHと明示TCP転送は、上限付きの準備完了通知、byte relay、半切断、cancel、独立した最終結果を共用します。
+権限判断は各serviceに残します。SSHは保存されたgrantを照合して同じEnvを再開でき、
+明示TCP転送は稼働中Envを必要とします。準備期限はSSHが100秒、TCPが10秒です。
+準備後の通信に準備期限を引き継ぎません。一方向終了後の応答排出は共通relayで30秒に制限します。
+
+## Windows転送の自動起動
+
+状態: **実装候補**。WSLの環境情報は表示先を選ぶ手掛かりであり、権限ではありません。
+CLIはEnvの正確な作成世代を準備し、controllerから読み取り専用のWSL登録先・導入世代を取得して、
+インストーラが管理する利用者領域のクライアントを探します。通常のLinuxはローカル待受を維持します。
+連携機構・クライアント・所有記録の不足は日英で次の確認を案内し、別の場所で代わりに待ち受けません。
+
+内部要求には選択済みEnv、ループバック待受、言語、元の絶対期限だけを渡します。
+コマンド文字列・認証情報・providerの接続先は渡しません。Windows側は`wsl.exe --distribution-id`を使い、
+導入世代の識別子と現在のEnvの正確な選択を照合してから待ち受けます。以後の各接続でもcontrollerの世代・lease確認を維持します。
+手動の`--distribution`入口は利用者が明示した選択を使います。
+
+要求は4 byteのbig-endian長と最大8192 byteの厳密なJSONで、読み取りは10秒までです。追加の要求は受け付けません。
+親が保持する入力pipeを寿命の目印とし、EOFで待受・転送先を終了、余分なbyteは失敗にします。
+親のキャンセルはpipeを閉じ、終了を待ち、10秒応答しない場合は起動した子だけを終了します。
+Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所有するCLIが受けてpipe経由で中断します。
+親による直接の終了待ちは維持し、子の非zero終了を成功へ置換しません。
+委譲しても元の期限を延ばしません。結果と診断出力を分離します。実Windowsの構成要素試験と、
+`tools/windows-tunnel-entry-e2e.py`の通常導入経路は別の証拠です。
+[ADR 0093](../adr/0093-windows-tunnel-delegation.ja.md)を参照してください。

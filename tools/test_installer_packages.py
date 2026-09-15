@@ -37,6 +37,10 @@ with tempfile.TemporaryDirectory() as temp:
         with zipfile.ZipFile(helper, "w") as zf:
             zf.writestr("haco-wsl.exe", f"fake-wsl-{arch}".encode())
         checksum_lines.append(f"{digest(helper)}  {helper.name}\n")
+        tunnel = dist / f"haco_tunnel_windows_{arch}.zip"
+        with zipfile.ZipFile(tunnel, "w") as zf:
+            zf.writestr("haco-tunnel.exe", f"fake-tunnel-{arch}".encode())
+        checksum_lines.append(f"{digest(tunnel)}  {tunnel.name}\n")
 
     (dist / "checksums.txt").write_text("".join(checksum_lines), encoding="utf-8")
 
@@ -81,6 +85,7 @@ with tempfile.TemporaryDirectory() as temp:
                 "windows-review.ps1",
                 "haco-review.exe",
                 "haco-wsl.exe",
+                "haco-tunnel.exe",
                 "install.sh",
                 "incus-lts.sh",
                 "setup-wsl-host-interop.py",
@@ -98,6 +103,9 @@ with tempfile.TemporaryDirectory() as temp:
                 raise SystemExit(f"Windows {arch} package contains the wrong architecture")
             native_checksum = hashlib.sha256(f"fake-review-{arch}".encode()).hexdigest() + "  haco-review.exe\n"
             native_checksum += hashlib.sha256(f"fake-wsl-{arch}".encode()).hexdigest() + "  haco-wsl.exe\n"
+            native_checksum += hashlib.sha256(f"fake-tunnel-{arch}".encode()).hexdigest() + "  haco-tunnel.exe\n"
+            if zf.read("haco-tunnel.exe") != f"fake-tunnel-{arch}".encode():
+                raise SystemExit("Wrong Windows tunnel architecture")
             if zf.read("haco-wsl.exe") != f"fake-wsl-{arch}".encode():
                 raise SystemExit("Wrong Windows helper architecture")
             if zf.read("checksums.txt").decode() != checksum_line + native_checksum:
@@ -179,22 +187,24 @@ with tempfile.TemporaryDirectory() as temp:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
 
-    # Corrupt a release helper after checksums were produced. No Windows bundle
-    # may be published from a mismatched executable archive.
-    bad_helper = dist / "haco_wsl_windows_amd64.zip"
-    with bad_helper.open("ab") as stream:
-        stream.write(b"corrupted-after-checksum")
-    rejected_out = temp_root / "rejected"
-    rejected = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "package_installers.py"),
-         "--dist", str(dist), "--output", str(rejected_out),
-         "--version", VERSION, "--arch", "amd64"],
-        cwd=ROOT, capture_output=True, text=True,
-    )
-    if rejected.returncode == 0 or "Windows WSL helper archive checksum mismatch" not in rejected.stderr:
-        raise SystemExit("corrupt WSL helper archive was not refused")
-    if (rejected_out / "hacocoon-windows-amd64.zip").exists():
-        raise SystemExit("corrupt WSL helper published a Windows bundle")
+    # Neither the reclaim helper nor the tunnel client may be published after
+    # its verified archive bytes change. Both use the common extraction boundary.
+    for component, label in (("wsl", "WSL helper"), ("tunnel", "tunnel")):
+        bad_helper = dist / f"haco_{component}_windows_amd64.zip"
+        original = bad_helper.read_bytes()
+        bad_helper.write_bytes(original + b"corrupted-after-checksum")
+        rejected_out = temp_root / f"rejected-{component}"
+        rejected = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "package_installers.py"),
+             "--dist", str(dist), "--output", str(rejected_out),
+             "--version", VERSION, "--arch", "amd64"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if rejected.returncode == 0 or f"Windows {label} archive checksum mismatch" not in rejected.stderr:
+            raise SystemExit(f"corrupt {component} archive was not refused")
+        if (rejected_out / "hacocoon-windows-amd64.zip").exists():
+            raise SystemExit(f"corrupt {component} published a Windows bundle")
+        bad_helper.write_bytes(original)
 
 # A ConPTY cmd.exe session emits OSC title sequences before and after installer
 # output. Normalization must remove each OSC sequence independently instead of
