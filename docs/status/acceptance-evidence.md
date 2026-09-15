@@ -735,3 +735,12 @@ After DNS integration and v0.66 generation, the combined candidate passed focuse
 
 
 Integrating main9f5bc9e3 (DNS and named-data snapshot/copy) as ab77483f changed only evidence overlap during merge. Combined Git/GUI local tests105.78s, CLI7.58s, docs10.98s and workflow2.62s passed. The earlier Windows parallel cold SSH stream_denied remains unexplained; these local passes do not replace native acceptance.
+
+
+## Calling-thread network identity
+
+The native namespace regression FAILED11.20s with the former process-leader opener, reporting another thread's identity. After switching to the calling-thread namespace it PASSED23.70s using the same namespace authority. Focused13.84s, main-diff lint12.61s, full local33.40s, race18.79s, CLI4.29s, docs8.59s and workflow1.50s passed. Host-namespace refusal and dedicated-thread destruction remain unchanged. This establishes the defect and correction; earlier Windows stream_denied failures remain uncorrelated until installed reconnect runs.
+
+A fresh ordinary Windows installer from f68a8c6b completed on Hacocoon-Roadmap-f68a8c6b (Ubuntu26.04.1/Incus7.0.1), including storage/trusted Host, doctor DNS/HTTPS, Windows enrollment and notification registration. No test permission override was used. Supported named-data rootfs snapshot/copy/export/import PASSED76.26s/test76.23s; fixture saved-data-c1685c13e42f7479, catalog /var/lib/haco-saved-data-90071584/state.json. Fresh identities, independent edits, imported restart and exact cleanup passed. No human notification, authenticated Git or giant-repository claim.
+
+The separate repository-subdirectory attempt FAILED11.61s/test11.56s at capture: capability stale, Env left stopped. Fixture saved-data-ec2813c23b2ada60, catalog /var/lib/haco-saved-data-3393557504/state.json. This occurs on supported7.0.1 and is a product defect to investigate, separate from earlier6.0.5 missing APIs. Source cleanup ran; retained Workspace fixture records remain.

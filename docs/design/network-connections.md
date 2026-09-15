@@ -37,6 +37,11 @@ Env addresses and the Standard endpoint/common privileged daemon ports. A socket
 inside an Env namespace carries only application bytes; it exposes no namespace
 descriptor or management authority to the source guest.
 
+The Incus dialer compares the destination with the calling controller thread's
+network namespace, not the process leader's. A dedicated dial thread may be in
+another namespace while a parallel connection is prepared. Host-namespace refusal
+and all pinned identity checks remain mandatory; see [the thread identity decision](../adr/0096-calling-thread-network-identity.md).
+
 No session or single-use approval is inherited by Workspace copies. Existing
 administrator rules keep their explicit scope; an Environment-scoped saved
 choice applies only to its original creation. Global Policy continues to mean

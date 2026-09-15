@@ -116,3 +116,5 @@ Git push照合の後続: 42aa706fを再利用した実装済み候補。送信�
 **実装済み候補:** `haco env tunnel --target-port 8080 demo`でアプリ用のループバック待受を開きます。Linuxでは手元、通常のWSL/Host入口では導入済みWindowsクライアントを使い、Env作成実体とWSL登録を固定します。手元の操作を終了すると待受と接続も閉じます。引数、プロセス通信、中断、導入先は既存の開発成果を共通処理として再利用しています。新しい導入済み確認は別扱いで、DNSモードとVPN/NRPT受入は未完了です。[通信の契約](design/controller-client-transport.ja.md)を参照してください。
 
 名前解決の選択: 実装済み候補。Env作成時の`--dns host|backend|disabled`を受け付け、通常はPhysical Hostを使い、snapshot/copy/転送で設定を保持します。無効時はguestの処理を再起動してもcontrollerが問い合わせを拒否します。導入済み3モードの受入は未確認。[名前解決](design/name-resolution.ja.md)を参照。
+
+Incusの接続処理は、並列SSH・転送の準備時に呼び出し元Hostスレッドを識別する。[ADR0096](adr/0096-calling-thread-network-identity.ja.md)を参照。Host名前空間への接続拒否は維持し、スレッド実機回帰と導入後Windows再接続の受入を分ける。

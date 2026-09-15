@@ -644,3 +644,12 @@ DNS統合とv0.66生成後の候補は集中22.16秒、main全差分lint17.84秒
 
 
 main9f5bc9e3（DNSと追加データ保存・コピー）をab77483fとして統合し、競合した検証記録は両側を保持した。Git/GUI統合後の全ローカル105.78秒、CLI7.58秒、文書10.98秒、workflow2.62秒PASS。以前のWindows並列cold SSH stream_deniedは原因未解決であり、ローカル成功を実機受入の代わりにしない。
+
+
+## 呼び出しスレッドのネットワーク識別
+
+実機名前空間回帰は従来の先頭スレッド参照で11.20秒FAILし、別スレッドの識別を検出した。呼び出しスレッド参照へ変更後、同じ権限で23.70秒PASS。集中13.84秒、main差分lint12.61秒、全ローカル33.40秒、race18.79秒、CLI4.29秒、文書8.59秒、workflow1.50秒PASS。Host名前空間拒否と専用スレッド破棄を維持する。欠陥と修正の証拠であり、以前のWindows stream_deniedとの因果は導入後再接続で別途確認する。
+
+f68a8c6bから作成した通常WindowsインストーラがHacocoon-Roadmap-f68a8c6b（Ubuntu26.04.1/Incus7.0.1）で完了。storage・trusted Host・doctor DNS/HTTPS・Windows登録・通知登録を含み、試験用権限変更はない。対応版のrootfs追加データsnapshot/copy/export/importは76.26秒/test76.23秒PASS。fixture saved-data-c1685c13e42f7479、台帳 /var/lib/haco-saved-data-90071584/state.json。新しい所有権、独立変更、import後再開、共通cleanupを確認。人の通知回答・認証付きGit・巨大レポの成功とはしない。
+
+別のリポジトリ配下配置は11.61秒/test11.56秒でcapture時にFAIL。capability staleとなりEnvは停止状態を保持した。fixture saved-data-ec2813c23b2ada60、台帳 /var/lib/haco-saved-data-3393557504/state.json。対応7.0.1で起きる製品側の不具合として調査し、以前の6.0.5のAPI不足と区別する。元Envのcleanupは実行済みで、保持Workspace fixtureの記録を残す。
