@@ -17,6 +17,7 @@ const (
 	RepositoryRoot = "/var/lib/hacocoon-repos"
 	WorkspaceRoot  = "/var/lib/hacocoon-workspaces"
 	Capability     = "git.repository"
+	ZeroOID        = "0000000000000000000000000000000000000000"
 )
 
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
@@ -61,6 +62,7 @@ func ValidateRemote(s string) error {
 }
 
 type Request struct {
+	Heads      []Head `json:"heads,omitempty"`
 	Operation  string `json:"operation"`
 	Repository string `json:"repository"`
 	Ref        string `json:"ref,omitempty"`
@@ -70,6 +72,7 @@ type Request struct {
 }
 
 type Response struct {
+	Heads   []Head `json:"heads,omitempty"`
 	OID     string `json:"oid,omitempty"`
 	Ref     string `json:"ref,omitempty"`
 	Pack    []byte `json:"pack,omitempty"`
@@ -80,6 +83,8 @@ type Response struct {
 // AgentRequest is sent only from the controller to the verified trusted Host.
 // It is a separate type so guest requests cannot smuggle paths or upstreams.
 type AgentRequest struct {
+	Ref        string `json:"ref,omitempty"`
+	Heads      []Head `json:"heads,omitempty"`
 	Operation  string `json:"operation"`
 	Repository string `json:"repository"`
 	Workspace  string `json:"workspace,omitempty"`

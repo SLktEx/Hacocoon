@@ -116,6 +116,13 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	initial := testCommit(t, seed, "hello.txt", "initial\n")
 	testGit(t, seed, "remote", "add", "origin", "file://"+remote)
 	testGit(t, seed, "push", "origin", "main")
+	testGit(t, seed, "switch", "-c", "feature/topic.v2")
+	feature := testCommit(t, seed, "feature.txt", "separate branch\n")
+	testGit(t, seed, "push", "origin", "feature/topic.v2")
+	testGit(t, seed, "switch", "-c", "feature/independent", initial)
+	independent := testCommit(t, seed, "independent.txt", "another branch in one fetch batch\n")
+	testGit(t, seed, "push", "origin", "feature/independent")
+	testGit(t, seed, "switch", "main")
 	backend := localBackend{repos: filepath.Join(root, "repos"), workspaces: filepath.Join(root, "workspaces")}
 	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 	work := repo
@@ -124,6 +131,9 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	work.Owner = strings.Repeat("b", 32)
 	if _, err := backend.RunGit(context.Background(), AgentRequest{Operation: "clone", Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch}); err != nil {
 		t.Fatal(err)
+	}
+	if got := testGit(t, filepath.Join(backend.repos, "demo"), "rev-parse", "refs/remotes/origin/feature/topic.v2"); got != feature {
+		t.Fatal("Host clone omitted a non-default branch")
 	}
 	workspace := filepath.Join(backend.workspaces, "work")
 	testGit(t, root, "clone", "--no-local", filepath.Join(backend.repos, "demo"), workspace)
@@ -184,7 +194,52 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
 	t.Setenv("HACO_GIT_TEST_HELPER", "1")
 	t.Setenv("HACO_GIT_TEST_SOCKET", broker.socket("dev"))
+	testGit(t, seed, "switch", "feature/topic.v2")
+	feature = testCommit(t, seed, "private.txt", "must not be fetched under a per-ref deny\n")
+	testGit(t, seed, "push", "origin", "feature/topic.v2")
+	testGit(t, seed, "switch", "main")
+	// A prior read rule limited to main cannot silently grant all-heads reads.
+	limitedRead := `{"default":"deny","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"refs/heads/main","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"allow"}]}`
+	if err := os.WriteFile(policyPath, []byte(limitedRead), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UnixExchange(broker.socket("dev"))(ctx, Request{Operation: "list", Repository: "demo"}); err == nil {
+		t.Fatal("one-branch read rule authorized all heads")
+	}
+	deniedHead := `{"default":"allow","rules":[{"capability":"git.repository","action":"fetch","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"refs/heads/feature/topic.v2","old_oid":"*","new_oid":"*","operation_id":"*"},"decision":"deny"}]}`
+	if err := os.WriteFile(policyPath, []byte(deniedHead), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range []Request{{Operation: "list", Repository: "demo"}, {Operation: "fetch", Repository: "demo", Heads: []Head{{Ref: "refs/heads/feature/topic.v2", OID: feature}}}} {
+		if _, err := UnixExchange(broker.socket("dev"))(ctx, request); err == nil {
+			t.Fatal("broad reads bypassed exact-ref deny")
+		}
+	}
+	if _, err := trustedGit(ctx, filepath.Join(backend.repos, "demo"), nil, "cat-file", "-e", feature); err == nil {
+		t.Fatal("denied branch objects reached Host before authorization")
+	}
+	if err := os.WriteFile(policyPath, []byte(initialPolicy), 0600); err != nil {
+		t.Fatal(err)
+	}
 	testGit(t, workspace, "fetch", "origin")
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/feature/topic.v2"); got != feature {
+		t.Fatal("ordinary fetch omitted alternate branch")
+	}
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/feature/independent"); got != independent {
+		t.Fatal("ordinary batch fetch omitted independent history")
+	}
+	testGit(t, workspace, "switch", "--track", "origin/feature/topic.v2")
+	if got := testGit(t, workspace, "rev-parse", "HEAD"); got != feature {
+		t.Fatal("cannot switch to fetched branch")
+	}
+	testGit(t, workspace, "switch", "main")
+	// A newly advertised branch after clone must pass through the helper too.
+	testGit(t, seed, "branch", "second", feature)
+	testGit(t, seed, "push", "origin", "second")
+	testGit(t, workspace, "fetch", "origin")
+	if got := testGit(t, workspace, "rev-parse", "refs/remotes/origin/second"); got != feature {
+		t.Fatal("new upstream head omitted")
+	}
 	upstream := testCommit(t, seed, "upstream.txt", "pulled normally\n")
 	testGit(t, seed, "push", "origin", "main")
 	testGit(t, workspace, "pull", "--ff-only")
@@ -195,9 +250,12 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 		t.Fatal("guest modified trusted worktree")
 	}
 	approved := testCommit(t, workspace, "work.txt", "approved work\n")
-	push := func() (chan error, *bytes.Buffer) {
+	push := func(refs ...string) (chan error, *bytes.Buffer) {
+		if len(refs) == 0 {
+			refs = []string{"main"}
+		}
 		output := new(bytes.Buffer)
-		cmd := exec.Command("/usr/bin/git", "-C", workspace, "push", "origin", "main")
+		cmd := exec.Command("/usr/bin/git", append([]string{"-C", workspace, "push", "origin"}, refs...)...)
 		cmd.Stdout = output
 		cmd.Stderr = output
 		done := make(chan error, 1)
@@ -389,4 +447,95 @@ func TestOrdinaryGitFetchPullDeniedAndPinnedPush(t *testing.T) {
 	if bytes.Contains(data, []byte("approved work")) || bytes.Contains(data, []byte("PACK")) {
 		t.Fatal("audit contains transferred content")
 	}
+
+	t.Run("development branch creation and updates retain separate authority", func(t *testing.T) {
+		resetPolicy()
+		mainBefore := testGit(t, remote, "rev-parse", "main")
+		testGit(t, workspace, "checkout", "-b", "feature/work")
+		first := testCommit(t, workspace, "feature.txt", "first feature\n")
+		done, _ := push("feature/work")
+		proposal := waitProposal()
+		if proposal.Ref != "refs/heads/feature/work" || proposal.OldOID != ZeroOID || proposal.NewOID != first || proposal.SavedScope == nil || proposal.SavedScope.Attributes["update_kind"] != "create" {
+			t.Fatalf("creation proposal: %+v", proposal)
+		}
+		if err := broker.Decide(proposal.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		finishPush(done, false)
+		if got := testGit(t, remote, "for-each-ref", "--format=%(refname)", "refs/heads/feature/work"); got != "" {
+			t.Fatal("denied creation wrote a remote ref")
+		}
+		done, output := push("feature/work")
+		proposal = waitProposal()
+		later := testCommit(t, workspace, "later-feature.txt", "not yet approved\n")
+		if _, err := broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment}); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("create: %v %s", err, output)
+			}
+		case <-time.After(15 * time.Second):
+			t.Fatal("creation timed out")
+		}
+		if got := testGit(t, remote, "rev-parse", "feature/work"); got != first {
+			t.Fatal("creation did not pin the approved commit")
+		}
+		if err := broker.Decide(proposal.ID, true); err == nil {
+			t.Fatal("creation decision replayed")
+		}
+		// Saving create does not save update. The later commit needs a new answer.
+		done, _ = push("feature/work")
+		proposal = waitProposal()
+		if proposal.OldOID != first || proposal.NewOID != later || proposal.SavedScope.Attributes["update_kind"] != "fast-forward" {
+			t.Fatalf("update proposal: %+v", proposal)
+		}
+		if err := broker.Decide(proposal.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		finishPush(done, true)
+		if got := testGit(t, remote, "rev-parse", "feature/work"); got != later {
+			t.Fatal("update lost approved commit")
+		}
+		// Fetching all refs or saving a feature decision never grants main push.
+		done, _ = push("HEAD:refs/heads/main")
+		proposal = waitProposal()
+		if proposal.Ref != "refs/heads/main" {
+			t.Fatalf("main proposal: %+v", proposal)
+		}
+		if err := broker.Decide(proposal.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		finishPush(done, false)
+		if got := testGit(t, remote, "rev-parse", "main"); got != mainBefore {
+			t.Fatal("feature authority changed main")
+		}
+
+		// Both divergent and identical competing creations must fail closed.
+		for _, identical := range []bool{false, true} {
+			ref := fmt.Sprintf("refs/heads/race-%v", identical)
+			done, _ = push("HEAD:" + ref)
+			proposal = waitProposal()
+			competitor := mainBefore
+			if identical {
+				competitor = proposal.NewOID
+			}
+			testGit(t, remote, "update-ref", ref, competitor)
+			if err := broker.Decide(proposal.ID, true); err != nil {
+				t.Fatal(err)
+			}
+			finishPush(done, false)
+			if got := testGit(t, remote, "rev-parse", ref); got != competitor {
+				t.Fatal("overwrote competing creation")
+			}
+		}
+		for _, refs := range [][]string{{"HEAD:refs/heads/batch-a", "HEAD:refs/heads/batch-b"}, {"+HEAD:refs/heads/forced-new"}, {":refs/heads/feature/work"}} {
+			done, _ = push(refs...)
+			finishPush(done, false)
+			if len(broker.Pending()) != 0 {
+				t.Fatal("unsupported push requested approval")
+			}
+		}
+	})
 }

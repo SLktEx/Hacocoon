@@ -360,6 +360,40 @@ The candidate was rebased onto main `7e876bc1` without changing the Seed-retirem
 
 After PR #661 merged as main `44211fd2`, this Seed candidate was rebased while preserving both evidence sets. The verified combined source passed the full local test entry (13.96s), CLI E2E (3.41s) and documentation/regressions (4.96s). PR #661 final head passed all five workflows, including Windows run 34890523779. Seed head `8eda58ee` likewise passed all five workflows, including Windows run 34890531022; these remain results for their exact heads, not the rebased candidate.
 
+<a id="main-git-branches"></a>
+## Main Git branch workflow candidate
+
+This candidate reuses #585 (`d93f61fb`) and #587 (`7bdd3db6`) on main
+`7e876bc1`. An immutable source with 1,359 verified files passed Git/common
+review/capability/product tests (2.80s), the CI-pinned golangci-lint 2.13.2
+including new files with uncapped findings (5.00s), maintained local test CI
+(10.98s), related race tests (23.59s), shipped CLI E2E (3.03s) and documentation
+checks/regressions (4.49s), using Go 1.27.1.
+
+Real local Git fixtures cover multiple heads and ref denial, moved/deleted heads,
+new-branch denial, fixed approved commits, separate create/update saved choices,
+main remaining subject to approval, concurrent different/identical creation, and
+refusal of force/deletion/multiple refs. These are component results, not installed
+Incus, authenticated GitHub, human GUI or large-repository acceptance.
+
+The first focused invocation named nonexistent `internal/approvalreview`; the
+existing Git, capability and product packages passed but the invocation failed.
+The corrected package is `internal/review`. The first lint patch incorrectly
+disabled Windows Git newline conversion and included unchanged files; its broad
+findings are not presented as new-code findings. With the correct diff, lint
+found two capitalized error strings and one switch simplification in the reused
+code. They were corrected, then all final checks above passed. The earlier
+invocation/lint failures remain recorded separately.
+
+After Seed retirement merged as main `119e3007bc55333841a076f53d774be22ea5b711`,
+PR #663 was rebased without changing its Git implementation. Combined local tests
+(15.80s), CLI E2E (3.59s) and documentation/regressions (5.16s) passed. The old
+head `6b436e4d` passed all five CI workflows, including Windows 34892114103;
+those results are not substituted for this updated head. Seed #662 final head
+`50e692d6` passed all five workflows, including Windows 34894991920 and the
+same-commit evidence job 104155046690. No earlier failure or human acceptance gap
+is erased by either result.
+
 ## Detailed guidance and single Host tool preparation
 
 Candidate `4d7435cc` reuses #592/#593 and #659 on main `44211fd2`. Current
