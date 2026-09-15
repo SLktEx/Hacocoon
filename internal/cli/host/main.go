@@ -163,12 +163,11 @@ func parseCreateRequest(args []string) (controlapi.EnvironmentCreateRequest, err
 			request.WorkspacePath = args[1]
 			args = args[2:]
 		default:
-			if len(args) != 1 {
-				return controlapi.EnvironmentCreateRequest{}, fmt.Errorf("unknown create option %q: %w", args[0], core.ErrInvalidArgument)
-			}
+			return controlapi.EnvironmentCreateRequest{}, fmt.Errorf("unknown create option %q: %w", args[0], core.ErrInvalidArgument)
 		}
 	}
-	if len(args) != 1 || strings.TrimSpace(request.WorkspacePath) == "" {
+	// A trailing option is an incomplete command, never the Environment name.
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" || strings.HasPrefix(args[0], "-") || strings.TrimSpace(request.WorkspacePath) == "" {
 		return controlapi.EnvironmentCreateRequest{}, usageError()
 	}
 	request.Name = args[0]
