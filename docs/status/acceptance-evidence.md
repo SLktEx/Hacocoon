@@ -1666,3 +1666,40 @@ or run, and the earlier guest dependency HTTP403 is not resolved by this result.
 Read-only inspection found another active Go process in the dedicated local WSL
 and about 11 GB free on C:. Its installation, services and Policy were left intact;
 no new distribution, restart or broader communication rule was used for acceptance.
+
+### Repeated Windows detachment refusal and process observations
+
+The following later Windows public reclamation attempts failed with
+`compact_attached`, after successful Linux stages and stop requests. Each made
+359 native open attempts without starting compaction. Ordinary installation,
+HTTPS, SSH/editor/forwarding and the separate Linux reclamation gate passed;
+the later notification gate was skipped.
+
+| Exact head | Windows run / job | Same-target resume |
+|---|---|---|
+| `9a8a7d07f93677690c04cb6124c8d78bb5373965` (#704, before rebase) | 35006335176 / 104506895607 | failed |
+| `4c94462ffd6e42d5f1e831cff41224fe051021ba` (#704) | 35008285127 / 104513489162 | passed |
+| `c0692cdf327be7f809333c2a9ea23753bd1f5661` (#705, before documentation update) | 35009099013 / 104516251265 | passed |
+
+Earlier successful allocation recovery remains valid within its recorded scope;
+these later failures remain unresolved under #381. Virtual observation handles
+are closed between attempts, the public driver never reenters WSL before worker
+completion, and its separate reader continues draining ConPTY. Existing receipts
+cannot distinguish Linux shutdown delay, WSL detachment delay or another restart.
+
+Implementation `356b8c509107aa0f37eec5ce04aefe274b604e44` adds Windows-only CIM
+process counts to the public test's existing worker observation. Only changed
+counts, elapsed time and fixed scope/state fields are logged. Counts describe all
+visible WSL processes, not selected-distro ownership or detached-disk authority.
+No product operation, timeout, permission, retry or automatic WSL entry changes.
+Unavailable diagnostics preserve the original failure.
+
+Windows regressions passed (13 observation/refusal tests, 12 retention tests).
+The actual system PowerShell 5.1 query passed, observing three `wslhost.exe`, two
+`wsl.exe`, one `vmmemWSL` and no helper processes, without entering or stopping WSL.
+An independently archived Linux checkout passed observation tests0.21s,
+retention0.23s, maintained local CI docs19.17s and workflow policy3.64s. The WSL
+root-user-session warning was retained without repairs. Product Go code and
+workflow definitions are unchanged; the earlier full repository results remain
+scoped to their heads. These are diagnostic/component results, not a successful
+installed reclamation with the new observations or a fix for the above failures.

@@ -86,6 +86,12 @@ status succeeded after normal installation. That does not explain the earlier
 failure or prove a new start. An attempted global WSL restart was stopped by the
 pre-action guard after an unrelated running distribution was observed; no global
 shutdown occurred. Later, restarting only the dedicated WSL preserved the failure.
+Later #704/#705 Windows runs again refused compaction because the disk remained
+attached after the bounded wait. Preserve those failures alongside earlier recovery
+success. Windows-only process-count observations now support distinguishing the
+shutdown/detachment interval without restarting WSL, changing the product timeout
+or weakening refusal; their first installed result and the cause remain pending
+under #381. Counts alone never authorize compaction.
 Read-only comparisons isolate enrollment visibility to the init interop route;
 the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 
