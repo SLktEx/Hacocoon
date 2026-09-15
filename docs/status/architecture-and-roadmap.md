@@ -135,3 +135,10 @@ Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
 
 Installed create failed before provider creation because a different user owned the global temporary lifecycle directory. The development correction moves exclusion into the canonical catalog (ADR 0105); validate it through normal installation without changing the old temporary object. Windows tunnel phase timings now distinguish application readiness, Host entry and native-listener/data exchange, while keeping the previous limits and assertions. The cause of #697 remains unproven.
+
+The sequential multi-head fetch correction (`45555463`, included in #699's
+follow-up) allows aggregate batches above 32 MiB while keeping each independently
+authorized response bounded and indexed before the next. A single pack above
+32 MiB remains a functional transport limit; huge-repository performance is deferred.
+The same follow-up retains persistent catalog locks during completed Incus fixture
+cleanup (`d4c264a3`); the original failed Btrfs CI receipt remains recorded.

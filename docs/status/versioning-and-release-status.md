@@ -209,3 +209,5 @@ restore still creates independent data. Local regression and one installed
 Incus journey passed; this checkpoint does not complete M5 or publish a release.
 
 The catalog lifecycle-lock correction is a v0.68 usability fix, not a new checkpoint or release. Person-dependent login and GUI acceptance is explicitly post-release and does not gate integration of implemented work.
+
+Sequential multi-head fetch is another v0.68 usability correction: it removes a cumulative rejection without changing the per-pack or per-ref authority limits. It does not establish large-repository performance acceptance.

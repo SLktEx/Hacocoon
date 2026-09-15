@@ -1384,3 +1384,23 @@ change provider-absence checks or product locking.
 
 The normal ten-binary Linux/Windows installer package built from exact `1ae5b410`
 in 69.93s. It was not installed or published; no running WSL was stopped.
+
+## Sequential multi-head Git fetch
+
+Commit `45555463` removes the helper's aggregate-size rejection while retaining
+the 1024-head and 32 MiB per-response limits and separate exact-ref authorization.
+Each response is indexed before the next request. A real Git regression with two
+independent 17 MiB random-content branches failed on the previous implementation
+(`git batch exceeds supported pack size`, 18.41s command) and passed after the
+correction (9.69s command). Both commits' content was available after indexing;
+the two packs totalled 35,662,881 bytes and each stayed below 33,554,432 bytes.
+The initial test invocation had a host-shell parse error and did not run; the
+recorded failure/pass came from corrected invocations of the actual regression.
+
+Final local checks passed: Git regressions 18.23s, lint 28.19s, maintained whole
+test entry 47.06s, race 42.43s, CLI 5.57s, docs 9.77s, workflow policy 2.06s and
+native test compilation 1.72s. This is functional component evidence, not huge-repo
+performance or authenticated installed Git acceptance. Single packs over 32 MiB
+remain unsupported. `d4c264a3` separately corrected the Incus fixture cleanup,
+with focused regression 23.41s (test execution 0.041s) and lint 17.36s passing.
+Both changes were integrated locally without conflicts at `5980d18f`.
