@@ -192,6 +192,9 @@ func TestNativeToastProcessFixture(t *testing.T) {
 
 func TestNativeToastProcessFailureAndReaping(t *testing.T) {
 	t.Setenv("HACO_LOG_FORMAT", "text")
+	// The child exits directly to model a native process. Instrumented test
+	// binaries otherwise append a Go coverage warning to the protocol stderr.
+	t.Setenv("GOCOVERDIR", t.TempDir())
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
