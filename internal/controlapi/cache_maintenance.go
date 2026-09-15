@@ -38,11 +38,12 @@ func registerCacheMaintenance(server *control.Server, workflow *cache.Workflow) 
 			defer cancel()
 			var response CacheMaintenanceResponse
 			var err error
-			if method == MethodCacheHistory {
+			switch method {
+			case MethodCacheHistory:
 				response.History, err = workflow.History(ctx, request.Environment, request.Area)
-			} else if method == MethodCacheRecover {
+			case MethodCacheRecover:
 				response.Recovery, err = workflow.Recover(ctx, request.Environment, request.Area)
-			} else {
+			case MethodCacheClear:
 				response.Result, err = workflow.Clear(ctx, request.Environment, request.Area, request.Revision)
 			}
 			response.Failure = cache.WorkflowError(err)
