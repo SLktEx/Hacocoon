@@ -27,6 +27,11 @@ haco run --workspace managed:dev --read-only -- ls
 lease を持つ場合は、その Environment を削除してから貸し出します。停止は lease を保持します。
 独立した Workspace コピーを選ぶ方法もあります。
 
+失敗時は、生の実行基盤エラーを表示せず、固定の理由分類をstderrへ出します。
+`busy`の場合は停止後もWorkspaceの使用権が残ることを説明し、既存Envまたは独立コピーを
+案内します。この案内で削除・使用権解除・実行の再試行は行わず、片付け結果も変更しません。
+JSONはstdoutに保ち、拒否理由が分かっても未確認の片付けを成功扱いにしません。
+
 公開済み OCI 内容は一時 Workspace にも自動コピーし、--no-oci で無効化できます。
 公開内容がなければコピー対象はありません。実行基盤削除後に片付けるのは、
 その一時 Workspace に結び付いた既定のコピーだけです。Host Docker/nerdctl の公開や

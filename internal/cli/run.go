@@ -107,6 +107,7 @@ func temporaryCommandWithInput(ctx context.Context, args []string, stdin io.Read
 		}
 	}
 	if !result.CleanedUp {
+		temporaryFailureReason(diagnostic, runErr)
 		if result.Environment != "" {
 			_, _ = fmt.Fprintln(diagnostic, cliMessage("run.cleanup_unknown", displayCell(result.Environment)))
 		} else {
@@ -122,9 +123,21 @@ func temporaryCommandWithInput(ctx context.Context, args []string, stdin io.Read
 	if runErr != nil {
 		var exit interface{ ExitCode() int }
 		if !errors.As(runErr, &exit) || exit.ExitCode() != code || code == 0 {
+			temporaryFailureReason(diagnostic, runErr)
 			_, _ = fmt.Fprintln(diagnostic, cliMessage("run.execution_failed"))
 			return 1
 		}
 	}
 	return code
+}
+
+func temporaryFailureReason(out io.Writer, err error) {
+	if err == nil {
+		return
+	}
+	reason := dailyFailureReason(err)
+	_, _ = fmt.Fprintln(out, cliMessage("run.failure_reason", reason))
+	if reason == "busy" {
+		_, _ = fmt.Fprintln(out, cliMessage("run.busy"))
+	}
 }

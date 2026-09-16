@@ -22,11 +22,12 @@ are post-release acceptance items, not conditions for merging implemented work
 into main. Keep their unperformed status explicit without holding implementation
 delivery for them. This does not turn a known CI failure into a pass.
 
-Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) includes
+Main `bfa19ecb` / [#694](https://github.com/SLktEx/Hacocoon/pull/694) includes
 the earlier M0–M5 implementation, retained-data and lifecycle corrections from
 #687–#699, shared bilingual setup/network/configuration guidance from
 [#701](https://github.com/SLktEx/Hacocoon/pull/701) (including #700), and bounded
-Git pack streaming. Each merged checkpoint passed all five exact-head workflows.
+Git pack streaming, responsibility-based directories and removal of the old CLI.
+Each merged checkpoint passed all five exact-head workflows.
 Earlier HTTP503, attached-disk, TCP and #700 rerun failures remain in
 [acceptance evidence](acceptance-evidence.md); later success does not rewrite them.
 
@@ -58,7 +59,7 @@ Windows. Restoring the deliberately excluded old installation/application data
 is no longer a prerequisite. Ordinary product transfer/retention, guest-visible
 ownership and authenticated restored use retain their separate acceptance scopes.
 
-Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) now contains
+The earlier main checkpoint [#702](https://github.com/SLktEx/Hacocoon/pull/702) integrated
 the Git streaming correction after all five exact-head workflows passed. The
 single-pack functional limit is resolved within the documented 16 GiB budget;
 representative huge-repository performance remains deferred. Installed acceptance
@@ -70,8 +71,8 @@ of the new large-pack path is separate from the successful ordinary Git CI paths
 | M1 — understandable everyday use | Vertical help, language handoff, repeated-failure grouping, installer results, bilingual reclamation and setup/network/configuration results are on main. Other command families remain in the language contract. Human GUI/layout checks are post-release. The dedicated managed-user systemd-session warning remains a separate observation. |
 | M2 — independent multi-repository work and reviewed Git | Independent multi-repository forks, checkout/linked-worktree input, all-head fetch, reviewed new/fast-forward push and result reconciliation are on main. Incremental history and sequential bounded fetch are integrated. Authenticated development and fresh notification/VS Code answers remain post-release acceptance. Main push approval stays independent of clone/fetch. |
 | M3 — permitted communication outside ordinary networks | TCP/UDP, loopback forwarding, interactive temporary execution and persistent host/backend/disabled DNS selection are implemented. Supported-baseline DNS/Policy and ordinary Windows forwarding have scoped evidence. Actual VPN/NRPT/restart combinations remain unperformed; name discovery never grants connection authority. |
-| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented; #705 adds a named build target for scoped configuration. Actual Packer dependency downloads await ordinary reviewed configuration. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred. Main's streaming implementation removes the 32 MiB single-pack restriction with local real-Git evidence; installed large-pack acceptance remains pending. |
-| M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. #704 adds named selection and aggregate comparison. Windows CI passed public reclaim plus retained Workspace/OCI/snapshot restore. Choosing the operator's actual required data, independent retention, guest-visible owner checks, restored authenticated development and the dedicated local reclaim-start observation remain distinct acceptance/follow-up items. Preserve unknown ownership and failed receipts. |
+| M4 — reuse Base, cache and OCI data | Real Packer/HCL2/external shell and Base import are implemented; #705 adds a named build target for scoped configuration. The installed attempt failed during dependency downloads; build/publication/reuse remains unperformed. Creation-time cache enrollment, independent generation reuse, collection/history/recovery/clear and Env-local emptying exist. Late enrollment and unknown-copy cancellation are follow-ups. Broader OCI acceptance and representative large-repository measurements are deferred. Main's streaming implementation removes the 32 MiB single-pack restriction with local real-Git evidence; installed large-pack acceptance remains pending. |
+| M5 — understand retained data and resume development elsewhere | Inventory, component deletion diagnosis, reviewed retained-object cleanup, export/import, restored-tree comparison and latest restore by source name are on main. #704 adds named selection and aggregate comparison. The selected development Git trees are independently retained on Windows. The new WSL passed ordinary snapshot/restore, Windows-file export/import, guest-owner checks and post-deletion reuse for a small Workspace. Local public reclaim recovered 1,742,733,312 bytes with retained-data verification afterward. Populated OCI applications and authenticated resumed development remain separate; earlier CI/local failures remain recorded. |
 
 [CLI language scope](../reference/cli-language.md),
 [Workspace input](../design/workspace-input.md),
@@ -90,8 +91,11 @@ passed; main integration and installed desktop acceptance remain separate.
 M5's named current-data selection and aggregate comparison helper is implemented
 in this checkout for [#703](https://github.com/SLktEx/Hacocoon/issues/703).
 It reuses the existing portable manifest comparer and preserves partial/unreviewed
-outcomes. The remaining selection work is choosing the operator's actual required
-data and checking independent retention, owner namespaces and ordinary resumed use.
+outcomes. The operator's actual selection was subsequently narrowed to five
+development Git trees, independently retained and restoration-checked on Windows.
+Normal snapshot/export/import and post-deletion reuse also passed for one small
+managed Workspace, including its guest owner. Populated OCI applications and
+authenticated resumed development remain separate acceptance items.
 No old-version reconstruction or automatic deletion is added.
 
 The current inventory now projects saved Git bindings, including collection
@@ -100,13 +104,14 @@ use on the dedicated WSL resolved the previously unprojected `bindings` director
 (two repository files and one binding). Actual selection and restored use remain
 separate; this does not turn saved associations into current authority.
 
-Complete ordinary Packer setup/download/build/publication and reuse when the
-user answers its download notifications. The original all-Environment
-require-approval proposal was refused and never applied. The new local candidate
-uses three ordinary require-approval rules limited to `packer-tools`, exact
-Ubuntu HTTP/HashiCorp HTTPS destinations and a two-hour lifetime. Default deny
-is retained. Actual download/build/reuse remains pending; no test allow rule
-or automated GUI answer is used. Continue independent work while answers are pending.
+The installed Packer attempt failed during ordinary dependency downloads with
+apt exit 100, before Packer/HCL execution. No human notification answer was
+confirmed. Its three temporary named-builder-only require-approval rules were
+removed afterward, restoring the original default deny and zero rules. The
+earlier all-Environment proposal was refused and never applied. Before another
+attempt, confirm the user's normal notification route and review only the needed
+destinations. Build/publication/reuse remains unperformed; no test allow rule or
+automated GUI answer substitutes for that acceptance.
 
 The implemented `--builder <env>` option allows naming one build target for
 ordinary administrator rules, without adopting an existing Env or changing Policy.

@@ -1858,8 +1858,13 @@ apply a change. A normal open management terminal, successful doctor and fresh
 configuration inspection preceded the confirmed apply. Three ordinary
 `require-approval` rules are limited to `packer-tools` and the exact Ubuntu
 HTTP/HashiCorp HTTPS destinations, expiring at 2026-09-16T13:42:55Z; default deny
-is retained. The actual Packer attempt awaits GUI answers for its downloads.
-This is not acceptance of Packer build/publication/reuse or a human GUI answer.
+is retained. The attempt subsequently failed at `dependencies` with apt exit 100:
+Ubuntu package downloads could not connect through the ordinary proxy. No human
+GUI answer was confirmed. Packer download, HCL execution, publication and reuse
+were not reached. Normal CLI inspection confirmed the temporary `packer-tools`
+Env absent and no `roadmap-tools` Base published. The three temporary rules were
+then removed through revision-bound configuration; default deny and zero rules
+match the original settings. No implicit allow or automatic retry was used.
 
 Windows run35090329311/job104774858507 at `d8ec1374` passed installation,
 HTTPS, SSH/editor and Linux reclamation, but public reclamation failed with
@@ -1881,3 +1886,27 @@ After deleting only that imported Env, a new temporary Env retained the same
 marker hash, guest owner, Git directory and OCI attachment. Original source,
 snapshot and bundle remain. This is one small same-PC transfer, not cross-machine
 or authenticated development acceptance.
+
+The same locally installed candidate subsequently completed public `haco reclaim`
+on the new `Hacocoon` WSL, operation `1c487b24-df95-4cc6-85fe-cb0f97d490ae`.
+Windows allocation fell from 9,603,907,584 to 7,861,174,272 bytes: 1,742,733,312
+bytes recovered, 254 open attempts, virtual capacity unchanged and resume successful.
+Normal public status reported both Linux stages and Windows complete; all six
+doctor checks passed afterward. A temporary Env using the independent imported
+Workspace retained the marker hash, guest owner `0:0`, Git directory and OCI
+attachment, then confirmed cleanup. No global WSL shutdown or forced detach was used.
+This does not explain or erase the earlier local enrollment and CI attached-disk failures.
+
+An initial post-reclaim probe chose the source Workspace still leased by the
+stopped `roadmap-save` Env. Creation correctly refused with `storage has active
+sessions`; the CLI hid that reason behind unknown-cleanup guidance. The attempted
+Env was absent on inspection. The source Env and its lease were retained, and the
+successful probe used the independent imported Workspace instead. The follow-up
+shares bounded failure classification with daily commands, adds bilingual `busy`
+guidance and preserves JSON, exit/cleanup semantics and backend redaction.
+The reason/lease regressions failed before the change and passed afterward in
+both languages. Maintained local `test`, `docs` and `workflow-policy` checks plus
+focused CLI race tests passed. A development CLI against the installed controller
+reproduced the same busy refusal with Japanese reason/lease guidance; the source
+Env remained the only retained Env. This is CLI-plus-installed-controller evidence,
+not a new installer or release.
