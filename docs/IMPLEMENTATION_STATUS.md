@@ -135,6 +135,7 @@ person-dependent acceptance remain separate. See [ADR 0106](adr/0106-streaming-g
 Ordinary SSH/editor entry now uses shared English/Japanese selection and result
 notices in this checkout. Invalid preview options give corrective guidance before
 Workspace preparation; fresh packaged desktop acceptance remains separate.
+Long command names remain separated from their help explanations in both languages.
 
 The current candidate coordinates native notification peer startup with WSL
 reclamation through a shared Windows reservation. Exact disk/installation checks

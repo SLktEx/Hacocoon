@@ -144,6 +144,10 @@ details stay unchanged; a failed result write cannot replay the operation.
 
 ## SSH and editor entry
 
+Command lists keep an explicit space between every command name and its
+explanation, including long names such as `experimental edit vscode` and
+`ssh cleanup`. Both language renderers retain the existing 60-column wrapping.
+
 Ordinary `haco ssh setup` and `haco open` use shared English/Japanese Environment
 selection, preparation, editor-launch/retry and cleanup notices. Invalid preview
 port/client combinations explain the correction before Workspace preparation.
