@@ -1910,3 +1910,21 @@ focused CLI race tests passed. A development CLI against the installed controlle
 reproduced the same busy refusal with Japanese reason/lease guidance; the source
 Env remained the only retained Env. This is CLI-plus-installed-controller evidence,
 not a new installer or release.
+
+At `423fa602`, test35093944048, quality35093943917, Ubuntu35093944270 and
+Incus35093944417 passed, including the Incus evidence aggregate. Windows
+run35093944130/job104786573377 passed installation, HTTPS, parallel cold SSH,
+actual VS Code editing, export/import and post-deletion retained-work recreation.
+Its tunnel confirmed native listener ownership and eight 1 MiB exchanges, then
+Ctrl+C produced the generic Windows connection failure and exit 1. The terminal
+fixture timed out waiting for exit zero. Reclaim and notification steps were
+skipped, so no new host-ancestry result exists. Main was not merged or the run retried.
+
+The unchanged installed `d8ec1374` tunnel passed that complete ordinary Windows
+terminal journey locally, including native ownership, exchanges, half-close and
+Ctrl+C listener cleanup. The first local invocation could not start its terminal
+driver because pywinpty was missing; after preparing CI's pinned 3.0.2 in the
+test directory, the product path ran without repair or policy changes. The CI
+cancellation failure remains unresolved. The companion now records bounded
+failure stage/category, cancellation state and elapsed time, preserving nonzero
+exit results and the ten-second forced-stop fallback rather than assuming cause.

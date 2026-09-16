@@ -76,6 +76,12 @@ HTTP header全体、プロセス環境全体、任意設定object、要求・応
 
 ## Hostコマンド・エラー・時間
 
+Windows転送の子プロセス失敗は、`operation=windows_tunnel_companion`、固定の
+`stage`（pipe/start/prepare/wait）、`reason`（other/wait_delay/exit/signaled/timeout/canceled/pipe_closed）、
+`context_state`（active/timeout/canceled）と`duration_ms`で一度だけ記録します。
+生のエラー、実行ファイルパス、引数、子プロセスの出力は記録しません。
+観測の追加で終了値・中断・子プロセスの停止期限は変えません。
+
 共有runnerは診断に必要な場合だけ、実行ファイルと安全化したargv、
 分類した構成要素、時間、終了値をDEBUGへ記録します。取得したstdout/stderrは自動記録しません。
 秘密を含み得る引数は省略・秘匿し、生のコマンド行を重ねて記録しません。

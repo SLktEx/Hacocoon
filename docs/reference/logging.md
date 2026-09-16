@@ -102,6 +102,13 @@ Never add a raw command-line log alongside the sanitized form. Arguments that ma
 
 ## Errors
 
+The Windows tunnel's owned companion reports process failures once with
+`operation=windows_tunnel_companion`, fixed `stage` (pipe/start/prepare/wait),
+fixed `reason` (other/wait_delay/exit/signaled/timeout/canceled/pipe_closed),
+`context_state` (active/timeout/canceled) and `duration_ms`. It never records the
+raw error, executable path, arguments or subprocess output. Observation does not
+change exit handling, cancellation or the bounded child-stop fallback.
+
 Do not log the same failure at every call layer.
 
 Preferred flow:
