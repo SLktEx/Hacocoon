@@ -4,59 +4,57 @@
 
 状態: **implemented CLI workflow**。provider・desktopの実機確認は[検証証拠](../status/acceptance-evidence.ja.md#development-branch-integration)に別途記録します。
 
-## 最初に準備する
+## 登録して、開く
 
-[Windows/WSL installer](../guides/installation.ja.md)でインストールします。Windows端末の`wsl -d <インストールしたディストリビューション名>`は、管理login entry設定済みならtrusted `haco-host`を開きます。haco-hostは信頼された管理基盤です。信頼できないツールはEnv内で実行します。管理コマンドはWSL/Linux Physical Hostからも同じcontrollerへ接続できます。
-
-**trusted haco-host内**で準備します:
+[インストール](../guides/installation.ja.md)後、信頼された管理端末で実行します。
 
 ```bash
-haco doctor
-haco repo add sample https://github.com/OWNER/REPO.git
-haco workspace create --repo sample sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco open sample-dev
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-OWNER/REPOを置き換えてください。Workspace作成時のremoteの既定ブランチを使います。private Gitの認証はtrusted haco-hostに保持します。[管理repository手順](../guides/git-workflow.ja.md)を参照してください。Baseは設定済み既定値を使います。任意OCI Storeのコピーは自動で、`--no-oci`で省略できます。CoreにOCI runtimeは必須ではありません。
+URLを作業対象に置き換えてください。独立したファイル、既定Base、設定済みの保存領域を
+準備し、環境を作成・再利用してRemote-SSH導入済みのVS Codeを開きます。
+シェルなら`haco open --client ssh`です。認証情報は信頼されたHostに保持します。
+編集先は`/workspace/api`・`/workspace/web`で、リポジトリ1個なら`/workspace`です。
 
-**WSL/Linux Physical Host内**の既存ファイルなら`haco env create --workspace /absolute/path/to/work sample-dev`も使えます。pathはWindowsやhaco-hostコンテナではなく、そのPhysical Host上のものです。書込み可能なWorkspaceはEnv内の処理からも変更できます。`haco open .`は準備済みの所有者を固定したWorkspace参照を再開します。ディレクトリ内容を暗黙にコピー・マウントしません。[準備とfork](../design/workspace-workflow.md)を参照してください。
+進捗はstderrに表示します。承認待ちがある場合は別の信頼された端末で`haco approve`を
+実行すると、回答後に処理を続行します。既定denyではpromptを作りません。
+`haco config --edit`で必要なパッケージ・Gitの権限範囲を確認し、`haco open`を再実行します。
+登録やopenがpush・無制限の通信を許可することはありません。
+[初回の権限確認](../guides/getting-started.ja.md#必要な権限を確認する)を参照してください。
 
-`haco open`はdesktop所有のSSH鍵・設定を準備しeditorを起動します。`haco open --client ssh sample-dev`は標準SSH shellを開きます。接続準備だけなら`haco ssh setup sample-dev`です。秘密鍵はdesktopに保持します。editorプロセスの起動だけで接続・build/testが正常とは判定しません。[Windows SSH](windows-environment-ssh.md)も参照してください。
+## 作業に戻る
 
-最初の`open`では、`sshd`を含まないBaseに`openssh-server`を導入するため、
-パッケージ取得の許可が必要です。**trusted haco-host**で`haco config`を使って
-現在のPolicyを確認し、`haco approve --list`で判断を行わずに承認待ちを一覧します。
-承認待ちが0件でも通信許可を意味しません。既定のdenyでは承認promptは作られません。
-`haco config --edit`で既存snapshotを確認し、必要なEnv・hostname・protocol・portだけに
-限定した規則を追加します。他の規則とdefault denyを保持してください。Ubuntuの既定の
-配布先は`archive.ubuntu.com`と`security.ubuntu.com`ですが、Baseでmirrorを使っていないか
-確認します。[Policy例](../design/egress-authorization.md#policy-example)を参照してください。
-SSH失敗だけでは原因は確定しません。Envの状態・接続とPolicyを確認してから、明示的に
-SSH準備をやり直します。導入済みパッケージは停止・起動をまたいでEnvのrootfsに残ります。
+同じ管理ユーザーのhomeから再び`haco open`を実行します。同じ作業を再利用し、停止済みなら
+再開します。エディタやシェルの終了だけでは停止しません。意図的に停止する場合は
+`haco env list`で名前を確認し、`haco env stop <environment>`を実行します。
+次回の`haco open`だけで再開でき、startは不要です。停止なら導入ツール・rootfs・編集・
+設定済みOCIデータを保持します。削除とは異なります。
 
-## 作業・停止・翌日の再開
+最初の構成はリポジトリ1〜8個です。後で登録を変更しても既存の作業を上書きしません。
+構成変更には明示的なforkを使います。[通常の開発環境](../design/default-development-session.ja.md)を参照してください。
 
-**Env内**の`/workspace`で編集し、そのrepositoryのbuild/testを実行します。Go repositoryなら例として`go build ./...`、`go test ./...`です。network/package/Git操作には引き続きPolicy/承認が必要です。`haco run --no-oci -- <command>`は別の一時Envでの実行で、指定した常用Env内での実行ではありません。
+## 詳細な選択と設定
 
-Env shellを終了するか**trusted haco-host端末**へ戻ります:
+既存の明示的なコマンドも使えます。環境名を指定するopen、`haco open --select`による
+既存環境の選択、`haco open .`による所有者を固定した参照の再開を維持します。
+新しいディレクトリには`--repo`が必要で、内容を暗黙に取り込みません。
+[Workspace準備・fork](../design/workspace-workflow.md)と[CLI参照](cli.ja.md)から
+Workspace・Env・Base・ストレージ・通信・設定を明示的に操作できます。
+通常のopenでも`--base`・`--oci`を指定できますが、既存の互換性検証に従います。
 
-```bash
-haco env stop sample-dev
-# 翌日、trusted haco-host内:
-haco env list
-haco env status sample-dev
-haco env start sample-dev
-haco open sample-dev
-```
-
-停止ではEnv rootfs、Workspace、OCIデータが残ります。翌日も同じツール・rootfsを使う場合はstopを使ってください。
+`haco ssh setup <environment>`は接続の準備だけを行います。
+`haco open --client none --json`は通常の環境を準備・再開して識別情報を返し、
+デスクトップ接続は準備しません。editorプロセスの起動だけでは接続やbuild/testの成功を
+意味しません。[Windows SSH](windows-environment-ssh.md)も参照してください。
 
 ## 対象・script利用・キャンセル
 
-変更操作には明示的な名前を指定します。openとssh setupは端末の番号一覧から選択でき、空入力なら接続変更前にキャンセルします。Envが一つだけなら自動選択できます。scriptでは常に名前を指定してください。非対話で選択が曖昧な場合は入力待ちにしません。オプションは対象より前に置き、各commandの`--help`で書式を確認します。
+明示的なlifecycle操作には名前を指定します。open --selectとssh setupは端末の番号一覧から選択でき、空入力なら接続変更前にキャンセルします。Envが一つだけなら自動選択できます。scriptでは常に名前を指定してください。非対話で選択が曖昧な場合は入力待ちにしません。オプションは対象より前に置き、各commandの`--help`で書式を確認します。
 
-結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json sample-dev`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。一時実行は別契約で時間制限付きcleanupを要求し、その確認結果を返します。
+結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json <environment>`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。一時実行は別契約で時間制限付きcleanupを要求し、その確認結果を返します。
 
 ## 失敗後の操作
 
@@ -65,8 +63,8 @@ haco open sample-dev
 | setupのrunning / succeeded / failed | 観測した工程です。進捗率ではありません。固定stage/reasonとrequest IDを確認します。 |
 | busy | 別操作が対象を使用中です。その操作を確認・待機します。承認待ちとは異なります。 |
 | Capabilityの承認待ち | 別のtrusted端末で`haco approve`により一覧・内容を確認します。観測だけでは承認しません。 |
-| create/start/stop/delete/SSH失敗 | `haco env status sample-dev`と`haco doctor sample-dev`で確認するまでresource状態は不明です。cleanup済みと推測しません。 |
-| SSH準備後のeditor起動失敗 | Envと接続は残ります。`haco open --client ssh sample-dev`を使うかdesktop editorを直します。 |
+| create/start/stop/delete/SSH失敗 | `haco env status <environment>`と`haco doctor <environment>`で確認するまでresource状態は不明です。cleanup済みと推測しません。 |
+| SSH準備後のeditor起動失敗 | Envと接続は残ります。`haco open --client ssh <environment>`を使うかdesktop editorを直します。 |
 | setup customization失敗 | 基盤工程が成功している場合もあり、保存scriptと副作用が残ります。内容を確認・修正してから明示的に再実行します。`--clear-script`は保存recipeを除去するだけで副作用を戻しません。 |
 
 setupでは`haco doctor`を実行します。**WSL/Linux Physical Hostの管理者**は次のjournalでsetupの`request_id`を探せます。Envにはこの管理情報を渡しません。
@@ -79,6 +77,6 @@ backendの生出力や秘密は診断フィールドに含めません。stream�
 
 ## 必要なものだけ削除する
 
-**trusted haco-host内**の`haco env delete sample-dev`は、明示対象と消える・残るデータを表示して既存の正規削除APIを呼びます。Env runtime/rootfs/接続を除去し、Workspace、OCI Store、独立snapshotは保持します。明示Env名を削除意思として扱う既存契約を維持し、新たなpromptや互換性を壊すcommand改名は追加しません。失敗時には不在を確認できておらず、所有権・leaseはlifecycle APIの規則で保持します。
+**trusted haco-host内**の`haco env delete <environment>`は、明示対象と消える・残るデータを表示して既存の正規削除APIを呼びます。Env runtime/rootfs/接続を除去し、Workspace、OCI Store、独立snapshotは保持します。明示Env名を削除意思として扱う既存契約を維持し、新たなpromptや互換性を壊すcommand改名は追加しません。失敗時には不在を確認できておらず、所有権・leaseはlifecycle APIの規則で保持します。
 
 `haco workspace list`、`haco plugin oci store list`、`haco snapshot list`で保持データを確認します。別のWorkspace/Store deleteは消える内容を表示し、確認または`--yes`を要求します。Workspace削除では未commit・未追跡・未pushの作業も消え得ます。必要なデータは独立snapshotやexportに保持してください。今回の変更で保持単位は再設計しません。

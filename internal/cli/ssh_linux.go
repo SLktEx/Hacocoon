@@ -53,6 +53,7 @@ func runOpen(args []string) int {
 	closePreview := flags.Bool("close", false, cliMessage("detail.close_preview"))
 	noBrowser := flags.Bool("no-browser", false, cliMessage("detail.no_browser"))
 	selected := flags.String("client", "vscode", cliMessage("detail.client"))
+	selectEnvironment := flags.Bool("select", false, cliMessage("open.select"))
 	repos := flags.String("repo", "", cliMessage("detail.repos_optional"))
 	workName := flags.String("name", "", cliMessage("detail.work_name"))
 	base := flags.String("base", "", cliMessage("detail.base"))
@@ -75,14 +76,49 @@ func runOpen(args []string) int {
 		}
 	})
 	selectedArgs := flags.Args()
+	var preparedEnvironment *core.Environment
 	pathMode := len(selectedArgs) == 1 && workspacePath(selectedArgs[0])
-	if *jsonOutput && (!pathMode || *selected != "none") {
-		fmt.Fprintln(os.Stderr, "haco: --json requires a directory and --client none")
+	defaultMode := len(selectedArgs) == 0 && !*selectEnvironment && !portSet
+	if *selectEnvironment && (len(selectedArgs) != 0 || *selected == "none" || *jsonOutput) {
+		flags.Usage()
 		return 2
 	}
-	if !pathMode && (*repos != "" || *workName != "" || *base != "" || *oci != "" || *selected == "none") {
+	if *jsonOutput && ((!pathMode && !defaultMode) || *selected != "none") {
+		fmt.Fprintln(os.Stderr, cliMessage("detail.open_json"))
+		return 2
+	}
+	if !pathMode && (*repos != "" || *workName != "" || (!defaultMode && (*base != "" || *oci != "" || *selected == "none"))) {
 		fmt.Fprintln(os.Stderr, "haco: --repo, --name, --base, --oci and --client none require a directory")
 		return 2
+	}
+	if defaultMode {
+		if *closePreview || *noBrowser {
+			flags.Usage()
+			return 2
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+		path, err := defaultOpenDirectory()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, cliMessage("open.reference_failed"))
+			return 1
+		}
+		result, err := openDefaultWorkspace(ctx, controlapi.NewDefaultClient(), path, *base, *oci, os.Stderr)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "haco:", err)
+			fmt.Fprintln(os.Stderr, cliMessage("open.retry"))
+			return 1
+		}
+		selectedArgs = []string{result.Environment.Name}
+		preparedEnvironment = &result.Environment
+		if *selected == "none" {
+			if writeCLIResult(os.Stdout, result, *jsonOutput) != nil {
+				return 1
+			}
+			return 0
+		}
 	}
 	if pathMode {
 		if (*closePreview || *noBrowser) && !portSet {
@@ -100,6 +136,7 @@ func runOpen(args []string) int {
 			return 1
 		}
 		selectedArgs = []string{result.Environment.Name}
+		preparedEnvironment = &result.Environment
 		if *selected == "none" {
 			if writeCLIResult(os.Stdout, result, *jsonOutput) != nil {
 				return 1
@@ -122,16 +159,19 @@ func runOpen(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco: --close and --no-browser require --port")
 		return 2
 	}
-	return setupDesktopSSH(selectedArgs, *selected)
+	return setupDesktopSSHSelected(selectedArgs, *selected, preparedEnvironment)
 }
 func setupDesktopSSH(args []string, launch string) int {
+	return setupDesktopSSHSelected(args, launch, nil)
+}
+
+func setupDesktopSSHSelected(args []string, launch string, selectedEnvironment *core.Environment) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 	client := controlapi.NewDefaultClient()
 	name := ""
-	var selectedEnvironment *core.Environment
 	if len(args) == 1 {
 		name = args[0]
 	} else {
@@ -157,12 +197,17 @@ func setupDesktopSSH(args []string, launch string) int {
 		return dailyFailure(os.Stderr, "open", "desktop_client", name, err)
 	}
 	fmt.Fprintln(os.Stderr, "[succeeded] desktop_client\n[running] ssh_connection")
+	fmt.Fprintln(os.Stderr, cliMessage("open.approval"))
 	var alias string
-	if selectedEnvironment != nil {
-		alias, err = sshclient.SetupSelected(ctx, client, desktop, *selectedEnvironment)
-	} else {
-		alias, err = sshclient.Setup(ctx, client, desktop, name)
-	}
+	err = openStage(ctx, os.Stderr, "connection", func() error {
+		var setupErr error
+		if selectedEnvironment != nil {
+			alias, setupErr = sshclient.SetupSelected(ctx, client, desktop, *selectedEnvironment)
+		} else {
+			alias, setupErr = sshclient.Setup(ctx, client, desktop, name)
+		}
+		return setupErr
+	})
 	if err != nil {
 		return dailyFailure(os.Stderr, "open", "ssh_connection", name, err)
 	}

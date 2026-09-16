@@ -47,140 +47,99 @@ Record the build identity when reporting a problem. Doctor must complete all
 checks successfully. A pending, failed or unavailable result is not readiness;
 follow its diagnosis before creating work.
 
-## Create independent project data
+## Add repositories and open Haco
 
-The following commands run in **trusted haco-host**, not in an Environment.
-`haco setup` guarantees `git` and GitHub CLI (`gh`) as standard Host tools, so
-no manual package installation is required. Authenticate with GitHub CLI only
-when the selected repository needs credentials or you intend to push:
+Run these commands in the **trusted management terminal** after installation.
+Replace OWNER/API and OWNER/WEB with repositories you may use. One repository is
+also sufficient. Private authentication stays in trusted `haco-host`: use
+`gh auth login --hostname github.com --git-protocol https` there when needed.
+Installation supplies Git and GitHub CLI as standard Host tools.
 
 ```bash
-# For a private repository or a repository you can push to:
-gh auth login --hostname github.com --git-protocol https
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-Authentication, dotfiles and additional personal or organization-specific tools
-are not baked into the standard Host tool set.
+Install VS Code and Remote-SSH on the desktop for the default editor entry.
+For a shell, use `haco open --client ssh` instead. Open prepares the independent
+project files, default starting image, configured storage and Environment, then
+prepares SSH access and launches the client. Follow the progress on the terminal.
+No manual Workspace/Env creation or Base build is required.
 
-The public example is sufficient for reading and local edits. For your own work,
-replace the URL with a repository you may use. Its current default branch is
-selected when the Workspace is created.
-Keep the names consistent in the permission rules below.
+With two repositories, edit `/workspace/api` and `/workspace/web`. A single
+repository uses `/workspace`. Their independent Git metadata uses `haco://<id>`;
+the managed broker is connected automatically. Host credentials are not copied.
 
-```bash
-haco repo add sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco env status sample-dev
-```
+## Review required permissions
 
-The source checkout stays in trusted Host storage. The Workspace gets independent
-files and `.git`, mounted at `/workspace` in the Environment. Its remote uses
-`haco://sample`; creating the Environment automatically wires the managed Git
-broker. This local wiring does not contact the upstream remote; network activity
-starts when the Environment later runs Git operations such as fetch or push.
+Open does not grant network or Git permissions. When approval is pending, use
+`haco approve` in a second **trusted management terminal** to review the exact
+request. Waiting work continues after an authorized answer. If Policy denies the
+operation, no approval prompt appears: use `haco config --edit` to review the
+required scope, then retry `haco open`. Existing work is retained.
 
-Creation uses the default Base and, when configured, independently copies/reuses
-the Workspace's OCI Store. For a project without container tooling,
-`haco env create --no-oci --workspace managed:sample-work sample-dev` is the
-explicit alternative. Do not run both creates. A configured copy failure is
-reported, not converted into an empty Store. See [OCI Store limits](../design/persistent-oci-store.md).
+The initial SSH preparation may need to download `openssh-server`. Permit only
+its actual package hostnames/protocols/ports for the Environment shown by
+`haco env list`, following the [egress Policy example](../design/egress-authorization.md#policy-example).
+Do not add an unrestricted wildcard. A Base with sshd already installed needs no
+such download. A failed connection alone does not establish the cause; use
+`haco doctor` and the displayed stage.
 
-## Permit only the needed network operations
+For fetch/pull and reviewed push, follow [scoped Git permissions](git-workflow.md#configure-git-policy).
+Name resolution and connections remain separately controlled. Editing or building
+locally does not grant remote write permission.
 
-Run `haco config --edit` in the **trusted management terminal**. Preserve the
-revision and existing Policy rules. [Configuration](../reference/configuration.md)
-explains how edits and saved approvals interact.
+## Develop and return later
 
-Before SSH setup, permit the Environment's actual package archive hostnames:
-SSH preparation may need to install sshd. Add exact HTTP/HTTPS
-`network.egress/connect` rules using the [egress example](../design/egress-authorization.md#policy-example),
-with `environment` set to `sample-dev`, the real archive hostname as
-`resource`, and the matching protocol/port. Ubuntu sources can vary by Base and
-architecture; do not substitute an unrestricted wildcard.
-Use a prepared Base if the required packages are already available.
-
-For ordinary fetch/pull and reviewed push, add the scoped rules from
-[managed Git](git-workflow.md#configure-git-policy), replacing the URL and branch
-with your registration. A separate `network.resolve/lookup` rule is needed for
-applications that resolve names themselves; [name resolution](../design/name-resolution.md)
-does not grant a connection. Host-brokered Git does not need guest GitHub credentials.
-
-## Connect and develop
-
-From the **trusted management terminal**:
+Inside the **Environment**, enter the appropriate repository:
 
 ```bash
-haco open --client ssh sample-dev
-```
-
-This prepares desktop-owned SSH keys, pins the provider-supplied host key, and
-opens a shell in `/workspace`. On Windows it uses Windows OpenSSH through WSL
-interop; keep the ordinary Host terminal open. For VS Code, install VS Code and
-Remote-SSH on the desktop, then use `haco open sample-dev`.
-[SSH details](../reference/windows-environment-ssh.md) cover manual clients and failures.
-
-Inside the **Environment SSH session**:
-
-```bash
-cd /workspace
-apt-get update
-apt-get install -y git
+cd /workspace/api
 git status
-git fetch origin
-git pull --ff-only
-# Edit files and run this project's build/test commands.
-git config user.name 'Your Name'
-git config user.email 'your-address@example.com'
-git add <files>
-git commit -m 'Describe the change'
+# Edit files and run this repository's build/test commands.
 ```
 
-Replace `<files>` with the intended files. The managed SSH configuration supplies
-the credential-free proxy settings; permission still comes from Policy.
-Project-specific tools can be installed in this Environment or supplied by a Base.
-[Setup recipes](../design/project-setup.md) make dependency installation repeatable.
+Install project-specific tools through authorized package access or a
+[setup recipe](../design/project-setup.md). If Git is absent from the selected
+Base, install it there through that same permission path. Configure your Git
+commit name/email in the Environment. Ordinary `git fetch`, `git pull --ff-only`
+and `git push` use the broker; push requires the exact reviewed request, not
+Host credentials. See [Git workflow](git-workflow.md).
 
-Push only to a repository/branch you can write. In the Environment, run `git push`.
-While it waits, open a second **trusted Host terminal**, run `haco git pending`,
-review the exact remote/ref and old/new commits, then use
-`haco git approve <id>` or `haco git deny <id>`.
-The public Hacocoon example does not grant you upstream push permission.
-See [Git approvals and ambiguous results](git-workflow.md).
-
-## Stop and return later
-
-Exit the SSH shell, then run in the **Host**:
+Exit the shell or close the editor when finished. This does not stop or delete
+the Environment. Next time, return to the trusted management terminal and run:
 
 ```bash
-haco env stop sample-dev
-haco env status sample-dev
+haco open
 ```
 
-Expected result: stopped, with the Workspace retained. Stop retains the lease,
-root filesystem, Git edits and optional Store. Guest `/tmp` may be cleared by
-the guest OS at boot. Exiting a shell alone does not stop the Environment.
-For explicit access revocation, use `haco env disconnect sample-dev <connection-id>`.
+It reuses healthy work and resumes a stopped Environment. Unsaved editor buffers
+still need saving; opening does not create backups or push commits.
 
-Later, enter the Host again and run:
+## Explicit control and recovery
+
+Normal use needs only registration and open. For deliberate lifecycle or custom
+configuration, all [advanced CLI operations](../reference/cli.md) remain available:
 
 ```bash
-haco open --client ssh sample-dev
+haco env list
+haco env stop <environment>
+haco open
 ```
 
-Opening resumes a stopped Environment through ownership and network checks.
-`haco env start sample-dev` is also available. After upgrading old instances,
-apply normal stop/start before a Host reboot as described in
-[the lifecycle contract](../design/workspace-abstraction-and-lease.md#explicit-start-after-a-physical-host-boot).
+Use the actual name from the list. Stop retains installed packages, project edits
+and configured persistent storage. Delete is different: `haco env delete <environment>`
+discards the root filesystem but retains project files and OCI data. Read
+[data lifetime](data-lifetime.md) before deletion. Explicit directory opens,
+Base choices and independent forks are explained in [Workspace workflow](../design/workspace-workflow.md).
 
-## Delete only when intended
+The default session supports one to eight repositories. Register the intended
+set before the first open. Changing registrations later does not overwrite the
+existing collection: use an explicit fork to preserve work while changing
+membership. If ownership is incomplete, inspect the reported state; never edit
+catalog files or guess provider cleanup targets. See the
+[default-session contract and limits](../design/default-development-session.md).
 
-`haco env delete sample-dev` destroys Environment-only files and packages but
-retains the Workspace and OCI Store. It does not push commits or make a backup.
-Use [data lifetime and cleanup](data-lifetime.md) for recreation, snapshots and
-separate deletion of retained data.
-
-If creation, copying, start or cleanup reports uncertain ownership, stop and
-inspect `haco env list`, `haco workspace list` and the reported resource IDs.
-Do not edit the catalog, delete guessed Incus paths or disable isolation to continue.
-General interrupted-operation recovery remains incomplete.
+Repository tests and real-host acceptance are separate. Fresh installed Incus,
+Windows/WSL and desktop acceptance of this combined path remain pending.

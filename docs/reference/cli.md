@@ -11,6 +11,7 @@ help and version require no controller.
 
 | Purpose | Syntax and defaults | Details |
 |---|---|---|
+| Normal development | `haco repo add <id> <URL>`, then `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [Automatic default session](../design/default-development-session.md); JSON requires `--client none` |
 | Workspace path | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [Owner-pinned entry and independent data forks](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [Exact options, guest listeners and management authority](../design/network-connections.md) |
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
@@ -24,7 +25,7 @@ help and version require no controller.
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
 | Lifecycle | `haco env start <name>`, `stop <name>`, `delete <name>` | [Data lifetime](../guides/data-lifetime.md) |
-| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; interactive choice if ambiguous |
+| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; `open --select` or `ssh setup` offers existing-Env selection |
 | Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; `-i` streams input, `-it` uses a terminal; JSON is captured-output only |

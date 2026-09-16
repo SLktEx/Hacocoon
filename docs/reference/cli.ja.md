@@ -11,6 +11,7 @@ help・versionにコントローラーは不要です。
 
 | 目的 | 構文・既定値 | 詳細 |
 |---|---|---|
+| 通常の開発 | `haco repo add <id> <URL>` → `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [通常の環境を自動準備](../design/default-development-session.ja.md)。JSONには`--client none`が必要 |
 | Workspaceパス | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [所有者を固定した再開と独立データfork](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [詳細オプション・ゲスト待受・管理権限](../design/network-connections.md) |
 | ビルド情報 | `haco version [--json]`, `haco --version` | [ビルド情報](build-release-identity.ja.md) |
@@ -25,7 +26,7 @@ help・versionにコントローラーは不要です。
 | Env作成 | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | 既定Base、任意に設定されたOCI初期化 |
 | 状態の参照 | `haco env list [--json]`; `haco env status [--json] <name>` | 既定はテキスト |
 | 開始・停止・削除 | `haco env start <name>`, `stop <name>`, `delete <name>` | [データの寿命](../guides/data-lifetime.ja.md) |
-| デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開し、複数候補は対話で選択 |
+| デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開。`open --select`や`ssh setup`で既存環境を選択 |
 | 手動SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | 永続targetをProxyCommandで使用。`haco stream <target>`はraw stdio接続。[SSH詳細](windows-environment-ssh.md) |
 | プレビュー | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTPプレビュー](../design/development-preview.ja.md)。Env内ループバックポート |
 | 一時実行 | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [一時実行](../design/temporary-execution.ja.md)。`--rm`の既定はtrue。`-i`で入力を逐次転送、`-it`で端末を使用。JSONは通常出力のみ |

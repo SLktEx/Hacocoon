@@ -98,7 +98,7 @@ var helpPages = []helpPage{
 	{Path: "ssh", Syntax: "<command>", Message: "command.ssh", Example: "haco ssh setup dev"},
 	{Path: "ssh setup", Syntax: "[environment]", Message: "command.ssh.setup", Example: "haco ssh setup dev"},
 	{Path: "ssh cleanup", Syntax: "[environment]", Message: "command.ssh.cleanup", Example: "haco ssh cleanup dev"},
-	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open --repo source ."},
+	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--select] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open"},
 }
 
 func commandHelp(out io.Writer, path string, language cliui.Language) bool {

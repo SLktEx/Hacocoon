@@ -26,26 +26,26 @@ Hacocoonは、開発ツールを隔離された **Environment** で実行し、�
 
 ## はじめて使う
 
-[インストール → 作成 → 接続 → 開発 → 終了・再開](docs/guides/getting-started.ja.md)に進んでください。
+[インストール → repo add → open → 開発](docs/guides/getting-started.ja.md)に進んでください。
 各操作を実行するターミナル、必要な権限、終了後に残るデータを順に説明しています。
 
 インストール後、信頼された管理環境 `haco-host` に入ったら、基本の流れは次のとおりです。
 
 ```bash
-haco doctor
-haco repo add sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco open --client ssh sample-dev
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-managed Git WorkspaceからEnvironmentを作ると、Git brokerは自動で接続されます。
-ネットワークを使う前に、ガイドに従ってGitとパッケージ取得の権限を設定します。
-開発シェルを終了し、Hostで `haco env stop sample-dev` を実行すると停止します。
-次回は `haco open --client ssh sample-dev` で再開できます。
-Remote-SSHを導入したVS Codeを使う場合は `haco open sample-dev` を実行します。
+URLを作業対象のリポジトリに置き換えてください。開発環境の準備・再利用は自動です。
+既定はRemote-SSHを導入したVS Codeで、シェルなら `haco open --client ssh` を使います。
+必要な権限は明示的に確認します。次回も `haco open` で同じ作業に戻れます。
 
-操作は[現行の `haco` CLI](docs/reference/cli.ja.md)を参照してください。
+[初回操作と権限](docs/guides/getting-started.ja.md)を参照してください。
+Workspace・Environment・Base・ストレージ・通信・設定の明示的な操作も
+[CLI参照](docs/reference/cli.ja.md)から引き続き使えます。
+保存の扱い、リポジトリ8個の上限、後から構成を変える場合は
+[通常の開発環境](docs/design/default-development-session.ja.md)に記載しています。
 
 ## 何が残るか
 

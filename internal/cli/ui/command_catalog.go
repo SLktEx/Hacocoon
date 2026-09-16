@@ -287,6 +287,6 @@ var commandCatalog = map[string]translation{
 	"command.aws.s3.cp":                {"Download one approved object without overwriting a file", "承認したオブジェクトを既存ファイルを上書きせず取得する"},
 	"command.ssh":                      {"Prepare desktop-owned SSH access", "デスクトップ側にSSH接続を準備する"},
 	"command.ssh.setup":                {"Prepare desktop keys and settings; blank terminal selection cancels", "デスクトップの鍵と設定を準備する。端末の空選択で中止"},
-	"command.open":                     {"Open or resume work; directory preparation requires explicit repositories", "作業を開く・再開する。新しいディレクトリでは取得元の明示が必要"},
+	"command.open":                     {"Prepare or resume registered repositories and open the development environment", "登録したリポジトリを準備・再開して開発環境を開く"},
 	"help.example":                     {"Example:", "実行例:"},
 }
