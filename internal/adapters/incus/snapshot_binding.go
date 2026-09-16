@@ -74,7 +74,7 @@ func (r *Runtime) decodeSnapshotComponent(c core.SnapshotComponent) (snapshotBin
 	}
 	return binding, nil
 }
-func (r *Runtime) createSnapshotComponent(ctx context.Context, source core.SnapshotSource, c core.SnapshotComponent) error {
+func (r *Runtime) CreateSnapshotComponent(ctx context.Context, source core.SnapshotSource, c core.SnapshotComponent) error {
 	b, err := r.decodeSnapshotComponent(c)
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func (r *Runtime) createSnapshotComponent(ctx context.Context, source core.Snaps
 	}
 	return core.ErrUnsupported
 }
-func (r *Runtime) verifySnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
+func (r *Runtime) VerifySnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
 	b, err := r.decodeSnapshotComponent(c)
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func (r *Runtime) verifySnapshotComponent(ctx context.Context, c core.SnapshotCo
 	}
 	return core.ErrUnsupported
 }
-func (r *Runtime) deleteSnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
+func (r *Runtime) DeleteSnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
 	b, err := r.decodeSnapshotComponent(c)
 	if err != nil {
 		return err

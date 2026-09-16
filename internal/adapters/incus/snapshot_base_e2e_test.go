@@ -62,11 +62,11 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := core.SnapshotSource{Environment: core.Environment{Base: &p.Base}}
-	if err := r.createSnapshotComponent(ctx, source, restored); err != nil {
+	if err := r.CreateSnapshotComponent(ctx, source, restored); err != nil {
 		t.Fatal(err)
 	}
 	restored.State = "created"
-	if err := r.verifySnapshotComponent(ctx, restored); err != nil {
+	if err := r.VerifySnapshotComponent(ctx, restored); err != nil {
 		t.Fatal(err)
 	}
 	root := filepath.Join("/var/lib/incus/storage-pools", pool, "containers", r.project+"_"+p.target())
@@ -99,7 +99,7 @@ func TestRealIncusSnapshotBaseE2E(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(original, "rootfs", "root", "snapshot-base-marker")); !os.IsNotExist(err) {
 		t.Fatal("saved write affected cached image", err)
 	}
-	if err := r.deleteSnapshotComponent(ctx, restored); err != nil {
+	if err := r.DeleteSnapshotComponent(ctx, restored); err != nil {
 		t.Fatal(err)
 	}
 	if field(original, "UUID") != uuid {

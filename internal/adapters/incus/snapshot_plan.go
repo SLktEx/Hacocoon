@@ -192,12 +192,3 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 	}
 	return components, nil
 }
-func (r *Runtime) CreateSnapshotComponent(ctx context.Context, s core.SnapshotSource, c core.SnapshotComponent) error {
-	return r.createSnapshotComponent(ctx, s, c)
-}
-func (r *Runtime) VerifySnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
-	return r.verifySnapshotComponent(ctx, c)
-}
-func (r *Runtime) DeleteSnapshotComponent(ctx context.Context, c core.SnapshotComponent) error {
-	return r.deleteSnapshotComponent(ctx, c)
-}

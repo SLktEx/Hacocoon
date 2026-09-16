@@ -228,7 +228,7 @@ func TestSnapshotBaseCopiesRetainedMaterialWithoutCacheAndSurvivesSourceDeletion
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = r.createSnapshotComponent(context.Background(), core.SnapshotSource{Environment: core.Environment{Base: &p.Base}}, c)
+			err = r.CreateSnapshotComponent(context.Background(), core.SnapshotSource{Environment: core.Environment{Base: &p.Base}}, c)
 			if mode == "foreign-owner" {
 				if err == nil || created {
 					t.Fatal(err, created)
@@ -246,10 +246,10 @@ func TestSnapshotBaseCopiesRetainedMaterialWithoutCacheAndSurvivesSourceDeletion
 			}
 			receipt = true
 			c.State = "created"
-			if err = r.verifySnapshotComponent(context.Background(), c); err != nil {
+			if err = r.VerifySnapshotComponent(context.Background(), c); err != nil {
 				t.Fatal(err)
 			}
-			if err = r.deleteSnapshotComponent(context.Background(), c); err != nil || !deleted {
+			if err = r.DeleteSnapshotComponent(context.Background(), c); err != nil || !deleted {
 				t.Fatal(err, deleted)
 			}
 		})

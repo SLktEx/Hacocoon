@@ -53,12 +53,12 @@ func TestSnapshotBindingRejectsDriftBeforeProviderAccess(t *testing.T) {
 				case "state":
 					c.State = "created"
 				}
-				if err := r.createSnapshotComponent(context.Background(), source, c); err == nil {
+				if err := r.CreateSnapshotComponent(context.Background(), source, c); err == nil {
 					t.Fatal("drift accepted")
 				}
 				if mode != "source" && mode != "state" {
 					c.State = "created"
-					if r.verifySnapshotComponent(context.Background(), c) == nil || r.deleteSnapshotComponent(context.Background(), c) == nil {
+					if r.VerifySnapshotComponent(context.Background(), c) == nil || r.DeleteSnapshotComponent(context.Background(), c) == nil {
 						t.Fatal("drift accepted on retry")
 					}
 				}
@@ -88,7 +88,7 @@ func TestSnapshotBindingReloadCleansOnlyExactSavedTarget(t *testing.T) {
 		if json.Unmarshal(raw, &reopened) != nil {
 			t.Fatal("reload")
 		}
-		if err := r.deleteSnapshotComponent(context.Background(), reopened); err != nil {
+		if err := r.DeleteSnapshotComponent(context.Background(), reopened); err != nil {
 			t.Fatal(err)
 		}
 	}
