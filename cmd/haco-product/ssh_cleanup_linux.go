@@ -20,6 +20,6 @@ func cleanupDesktopSSH(ctx context.Context, client *controlapi.Client, name, gra
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(diagnostics, cliMessage("ssh.cleanup_incomplete"))
+		_, _ = fmt.Fprintln(diagnostics, cliMessage("ssh.cleanup_incomplete"))
 	}
 }

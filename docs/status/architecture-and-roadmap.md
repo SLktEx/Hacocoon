@@ -13,6 +13,10 @@ Usable ordinary flows come first. Local checks are primary; independent developm
 continues while hosted CI runs. Main merges are authorized only after all five
 required workflows succeed for the exact PR head. Tags and releases are separate.
 
+M2 and M3 real-use acceptance is assigned to the user: authenticated Git and
+GUI answers, plus VPN/DNS and other non-ordinary-network combinations. These
+remain unperformed until reported; they do not hold implementation delivery.
+
 User login, human notification/VS Code answers and other person-dependent checks
 are post-release acceptance items, not conditions for merging implemented work
 into main. Keep their unperformed status explicit without holding implementation
@@ -108,6 +112,12 @@ and detachment cause remain pending under #381. Counts never authorize compactio
 The `c3a2cc86` retry also failed: the returning launcher had an unclassified parent.
 The category set now includes Hacocoon's native review/client helpers and Windows
 WSL host/relay/services; the earlier category set could not exclude those sources.
+The #707 retry identified notification ancestry when WSL restarted. The current
+candidate adds shared startup/reclamation coordination (ADR 0108), with native
+component evidence. #708 retained host processes without a new observed start;
+that failure is not yet explained. Installed acceptance of the coordination fix
+remains pending. Local follow-up also encountered zero free bytes on C: and WSL
+CreateInstance/E_FAIL; only generated test artifacts were removed.
 Read-only comparisons isolate enrollment visibility to the init interop route;
 the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 

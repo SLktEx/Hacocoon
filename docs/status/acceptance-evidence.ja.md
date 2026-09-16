@@ -1488,3 +1488,26 @@ Windowsは25件成功・Linux専用7件SKIP。Linuxの独立アーカイブで�
 失敗した。子プロセスで指定言語を設定するよう試験を修正し、両言語で成功した。
 製品の選択処理や権限を緩和したものではない。既存のWSL root user session警告は
 残っている。配布相当版のWindowsエディタ接続や本人の承認操作を確認したとは扱わない。
+
+### 通知起動と容量回収の競合
+
+#707のc0843ed4、再実行job104622907624は導入・HTTPS・SSH/エディタ・Linux回収が
+成功し、公開回収でcompact_attached（359回、圧縮未開始、resumed=true、通知SKIP）。
+7.0秒でWSL起動/hostが0になり、23.8秒でnotification/unavailableと
+wsl/notification/unavailableの起動2件が戻った。一つの再起動元を絞れたが、
+#708のb3cece34/job104626263843では6.3秒で起動が0でもhostが3件残っており、
+同じ圧縮拒否・圧縮未開始・resumed=falseだった。これらを同一原因と断定しない。
+過去の成功・失敗は各範囲で保持する。#708品質チェックの出力エラー未処理2件は修正した。
+
+起動排他は[ADR 0108](../adr/0108-background-wsl-start-coordination.ja.md)に従う。
+1,672ファイルの隔離Linuxコピーで共通ローカルCI test73.45秒、docs9.88秒、
+Windows review/reclaimテストのコンパイル1.26/0.89秒、CI相当のLinux差分lint
+2.13.2が12.14秒・指摘0件で成功。実Windowsでprivate peer3件0.45秒、
+排他/回収順序/接続中ディスク拒否8件1.02秒が成功した。別プロセス排他、解放後の
+通常接続を含む。初回native呼出しはPowerShellの引数解釈で試験開始前に失敗し、
+引数配列で呼び直して成功。製品・試験コードはそのために変更していない。
+Windows全体lintは既存Linux専用Incusのsyscall.Stat_t参照を型検査できず失敗。
+対象限定の再検査は手元のWSLがCreateInstance/E_FAILとなり未実行。Cドライブの
+空き0を確認し、生成済みテスト実行ファイルと一時アーカイブだけを削除して約20 MiBを
+確保した。ソースとログは保持。WSL再起動、利用者データ削除、権限緩和はしていない。
+修正後の導入済み容量回収・通知の確認は残っている。

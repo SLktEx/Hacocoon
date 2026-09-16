@@ -1766,3 +1766,31 @@ requested language in the child; both languages then passed. Product selection
 or authority was not changed to make that test pass. The existing WSL root-user
 session warning remains. These component checks do not prove installed Windows
 editor connectivity or person-dependent approval. Those remain separate checks.
+
+### Notification startup versus reclamation
+
+At #707 head c0843ed4, retry job104622907624 passed installation, HTTPS,
+SSH/editor and Linux reclamation but failed public compaction (359 opens,
+compact_attached, compaction not started, resumed=true, notification stage SKIP).
+WSL launch/host counts were zero at 7.0s; at 23.8s two launches returned with
+notification/unavailable and wsl/notification/unavailable ancestry. This narrows
+one restart source. It does not explain #708 b3cece34/job104626263843, where three
+host processes remained after launches reached zero at 6.3s; that run also failed
+compact_attached with no compaction and resumed=false. Previous successful
+recovery and all preceding failures retain their scopes. #708's quality failure
+was two unchecked output errors; both are corrected in the follow-up.
+
+The shared startup reservation follows [ADR 0108](../adr/0108-background-wsl-start-coordination.md).
+An isolated 1,672-file Linux copy passed maintained local CI test (73.45s), docs
+(9.88s), native review/reclaim test compilation (1.26s/0.89s), and CI-equivalent
+Linux changed-code lint 2.13.2 (12.14s, zero issues). Actual Windows passed three
+private-peer tests (0.45s) and eight guard/continuation/detached-open tests (1.02s),
+including separate-process exclusion and ordinary startup after release. The
+first native invocation failed at PowerShell argument parsing before tests ran;
+passing an argument array fixed invocation without changing product/test code.
+Whole-repository Windows lint could not typecheck the existing Linux-only Incus
+syscall.Stat_t test dependency. Its narrowed retry did not run: the local WSL
+failed CreateInstance/E_FAIL while C: had zero free bytes. Generated test binaries
+and source archive were removed; source and logs remain, with only about 20 MiB
+free afterward. No WSL restart, user-data deletion or permission relaxation was
+performed. New installed reclamation/notification acceptance remains pending.
