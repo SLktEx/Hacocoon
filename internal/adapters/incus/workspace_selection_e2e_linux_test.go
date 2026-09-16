@@ -53,7 +53,7 @@ func TestRealIncusWorkspaceSelectionE2E(t *testing.T) {
 	for _, key := range []string{"one", "two"} {
 		collection.Members = append(collection.Members, gitrepo.Object{Kind: "work", ID: name + "-" + key, Owner: random(), State: "ready", Repository: key, Remote: "https://github.com/example/" + key + ".git", Branch: "main", NativeRef: pool + "/haco-work-" + name + "-" + key})
 	}
-	third := gitrepo.Object{Kind: "repo", ID: name + "-third", Repository: name + "-third", Owner: random(), State: "ready", Remote: "https://github.com/example/third.git", Branch: "main", NativeRef: pool + "/haco-repo-" + name + "-third"}
+	third := gitrepo.Object{Kind: "repo", ID: name + "-third", Repository: name + "-third", Owner: random(), State: "ready", Remote: "https://github.com/example/third.git", NativeRef: pool + "/haco-repo-" + name + "-third"}
 	write := func(path string, value any) {
 		t.Helper()
 		f, e := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)

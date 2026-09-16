@@ -148,7 +148,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	testGit(t, seed, "push", "origin", "feature/independent")
 	testGit(t, seed, "switch", "main")
 	backend := localBackend{repos: filepath.Join(root, "repos"), workspaces: filepath.Join(root, "workspaces")}
-	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
+	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 	work := repo
 	work.Kind = "work"
 	work.ID = "work"

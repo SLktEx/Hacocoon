@@ -13,21 +13,21 @@ import (
 )
 
 const (
-	MethodRepositoryClone = "repository.clone"
-	MethodWorkspaceCopy   = "workspace.copy"
-	MethodGitConnect      = "git.connect"
-	MethodGitPending      = "git.pending"
-	MethodGitDecide       = "git.decide"
-	MethodGitStatus       = "git.status"
-	MethodGitReconcile    = "git.reconcile"
+	MethodRepositoryAdd = "repository.add"
+	MethodWorkspaceCopy = "workspace.copy"
+	MethodGitConnect    = "git.connect"
+	MethodGitPending    = "git.pending"
+	MethodGitDecide     = "git.decide"
+	MethodGitStatus     = "git.status"
+	MethodGitReconcile  = "git.reconcile"
 )
 
-type RepositoryCloneRequest struct {
+type RepositoryAddRequest struct {
 	ID     string `json:"id"`
 	Remote string `json:"remote"`
-	Branch string `json:"branch"`
 }
 type WorkspaceCopyRequest struct {
+	Branch       string   `json:"branch,omitempty"`
 	ID           string   `json:"id"`
 	Repository   string   `json:"repository"`
 	Repositories []string `json:"repositories,omitempty"`
@@ -69,12 +69,14 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 		{MethodRepositoryManage, repositoryManageHandler(repositories)},
 		{MethodGitStatus, gitStatusHandler(broker, false)},
 		{MethodGitReconcile, gitStatusHandler(broker, true)},
-		{MethodRepositoryClone, func(ctx context.Context, payload json.RawMessage) (any, error) {
-			var req RepositoryCloneRequest
-			if json.Unmarshal(payload, &req) != nil {
+		{MethodRepositoryAdd, func(ctx context.Context, payload json.RawMessage) (any, error) {
+			var req RepositoryAddRequest
+			decoder := json.NewDecoder(bytes.NewReader(payload))
+			decoder.DisallowUnknownFields()
+			if decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF {
 				return nil, control.ErrInvalidArgument
 			}
-			result, err := repositories.Clone(ctx, req.ID, req.Remote, req.Branch)
+			result, err := repositories.Add(ctx, req.ID, req.Remote)
 			return result, translateError(err)
 		}},
 		{MethodWorkspaceCopy, func(ctx context.Context, payload json.RawMessage) (any, error) {
@@ -83,13 +85,13 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 				return nil, control.ErrInvalidArgument
 			}
 			if len(req.Repositories) != 0 {
-				if req.Repository != "" {
+				if req.Repository != "" || req.Branch != "" {
 					return nil, control.ErrInvalidArgument
 				}
 				result, err := repositories.CopyWorkspaceSet(ctx, req.ID, req.Repositories)
 				return result, translateError(err)
 			}
-			result, err := repositories.CopyWorkspace(ctx, req.ID, req.Repository)
+			result, err := repositories.CopyWorkspaceBranch(ctx, req.ID, req.Repository, req.Branch)
 			return result, translateError(err)
 		}},
 		{MethodGitConnect, func(ctx context.Context, payload json.RawMessage) (any, error) {
@@ -121,9 +123,9 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 	}
 	return nil
 }
-func (c *Client) CloneRepository(ctx context.Context, request RepositoryCloneRequest) (gitrepo.Object, error) {
+func (c *Client) AddRepository(ctx context.Context, request RepositoryAddRequest) (gitrepo.Object, error) {
 	var response gitrepo.Object
-	err := c.wire.Call(ctx, MethodRepositoryClone, request, &response)
+	err := c.wire.Call(ctx, MethodRepositoryAdd, request, &response)
 	return response, err
 }
 func (c *Client) CopyWorkspace(ctx context.Context, request WorkspaceCopyRequest) (gitrepo.Object, error) {

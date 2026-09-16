@@ -69,7 +69,7 @@ func (s *RepositoryService) restoreSources(ctx context.Context, backend savedWor
 			return nil, err
 		}
 		sources = append(sources, restoreSource{registered: &repo, SavedWorkspace: SavedWorkspace{
-			Repository: name, Remote: repo.Remote, Branch: repo.Branch,
+			Repository: name, Remote: repo.Remote,
 		}})
 	}
 	return sources, nil

@@ -3,6 +3,10 @@
 Status: accepted for implementation  
 Date: 2026-09-06
 
+The branch-from-registration decision is superseded by
+[ADR 0108](0108-branch-independent-repositories.md). Source ownership and
+independent Workspace isolation remain unchanged.
+
 ## Context
 
 The WSL PoC requires ordinary SSH and Git fetch/pull/push on an independent

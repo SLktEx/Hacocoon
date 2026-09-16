@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -56,11 +58,10 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	if !ValidHaves(req.Operation, req.Haves) {
 		return Response{}, fmt.Errorf("invalid Git history hints")
 	}
-	if !ValidID(req.Repository) || !ValidBranch(req.Branch) || ValidateRemote(req.Remote) != nil {
+	if !ValidID(req.Repository) || (req.Branch != "" && (req.Operation != "workspace" || !ValidBranch(req.Branch))) || ValidateRemote(req.Remote) != nil {
 		return Response{}, fmt.Errorf("invalid trusted Git request")
 	}
 	dir := filepath.Join(repos, req.Repository)
-	ref := "refs/heads/" + req.Branch
 	git := func(stdin []byte, args ...string) ([]byte, error) { return trustedGit(ctx, dir, stdin, args...) }
 	if req.Operation != "fetch" && len(req.Heads) != 0 {
 		return Response{}, fmt.Errorf("heads are only valid for fetch")
@@ -75,20 +76,40 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	}
 	switch req.Operation {
 	case "clone":
-		_, err := trustedGit(ctx, "", nil, "clone", "--template=", "--no-local", "--no-tags", "--branch", req.Branch, "--", req.Remote, dir)
+		_, err := trustedGit(ctx, "", nil, "clone", "--template=", "--no-local", "--no-tags", "--no-checkout", "--", req.Remote, dir)
 		return Response{}, err
 	case "workspace":
 		if !ValidID(req.Workspace) {
 			return Response{}, fmt.Errorf("invalid Workspace")
 		}
 		workspace := filepath.Join(workspaces, req.Workspace)
-		// This is a fresh owned copy, before any Environment can write it. Keep
-		// only local Git data and the non-authorizing helper URL in its config.
-		config := "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n[remote \"origin\"]\n\turl = haco://" + req.Repository + "\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch \"" + req.Branch + "\"]\n\tremote = origin\n\tmerge = " + ref + "\n"
+		// Only a fresh copy of the trusted source reaches this operation. Imported
+		// and restored guest data never runs authenticated Git or checkout here.
 		info, err := os.Lstat(filepath.Join(workspace, ".git"))
 		if err != nil || !info.IsDir() {
 			return Response{}, fmt.Errorf("Workspace must have its own .git directory")
 		}
+		workGit := func(input []byte, args ...string) ([]byte, error) { return trustedGit(ctx, workspace, input, args...) }
+		branch := req.Branch
+		if branch == "" {
+			listed, err := remoteHeads(workGit, req.Remote)
+			if err != nil {
+				return Response{}, err
+			}
+			branch = strings.TrimPrefix(listed.Ref, "refs/heads/")
+			if !ValidBranch(branch) {
+				return Response{}, fmt.Errorf("remote HEAD does not name an available branch; select a Workspace branch")
+			}
+		}
+		ref := "refs/heads/" + branch
+		// Refresh all tracking heads, including branches added after registration.
+		if _, err := workGit(nil, "fetch", "--no-tags", "--no-recurse-submodules", "--prune", "--", req.Remote, "+refs/heads/*:refs/remotes/origin/*"); err != nil {
+			return Response{}, err
+		}
+		if _, err := workGit(nil, "checkout", "--no-track", "-B", branch, "refs/remotes/origin/"+branch, "--"); err != nil {
+			return Response{}, err
+		}
+		config := "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n[remote \"origin\"]\n\turl = haco://" + req.Repository + "\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch " + strconv.Quote(branch) + "]\n\tremote = origin\n\tmerge = " + strconv.Quote(ref) + "\n"
 		return Response{}, os.WriteFile(filepath.Join(workspace, ".git", "config"), []byte(config), 0600)
 	case "list", "fetch", "prepare", "push", "observe":
 	default:

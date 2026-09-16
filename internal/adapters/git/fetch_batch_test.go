@@ -50,7 +50,7 @@ func testFetchBatch(t *testing.T, blobSize int, branches []string) {
 		testGit(t, seed, "push", "file://"+remote, branch)
 	}
 	ctx := context.Background()
-	agent := AgentRequest{Operation: "clone", Repository: "demo", Remote: "file://" + remote, Branch: "main"}
+	agent := AgentRequest{Operation: "clone", Repository: "demo", Remote: "file://" + remote}
 	if _, err := RunAgent(ctx, agent, repos, ""); err != nil {
 		t.Fatal(err)
 	}

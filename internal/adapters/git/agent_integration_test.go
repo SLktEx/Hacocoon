@@ -31,7 +31,7 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 	testGit(t, seed, "init", "--initial-branch=main")
 	initial := testCommit(t, seed, "work.txt", "initial")
 	testGit(t, seed, "push", "file://"+remote, "main")
-	base := AgentRequest{Repository: "source", Workspace: "work", Remote: "file://" + remote, Branch: "main"}
+	base := AgentRequest{Repository: "source", Workspace: "work", Remote: "file://" + remote}
 	run := func(req AgentRequest) (Response, error) { return RunAgent(ctx, req, repos, workspaces) }
 	clone := base
 	clone.Operation = "clone"
@@ -125,7 +125,7 @@ func TestTrustedWireRejectsUnknownFieldsAndInvalidRouting(t *testing.T) {
 			t.Fatalf("invalid remote accepted: %q", remote)
 		}
 	}
-	for _, branch := range []string{"", "-option", "../main", "a//b", "a/", "a\n"} {
+	for _, branch := range []string{"-option", "../main", "a//b", "a/", "a\n"} {
 		if ValidBranch(branch) || ValidWorkspaceRouting("file:///tmp/repo", branch) {
 			t.Fatalf("invalid branch accepted: %q", branch)
 		}
@@ -134,7 +134,7 @@ func TestTrustedWireRejectsUnknownFieldsAndInvalidRouting(t *testing.T) {
 
 func TestAgentRefusesMalformedOperationsBeforeExternalMutation(t *testing.T) {
 	root := t.TempDir()
-	base := AgentRequest{Repository: "repo", Remote: "file:///nonexistent", Branch: "main", Operation: "list"}
+	base := AgentRequest{Repository: "repo", Remote: "file:///nonexistent", Operation: "list"}
 	for _, mutate := range []func(*AgentRequest){
 		func(r *AgentRequest) { r.Repository = "../other" },
 		func(r *AgentRequest) { r.Branch = "-option" },

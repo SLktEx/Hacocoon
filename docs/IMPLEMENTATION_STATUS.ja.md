@@ -22,7 +22,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |
 | [TCP/UDP開発接続](design/network-connections.md) | 実装済み | ゲストの明示的なループバック待受、生成ID付きポリシー・承認、任意のルール期限、接続中の失効を実装。HTTP/SNI・送信元保護を維持。専用基盤の検証は限定範囲で、外部インターネット・VPN・Windows UI全体は未完了。 |
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。WindowsパッケージCIで通常入口・native interopの候補版別の証拠あり。広い導入構成は別途確認。 |
-| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
+| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | ブランチ非依存の登録、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
 | [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
@@ -107,3 +107,6 @@ Gitの開発候補は両方の既存境界で全量base64を上限付きのバ�
 ## 構成整理と旧CLIの廃止
 
 製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0107-responsibility-layout-and-cli-retirement.ja.md)も参照してください。
+
+`haco repo add`によるリポジトリ登録はブランチに依存しません。初期ブランチはWorkspace作成時に選びます。
+[Gitの設計](design/git-and-github-capability.md#branch-independent-registration)を参照してください。

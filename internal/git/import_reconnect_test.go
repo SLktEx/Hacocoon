@@ -60,19 +60,22 @@ func TestImportedWorkspaceConnectsOnlyToExplicitMatchingSource(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(repos.Root, "bindings", "dev.json")); !os.IsNotExist(err) {
 				t.Fatal("missing route persisted a binding", err)
 			}
-			currentRemote, currentBranch := remote, "main"
+			currentRemote := remote
 			if mode == "remote-mismatch" {
 				currentRemote = "https://github.com/example/different.git"
 			}
 			if mode == "branch-mismatch" {
-				currentBranch = "other"
+				work.Branch = "other"
+				if err := repos.save(work); err != nil {
+					t.Fatal(err)
+				}
 			}
-			source, err := repos.Clone(ctx, "source", currentRemote, currentBranch)
+			source, err := repos.Add(ctx, "source", currentRemote)
 			if err != nil {
 				t.Fatal(err)
 			}
 			err = broker.Connect(ctx, "dev")
-			if mode != "matching" {
+			if mode != "matching" && mode != "branch-mismatch" {
 				want := core.ErrCapabilityStale
 				if mode == "offline" {
 					want = core.ErrUnsupported

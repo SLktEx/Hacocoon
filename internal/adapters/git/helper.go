@@ -78,13 +78,16 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				return err
 			}
 			heads, err := ValidateHeads(listed.Heads)
-			if err != nil || !ValidOID(listed.OID) || heads[listed.Ref] != listed.OID {
+			if err != nil || (listed.Ref == "" && listed.OID != "") || (listed.Ref != "" && (!ValidOID(listed.OID) || heads[listed.Ref] != listed.OID)) {
 				return fmt.Errorf("invalid remote ref listing")
 			}
 			for _, head := range listed.Heads {
 				_, _ = fmt.Fprintf(output, "%s %s\n", head.OID, head.Ref)
 			}
-			_, _ = fmt.Fprintf(output, "@%s HEAD\n\n", listed.Ref)
+			if listed.Ref != "" {
+				_, _ = fmt.Fprintf(output, "@%s HEAD\n", listed.Ref)
+			}
+			_, _ = fmt.Fprintln(output)
 		case strings.HasPrefix(line, "fetch "):
 			batch, err := helperBatch(scanner, line)
 			if err != nil {

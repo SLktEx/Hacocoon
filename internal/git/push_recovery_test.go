@@ -84,7 +84,7 @@ func newRecoveryFixture(t *testing.T) *recoveryFixture {
 	newOID := testCommit(t, dir, "data", "after")
 	backend := &recoveryBackend{localBackend: localBackend{repos: repos}}
 	service := NewRepositoryService(filepath.Join(root, "state"), backend)
-	repo := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
+	repo := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "file://" + remote, NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 	work := repo
 	work.Kind, work.ID, work.Owner = "work", "work", strings.Repeat("b", 32)
 	for _, obj := range []Object{repo, work} {

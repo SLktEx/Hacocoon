@@ -145,13 +145,34 @@ haco git approve --save ask-env <id>
 取り消すときは[`haco config`](../reference/configuration.ja.md)で対応する保存項目を削除します。
 保存結果の成功には永続化と監査が必要ですが、その後の実行が失敗しても設定が残る場合があります。
 
-## 複数リポジトリ
+## 一度登録し、作業を作るときにブランチを選ぶ
 
-接続先とブランチを個別に登録して、一つの集合を作ります。
+信頼された管理側で実行します。
 
 ```bash
-haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
-haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
+haco repo add sample https://github.com/OWNER/REPO.git
+haco workspace create --repo sample --branch main work-main
+haco workspace create --repo sample --branch feature/foo work-feature
+```
+
+両ブランチは取得元に存在する必要があります。同じ登録元から、ファイルと`.git`が
+独立した二つのWorkspaceを作成します。登録時にブランチは不要で、push権限も与えません。
+`--branch`を省略するとWorkspace作成時点の取得元の既定ブランチを使います。
+`workspace prepare`も同様です。登録情報に既定ブランチを固定保存しません。
+その後の切り替えはEnvironment内の通常のGitで行います。集合の作成では取得元ごとの
+既定ブランチを使い、`--branch`は単一リポジトリの作成だけで指定できます。
+
+pre-1.0の方針に従い、`repo clone`と旧APIは非推奨aliasを残さず削除しました。
+branchを含む旧ソース記録は非互換として扱い、データを保持したまま自動変換は行いません。
+[判断理由](../adr/0108-branch-independent-repositories.ja.md)を参照してください。
+
+## 複数リポジトリ
+
+リポジトリごとに一度登録して、一つの集合を作ります。
+
+```bash
+haco repo add first https://github.com/OWNER/FIRST.git
+haco repo add second https://github.com/OWNER/SECOND.git
 haco workspace create --repo first,second both
 haco env create --workspace managed:both both-dev
 ```
@@ -169,7 +190,7 @@ Workspace自体の削除ではGit情報も失われます。
 取得元・Workspace・Storeの整理は[データの寿命](data-lifetime.ja.md)を参照してください。
 Workspaceの記録が接続先として使っている取得元は削除できません。
 
-インポート済みのGitHub接続先は、同じID・URL・ブランチを明示的に登録した取得元だけに再接続できます。
+インポート済みのGitHub接続先は、同じID・URLを明示的に登録した取得元だけに再接続できます。
 ファイル接続先と旧形式のインポートはオフラインのままで、同名の取得元を作っても有効になりません。
 [インポート後のGit再接続](../design/git-and-github-capability.md#reconnect-an-imported-github-workspace)を参照してください。
 インポートした実機でのfetch／pushは未確認です。
@@ -188,7 +209,7 @@ haco workspace fork --repo first,third --path ./task-next --name task-next ./tas
 haco open ./task-next
 ```
 
-`first`は元の変更を引き継ぎます。`third`は先に`haco repo clone`で登録してください。
+`first`は元の変更を引き継ぎます。`third`は先に`haco repo add`で登録してください。
 選ばなかったレポも元の作業には残り、OCIデータは独立して複製します。
 `--repo`を省略すると全レポを引き継ぎます。
 [複製の仕様](../design/workspace-workflow.md#choose-the-copys-repositories)を参照してください。

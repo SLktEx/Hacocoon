@@ -58,11 +58,12 @@ gh auth login --hostname github.com --git-protocol https
 認証情報、dotfiles、個人・組織固有の追加ツールは標準Hostツールには含めません。
 
 以下の公開リポジトリは読み取りとローカル編集に使えます。自分の開発では、
-URLとブランチを利用権限のあるリポジトリの**既存ブランチ**に置き換えます。
+URLを利用権限のあるリポジトリに置き換えます。Workspace作成時点の
+取得元の既定ブランチを使います。
 後で設定する権限のURL・名前も一致させてください。
 
 ```bash
-haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
+haco repo add sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco env status sample-dev

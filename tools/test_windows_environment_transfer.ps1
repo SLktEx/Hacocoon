@@ -35,7 +35,7 @@ git -C "$dir/repository" -c user.name=Transfer -c user.email=transfer@example.in
 '
         [void](Invoke-HacoHost @('/bin/sh','-ec',$seed.Replace("`r",''),'--',$hostDirectory) 'Create isolated trusted Host transfer repository')
         $phase = 'managed-workspace'
-        [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','clone','--branch','main',$repository,('file://' + $hostDirectory + '/repository')) 'Register transfer source repository')
+        [void](Invoke-HacoHost @('/usr/local/bin/haco','repo','add',$repository,('file://' + $hostDirectory + '/repository')) 'Register transfer source repository')
         [void](Invoke-HacoHost @('/usr/local/bin/haco','workspace','create','--repo',$repository,$workspace) 'Create managed transfer Workspace')
         $phase = 'source-create'
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','create','--workspace',('managed:' + $workspace),'--base',$BaseName,$source) 'Create managed source Environment')

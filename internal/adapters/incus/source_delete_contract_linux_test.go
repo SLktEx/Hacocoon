@@ -120,7 +120,7 @@ func (n *sourceDeleteNative) Run(_ context.Context, command string, args ...stri
 func sourceDeleteCatalog(t *testing.T, mode string) (*gitrepo.RepositoryService, *RepositoryBackend, *sourceDeleteNative, gitrepo.Object, []byte) {
 	t.Helper()
 	root := t.TempDir()
-	object := gitrepo.Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", Branch: "main", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
+	object := gitrepo.Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
 	data, err := json.Marshal(object)
 	if err != nil {
 		t.Fatal(err)

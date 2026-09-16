@@ -54,7 +54,7 @@ func TestCollectionOwnershipAndMembersCannotBeLeasedSeparately(t *testing.T) {
 		service := NewRepositoryService(t.TempDir(), backend)
 		backend.service = service
 		for _, id := range []string{"one", "two"} {
-			if err := service.save(Object{Kind: "repo", ID: id, Repository: id, Remote: "https://github.com/example/" + id + ".git", Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}); err != nil {
+			if err := service.save(Object{Kind: "repo", ID: id, Repository: id, Remote: "https://github.com/example/" + id + ".git", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -103,11 +103,11 @@ func TestTwoRepositoriesPushToTheirOwnRemotes(t *testing.T) {
 		testCommit(t, source, "initial.txt", id)
 		testGit(t, source, "remote", "add", "origin", "file://"+remote)
 		testGit(t, source, "push", "origin", "main")
-		repo := Object{Kind: "repo", ID: id, Repository: id, Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
+		repo := Object{Kind: "repo", ID: id, Repository: id, Remote: "file://" + remote, NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 		if err := service.save(repo); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := backend.RunGit(context.Background(), gitadapter.AgentRequest{Operation: "clone", Repository: id, Remote: repo.Remote, Branch: "main"}); err != nil {
+		if _, err := backend.RunGit(context.Background(), gitadapter.AgentRequest{Operation: "clone", Repository: id, Remote: repo.Remote}); err != nil {
 			t.Fatal(err)
 		}
 		member := repo

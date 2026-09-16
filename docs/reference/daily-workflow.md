@@ -17,13 +17,13 @@ In **trusted haco-host**, verify readiness and prepare a managed repository:
 
 ```bash
 haco doctor
-haco repo clone --branch main sample https://github.com/OWNER/REPO.git
+haco repo add sample https://github.com/OWNER/REPO.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco open sample-dev
 ```
 
-Replace OWNER/REPO and the existing branch. Private Git authentication stays in
+Replace OWNER/REPO. Workspace creation uses the current remote default branch. Private Git authentication stays in
 trusted haco-host; see [managed repositories](../guides/git-workflow.md).
 Base selection defaults to the configured Base. An optional OCI Store copy is
 automatic; `--no-oci` skips it. There is no required OCI runtime for Core.
