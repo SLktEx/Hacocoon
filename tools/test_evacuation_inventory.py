@@ -12,6 +12,92 @@ import evacuation_inventory as subject
 
 
 class InventoryTests(unittest.TestCase):
+    def binding(self, collection=False):
+        repo = {"kind": "repo", "id": "source", "owner": "a" * 32, "state": "ready",
+                "native_ref": "pool/source", "remote": "https://user:secret@example.invalid/repo"}
+        work = {"kind": "work", "id": "work", "owner": "b" * 32, "state": "ready",
+                "native_ref": "pool/work", "repository": "source"}
+        result = {"environment": {"name": "dev", "workspace": {"path": "private-path"},
+                                  "configuration": {"token": "secret"}},
+                  "workspace": work, "repository": repo}
+        if collection:
+            result["workspace"] = dict(work, members=[dict(work, id="member")])
+            result["repositories"] = [repo]
+            result["repository"] = {}  # Ordinary collection serialization.
+        return result
+
+    def test_git_bindings_project_single_and_collection_references_without_secrets(self):
+        for collection in (False, True):
+            result = subject.binding_references(self.binding(collection))
+            self.assertTrue(result["projection_complete"])
+            self.assertFalse(result["authority"])
+            self.assertFalse(result["state_validated"])
+            self.assertTrue(result["review_required"])
+            self.assertEqual(result["environment"], "dev")
+            self.assertEqual(len(result["workspace"]), 2 if collection else 1)
+            self.assertEqual(result["repositories"][0]["id"], "source")
+            self.assertNotIn("secret", json.dumps(result))
+            self.assertNotIn("private-path", json.dumps(result))
+
+    def test_invalid_bindings_are_unreviewed_not_valid_or_empty(self):
+        for value in (None, {}, [], {**self.binding(), "environment": {"name": "../secret"}},
+                      {**self.binding(), "workspace": []},
+                      {**self.binding(), "repository": {"kind": "repo"}},
+                      {**self.binding(True), "repositories": []}):
+            result = subject.binding_references(value)
+            self.assertFalse(result["projection_complete"])
+            self.assertFalse(result["authority"])
+            self.assertNotIn("secret", json.dumps(result))
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux directory observation required")
+    def test_binding_directory_retains_valid_files_and_exposes_remaining_gaps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bindings = root / "bindings"
+            bindings.mkdir()
+            good = bindings / "dev.json"
+            raw = json.dumps(self.binding())
+            good.write_text(raw)
+            before = good.stat()
+            result = subject.repository_inventory(root)
+            self.assertTrue(result["projection_complete"])
+            self.assertEqual(result["bindings"][0]["file"], "bindings/dev.json")
+            self.assertEqual(result["files"], [])
+            (bindings / "link.json").symlink_to(good)
+            (bindings / "wrong.json").write_text(raw)
+            (bindings / "oversized.json").write_text(" " * 16385)
+            (bindings / "bad.json").write_text("{}")
+            (bindings / "nested").mkdir()
+            result = subject.repository_inventory(root)
+            self.assertFalse(result["projection_complete"])
+            self.assertEqual(len(result["bindings"]), 2)  # Valid and incomplete projections.
+            self.assertEqual(len(result["errors"]), 5)
+            self.assertNotIn("secret", json.dumps(result))
+            self.assertEqual(good.read_text(), raw)
+            self.assertEqual(good.stat().st_mtime_ns, before.st_mtime_ns)
+
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux directory observation required")
+    def test_binding_directory_does_not_follow_link_and_shares_file_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "dev.json").write_text(json.dumps(self.binding()))
+            source = root / "source"
+            source.mkdir()
+            (source / "bindings").symlink_to(outside)
+            result = subject.repository_inventory(source)
+            self.assertFalse(result["projection_complete"])
+            self.assertEqual(result["bindings"], [])
+            (source / "bindings").unlink()
+            (source / "bindings").mkdir()
+            (source / "bindings" / "dev.json").write_text(json.dumps(self.binding()))
+            with patch.object(subject, "LIMIT", 1):
+                result = subject.repository_inventory(source)
+            self.assertFalse(result["projection_complete"])
+            self.assertIn("repository-file-budget", result["errors"])
+            self.assertEqual(result["bindings"], [])
+
     @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux catalog observation required")
     def test_cli_catalog_comparison_is_observation_not_backup_success(self):
         with tempfile.TemporaryDirectory() as root:

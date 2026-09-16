@@ -4,7 +4,7 @@
 
 現在のmilestone位置は **v0.68**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
-このページはmainのコードで使える範囲を示します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
+このページはこのcheckoutのコードで使える範囲を示し、統合欄で確認済みのmainとPRの変更を区別します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
 **状態:** 実装済み、部分実装、未実装の計画、延期を区別します。実装済みでも全Host・プロバイダーでの動作確認を意味しません。
 
@@ -40,7 +40,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
 | [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。準備・起動段階とWindowsエラーを日英で案内。手元の開始失敗と実際の中断worker確認は別の残件。 |
 | [Envのexport/import](design/environment-transfer.ja.md) | 部分実装 | 停止した管理bundle、検証済みLinux配備、導入済みコントローラー・Windows投影ファイル経路を実装。管理データのWSL間移送を一構成で確認し、停止したcontainerdのイメージ・書込みデータの移送も確認済み。稼働中の移行や環境全体のバックアップではなく、import後の認証Gitと広い実行基盤整合性は未完了。 |
-| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録を含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。現在必要なデータの選定と復元後開発は未完了。旧版の再構築・置換は現在のM0〜M5対象外。 |
+| [データ退避・環境置換](guides/data-evacuation.ja.md) | 部分実装 | 現行schema16の追加データ・世代参照・ライフサイクル未完了記録・保存済みGit接続の関連付けを含む読み取り専用棚卸しと、明示した通常ファイルのアーカイブを実装。スナップショット失敗を再現した隔離試験も実施。Incus標準のexport/importで分割イメージ2件を移送。単一形式と新Env起動は未確認。名前付きの現行データ選定・復元ツリーの集約照合をリポジトリ用の保守ヘルパーに実装。実際の対象選定・独立した保存・復元後開発は未確認。旧版の再構築・置換は現在のM0〜M5対象外。 |
 | [AWS S3](design/aws-operations.ja.md) | 部分実装 | 承認付きの制限ある一覧・検証済みobject取得、送信元を固定したゲスト要求を実装。リポジトリ・模擬native試験あり。認証を伴う実AWS検証はスキップ。EC2のEnv プロバイダーではない。 |
 | [通知・クライアントAPI](reference/interaction-events.ja.md) | 実装済み | 情報を絞ったeventと任意のadapter。VS Code GUIとWindows通知内のページで共通review/Policyを通して明示回答が完結。開くだけでは回答しない。新規の導入GUI・人の回答・Linux起動は未確認で、native/部品の証拠は別管理。 |
 | [Seed撤去](design/oci-seed-and-cow.ja.md) | 実装済み | Seedの実行・構築・harvest・カタログ・収集・推奨と、旧イメージ削除・再有効化の状態を撤去。現行のBase・管理対象イメージ・OCI Storeと、独立した任意のDocker連携を維持。旧版の互換性・移行は対象外。 |
@@ -62,6 +62,22 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 
 ## mainの統合と開発候補
 
+任意の `haco base build --builder <env>` は**このcheckoutに実装済み**。
+main統合は[#705](https://github.com/SLktEx/Hacocoon/pull/705)で追跡する。
+通常の管理者用通信規則でbuild対象を事前に指定できる。正規の新規作成で既存Envを拒否し、
+毎回新しい一時所有情報を使う。名前の検証は共通処理へ集めた。
+Policyの編集や暗黙の承認は追加しない。[Packerの依存取得と導入済みbuild・再利用](design/packer-base-builds.ja.md)は
+別の確認として残す。
+
+現行データの対象選択（[#703](https://github.com/SLktEx/Hacocoon/issues/703)）は
+**このcheckoutに実装済み**。main統合は[#704](https://github.com/SLktEx/Hacocoon/pull/704)で追跡する。
+リポジトリから使う保守ヘルパーで必要なデータに名前を付け、
+保持・再作成・除外の判断を残し、既存の復元ツリー照合をまとめる。
+未確認の分類、未作成のマニフェスト、失敗した項目も表示する。
+[操作と制限](guides/data-evacuation.ja.md)を参照。実際の全対象選択、独立した保存、
+guestから見た所有者や認証付き開発の確認を完了したわけではなく、
+インストール済みの `haco` コマンドでもない。
+
 main `e4d99700` / [#699](https://github.com/SLktEx/Hacocoon/pull/699)に、
 #687/#688に続いて#689〜#693と#696〜#698を統合した。復元ツリーの照合、容量回収結果の
 日本語表示、SSH失敗の分類、環境名からの最新保存の復元、Git既存履歴の再利用と
@@ -79,7 +95,7 @@ native通知の所有確認・拒否経路を確認した。実際の割当容�
 
 [#700](https://github.com/SLktEx/Hacocoon/pull/700)はHost・プロジェクトのセットアップ結果と
 次の操作を共通の日英表示へ揃える。スクリプトの元の出力、明示的な再実行、診断値、
-縦ヘルプを維持する。開発ブランチに実装済みで、ローカル全体確認と通常パッケージ生成が成功した。
+縦ヘルプを維持する。#701を通じてmain反映済みで、ローカル全体確認と通常パッケージ生成が成功した。
 [CLI全体の翻訳範囲](reference/cli-language.ja.md)はまだ部分的である。
 
 本人ログイン、通知クリック、新たなVS Code内の回答はリリース後に確認し、
@@ -87,11 +103,11 @@ CI成功済みの実装のmain反映を止める条件にはしない。候補�
 新たなリリースは作成していない。性能・追加の厳密検証と対象外の旧版再構築は、
 現在データの保持と分けて[M0〜M5ロードマップ](status/architecture-and-roadmap.md)に記録する。
 
-開発中の通信案内の追補では、登録・取り消し・ルール保存・接続口の結果を日英で表示する。
+main #701では、登録・取り消し・ルール保存・接続口の結果を日英で表示する。
 機械向けの結果と許可の意味は維持する。M1/M3の表示改善の一部であり、
 導入済み受入とCLI全体の翻訳範囲は別に追跡する。
 
-開発ブランチでは、設定の確認・保存・失敗時の案内も共通の日英表示へ揃えた。
+main #701では、設定の確認・保存・失敗時の案内も共通の日英表示へ揃えた。
 revisionで対象を固定する編集・Policyの値・JSONは維持し、表示失敗時にも編集を再実行しない。
 
 main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)に、
@@ -99,7 +115,8 @@ main `f225e5c1` / [#701](https://github.com/SLktEx/Hacocoon/pull/701)に、
 同一headの5系統CIと導入済みWindows受入は成功。本人操作の確認はリリース後に残す。#700の異なる2回のWindows失敗は
 [受入記録](status/acceptance-evidence.ja.md#転送試験の準備待ち修正)に保持する。
 
-Gitの開発候補は両方の既存境界で全量base64を上限付きのバイナリ転送へ置き換える。
+main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702)は、両方の既存境界で全量base64を上限付きのバイナリ転送へ置き換える。
 単一packの32 MiB制限を撤去し、refごとの独立したpush承認と最終バイト数の確認を維持する。
-32 MiB超のローカル実Gitと全体検証は成功、導入済み検証は確認待ち。
+32 MiB超のローカル実Gitと全体検証は成功。同一headの5系統CIが成功し、通常Windows導入・
+SSH/エディタ・容量回収・通知経路を確認した。実Incus経由の大容量Gitと本人操作は別の確認として残す。
 [ADR 0106](adr/0106-streaming-git-packs.ja.md)を参照。

@@ -95,9 +95,88 @@ def read_json(command):
     return json.loads(result.stdout.decode("utf-8-sig"))
 
 
+def process_query():
+    # Windows process metadata only: do not enter WSL to observe its shutdown.
+    # Existing helper identity checks still receive only helper executable paths.
+    return """[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$ErrorActionPreference='Stop';
+$rows=@(Get-CimInstance Win32_Process -Property Name,ExecutablePath,ProcessId,ParentProcessId,CreationDate);
+$helpers=@($rows | Where-Object { $_.Name -eq 'haco-wsl.exe' } | Select-Object ExecutablePath);
+$counts=@{};foreach($name in @('wslhost.exe','wsl.exe','vmmemWSL')) { $counts[$name]=@($rows | Where-Object { $_.Name -eq $name }).Count };
+$byId=@{};foreach($row in $rows) { $byId[[string]$row.ProcessId]=$row };
+$classes=@{'wsl.exe'='wsl';'haco-wsl.exe'='reclamation';'ssh.exe'='ssh';'Code.exe'='editor';'cmd.exe'='shell';'powershell.exe'='powershell';'pwsh.exe'='powershell';'python.exe'='python';'python3.exe'='python';'WindowsTerminal.exe'='terminal';'OpenConsole.exe'='terminal';'conhost.exe'='terminal';'wslservice.exe'='service';'haco-notify.exe'='notification'};
+foreach($name in @('haco-review.exe','haco-notify.exe')) { $classes[$name]='notification' };
+foreach($name in @('haco-vscode.exe','haco-agent-host.exe','haco-tunnel.exe')) { $classes[$name]='hacocoon-client' };
+$classes['wslhost.exe']='wsl-host';$classes['wslrelay.exe']='wsl-relay';
+foreach($name in @('explorer.exe','svchost.exe','services.exe','taskhostw.exe','taskeng.exe','RuntimeBroker.exe','WmiPrvSE.exe','SearchIndexer.exe','dllhost.exe')) { $classes[$name]='windows-service' };
+$origins=@{};
+foreach($row in @($rows | Where-Object { $_.Name -eq 'wsl.exe' })) {
+    $chain=@();$child=$row;$seen=@{};
+    for($depth=0;$depth -lt 8;$depth++) {
+        $parent=$byId[[string]$child.ParentProcessId];
+        if($null -eq $parent -or $seen.ContainsKey([string]$parent.ProcessId) -or
+           $null -eq $parent.CreationDate -or $null -eq $child.CreationDate -or
+           $parent.CreationDate -gt $child.CreationDate) { $chain+='unavailable';break };
+        $seen[[string]$parent.ProcessId]=$true;
+        $kind=$classes[[string]$parent.Name];
+        if($null -eq $kind) { $chain+='other';break };
+        $chain+=$kind;$child=$parent;
+    };
+    $key=$chain -join '/';
+    if($origins.ContainsKey($key)) { $origins[$key]++ } else { $origins[$key]=1 };
+};
+ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts; origins=$origins }
+"""
+
+
+def observed_process_counts(snapshot):
+    # Counts describe the Windows session as a whole, not the selected distro.
+    # They diagnose timing only and never establish stop/detach or mutation authority.
+    keys = ("wslhost.exe", "wsl.exe", "vmmemWSL")
+    counts = snapshot.get("counts") if isinstance(snapshot, dict) else None
+    if not isinstance(counts, dict) or set(counts) != set(keys) or not all(type(counts[k]) is int and 0 <= counts[k] <= 4096 for k in keys):
+        return {"state": "unavailable"}
+    return {"state": "observed", **{key: counts[key] for key in keys}}
+
+
+def observed_process_origins(snapshot):
+    # Parent names are categories, not executable/ownership authentication. The
+    # Windows snapshot omits missing/reused parents and never emits names or PIDs.
+    kinds = {"wsl", "reclamation", "ssh", "editor", "shell", "powershell",
+             "python", "terminal", "service", "notification", "hacocoon-client",
+             "wsl-host", "wsl-relay", "windows-service", "other", "unavailable"}
+    origins = snapshot.get("origins") if isinstance(snapshot, dict) else None
+    counts = observed_process_counts(snapshot)
+    if not isinstance(origins, dict) or len(origins) > 64 or counts["state"] != "observed":
+        return {"state": "unavailable"}
+    for chain, count in origins.items():
+        if (not isinstance(chain, str) or len(chain) > 128 or
+                not 1 <= len(chain.split("/")) <= 8 or
+                any(kind not in kinds for kind in chain.split("/")) or
+                type(count) is not int or not 1 <= count <= 4096):
+            return {"state": "unavailable"}
+    if sum(origins.values()) != counts["wsl.exe"]:
+        return {"state": "unavailable"}
+    return {"state": "observed", "chains": dict(sorted(origins.items()))}
+
+
 def wait_for_worker(helper, registration, operation):
     powershell = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
-    script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$ErrorActionPreference='Stop';ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process -Filter \"Name='haco-wsl.exe'\" | Select-Object ExecutablePath)"
+    script = process_query()
+    started = time.monotonic()
+    previous_counts = None
+
+    def observe_processes():
+        nonlocal previous_counts
+        snapshot = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
+        counts = {"processes": observed_process_counts(snapshot),
+                  "origins": observed_process_origins(snapshot)}
+        if counts != previous_counts:
+            print(json.dumps({"component": "ci", "operation": "reclamation_windows_processes",
+                              "duration_ms": int((time.monotonic() - started) * 1000),
+                              "scope": "all-windows-wsl-processes", "counts": counts["processes"],
+                              "origins": counts["origins"]}), flush=True)
+            previous_counts = counts
+        return snapshot.get("helpers") if isinstance(snapshot, dict) else None
 
     def observe_result():
         result = read_json([str(helper), "_status", registration, operation])
@@ -105,6 +184,12 @@ def wait_for_worker(helper, registration, operation):
             complete = require_complete(result, operation)
         except (RuntimeError, TypeError, AttributeError):
             print(json.dumps(failure_summary(result)), flush=True)
+            try:
+                observe_processes()
+            except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, RuntimeError):
+                # Diagnostic failure must not replace the original worker failure.
+                print(json.dumps({"component": "ci", "operation": "reclamation_windows_processes",
+                                  "state": "unavailable"}), flush=True)
             raise
         return result, complete
 
@@ -112,7 +197,7 @@ def wait_for_worker(helper, registration, operation):
     while time.monotonic() < deadline:
         # These commands never enter WSL, mutate records or launch a worker.
         result, complete = observe_result()
-        rows = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
+        rows = observe_processes()
         running = helper_is_running(rows, helper)
         if not running and not complete:
             # Completion can be persisted between the status read and process
