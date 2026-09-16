@@ -29,6 +29,8 @@ func emit(ctx context.Context, e Event) {
 }
 func ValidStage(s string) bool {
 	switch s {
+	case "unknown":
+		return true
 	case "setup", "client_validation", "project", "storage", "copy_recovery", "trusted_host_inspect", "trusted_host_create", "trusted_host_network", "controller_endpoint", "trusted_host_start", "host_tools", "wsl_interop", "client_mode", "client_provision", "host_storage", "host_packages", "host_tooling", "host_services", "notification_setup", "customization":
 		return true
 	}
@@ -99,7 +101,9 @@ func Details(err error) (string, string) {
 // error return. No success is emitted after cancellation or partial failure.
 func Track(ctx context.Context, stage string) func(*error) {
 	if !ValidStage(stage) {
-		stage = "setup"
+		// An unregistered child must not impersonate the controller-owned
+		// setup lifecycle. Keep its diagnostic name fixed and non-sensitive.
+		stage = "unknown"
 	}
 	started := time.Now()
 	emit(ctx, Event{Stage: stage, State: "running"})
