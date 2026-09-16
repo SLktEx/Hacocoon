@@ -39,11 +39,17 @@ acceptance evidence. No release has been published for these changes.
 ## M0–M5 remaining work
 
 Main `bfa19ecb` / #694 now owns the responsibility layout and retires the old CLI.
-#708 is being integrated into that layout, retaining #704–#707's selection,
+#708 is integrated into that layout on its development branch, retaining #704–#707's selection,
 named-builder, observation and binding-inventory work. Its previous exact head
 `7e5971b5` passed installed Windows reclamation and retained-data restoration;
 its separate race failure is addressed by main's existing close-completion fix.
 See [the distinct results](acceptance-evidence.md#integration-after-the-responsibility-layout-change).
+The installed local candidate `d8ec1374` passed doctor, retained Workspace reuse
+and independent snapshot restoration. Its Incus product jobs passed, but the
+evidence job timed out waiting for terminal API metadata. The follow-up retains
+that failure and extends only bounded read-only observation; main integration
+still requires all five workflows to succeed. Long help names also receive an
+explicit separator in both languages after the defect was observed locally.
 M2/M3 person-dependent acceptance remains assigned to the user.
 
 The user has replaced the local WSL and selected only Hacocoon development Git
@@ -94,18 +100,19 @@ use on the dedicated WSL resolved the previously unprojected `bindings` director
 (two repository files and one binding). Actual selection and restored use remain
 separate; this does not turn saved associations into current authority.
 
-Complete ordinary Packer setup/download/build/publication and reuse first when the
-required communication configuration is available. Automatic approval review
-refused the proposed all-Environment require-approval configuration; it has not
-been applied. Prepare a concrete, named-builder scope through the ordinary Policy
-path before requesting any input that is still required. Do not bypass the refusal
-with a test allow rule. Continue independent work while setup is pending.
+Complete ordinary Packer setup/download/build/publication and reuse when the
+user answers its download notifications. The original all-Environment
+require-approval proposal was refused and never applied. The new local candidate
+uses three ordinary require-approval rules limited to `packer-tools`, exact
+Ubuntu HTTP/HashiCorp HTTPS destinations and a two-hour lifetime. Default deny
+is retained. Actual download/build/reuse remains pending; no test allow rule
+or automated GUI answer is used. Continue independent work while answers are pending.
 
 The implemented `--builder <env>` option allows naming one build target for
 ordinary administrator rules, without adopting an existing Env or changing Policy.
 This removes the need to know a random name in advance. The rejected broad rule
-has not been applied; the new scoped configuration and actual installed Packer
-build/reuse still need their own review and evidence. It is a usability improvement
+has not been applied; the installed scoped configuration does not itself approve
+downloads or prove build/reuse. It is a usability improvement
 within M4, not proof that dependency downloads have succeeded.
 
 Reclamation succeeded with measured allocation recovery in Windows CI, including

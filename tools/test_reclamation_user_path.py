@@ -16,6 +16,17 @@ PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_host_origins_remain_visible_without_a_live_launcher(self):
+        snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 0, "vmmemWSL": 1},
+                    "origins": {}, "host_origins": {"service/other": 1, "unavailable": 1}}
+        self.assertEqual(gate.observed_process_origins(snapshot),
+                         {"state": "observed", "chains": {}})
+        self.assertEqual(gate.observed_process_origins(snapshot, "wslhost.exe"),
+                         {"state": "observed", "chains": snapshot["host_origins"]})
+        for origins in ({"private.exe": 2}, {"service": 1}, {"service": True}, None):
+            self.assertEqual(gate.observed_process_origins(dict(snapshot, host_origins=origins), "wslhost.exe"),
+                             {"state": "unavailable"})
+
     def test_parent_categories_are_bounded_and_never_emit_arbitrary_names(self):
         snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 2, "vmmemWSL": 1},
                     "origins": {"wsl/ssh/editor/other": 1, "ssh/editor/other": 1}}
@@ -42,7 +53,9 @@ function Get-CimInstance {
     @(6,99,'wsl.exe',1), @(7,8,'wsl.exe',1), @(8,0,'ssh.exe',2),
     @(9,9,'wsl.exe',2), @(10,0,'haco-wsl.exe',1),
     @(11,1,'haco-review.exe',1), @(12,11,'wsl.exe',2),
-    @(13,1,'wslrelay.exe',1), @(14,13,'wsl.exe',2))) {
+    @(13,1,'wslrelay.exe',1), @(14,13,'wsl.exe',2),
+    @(15,1,'wslservice.exe',1), @(16,15,'wslhost.exe',2),
+    @(17,6,'wslhost.exe',5), @(18,1999,'wslhost.exe',5))) {
       [pscustomobject]@{ ProcessId=$v[0];ParentProcessId=$v[1];Name=$v[2];
         CreationDate=$start.AddSeconds($v[3]);ExecutablePath='C:\private\'+$v[2] }
   }
@@ -59,6 +72,9 @@ function Get-CimInstance {
         observed = gate.observed_process_origins(snapshot)
         self.assertEqual(observed["state"], "observed")
         self.assertNotIn("private", json.dumps(observed))
+        self.assertEqual(gate.observed_process_origins(snapshot, "wslhost.exe"),
+                         {"state": "observed", "chains": {"service/other": 1,
+                          "wsl/unavailable": 1, "unavailable": 1}})
         self.assertTrue(gate.helper_is_running(snapshot["helpers"], r"C:\private\haco-wsl.exe"))
 
     def test_japanese_status_still_requires_the_successful_completion_marker(self):

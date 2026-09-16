@@ -224,3 +224,9 @@ Named collection recovery uses the existing cache failure boundary and fixed `op
 Windows reclamation preparation/launch errors use the existing helper error boundary
 with fixed `phase`, `stage` and numeric `native_error` diagnostics. The failed-command
 stdout receipt contains only the allowlisted stage and code, never raw error text.
+
+Installed Windows reclamation CI records bounded `origins` for live WSL launchers
+and `host_origins` for WSL host processes, even when their launcher has exited.
+Both use the same fixed parent categories and reject missing/reused parent
+identities. Raw names, paths, PIDs and command lines remain excluded. These
+Windows-wide observations diagnose timing; they never authorize a stop or compaction.

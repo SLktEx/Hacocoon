@@ -108,8 +108,8 @@ foreach($name in @('haco-review.exe','haco-notify.exe')) { $classes[$name]='noti
 foreach($name in @('haco-vscode.exe','haco-agent-host.exe','haco-tunnel.exe')) { $classes[$name]='hacocoon-client' };
 $classes['wslhost.exe']='wsl-host';$classes['wslrelay.exe']='wsl-relay';
 foreach($name in @('explorer.exe','svchost.exe','services.exe','taskhostw.exe','taskeng.exe','RuntimeBroker.exe','WmiPrvSE.exe','SearchIndexer.exe','dllhost.exe')) { $classes[$name]='windows-service' };
-$origins=@{};
-foreach($row in @($rows | Where-Object { $_.Name -eq 'wsl.exe' })) {
+$origins=@{};$hostOrigins=@{};
+foreach($row in @($rows | Where-Object { $_.Name -in @('wsl.exe','wslhost.exe') })) {
     $chain=@();$child=$row;$seen=@{};
     for($depth=0;$depth -lt 8;$depth++) {
         $parent=$byId[[string]$child.ParentProcessId];
@@ -122,9 +122,10 @@ foreach($row in @($rows | Where-Object { $_.Name -eq 'wsl.exe' })) {
         $chain+=$kind;$child=$parent;
     };
     $key=$chain -join '/';
-    if($origins.ContainsKey($key)) { $origins[$key]++ } else { $origins[$key]=1 };
+    $selected=if($row.Name -eq 'wsl.exe') { $origins } else { $hostOrigins };
+    if($selected.ContainsKey($key)) { $selected[$key]++ } else { $selected[$key]=1 };
 };
-ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts; origins=$origins }
+ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts; origins=$origins; host_origins=$hostOrigins }
 """
 
 
@@ -138,13 +139,14 @@ def observed_process_counts(snapshot):
     return {"state": "observed", **{key: counts[key] for key in keys}}
 
 
-def observed_process_origins(snapshot):
+def observed_process_origins(snapshot, process="wsl.exe"):
     # Parent names are categories, not executable/ownership authentication. The
     # Windows snapshot omits missing/reused parents and never emits names or PIDs.
     kinds = {"wsl", "reclamation", "ssh", "editor", "shell", "powershell",
              "python", "terminal", "service", "notification", "hacocoon-client",
              "wsl-host", "wsl-relay", "windows-service", "other", "unavailable"}
-    origins = snapshot.get("origins") if isinstance(snapshot, dict) else None
+    field = {"wsl.exe": "origins", "wslhost.exe": "host_origins"}.get(process)
+    origins = snapshot.get(field) if isinstance(snapshot, dict) and field else None
     counts = observed_process_counts(snapshot)
     if not isinstance(origins, dict) or len(origins) > 64 or counts["state"] != "observed":
         return {"state": "unavailable"}
@@ -154,7 +156,7 @@ def observed_process_origins(snapshot):
                 any(kind not in kinds for kind in chain.split("/")) or
                 type(count) is not int or not 1 <= count <= 4096):
             return {"state": "unavailable"}
-    if sum(origins.values()) != counts["wsl.exe"]:
+    if sum(origins.values()) != counts[process]:
         return {"state": "unavailable"}
     return {"state": "observed", "chains": dict(sorted(origins.items()))}
 
@@ -169,12 +171,14 @@ def wait_for_worker(helper, registration, operation):
         nonlocal previous_counts
         snapshot = read_json([powershell, "-NoProfile", "-NonInteractive", "-Command", script])
         counts = {"processes": observed_process_counts(snapshot),
-                  "origins": observed_process_origins(snapshot)}
+                  "origins": observed_process_origins(snapshot),
+                  "host_origins": observed_process_origins(snapshot, "wslhost.exe")}
         if counts != previous_counts:
             print(json.dumps({"component": "ci", "operation": "reclamation_windows_processes",
                               "duration_ms": int((time.monotonic() - started) * 1000),
                               "scope": "all-windows-wsl-processes", "counts": counts["processes"],
-                              "origins": counts["origins"]}), flush=True)
+                              "origins": counts["origins"],
+                              "host_origins": counts["host_origins"]}), flush=True)
             previous_counts = counts
         return snapshot.get("helpers") if isinstance(snapshot, dict) else None
 

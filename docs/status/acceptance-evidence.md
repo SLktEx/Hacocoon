@@ -1824,9 +1824,60 @@ The shared coordination code now lives under `internal/platform/wsl/coord`.
 The unmerged named-builder decision uses ADR 0109 to avoid colliding with main's
 ADR 0107; its behavior is unchanged.
 
-The new local WSL uses installed `bfa19ecb`, Ubuntu 26.04.1 and Incus 7.0.1;
+The new local WSL initially used installed `bfa19ecb`, Ubuntu 26.04.1 and Incus 7.0.1;
 ordinary-user doctor passed all six checks. The user selected only five Hacocoon
 development Git trees for evacuation. All archived contents, restored Git objects,
 HEADs and working states were verified on Windows. Other application data and
 non-Git test copies were explicitly excluded. This is source preservation, not
 all-managed-data, guest-idmap or authenticated restored-development acceptance.
+
+At head `d8ec1374`, Incus run 35090329488 passed all three product jobs
+(104774859128, 104774859406 and 104774859443). Evidence job104778087319 failed:
+artifact10444681175 records `needs_success=true`, no failed product attempts and
+no unproven required steps, but the last job's conclusion remained null after
+60 seconds, leaving `incus-owned-btrfs` missing. Later terminal job metadata
+confirms success. This observation failure remains recorded; no test was rerun.
+The bounded metadata observation is now 180 seconds, with missing jobs named in
+the failure output. Regression checks cover delayed success, expiry, immediate
+terminal failures and API errors; none grants success from `needs` alone.
+
+The same candidate was packaged using pinned GoReleaser 2.17.1 and the normal
+Windows packager/installer on the new `Hacocoon` WSL. Client and controller both
+report `d8ec1374`; all six doctor checks passed. Ordinary public commands cloned
+main into an independent Workspace, wrote a retained marker from a temporary
+Env, and reopened it after cleanup. Snapshot, independent restore, deletion of
+only the restored Env, then a new temporary Env retained the marker SHA-256,
+guest owner `0:0`, Git administration directory and OCI attachment. This is a
+small retained-data check, not populated OCI/application, authenticated Git or
+huge-repository acceptance. The first marker probe's `git` subcommand failed
+because the default Base has no Git executable; its shell's final hash command
+returned zero. Later probes use fail-fast execution and do not claim Git execution.
+
+One explicit cold WSL configuration call found no controller socket and did not
+apply a change. A normal open management terminal, successful doctor and fresh
+configuration inspection preceded the confirmed apply. Three ordinary
+`require-approval` rules are limited to `packer-tools` and the exact Ubuntu
+HTTP/HashiCorp HTTPS destinations, expiring at 2026-09-16T13:42:55Z; default deny
+is retained. The actual Packer attempt awaits GUI answers for its downloads.
+This is not acceptance of Packer build/publication/reuse or a human GUI answer.
+
+Windows run35090329311/job104774858507 at `d8ec1374` passed installation,
+HTTPS, SSH/editor and Linux reclamation, but public reclamation failed with
+`compact_attached`, 359 opens, no compaction and successful resume. Notification
+acceptance was skipped. Launch/host counts reached zero at 6.7s; at 23.1s two
+host processes appeared without a sampled live launcher, then disappeared at
+39.4s. The 94.2s launcher ancestry is the worker's bounded resume. No new
+notification ancestry was observed; this does not prove that no short-lived
+launcher existed between samples. The cause remains unresolved. CI now projects
+WSL host ancestry separately with the same bounded fixed categories, without
+changing product shutdown, the 90-second detach budget, or refusal conditions.
+All 16 Windows observation regressions passed, including actual PowerShell 5.1
+projection. The earlier `7e5971b5` success does not resolve this failure.
+
+The local `d8ec1374` public export produced 599,424,512 bytes; the Windows copy
+matched SHA-256 `0e3fdd21e6eb257b53123f837a1e32cd60fc62d74d21dc311c5f5d62f922c9da`.
+Import through the projected Windows path created independent managed data.
+After deleting only that imported Env, a new temporary Env retained the same
+marker hash, guest owner, Git directory and OCI attachment. Original source,
+snapshot and bundle remain. This is one small same-PC transfer, not cross-machine
+or authenticated development acceptance.
