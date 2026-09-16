@@ -60,6 +60,8 @@ func RegisterSetup(server *control.Server, service setupService) error {
 				report(setupFrame{Event: &e, RequestID: requestID})
 			}
 		})
+		// This is the sole setup lifecycle owner. The service must finish all
+		// setup-owned work before returning, including optional provisioning.
 		err = hostsetup.Step(ctx, "setup", func() error { return service.SetupHost(ctx, update) })
 		if err != nil {
 			stage, reason := hostsetup.Details(err)
@@ -139,6 +141,8 @@ type setupFrame struct {
 
 // SetupHostProgress never falls back to another mutation after a stream failure.
 // A bounded stream needs an explicit final acknowledgement; EOF is not success.
+// Child completion and idle gaps do not end observation: reads wait for the
+// controller's terminal event and acknowledgement, bounded by ctx.
 func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, report func(string, hostsetup.Event), results ...func(recipes.HostResult)) error {
 	conn, err := c.wire.OpenStream(ctx, MethodSetupProgress, update)
 	if err != nil {
@@ -158,6 +162,14 @@ func (c *Client) SetupHostProgress(ctx context.Context, update recipes.Update, r
 		if err := decoder.Decode(&f); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			// Transport deadlines can fire before the context timer. Preserve
+			// their classification instead of reporting malformed progress.
+			if errors.Is(err, context.DeadlineExceeded) {
+				return context.DeadlineExceeded
+			}
+			if errors.Is(err, context.Canceled) {
+				return context.Canceled
 			}
 			return control.ErrProtocol
 		}

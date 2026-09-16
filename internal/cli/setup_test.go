@@ -17,9 +17,35 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/host/recipes"
+	"github.com/SLktEx/Hacocoon/internal/host/setup"
 )
 
 type productSetupFixture struct{ failure error }
+
+type productSetupChildFixture struct{ failure error }
+
+func (f productSetupChildFixture) SetupHost(ctx context.Context, _ recipes.Update) error {
+	return hostsetup.Step(ctx, "base_build_defaults", func() error { return f.failure })
+}
+
+func TestProductSetupUnknownChildPreservesOutcomeAndRecovery(t *testing.T) {
+	t.Setenv("HACO_UI_LANGUAGE", "en")
+	for _, failure := range []error{nil, errors.New("SECRET-child-output")} {
+		t.Setenv("HACO_CONTROL_SOCKET", productSetupServiceServer(t, productSetupChildFixture{failure}))
+		var stdout, stderr bytes.Buffer
+		code := setup(context.Background(), nil, &stdout, &stderr)
+		if strings.Contains(stderr.String(), "SECRET") || strings.Contains(stderr.String(), "protocol unavailable") {
+			t.Fatalf("unsafe or misclassified diagnostics: %s", stderr.String())
+		}
+		if failure == nil {
+			if code != 0 || !strings.Contains(stdout.String(), "Host resources prepared") || strings.Count(stderr.String(), "[succeeded] setup") != 1 {
+				t.Fatalf("code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+		} else if code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "Setup completion is not confirmed") || !strings.Contains(stderr.String(), "Next: haco doctor") || !strings.Contains(stderr.String(), "Do not delete resources or blindly replay") {
+			t.Fatalf("recovery guidance lost: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+		}
+	}
+}
 
 func (f productSetupFixture) SetupHost(ctx context.Context, update recipes.Update) error {
 	if update.Script != nil || update.Clear {
