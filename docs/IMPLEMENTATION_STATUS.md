@@ -65,6 +65,13 @@ Old development diaries remain in Git history. Decision-relevant unique evidence
 
 ## Main integration and development candidate
 
+Implemented in the current candidate: shared Incus signing-key retrieval tolerates
+bounded transient connection failures before changing APT state. At `1054688e`,
+Windows installation, native tunnel cleanup and public reclamation passed, but
+Incus standalone setup failed to connect to the key source before product tests.
+The failure and pending corrected-head acceptance remain in the
+[acceptance record](status/acceptance-evidence.md#incus-key-download).
+
 Optional `haco base build --builder <env>` is **implemented in this checkout**
 ([#705](https://github.com/SLktEx/Hacocoon/pull/705) tracks main integration). It permits ordinary administrator communication rules to name the build
 target in advance, while canonical creation still refuses an existing Env and uses

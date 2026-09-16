@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Run the shipped package helper with command-boundary fakes, never host writes."""
+from contextlib import contextmanager, nullcontext
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
+import ssl
 import tempfile
+import threading
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +17,45 @@ HELPER = ROOT / 'install/incus-lts.sh'
 FPR = '4EFC590696CB15B87C73A3AD82CC8797C838DCFD'
 KEY = 'pub:::::::::\nfpr:::::::::' + FPR + ':\n'
 SOURCE = 'https://pkgs.zabbly.com/incus/lts-7.0'
+
+
+@contextmanager
+def key_server(root, responses):
+    """Real curl/TLS fixture; only the command adapter routes the fixed URL."""
+    cert, key = root / 'cert.pem', root / 'key.pem'
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec',
+                    '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-days', '1',
+                    '-subj', '/CN=pkgs.zabbly.com', '-addext',
+                    'subjectAltName=DNS:pkgs.zabbly.com',
+                    '-keyout', str(key), '-out', str(cert)], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    requests = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            requests.append(self.path)
+            status = responses[min(len(requests) - 1, len(responses) - 1)]
+            body = b'fixture key' if status == 200 else b'unavailable'
+            self.send_response(status)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_):
+            pass
+
+    server = HTTPServer(('127.0.0.1', 0), Handler)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield dict(curl=shutil.which('curl'), port=server.server_port, cert=str(cert)), requests
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 class LTS(unittest.TestCase):
@@ -83,14 +127,13 @@ sys.exit(int(os.environ['QUERY_STATUS']))
                     if 'apt-get install' in command:
                         self.assertNotRegex(command, r'\bincus(?:-base|-client)?\b')
 
-    def install(self, *, keys=KEY, packages=None, installed='', fail=''):
+    def install(self, *, keys=KEY, packages=None, installed='', fail='', responses=None):
         if packages is None:
             packages = '\n'.join(f'incus-base | {v} | {uri} resolute/main amd64 Packages' for v, uri in [
                 ('1:7.0.1-ubuntu26.04-1', SOURCE), ('1:7.0.9-ubuntu26.04-2', SOURCE),
                 ('1:7.1.0-ubuntu26.04-1', SOURCE), ('1:7.0.99-ubuntu26.04-1', SOURCE + '/hostile')])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / 'config.json').write_text(json.dumps(dict(keys=keys, packages=packages, installed=installed, fail=fail)))
             fake = root / 'command.py'
             fake.write_text('''#!/usr/bin/python3
 import json, os, pathlib, sys
@@ -101,7 +144,12 @@ args = sys.argv[1:]
 with (root / 'trace').open('a') as f: f.write(json.dumps([name, args]) + '\\n')
 if name == config['fail']: sys.exit(42)
 if name == 'id': print('0')
-elif name == 'curl': pathlib.Path(args[args.index('-o')+1]).write_text('fixture key')
+elif name == 'curl':
+    if config['transport']:
+        t = config['transport']
+        os.execv(t['curl'], [t['curl'], '--noproxy', '*', '--cacert', t['cert'],
+                 '--connect-to', 'pkgs.zabbly.com:443:127.0.0.1:' + str(t['port'])] + args)
+    pathlib.Path(args[args.index('-o')+1]).write_text('fixture key')
 elif name == 'gpg': print(config['keys'])
 elif name == 'dpkg-query': print(config['installed'])
 elif name == 'apt-cache': print(config['packages'])
@@ -113,11 +161,37 @@ elif name not in ('apt-get', 'install'): sys.exit(99)
             for command in ('id', 'curl', 'gpg', 'dpkg-query', 'apt-cache', 'apt-get', 'install'):
                 (root / command).symlink_to(fake)
             env = dict(os.environ, FIXTURE=str(root), PATH=str(root) + ':' + os.environ['PATH'], TMPDIR=str(root))
-            result = subprocess.run(['sh', str(HELPER), 'install'], env=env, text=True, capture_output=True)
+            with key_server(root, responses) if responses else nullcontext((None, [])) as (transport, requests):
+                (root / 'config.json').write_text(json.dumps(dict(
+                    keys=keys, packages=packages, installed=installed, fail=fail, transport=transport)))
+                result = subprocess.run(['sh', str(HELPER), 'install'], env=env,
+                                        text=True, capture_output=True, timeout=20)
+                self.key_requests = list(requests)
             trace = [json.loads(l) for l in (root / 'trace').read_text().splitlines()]
             outputs = {p.name: p.read_text() for p in root.iterdir() if p.name in ('hacocoon-incus-lts', 'zabbly-incus-lts-7.0.sources')}
             self.assertFalse(any(p.is_dir() for p in root.iterdir()), 'temporary key/source directory leaked')
             return result, trace, outputs
+
+    def test_transient_key_download_recovers_before_verification_and_install(self):
+        result, trace, _ = self.install(responses=[503, 200])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.key_requests, ['/key.asc'] * 2)
+        self.assertEqual(sum(name == 'gpg' for name, _ in trace), 1)
+        self.assertEqual(sum(name == 'apt-get' and args[0] == 'install' for name, args in trace), 1)
+
+    def test_download_exhaustion_and_permanent_errors_stop_before_host_writes(self):
+        for responses, count in (([503], 3), ([404], 1)):
+            with self.subTest(responses=responses):
+                result, trace, _ = self.install(responses=responses)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.key_requests, ['/key.asc'] * count)
+                self.assertFalse(any(name in ('gpg', 'install', 'apt-get') for name, _ in trace))
+
+    def test_recovered_download_still_requires_the_pinned_key(self):
+        result, trace, _ = self.install(responses=[503, 200], keys=KEY.replace(FPR, '0' * 40))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.key_requests, ['/key.asc'] * 2)
+        self.assertFalse(any(name in ('install', 'apt-get') for name, _ in trace))
 
     def test_greatest_patch_from_exact_source_without_persisted_patch_pin(self):
         result, trace, outputs = self.install()

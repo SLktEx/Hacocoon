@@ -1928,3 +1928,27 @@ test directory, the product path ran without repair or policy changes. The CI
 cancellation failure remains unresolved. The companion now records bounded
 failure stage/category, cancellation state and elapsed time, preserving nonzero
 exit results and the ten-second forced-stop fallback rather than assuming cause.
+
+<a id="incus-key-download"></a>
+
+## Incus signing-key connection failure
+
+At `1054688e`, test35097958384, quality35097958387, Ubuntu35097958415 and
+Windows35097958377 passed. Windows job104799915515 confirmed the normal tunnel's
+native ownership, eight 1 MiB exchanges, half-close and Ctrl+C cleanup. Public
+reclamation completed and resumed, recovering 2,790,260,736 allocated bytes;
+the installed notification route step passed. This is not a human approval answer
+and does not explain the earlier intermittent tunnel/attached-disk failures.
+
+Incus35097958382 failed: standalone job104800045423 could not connect to
+`pkgs.zabbly.com:443` while retrieving the signing key (curl exit 7, 207 ms), before
+product tests. Owned-Btrfs104800045764 and Core104800045879 passed; the evidence
+aggregate correctly failed. No same-head rerun or main merge was performed.
+
+The shared product/CI installer now retries only the key download for bounded
+transient failures, retaining HTTPS and the exact primary-key check. Local real
+curl against an isolated TLS server covers 503 recovery, exhaustion, permanent
+404 refusal and recovered-but-untrusted key refusal before Host writes. The
+first new fixture omitted Content-Length and failed on TLS EOF; after fixing
+the fixture's HTTP framing, all 13 helper tests passed in 9.19 s. Corrected-head
+packaged/native CI acceptance remains pending; earlier failures remain recorded.
