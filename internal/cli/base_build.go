@@ -57,6 +57,7 @@ func runBaseBuild(args []string) int {
 	flags.SetOutput(os.Stderr)
 	name := flags.String("name", "", cliMessage("base.packer_name"))
 	from := flags.String("from", "", cliMessage("base.packer_from"))
+	builder := flags.String("builder", "", cliMessage("base.builder_name"))
 	output := flags.Bool("output", false, cliMessage("base.packer_output"))
 	flags.Usage = func() { commandHelp(os.Stderr, "base build", cliLanguage()) }
 	if err := flags.Parse(clean); err != nil {
@@ -79,6 +80,12 @@ func runBaseBuild(args []string) int {
 		if err == nil {
 			err = d.Validate()
 		}
+	}
+	if err == nil {
+		if *builder != "" {
+			d.BuilderName = *builder
+		}
+		err = d.Validate()
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)

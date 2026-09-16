@@ -1,14 +1,35 @@
 package clientforward
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
+
+func TestCompanionSignaledExitObservation(t *testing.T) {
+	// Terminate only this directly owned child, never a shared process group.
+	err := exec.Command("sh", "-c", "kill -TERM $$").Run()
+	if err == nil {
+		t.Fatal("expected signal termination")
+	}
+	var out bytes.Buffer
+	logger, logErr := logging.New(logging.Config{Writer: &out, Format: logging.FormatJSON})
+	if logErr != nil {
+		t.Fatal(logErr)
+	}
+	recordCompanionFailure(logging.WithLogger(context.Background(), logger), "wait", err, time.Millisecond)
+	if !strings.Contains(out.String(), `"reason":"signaled"`) || !strings.Contains(out.String(), `"context_state":"active"`) {
+		t.Fatal(out.String())
+	}
+}
 
 // Use a private session so a foreground-group interrupt cannot reach the test
 // runner, the user's terminal, or another process. An interop relay must survive

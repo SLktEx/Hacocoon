@@ -17,6 +17,12 @@ Hacocoon is pre-1.0. Checkpoints mark progress; they are separate from compatibi
 
 ## Checkpoint history
 
+The #708 integration with main's responsibility layout remains within v0.68.
+It retains the existing named-builder, inventory and Windows startup-coordination
+work and reuses main's stream close-completion fix. See the
+[candidate-bound validation](acceptance-evidence.md#integration-after-the-responsibility-layout-change).
+This integration creates no tag or release.
+
 The Version/Gate columns mirror YAML. This is a history of development slices,
 not a claim that every old interface remains in the current product CLI.
 Current feature scope and remaining work are consolidated in implementation status and the roadmap.
@@ -228,3 +234,12 @@ a release. See [ADR 0106](../adr/0106-streaming-git-packs.md).
 Main f225e5c1 (#701) integrates setup/network/configuration guidance and the
 forwarding fixture correction after all five exact-head workflows passed.
 This remains v0.68; person-dependent post-release acceptance is not a main gate.
+
+Named current-data selection and aggregate restored-tree review are a v0.68 M5
+maintenance follow-up ([#703](https://github.com/SLktEx/Hacocoon/issues/703)).
+The development helper reuses existing comparison contracts. Local success does
+not complete actual inventory or person-dependent acceptance; no release is published.
+
+Optional named Base builders are a v0.68 usability correction: ordinary network
+settings can target one chosen build name while ownership remains fresh. This does
+not advance a checkpoint or establish actual Packer completion or publication.

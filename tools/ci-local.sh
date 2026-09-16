@@ -159,8 +159,9 @@ run_test() {
   python3 tools/test_evacuation_associations.py
   python3 tools/test_evacuation_current_data.py
   python3 tools/test_evacuation_capture.py
-    python3 tools/test_evacuation_files.py
-    python3 tools/test_evacuation_compare.py
+  python3 tools/test_evacuation_files.py
+  python3 tools/test_evacuation_compare.py
+  python3 tools/test_evacuation_selection.py
   python3 tools/test_cleanup_ci_base_asset.py
   python3 tools/test_forward_application.py
   section "test"

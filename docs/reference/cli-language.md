@@ -141,3 +141,16 @@ configuration message instead of maintaining duplicate translations.
 `haco config` uses shared English/Japanese help, inspection/save guidance and
 unconfirmed-save/retained-editor notices. Policy values, JSON and original error
 details stay unchanged; a failed result write cannot replay the operation.
+
+## SSH and editor entry
+
+Command lists keep an explicit space between every command name and its
+explanation, including long names such as `experimental edit vscode` and
+`ssh cleanup`. Both language renderers retain the existing 60-column wrapping.
+
+Ordinary `haco ssh setup` and `haco open` use shared English/Japanese Environment
+selection, preparation, editor-launch/retry and cleanup notices. Invalid preview
+port/client combinations explain the correction before Workspace preparation.
+SSH aliases, generated configuration, selection/cancellation, raw client errors,
+progress tokens and operation results are unchanged. The separate `haco-vscode`
+adapter and lower-level SSH errors retain their own presentation.

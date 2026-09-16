@@ -31,12 +31,18 @@ ssh haco-dev my-tool
 ```
 
 `from` may be omitted for the normal default Base. The definition is a strict
-JSON object with `name`, optional `from`, and `run`. Names are lowercase letters,
+JSON object with `name`, optional `from`, optional `builder_name`, and `run`. Base names are lowercase letters,
 digits, dots and hyphens, start with a letter/digit and contain at most 63
 characters. Script text is bounded to 64 KiB. Shell steps execute as guest root
 inside an ordinary isolated Environment, never as Host commands. Network access
 uses the ordinary permission path; package downloads are not implicitly allowed.
 No private Workspace, OCI Store or Host credentials are supplied to the builder.
+
+Optional `builder_name` (or CLI `--builder`) selects a new builder's ordinary Env
+name so administrator network settings can be scoped before creation. It never
+adopts an existing Env, grants communication, or replaces fresh temporary ownership.
+See [named builders](packer-base-builds.md#dependencies-and-source-files) and
+[ADR 0109](../adr/0109-named-build-environments.md).
 
 The command prints a human-readable result. Pass `--json` to read the Base
 name/revision, state and any retained builder name as JSON. Build output is not

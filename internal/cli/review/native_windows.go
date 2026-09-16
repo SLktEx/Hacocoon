@@ -100,17 +100,11 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 		resultErr = errors.Join(resultErr, surface.Clear(cleanup))
 	}()
 	stage = "peer_start"
-	peer, err := startReviewPeer(ctx, plan, own)
+	peer, err := startReadyReviewPeer(ctx, startup, plan, own, c.Distribution)
 	if err != nil {
 		return err
 	}
 	defer peer.Close()
-	// WSL may need to start a user session before it can read the first request.
-	// Finish a read-only round trip before publishing a responsive COM server.
-	stage = "peer_ready"
-	if err := peer.Ready(startup); err != nil {
-		return err
-	}
 	stage = "activation"
 	events := make(chan nativeActivation, 32)
 	stop, err := startToastCOM(class, appID, events)
@@ -189,7 +183,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 				decisionCtx, done := context.WithTimeout(ctx, 5*time.Minute)
 				defer done()
 				var reply desktopreview.Reply
-				decisionPeer, err := startReviewPeer(decisionCtx, plan, own)
+				decisionPeer, err := startReadyReviewPeer(decisionCtx, decisionCtx, plan, own, c.Distribution)
 				if err == nil {
 					reply, err = job.Run(decisionCtx, decisionPeer)
 					decisionPeer.Close()
