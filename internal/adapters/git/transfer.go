@@ -9,19 +9,23 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
+	"sync"
 )
 
 // Pack bytes are separate from metadata. Memory use is independent of the
 // transfer size; callers retain operation deadlines and ownership until EOF.
 const (
-	maxTransferBytes    int64 = 16 << 30
-	maxTransferFrame          = 64 << 10
-	maxTransferMetadata       = 2 << 20
+	maxTransferBytes    int64  = 16 << 30
+	maxTransferFrame           = 64 << 10
+	maxTransferMetadata        = 2 << 20
+	progressFrame       uint32 = 1 << 31
 )
 
 // transferWriter never buffers a complete pack or bypasses Write via ReadFrom.
 // A failed write poisons the stream: its caller cannot finish it as successful.
 type transferWriter struct {
+	mu       sync.Mutex
 	target   io.Writer
 	bytes    int64
 	failure  error
@@ -29,6 +33,8 @@ type transferWriter struct {
 }
 
 func (w *transferWriter) Write(data []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.failure != nil {
 		return 0, w.failure
 	}
@@ -60,6 +66,8 @@ func (w *transferWriter) Write(data []byte) (int, error) {
 }
 
 func (w *transferWriter) finish() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.failure != nil {
 		return w.failure
 	}
@@ -74,6 +82,7 @@ func (w *transferWriter) finish() error {
 // transferReader exposes one bounded frame at a time, without trusting a peer's
 // allocation size. Only an explicit zero frame is clean EOF; truncation fails.
 type transferReader struct {
+	progress  io.Writer
 	source    io.Reader
 	remaining uint32
 	bytes     int64
@@ -91,13 +100,35 @@ func (r *transferReader) Read(data []byte) (int, error) {
 	if r.done {
 		return 0, io.EOF
 	}
-	if r.remaining == 0 {
+	for r.remaining == 0 {
 		var prefix [4]byte
 		if _, err := io.ReadFull(r.source, prefix[:]); err != nil {
 			r.failure = fmt.Errorf("incomplete Git transfer frame: %w", errors.Join(io.ErrUnexpectedEOF, err))
 			return 0, r.failure
 		}
 		r.remaining = binary.BigEndian.Uint32(prefix[:])
+		if r.remaining&progressFrame != 0 {
+			n := r.remaining &^ progressFrame
+			if r.progress == nil || n == 0 || n > 4096 {
+				r.failure = fmt.Errorf("invalid Git progress frame")
+				return 0, r.failure
+			}
+			line := make([]byte, n)
+			if _, err := io.ReadFull(r.source, line); err != nil {
+				r.failure = io.ErrUnexpectedEOF
+				return 0, r.failure
+			}
+			if SafeGitLine(string(line)) != string(line) {
+				r.failure = fmt.Errorf("invalid Git progress diagnostic")
+				return 0, r.failure
+			}
+			if _, err := io.WriteString(r.progress, string(line)+"\n"); err != nil {
+				r.failure = err
+				return 0, err
+			}
+			r.remaining = 0
+			continue
+		}
 		if r.remaining == 0 {
 			r.done = true
 			return 0, io.EOF
@@ -191,7 +222,15 @@ func runPack(cmd *exec.Cmd, input io.Reader, output io.Writer) (int64, error) {
 	counter := &countPackWriter{target: output}
 	cmd.Stdin = input
 	cmd.Stdout = counter
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	diagnostic, _ := cmd.Stderr.(*GitDiagnostic)
+	if diagnostic != nil {
+		diagnostic.Flush()
+	}
+	if err != nil {
+		if diagnostic != nil && diagnostic.Failure() != "" {
+			return counter.bytes, fmt.Errorf("git command failed: %s", diagnostic.Failure())
+		}
 		return counter.bytes, fmt.Errorf("git command failed")
 	}
 	return counter.bytes, nil
@@ -254,7 +293,13 @@ func finishResponse(stream *transferWriter, result Response) error {
 	return writeTransferMetadata(stream.target, result)
 }
 func ReadResponse(r io.Reader, output io.Writer) (Response, error) {
-	stream := &transferReader{source: r}
+	return ReadResponseProgress(r, output, nil)
+}
+
+// ReadResponseProgress separates bounded human diagnostics from pack bytes.
+// Progress never substitutes for the final receipt or counts as transferred data.
+func ReadResponseProgress(r io.Reader, output, progress io.Writer) (Response, error) {
+	stream := &transferReader{source: r, progress: progress}
 	count := &countPackWriter{target: output}
 	if _, err := io.Copy(count, stream); err != nil {
 		return Response{}, err
@@ -351,7 +396,7 @@ func ServeExchange(ctx context.Context, input io.Reader, output io.Writer, excha
 	request.PackOutput = stream
 	var response Response
 	if err == nil {
-		response, err = exchange(ctx, request)
+		response, err = exchange(WithProgress(ctx, NewGitDiagnostic(streamProgress{stream})), request)
 	}
 	if err != nil {
 		response = Response{Error: "operation did not complete cleanly; inspect the remote and trusted Host before retrying"}
@@ -360,4 +405,34 @@ func ServeExchange(ctx context.Context, input io.Reader, output io.Writer, excha
 		err = sendErr
 	}
 	return err
+}
+
+// streamProgress shares serialization with pack writes so subprocess stderr can
+// arrive concurrently without corrupting frames. Only filtered lines are sent.
+type streamProgress struct{ stream *transferWriter }
+
+func (p streamProgress) Write(data []byte) (int, error) {
+	line := strings.TrimSuffix(string(data), "\n")
+	if line == "" || len(line) > 4096 || SafeGitLine(line) != line {
+		return 0, fmt.Errorf("invalid Git progress")
+	}
+	w := p.stream
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.failure != nil {
+		return 0, w.failure
+	}
+	if w.finished {
+		return 0, fmt.Errorf("Git response already complete")
+	}
+	var prefix [4]byte
+	binary.BigEndian.PutUint32(prefix[:], progressFrame|uint32(len(line)))
+	w.failure = writeExact(w.target, prefix[:])
+	if w.failure == nil {
+		w.failure = writeExact(w.target, []byte(line))
+	}
+	if w.failure != nil {
+		return 0, w.failure
+	}
+	return len(data), nil
 }

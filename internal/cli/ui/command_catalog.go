@@ -222,7 +222,7 @@ var commandCatalog = map[string]translation{
 	"command.env.export":               {"Export stopped managed data; destination defaults to <env>.haco", "停止中の管理対象データを書き出す。既定は<env>.haco"},
 	"command.env.import":               {"Import independently; default name is <source>-imported", "独立した環境へ取り込む。既定名は<source>-imported"},
 	"command.repo":                     {"Manage trusted Host source repositories", "信頼済みHostの取得元リポジトリを管理する"},
-	"command.repo.clone":               {"Fetch one existing upstream branch into a source repository", "既存ブランチを取得して作業のコピー元にする"},
+	"command.repo.add":                 {"Register a branch-independent source repository", "ブランチに依存しないソースリポジトリを登録する"},
 	"command.repo.list":                {"List source repositories", "取得済みのコピー元を一覧表示する"},
 	"command.repo.delete":              {"Review and delete an unused source repository", "未使用のコピー元を確認して削除する"},
 	"command.workspace":                {"Prepare, reopen and fork retained working sets", "保持する作業セットを準備・再開・分岐する"},

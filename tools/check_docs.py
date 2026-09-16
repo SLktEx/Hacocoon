@@ -248,7 +248,7 @@ require_text("docs/DOCUMENTATION_STYLE_GUIDE.md", [
     "status/acceptance-evidence.md",
 ])
 for suffix in ("", ".ja"):
-    require_text(f"README{suffix}.md", [f"docs/guides/getting-started{suffix}.md", "haco repo clone", "haco env create"])
+    require_text(f"README{suffix}.md", [f"docs/guides/getting-started{suffix}.md", "haco repo add", "haco env create"])
     require_text(f"docs/README{suffix}.md", [
         f"guides/getting-started{suffix}.md", f"reference/cli{suffix}.md",
         "DOCUMENTATION_STYLE_GUIDE.md", f"IMPLEMENTATION_STATUS{suffix}.md",

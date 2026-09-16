@@ -480,3 +480,12 @@ only after client-listener readiness (and native Windows ownership observation).
 A private fixture-input byte arms the application within a separate 180-second
 startup bound; missing input, EOF and incomplete exchanges fail. Product tunnel
 lifetimes, application exchange assertions and cancellation checks are unchanged.
+
+## Repository registration progress
+
+`repository.add` is a management-only stream with bounded progress frames and a
+required final receipt. It registers a remote without a branch. CLI diagnostics
+go to stderr, including with `--json`; stdout contains only the final result.
+Disconnect cancels the service request, including silent Git work. The Incus
+adapter forwards interruption to the trusted agent. Failed creation retains
+ownership for recovery. See [Git semantics](git-and-github-capability.md).
