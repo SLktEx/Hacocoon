@@ -6,14 +6,14 @@ import (
 	"errors"
 	"io"
 	"net"
-
+	"sync"
 	"time"
 )
 
 // Relay preserves request EOF while draining the response. It owns both sockets
 // until both copy workers have stopped, including on cancellation and errors.
 func Relay(ctx context.Context, a, b net.Conn) error {
-	closeBoth := func() { _ = a.Close(); _ = b.Close() }
+	closeBoth := sync.OnceFunc(func() { _ = a.Close(); _ = b.Close() })
 	stop := context.AfterFunc(ctx, closeBoth)
 	defer stop()
 	defer closeBoth()

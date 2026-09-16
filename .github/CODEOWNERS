@@ -17,10 +17,10 @@
 /tools/package_installers.py @SLktEx
 /tools/test_installer_packages.py @SLktEx
 
-/scripts/install.sh @SLktEx
-/scripts/install-ubuntu.sh @SLktEx
-/scripts/install-windows.bat @SLktEx
-/scripts/install-windows.ps1 @SLktEx
+/install/install.sh @SLktEx
+/install/install-ubuntu.sh @SLktEx
+/install/install-windows.bat @SLktEx
+/install/install-windows.ps1 @SLktEx
 
 /docs/design/installer.md @SLktEx
 /docs/security/release-security.md @SLktEx

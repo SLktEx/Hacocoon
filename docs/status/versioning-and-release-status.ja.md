@@ -15,6 +15,11 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 
 ## checkpoint履歴
 
+#708とmainの責務整理の統合はv0.68内の変更です。既存のビルダー名指定・棚卸し・
+Windows起動調整を保持し、mainのstream終了待ち修正を再利用します。
+[候補ごとの検証結果](acceptance-evidence.ja.md#責務整理後の統合)を参照してください。
+この統合でタグやリリースは作成しません。
+
 下表のVersion・Gate列はYAMLの写しです。Gate名は識別子として英語を維持します。
 表は各節目の履歴を表し、現在の公開CLIにすべてが残るという意味ではありません。
 現在の詳細と残課題は機能別の実装状況・ロードマップへ集約しています。
@@ -34,11 +39,11 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.11 | Base Images & Custom Environments | implemented（現行の機能制約は実装状況を参照） |
 | v0.12 | Sandbox Resource Limits | implemented（現行の機能制約は実装状況を参照） |
 | v0.13 | Managed Sandbox Network | implemented（現行の機能制約は実装状況を参照） |
-| v0.14 | Git Fetch Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
+| v0.14 | Git Fetch Plugin | historical（旧CLI実装を廃止） |
 | v0.15 | OCI Seed Recommendation | historical（Seedの実装を撤去） |
 | v0.16 | OCI Image Deletion | historical（現行の管理対象イメージ削除へ置換） |
 | v0.17 | OCI Seed Builder & Btrfs/COW | historical（Seedの実装を撤去） |
-| v0.18 | Docker Compatibility Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
+| v0.18 | Docker Compatibility Plugin | historical（旧CLI実装を廃止） |
 | v0.19 | Domain-aware Egress Authorization | implemented（現行の機能制約は実装状況を参照） |
 | v0.20 | Managed Btrfs Rootfs Storage | implemented（現行の機能制約は実装状況を参照） |
 | v0.21 | Managed Btrfs Transparent Compression | implemented（現行の機能制約は実装状況を参照） |

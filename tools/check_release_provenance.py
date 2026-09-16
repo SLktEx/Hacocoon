@@ -5,7 +5,7 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 workflow = (root / ".github/workflows/release.yml").read_text(encoding="utf-8")
-installer = (root / "scripts/install.sh").read_text(encoding="utf-8")
+installer = (root / "install/install.sh").read_text(encoding="utf-8")
 tag_checker = (root / "tools/check_release_tag_trust.sh").read_text(encoding="utf-8")
 
 required_release_artifacts = (
@@ -135,7 +135,7 @@ if source_checkout and "fetch-tags: true" not in source_checkout:
     errors.append("authorized release source checkout must fetch tags")
 
 bat_eol = subprocess.run(
-    ["git", "ls-files", "--eol", "scripts/install-windows.bat"],
+    ["git", "ls-files", "--eol", "install/install-windows.bat"],
     cwd=root,
     check=False,
     stdout=subprocess.PIPE,
@@ -144,7 +144,7 @@ bat_eol = subprocess.run(
 )
 if bat_eol.returncode != 0 or "i/lf" not in bat_eol.stdout:
     detail = bat_eol.stderr.strip() or bat_eol.stdout.strip() or "no EOL metadata returned"
-    errors.append("scripts/install-windows.bat must remain LF-normalized in the Git index: " + detail)
+    errors.append("install/install-windows.bat must remain LF-normalized in the Git index: " + detail)
 
 for forbidden in ("contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"):
     if forbidden in build:

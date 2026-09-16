@@ -1,0 +1,111 @@
+package incus
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
+)
+
+func TestInspectEnvironmentMapsIncusState(t *testing.T) {
+	runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		return host.Result{Stdout: "haco-demo,RUNNING\n"}, nil
+	}}
+	status, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
+	if err != nil || status.State != core.EnvironmentRunning {
+		t.Fatalf("status=%#v err=%v", status, err)
+	}
+	assertRunnerCall(t, runner.calls[0], "incus", "list", "haco-demo", "--project", defaultProject, "--format", "csv", "-c", "ns")
+}
+
+func TestForwardLocalPortIsLoopbackOnly(t *testing.T) {
+	runner := &fakeRunner{}
+	connection, err := New(runner).ForwardLocalPort(context.Background(), "haco-demo", core.LocalPortRequest{Protocol: "tcp", HostPort: 8080, TargetPort: 3000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if connection.Host != "127.0.0.1" || connection.ID != "tcp-8080-3000" {
+		t.Fatalf("connection=%#v", connection)
+	}
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-tcp-8080-3000", "proxy", "listen=tcp:127.0.0.1:8080", "connect=tcp:127.0.0.1:3000", "--project", defaultProject)
+	if strings.Contains(strings.Join(runner.calls[0].args, " "), "0.0.0.0") {
+		t.Fatal("v0.3 port forward must not bind all interfaces")
+	}
+}
+
+func TestPrepareSSHAccessRecordsGrantBeforeProvisioning(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if args[len(args)-1] == "/etc/ssh/ssh_host_ed25519_key.pub" {
+			return host.Result{Stdout: testHostPublicKey}, nil
+		}
+		return host.Result{}, nil
+	}}
+	key := "ssh-ed25519 AAAATEST comment with spaces"
+	connection, err := New(runner).PrepareSSHAccess(context.Background(), "haco-demo", core.SSHAccessRequest{PublicKey: key})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if connection.Port != 0 || connection.Host != "" || connection.User != "root" {
+		t.Fatalf("connection=%#v", connection)
+	}
+	if len(runner.calls) != 4 {
+		t.Fatalf("calls=%#v", runner.calls)
+	}
+	if runner.calls[0].args[1] != "set" {
+		t.Fatal("grant was not recorded")
+	}
+	provision := runner.calls[1]
+	if provision.args[len(provision.args)-3] != key || provision.args[len(provision.args)-2] != "haco:"+connection.ID || provision.args[len(provision.args)-1] != managedSSHProxySettings() {
+		t.Fatalf("managed SSH argv = %#v", provision.args)
+	}
+}
+
+func TestRemoveClientConnectionUsesScopedDeviceName(t *testing.T) {
+	runner := &fakeRunner{}
+	if err := New(runner).RemoveClientConnection(context.Background(), "haco-demo", "tcp-8080-3000"); err != nil {
+		t.Fatal(err)
+	}
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "remove", "haco-demo", "haco-tcp-8080-3000", "--project", defaultProject)
+}
+
+func TestInspectEnvironmentUsesExactNameAmongPrefixMatches(t *testing.T) {
+	for _, tc := range []struct {
+		data   string
+		want   core.EnvironmentState
+		failed bool
+	}{
+		{"haco-demo-copy,RUNNING\nhaco-demo,STOPPED\n", core.EnvironmentStopped, false},
+		{"haco-demo,RUNNING\nhaco-demo-copy,STOPPED\n", core.EnvironmentRunning, false},
+		{"haco-demo-copy,RUNNING\n", core.EnvironmentUnknown, false},
+		{"haco-demo,STOPPED\nhaco-demo,RUNNING\n", core.EnvironmentUnknown, true},
+		{"STOPPED\n", core.EnvironmentUnknown, true},
+	} {
+		runner := &fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+			return host.Result{Stdout: tc.data}, nil
+		}}
+		got, err := New(runner).InspectEnvironment(context.Background(), "haco-demo")
+		if (err != nil) != tc.failed || (!tc.failed && got.State != tc.want) {
+			t.Fatal(tc, got, err)
+		}
+	}
+}
+
+func TestUDPForwardAndReconciliationPreserveProtocol(t *testing.T) {
+	runner := &fakeRunner{}
+	got, err := New(runner).ForwardLocalPort(context.Background(), "haco-demo", core.LocalPortRequest{Protocol: "udp", HostPort: 18081, TargetPort: 9000})
+	if err != nil || got.Kind != "udp" || got.ID != "udp-18081-9000" {
+		t.Fatal(got, err)
+	}
+	assertRunnerCall(t, runner.calls[0], "incus", "config", "device", "add", "haco-demo", "haco-udp-18081-9000", "proxy", "listen=udp:127.0.0.1:18081", "connect=udp:127.0.0.1:9000", "--project", defaultProject)
+	restored, err := clientConnectionFromProxy(got.ID, "udp:127.0.0.1:18081", "udp:127.0.0.1:9000")
+	if err != nil || restored != got {
+		t.Fatal(restored, err)
+	}
+	for _, endpoints := range [][2]string{{"udp:0.0.0.0:18081", "udp:127.0.0.1:9000"}, {"udp:127.0.0.1:18081", "udp:192.0.2.1:9000"}, {"udp:127.0.0.1:18081", "tcp:127.0.0.1:9000"}} {
+		if _, err := clientConnectionFromProxy(got.ID, endpoints[0], endpoints[1]); err == nil {
+			t.Fatal("unsafe proxy accepted", endpoints)
+		}
+	}
+}

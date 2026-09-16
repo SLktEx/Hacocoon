@@ -2,19 +2,19 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-installer="$repo_root/scripts/install.sh"
+installer="$repo_root/install/install.sh"
 root="$(mktemp -d)"
 trap 'rm -rf "$root"' EXIT
 
 fixture="$root/fixture"
 src="$root/src"
 mkdir -p "$fixture" "$src"
-for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
   printf '#!/bin/sh\necho %s\n' "$binary" > "$src/$binary"
   chmod 0755 "$src/$binary"
 done
 tar -czf "$fixture/haco_linux_amd64.tar.gz" -C "$src" \
-  haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify
+  haco haco-controller haco-host haco-vscode haco-agent-host haco-notify
 (cd "$fixture" && sha256sum haco_linux_amd64.tar.gz > checksums.txt)
 printf '{}\n' > "$fixture/attestation-bundle.json"
 
@@ -216,12 +216,12 @@ run_case() {
       cat "$stderr" >&2
       exit 1
     }
-    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+    for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       [ -x "$install/$binary" ] || { echo "$name: missing installed $binary" >&2; exit 1; }
     done
   else
     [ "$code" -ne 0 ] || { echo "$name: expected failure" >&2; exit 1; }
-    for binary in haco hacoq haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
+    for binary in haco haco-controller haco-host haco-vscode haco-agent-host haco-notify; do
       [ ! -e "$install/$binary" ] || { echo "$name: installed $binary after trust failure" >&2; exit 1; }
     done
   fi

@@ -40,16 +40,11 @@ Specialized actions such as Git push need repository/ref/commit authority rather
 
 Docker Engine, containerd, nerdctl, OCI registries, Git, cloud CLIs and IDEs are not Core prerequisites. A Base, operator or plugin may provide them. Their absence must not disable ordinary Environment lifecycle, execution or Policy.
 
-The retained legacy OCI composition is explicitly selected on the Physical Host:
+Current OCI Store/image operations use `haco plugin oci ...`; Base inspection uses
+`haco base ...`. Optional tools remain replaceable at explicit composition boundaries.
+The [layout decision](../adr/0107-responsibility-layout-and-cli-retirement.md) records retired interfaces.
 
-```sh
-export HACO_PLUGIN_OCI=nerdctl  # alternative: HACO_PLUGIN_OCI=docker
-# Omit/unset HACO_PLUGIN_OCI for no legacy OCI plugin.
-```
-
-Legacy plugin commands use `hacoq plugin oci ...`; the current product exposes explicit operations such as `haco plugin oci store ...`. These are separate composition surfaces; consult [CLI migration](../reference/cli-migration.md). Base inspection uses `haco base ...` and describes Environment starting points, not OCI workload images.
-
-[Persistent OCI Stores](persistent-oci-store.md) define current retained data. The [Seed implementation is removed](oci-seed-and-cow.md), including old usage/deletion catalogs. Optional Docker integration does not require Seed state or a Host runner.
+[Persistent OCI Stores](persistent-oci-store.md) define current retained data. The [Seed implementation is removed](oci-seed-and-cow.md), including old usage/deletion catalogs. Current Docker image inspection does not require Seed state.
 
 ## Workspace and client ownership
 

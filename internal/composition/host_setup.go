@@ -3,8 +3,8 @@ package composition
 import (
 	"context"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/hostsetup"
-	"github.com/SLktEx/Hacocoon/internal/recipes"
+	"github.com/SLktEx/Hacocoon/internal/host/recipes"
+	"github.com/SLktEx/Hacocoon/internal/host/setup"
 	"io"
 	"os"
 	"path/filepath"

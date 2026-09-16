@@ -84,7 +84,7 @@ Retain precise Host, Workspace, Environment, Base and OCI Store distinctions.
 
 Command examples specify where they run, prerequisites, placeholders, expected results
 and cleanup/data consequences. Verify flags/defaults against their actual command parser.
-Separate product `haco` from temporary `hacoq` in [migration information](reference/cli-migration.md).
+Use the [current CLI reference](reference/cli.md); retired interfaces belong in ADRs or Git history.
 Do not imply that a design API or development fixture is a shipped product command.
 
 Use one H1, logical heading depth, sentence-case English headings, fenced code with

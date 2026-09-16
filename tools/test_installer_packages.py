@@ -209,7 +209,7 @@ with tempfile.TemporaryDirectory() as temp:
 # A ConPTY cmd.exe session emits OSC title sequences before and after installer
 # output. Normalization must remove each OSC sequence independently instead of
 # greedily deleting user-visible text between them.
-driver_path = ROOT / "tools" / "windows-installer-user-path-e2e.py"
+driver_path = ROOT / "test/e2e/windows/install.py"
 spec = importlib.util.spec_from_file_location("windows_installer_user_path_e2e_test", driver_path)
 if spec is None or spec.loader is None:
     raise SystemExit(f"cannot load Windows user-path driver from {driver_path}")

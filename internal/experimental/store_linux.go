@@ -203,9 +203,7 @@ func (s Store) Replace(ctx context.Context, revision string, object map[string]a
 		return fmt.Errorf("invalid configuration size")
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return err
-	}
+	_, _ = rand.Read(nonce[:])
 	temp := fmt.Sprintf(".config-%x", nonce)
 	f, err := r.OpenFile(temp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {

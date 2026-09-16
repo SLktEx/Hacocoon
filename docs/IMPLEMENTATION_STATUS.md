@@ -57,7 +57,7 @@ fallbacks remain best effort. Vendor daemon recognition and anonymous volume
 export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
 separates the successful integrated candidate from this main-targeted extraction.
 
-Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
+Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings.
 
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.
 
@@ -139,5 +139,11 @@ Workspace preparation; fresh packaged desktop acceptance remains separate.
 The current candidate coordinates native notification peer startup with WSL
 reclamation through a shared Windows reservation. Exact disk/installation checks
 remain; external clients can still keep disks attached. Component/native tests
-passed; installed reclamation after this fix remains pending. M2/M3 real-use
+passed. Exact head `7e5971b5` also passed installed Windows reclamation and the
+retained Workspace/OCI/snapshot cycle, recovering 2,772,434,944 allocated bytes.
+The integration with main's new directory layout is being validated separately. M2/M3 real-use
 acceptance is assigned to the user and remains unperformed until reported.
+
+## Repository layout and retired CLI
+
+The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).

@@ -12,7 +12,7 @@ import stat
 import io
 import sys
 
-spec = importlib.util.spec_from_file_location("interop", Path(__file__).resolve().parents[1] / "scripts/setup-wsl-host-interop.py")
+spec = importlib.util.spec_from_file_location("interop", Path(__file__).resolve().parents[1] / "install/setup-wsl-host-interop.py")
 interop = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = interop
 spec.loader.exec_module(interop)

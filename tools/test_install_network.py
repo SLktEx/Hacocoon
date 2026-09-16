@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = (ROOT / "scripts/install.sh").read_text(encoding="utf-8")
+INSTALLER = (ROOT / "install/install.sh").read_text(encoding="utf-8")
 PREPARE = re.search(r"^prepare_ubuntu_host\(\) \{\n.*?^\}", INSTALLER, re.M | re.S)[0]
 CONNECTIVITY = re.search(r"^verify_trusted_host_connectivity\(\) \{\n.*?^\}", INSTALLER, re.M | re.S)[0]
 
@@ -48,7 +48,7 @@ privileged() {
 }
 prepare_ubuntu_host
 '''
-            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package)), str(ROOT / "scripts"), str(int(server_supported))],
+            result = subprocess.run(["sh", "-c", script, "sh", str(trace), str(int(ready)), str(int(fail_dns_package)), str(ROOT / "install"), str(int(server_supported))],
                                     capture_output=True, text=True)
             return result, trace.read_text().splitlines()
 
@@ -56,7 +56,7 @@ prepare_ubuntu_host
         result, commands = self.prepare(True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual([c for c in commands if c.startswith("incus ")], ["incus info"])
-        self.assertEqual(commands[-2:], [f"sh {ROOT / 'scripts/incus-lts.sh'} verify-server", "boot-guard"])
+        self.assertEqual(commands[-2:], [f"sh {ROOT / 'install/incus-lts.sh'} verify-server", "boot-guard"])
         self.assertIn("apt-get install -y iptables nftables dnsmasq-base", commands)
 
     def test_failed_server_version_check_stops_before_boot_guard(self):
@@ -127,7 +127,7 @@ privileged() {
 }
 verify_trusted_host_connectivity() { printf 'stage:connectivity\n'; [ "$failed_stage" != connectivity ]; }
 ''' + bootstrap
-                    result = subprocess.run(["sh", "-c", script, "sh", failed_stage, platform, str(ROOT / "scripts")], capture_output=True, text=True)
+                    result = subprocess.run(["sh", "-c", script, "sh", failed_stage, platform, str(ROOT / "install")], capture_output=True, text=True)
                     if failed_stage == "none":
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertEqual(result.stdout.count("stage:setup"), 1)
@@ -194,7 +194,7 @@ privileged() {
 }
 ''' + configure + '\nconfigure_incus_boot_guard\n'
                 result = subprocess.run(["sh", "-c", script, "sh",
-                                         str(ROOT / "modules/runtime/incus/packaging"), str(int(ready))],
+                                         str(ROOT / "internal/adapters/incus/packaging"), str(int(ready))],
                                         capture_output=True, text=True)
                 if ready:
                     self.assertEqual(result.returncode, 0, result.stderr)

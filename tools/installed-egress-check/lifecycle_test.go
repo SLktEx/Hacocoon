@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"testing"
 	"time"

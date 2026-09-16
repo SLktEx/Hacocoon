@@ -16,7 +16,7 @@ func TestRunReservationAndCleanupCannotSelectAnotherCreation(t *testing.T) {
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "owned-run"}}
 	service := New(runtime, store)
-	instance, _ := core.NewEnvironmentInstanceID()
+	instance := core.NewEnvironmentInstanceID()
 	marker := core.EphemeralRun{InstanceID: instance, EnvironmentID: "run-test", State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
 	if err := store.PutEphemeralRun(ctx, marker); err != nil {
 		t.Fatal(err)
@@ -33,7 +33,7 @@ func TestRunReservationAndCleanupCannotSelectAnotherCreation(t *testing.T) {
 	if err != nil || !lease.Ephemeral || lease.InstanceID != instance {
 		t.Fatal("reservation lost generation", lease, err)
 	}
-	other, _ := core.NewEnvironmentInstanceID()
+	other := core.NewEnvironmentInstanceID()
 	if err := service.DeleteRun(ctx, env.Name, other); !errors.Is(err, core.ErrCapabilityStale) || len(runtime.deleteRefs) != 0 {
 		t.Fatal("wrong generation deleted", err)
 	}
@@ -63,7 +63,7 @@ func TestRunReservationAndCleanupCannotSelectAnotherCreation(t *testing.T) {
 func TestRunCreationRequiresDurableMatchingReservation(t *testing.T) {
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	runtime := &fakeEnvironmentRuntime{}
-	instance, _ := core.NewEnvironmentInstanceID()
+	instance := core.NewEnvironmentInstanceID()
 	_, err := New(runtime, store).Create(context.Background(), core.EnvironmentSpec{Name: "run-missing", WorkspacePath: t.TempDir(), EphemeralInstance: instance})
 	if !errors.Is(err, core.ErrIncompatibleState) || runtime.createSpec.Name != "" {
 		t.Fatal("provider created without run ownership", err)

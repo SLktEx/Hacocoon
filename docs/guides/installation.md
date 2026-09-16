@@ -77,9 +77,9 @@ From the extracted package directory:
 ```
 
 The entry rejects WSL, checks Ubuntu/systemd and uses sudo when required.
-It leaves the user's login shell unchanged. Enter trusted Host through the
-temporary [Host-entry migration command](../reference/cli-migration.md#host-entry).
-Normal development after entry uses product `haco`.
+It leaves the user's login shell unchanged. Controller-backed `haco` management
+commands run on the Physical Host. A product interactive trusted-Host shell entry
+is not currently available on native Ubuntu.
 
 ## Completion and diagnosis
 

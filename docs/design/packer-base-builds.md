@@ -68,7 +68,7 @@ is refused without adopting or deleting that Env. Retained failures must be
 inspected before another attempt, or use another new name. Each attempt still has
 fresh ownership and the same isolated execution/publication/cleanup. The JSON shell
 definition also accepts `builder_name`; an explicit CLI option overrides it.
-See [ADR 0107](../adr/0107-named-build-environments.md).
+See [ADR 0109](../adr/0109-named-build-environments.md).
 
 Packer is optional for ordinary Base selection and creation. A Packer build
 prepares Python 3, CA certificates and OpenSSH in its disposable Ubuntu builder

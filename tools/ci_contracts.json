@@ -46,7 +46,6 @@
         "[fixture] Validate installer and CI shell syntax",
         "[fixture] Validate Windows installer syntax",
         "[fixture] Validate pre/main/post installer boundary",
-        "[fixture] Validate Docker compatibility systemd units",
         "[product] Dry-run release packaging",
         "[fixture] Validate release artifacts"
       ],
@@ -81,8 +80,6 @@
         "[infrastructure] Install pinned Go",
         "[fixture] Validate E2E shell syntax",
         "[product] Shipped command black-box E2E",
-        "[product] Capability E2E",
-        "[product] Git/GitHub E2E",
         "[product] Orchestrator E2E"
       ]
     },
@@ -174,7 +171,6 @@
         "[product] Execute packaged native Ubuntu installer unchanged",
         "[product] Assert Hacocoon is usable through native Ubuntu user path",
         "[product] Exercise installed product CLI lifecycle",
-        "[product] Exercise installed Hacocoon legacy user journey during migration",
         "[product] Verify installed network isolation and spoofing guards"
       ]
     },

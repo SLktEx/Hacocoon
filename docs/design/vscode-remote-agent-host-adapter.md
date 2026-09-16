@@ -49,6 +49,7 @@ haco-agent-host release --session <opaque-id>
 - writes only an adapter-owned SSH config fragment under `~/.ssh/hacocoon/`;
 - binds SSH to the existing generation-pinned controller stream;
 - reuses a compatible managed SSH connection or rotates it only after the replacement is ready;
+- permits grant replacement only within the same Environment incarnation, Workspace, access mode and SSH service; a changed target leaves the previous fragment intact and revokes only the newly prepared grant;
 - emits a session descriptor containing the bound Environment, SSH alias, `/workspace`, and VS Code remote-folder URI;
 - launches the VS Code Agents window directly on the Hacocoon remote workspace unless `--no-launch` is requested.
 

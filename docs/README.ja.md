@@ -29,7 +29,7 @@ Hacocoonはpre-1.0です。[使える範囲と制約](IMPLEMENTATION_STATUS.ja.m
 
 ## コマンド・設定の参照
 
-- [現行CLI](reference/cli.ja.md)と[旧CLIの移行情報（英語）](reference/cli-migration.md)
+- [現行CLI](reference/cli.ja.md)
 - [設定と承認ポリシー](reference/configuration.ja.md)、[通信の認可](design/egress-authorization.ja.md)、[AWS操作](design/aws-operations.ja.md)
 - [クライアントAPI](reference/client-adapter.ja.md)、[通知イベント](reference/interaction-events.ja.md)、[ログ](reference/logging.ja.md)
 - [ビルド・リリースの識別](reference/build-release-identity.ja.md)

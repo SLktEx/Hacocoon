@@ -18,7 +18,6 @@ incus version >/dev/null
 root="$(mktemp -d)"
 workspace="$root/workspace"
 haco="$root/haco"
-hacoq="$root/hacoq"
 haco_host="$root/haco-host"
 controller="$root/haco-controller"
 controller_log="$root/controller.log"
@@ -45,7 +44,7 @@ cleanup() {
     incus delete "$client_runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$created" == "1" ]]; then
-    "$hacoq" delete "$environment" >/dev/null 2>&1 || \
+    "$haco_host" env delete "$environment" >/dev/null 2>&1 || \
       incus delete "$runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$trusted_host_created" == "1" ]]; then
@@ -65,8 +64,7 @@ trap cleanup EXIT
 mkdir -p "$workspace"
 printf 'from-host\n' > "$workspace/host.txt"
 
-go build -o "$haco" ./cmd/haco-product
-go build -o "$hacoq" ./cmd/haco
+go build -o "$haco" ./cmd/haco
 go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
 go build -o "$root/haco-notify" ./cmd/haco-notify
@@ -217,28 +215,12 @@ grep -Eq '^protocol-version: [0-9]+$' <<<"$first_doctor" || {
   exit 1
 }
 
-host_shell_stdout="$root/host-shell-stdout"
-host_shell_stderr="$root/host-shell-stderr"
-printf 'echo host-shell-controller-ok\nexit\n' | "$hacoq" host shell >"$host_shell_stdout" 2>"$host_shell_stderr"
-grep -Fq "host-shell-controller-ok" "$host_shell_stdout" || {
-  echo "hacoq host shell did not round-trip through the controller" >&2
-  cat "$host_shell_stdout" >&2 || true
-  cat "$host_shell_stderr" >&2 || true
-  exit 1
-}
-grep -Fq "haco-host" "$host_shell_stderr" || {
-  echo "hacoq host shell did not emit the privileged Host warning" >&2
-  cat "$host_shell_stderr" >&2 || true
-  exit 1
-}
-
 # The shipped client-only companion exercises the canonical lifecycle API.
 [[ "$(incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_client" env list --json)" == "[]" ]] || {
   echo "trusted-host haco-host env list did not use the empty controller state" >&2
   exit 1
 }
-# Legacy alias/Base routing and fail-closed composition guards remain covered
-# by cmd/haco component tests; setup no longer ships that binary to the guest.
+# Guest setup must not initialize Physical Host state.
 incus exec "$trusted_host_ref" --project hacocoon -- test ! -e /var/lib/hacocoon/state
 
 # Re-entry must be idempotent and a stopped trusted host must be restarted with
@@ -336,7 +318,7 @@ if incus info "$client_runtime_ref" --project hacocoon >/dev/null 2>&1; then
   exit 1
 fi
 
-"$hacoq" create --workspace "$workspace" "$environment" >/dev/null
+"$haco_host" env create --workspace "$workspace" "$environment" >/dev/null
 created=1
 
 if incus config device list "$runtime_ref" --project hacocoon | grep -Fxq haco-control; then
@@ -352,13 +334,13 @@ if [[ "$(incus config get "$runtime_ref" environment.HACO_CLIENT_MODE --project 
   exit 1
 fi
 
-read_back="$("$hacoq" exec "$environment" -- cat /workspace/host.txt)"
+read_back="$("$haco_host" env exec "$environment" -- cat /workspace/host.txt)"
 [[ "$read_back" == "from-host" ]] || {
   echo "workspace host->environment read mismatch: $read_back" >&2
   exit 1
 }
 
-"$hacoq" exec "$environment" -- sh -c "printf 'from-environment\\n' > /workspace/environment.txt"
+"$haco_host" env exec "$environment" -- sh -c "printf 'from-environment\\n' > /workspace/environment.txt"
 [[ "$(cat "$workspace/environment.txt")" == "from-environment" ]] || {
   echo "workspace environment->host write mismatch" >&2
   exit 1
@@ -367,7 +349,7 @@ read_back="$("$hacoq" exec "$environment" -- cat /workspace/host.txt)"
 stdout_file="$root/stdout"
 stderr_file="$root/stderr"
 set +e
-"$hacoq" exec "$environment" -- sh -c "printf 'stdout-ok'; printf 'stderr-ok' >&2; exit 17" >"$stdout_file" 2>"$stderr_file"
+"$haco_host" env exec "$environment" -- sh -c "printf 'stdout-ok'; printf 'stderr-ok' >&2; exit 17" >"$stdout_file" 2>"$stderr_file"
 exit_code=$?
 set -e
 [[ "$exit_code" == "17" ]] || {
@@ -383,7 +365,7 @@ grep -q "stderr-ok" "$stderr_file" || {
   exit 1
 }
 
-printf 'exit\n' | "$hacoq" shell "$environment" >/dev/null
+printf 'exit\n' | "$haco_host" env shell "$environment" >/dev/null
 
 config_file="$root/incus-config"
 incus config show "$runtime_ref" --expanded --project hacocoon >"$config_file"
@@ -404,16 +386,16 @@ for forbidden in \
   fi
 done
 
-"$hacoq" delete "$environment"
+"$haco_host" env delete "$environment"
 created=0
 
 if incus info "$runtime_ref" --project hacocoon >/dev/null 2>&1; then
-  echo "environment still exists after hacoq delete" >&2
+  echo "environment still exists after haco-host env delete" >&2
   exit 1
 fi
 
 if [[ -e "$HACO_ROOT/state/environments.json" ]] && grep -Fq "\"$environment\"" "$HACO_ROOT/state/environments.json"; then
-  echo "environment metadata still exists after hacoq delete" >&2
+  echo "environment metadata still exists after haco-host env delete" >&2
   exit 1
 fi
 

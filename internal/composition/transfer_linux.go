@@ -5,8 +5,8 @@ package composition
 import (
 	"context"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
-	ociplugin "github.com/SLktEx/Hacocoon/modules/plugin/oci"
+	"github.com/SLktEx/Hacocoon/internal/env/transfer"
+	ociplugin "github.com/SLktEx/Hacocoon/internal/storage/oci"
 	"io"
 )
 

@@ -352,7 +352,7 @@ main `7e876bc1`へ #585（`d93f61fb`）と #587（`7bdd3db6`）を再利用し�
 認証GitHub、人のGUI回答、巨大レポの受入とは扱いません。
 
 最初の集中コマンドは存在しない`internal/approvalreview`を指定したためFAIL。
-Git・capability・製品はその時点でもPASSし、指定を既存の`internal/review`へ修正しました。
+Git・capability・製品はその時点でもPASSし、指定を既存の`internal/policy/review`へ修正しました。
 最初のlint差分はWindows Gitの改行変換を無効にして未変更ファイルも含んだため、
 その広い指摘を新規変更の指摘とは扱いません。正しい差分では再利用コードのエラー文字列2件と
 switch簡略化1件が検出され、修正後に上記の最終検証がPASSしました。
@@ -1510,4 +1510,33 @@ Windows全体lintは既存Linux専用Incusのsyscall.Stat_t参照を型検査で
 対象限定の再検査は手元のWSLがCreateInstance/E_FAILとなり未実行。Cドライブの
 空き0を確認し、生成済みテスト実行ファイルと一時アーカイブだけを削除して約20 MiBを
 確保した。ソースとログは保持。WSL再起動、利用者データ削除、権限緩和はしていない。
-修正後の導入済み容量回収・通知の確認は残っている。
+この時点では修正後の導入済み確認は未実施だった。後続の結果を次節に記録する。
+
+### 責務整理後の統合
+
+#708のhead `7e5971b5` は、[Windows run 35052021171](https://github.com/SLktEx/Hacocoon/actions/runs/35052021171)・
+job104654261663で通常導入、SSH・エディタ、保持したWorkspace・OCI・snapshotの復元、
+native通知の所有確認・拒否が成功した。公開容量回収は254回のopen試行後に完了し、復帰も成功。
+割当量は7,730,102,272から4,957,667,328バイトへ減少し、2,772,434,944バイトを回収した。
+仮想容量は変わっていない。この候補の証拠であり、先行する接続中ディスクの失敗を消したり、
+あらゆる外部クライアントの終了を証明したりするものではない。
+
+同じheadのIncus・Ubuntu・qualityは成功したが、
+[test run 35052021206](https://github.com/SLktEx/Hacocoon/actions/runs/35052021206)の
+race job104654262485は、日本語の転送案内でコマンド終了後も提示したlistenerへ接続できて失敗した。
+ほかの製品テストjobは成功し、集約判定はraceの失敗を引き継いだ。main `bfa19ecb` / #694には
+共有stream実装の並行Close完了待ち修正と、listener・受付済み接続・relayの決定的な回帰試験がある。
+今回の統合はこの修正を再利用し、失敗するassertionを弱めたり旧headを成功まで再実行したりしない。
+
+`bfa19ecb`との統合後、新しいWSLの独立コピーで共通ローカルCIの`test`と`race`が成功した。
+先にCLI・転送・stream・Baseの対象race検証も成功。Windows向けビルドと実Windowsの
+review 3件、排他・回収順序・切断待ち8件（別途subtestあり）も成功した。
+このnative確認ではWSL停止や導入済みディスクの圧縮は行っていない。共通起動排他は
+`internal/platform/wsl/coord`へ配置。未統合のビルダー名指定の決定記録はmainのADR 0107と
+番号が衝突するためADR 0109とし、動作は変えていない。
+
+新しいローカルWSLは導入版 `bfa19ecb`、Ubuntu 26.04.1、Incus 7.0.1で、通常ユーザーのdoctorが
+6項目すべて成功した。ユーザーが保持対象として選んだHacocoon開発Gitツリー5件は、Windowsへ
+保存して全内容・復元したGit object・HEAD・作業状態を照合した。他のアプリデータとGit管理外の
+テストコピーは明示的な除外対象。この結果は開発ソースの保持であり、全管理データ・guest idmap・
+復元後の認証付き開発の受入とは区別する。

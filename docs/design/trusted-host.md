@@ -105,7 +105,7 @@ Managed Environments                   UNTRUSTED
 The current implementation provides:
 
 - `haco setup`, which reconciles one persistent `haco-host`;
-- ordinary `wsl -d Hacocoon` entry and the retained legacy `hacoq host shell` alias;
+- ordinary `wsl -d Hacocoon` entry;
 - the ownership marker `user.hacocoon.role=trusted-host`;
 - rootfs placement on Hacocoon-managed Incus storage;
 - Environment name `host` reserved to avoid a provider-local collision;
@@ -178,7 +178,7 @@ The Physical Host source for each binary must be a regular executable, owned by 
 
 This makes repeated ensure idempotent and avoids trusting arbitrary pre-existing executables in the trusted instance.
 
-The product `haco` binary has no guest-local composition fallback and does not invoke `hacoq`. The temporary `hacoq` remains in the Physical Host release payload for unmigrated operations; fresh trusted-host setup no longer provisions it. Existing guest copies are not a product dependency. Its controller-mode guard still refuses guest-local operations.
+The product `haco` binary calls the controller without guest-local composition. The retired CLI is absent from new release payloads and trusted-host provisioning; see [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md).
 
 The mode marker is not an authorization credential. `haco-host` is already trusted, and the Physical Host controller remains the authority for policy, state, and provider operations.
 
@@ -251,7 +251,7 @@ When `-SkipIncus` is selected, controller/Host automatic entry is not configured
 
 ## Interactive warning
 
-Ordinary product Host entry shows the [authority notice](#host-entry-language). The temporary `hacoq host shell` path retains its own short localized management warning. Neither is an invitation to run ordinary workloads with Host authority.
+Ordinary WSL product Host entry shows the [authority notice](#host-entry-language). Run ordinary development workloads in an Environment.
 
 ## Planned follow-up
 
@@ -270,7 +270,7 @@ Still separate work:
 
 Repository tests cover ownership reconciliation, collision refusal, state recovery, exact controller-proxy validation, both client binaries' provisioning/idempotency, client-mode drift refusal, CLI routing, fail-closed fallback prevention, warning selection, and login-mode identification.
 
-The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. Retained legacy aliases, Base routing and local-composition guards have component coverage. The updated gate passed on `b71f88e`; commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
+The maintained real Incus E2E gate checks controller-owned `haco setup`, endpoint projection, digest equality of both required clients, `haco-host doctor` and `haco-host env ...` through the Physical Host controller, restart recovery, absence of guest `hacoq` after fresh setup, raw Incus-socket non-exposure, and absence of the trusted endpoint/client-mode marker on ordinary Environments. The earlier gate passed at `b71f88e`; that result does not validate the later directory and CLI changes in ADR 0107. Commit-bound Windows results and remaining limits are recorded in [implementation status](../IMPLEMENTATION_STATUS.md).
 
 Windows/WSL claims are limited to the commit-bound real-host acceptance in implementation status. Other hardware and configurations remain unverified.
 
@@ -416,7 +416,7 @@ On a dedicated root Linux/WSL Incus/Btrfs test host, run the maintained fixture:
 
 ```bash
 HACO_E2E_HOST_TOOLING=1 go test -count=1 -run '^TestRealIncusHostToolingE2E$' \
-  -v -timeout 18m ./modules/runtime/incus
+  -v -timeout 18m ./internal/adapters/incus
 ```
 
 The fixture creates its own project and pool, and cleans them after a pass.

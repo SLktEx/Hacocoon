@@ -26,7 +26,7 @@ func TestRestoredDataCleanupExcludesLeasesAndIdentityDrift(t *testing.T) {
 	if err := s.CleanupRestoredData(ctx, work, remove); err != nil || calls != 1 {
 		t.Fatal(err, calls)
 	}
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: id, EnvironmentID: "dev", WorkspaceID: work.ID, SourcePath: work.Path, AccessMode: core.WorkspaceReadWrite, Owner: "dev", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)

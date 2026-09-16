@@ -14,7 +14,7 @@ Status: **部分実装**。Local Unix domain プロトコル、Physical Host コ
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
 
-製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。typed管理APIに `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を追加した。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装status](../IMPLEMENTATION_STATUS.ja.md)、残る旧コマンドは[CLI移行](../reference/cli-migration.md)を参照。
+製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
 
 WSLは有効なコントローラーサービスがソケットをbindする前にlogin シェルを開くことがある。login aliasは読み取り専用pingで最大2分待ち、通信未準備だけを再試行する。プロトコル・operationの拒否は再試行せず、クライアントが第二のコントローラーを起動したりサービス状態を変更したりしない。この起動待ち期限は対話セッションの寿命を制限しない。
 
@@ -104,7 +104,7 @@ Instance側ソケットを`/run`配下に置かないのは意図的です。Gue
 
 `haco setup`は所有権識別情報を検証し、接続先 shapeを完全一致で照合・調整し、必要ならinstanceを起動し、`/usr/local/bin/haco-host`と同じreleaseのgeneral `/usr/local/bin/haco`の両方を配備します。各クライアントバイナリはSHA-256で検証し、Physical Host側元データはinvoking effective UID所有の通常の executableかつgroup/other writableでないことを要求します。Install後は`0755 root:root`へ収束させます。
 
-`HACO_CLIENT_MODE=controller`はauthorization 認証情報ではなく、意図的なsafety / execution-context 識別情報です。移行用 `hacoq` はこの識別情報でguest-local 状態の構築を防ぐ。reset後の製品 `haco` はそのlocal 構成経路を持たない。Authorizationと方針は引き続きコントローラー側が権限です。
+`HACO_CLIENT_MODE=controller` は実行場所の識別情報であり、認証情報ではありません。製品 `haco` に guest-local 構成経路はなく、認可と Policy の権限はコントローラーにあります。
 
 Supported WSL 初期設定はその後、実際の信頼された instance内で`haco-host doctor`を実行します。Physical Host コントローラーへのround tripが成功しない場合、通常の利用者の自動 login シェルを変更する前に初期設定を失敗させます。
 
@@ -164,13 +164,13 @@ Protocol mismatchは明示的なerrorとし、direct Incus accessへ代替経路
 - 削除
 - コントローラー ping / doctor 診断
 
-Client-only `haco-host` と移行用に残る `hacoq env ...` はdirect Incus 権限を持たず、このAPIを利用する。これらの保持は、reset後の製品 `haco` での提供を意味しない。
+`haco` と client-only の `haco-host` companion は直接 Incus 権限を持たず、この API を使います。提供するコマンドは [CLI リファレンス](../reference/cli.ja.md)を参照してください。
 
 ## General `haco` client namespace
 
 製品 `haco` はWSL Physical Hostと信頼された `haco-host` 内で共通の利用者入口となる。help/versionは単独で動作し、setup・診断・repo/Workspace/Environment管理・Git承認・WSL login aliasはコントローラーを直接呼ぶ。`hacoq` へ処理を委譲せず、未提供の `haco host ensure`・`haco host shell` も明示的に失敗する。
 
-追加のEnvironment コマンドは一時的な `hacoq` に残り、製品の最初の開発経路はtyped コントローラー APIを使う。guest-local 構成やIncus 権限は持たない。インストーラーは `haco setup` から既存コントローラーへ初期設定を依頼する。旧CLIの初期設定 orchestrationとguestへのhacoq配備は撤去した。
+インストーラーは `haco setup` から既存コントローラーへ初期設定を依頼します。旧 CLI と専用 orchestration は [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)で削除しました。
 
 ## `haco-host` transition surface
 
@@ -194,11 +194,15 @@ haco-host doctor
 
 Stream handshakeでは可能な検証を成功 acknowledgementより前に行い、その後同じUnix-domain 通信上でbidirectional バイト列を流します。
 
-現在はinteractive Environment シェルに利用し、クライアント half-closeも維持します。今後のframingでは次を追加できます。
+現在は対話シェル、非対話実行の標準入出力・標準エラーと終了情報、TCPの双方向転送に
+利用します。プロセスと双方向転送の管理セッションでは、接続時の完了確認用識別子を
+必須とします。peerが識別子を省略した場合、clientは接続を閉じてプロトコルエラーを
+返します。EOFだけをプロセス終了の証拠にはしません。pre-1.0のclientとcontrollerは
+一緒に更新してください。[互換処理を廃止する判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
 
-- streamed 非対話 stdin/stdout/stderrとexit メタデータ
-- Environment TCP 転送
-- その他の上限付きの controller-mediated ストリーム
+setup進捗やデータ転送など、結果・イベントの形式を独自に定めるAPIには生の
+ストリームを使います。通信層が返すのはバイト列とEOFであり、完了確認は各APIの
+プロトコルが担当します。
 
 `Session`を新しい公開 domain conceptにはしません。StreamはExecutionまたはクライアント接続の実装詳細です。
 
@@ -257,7 +261,6 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 - stopped/restarted 信頼された Hostでのコントローラー再疎通
 - production 配備済み`haco-host env`からcreate/list/status/exec/deleteをPhysical Host コントローラー経由で実行できること
 - 新規 setupでguestに旧`hacoq`を配備しないこと
-- 保持した旧alias・Base 経路選択・local 構成拒否の構成要素検証
 - クライアント専用 companionでguest コマンドのexit status/stdout/stderrが保持されること
 - 生の Incus control ソケット非露出
 - 通常Environmentに信頼されたコントローラー接続先とclient-mode 識別情報が存在しないこと
@@ -367,7 +370,7 @@ Windows／WSL経由の受入は未確認です。通常のLinuxのtrusted Host c
 
 ## Windowsのプロセス転送
 
-状態: **開発候補としてpartial**。`internal/wsllaunch`が選択した同一PCのWSLに対する
+状態: **開発候補としてpartial**。`internal/platform/wsl/launch`が選択した同一PCのWSLに対する
 固定の非表示`System32\wsl.exe`起動を組み立てます。controller転送の入力検証・最小限の環境変数をここで管理します。通知回答との起動処理の共通化は別途進めます。`haco _control-stdio`は継承した接続先設定を
 使わず、Physical Hostの固定UDSだけへ接続します。通常のWSL利用者とsocketの
 アクセス制御を維持し、rootへの変更・通常Envへの管理接続投影・TCP管理待受は
@@ -424,7 +427,7 @@ CLIはEnvの正確な作成世代を準備し、controllerから読み取り専�
 Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所有するCLIが受けてpipe経由で中断します。
 親による直接の終了待ちは維持し、子の非zero終了を成功へ置換しません。
 委譲しても元の期限を延ばしません。結果と診断出力を分離します。実Windowsの構成要素試験と、
-`tools/windows-tunnel-entry-e2e.py`の通常導入経路は別の証拠です。
+`test/e2e/windows/tunnel.py`の通常導入経路は別の証拠です。
 [ADR 0093](../adr/0093-windows-tunnel-delegation.ja.md)を参照してください。
 
 通知のprivate reviewとWindowsの固定stdio接続も、要求や転送データを読む前に

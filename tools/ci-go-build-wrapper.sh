@@ -18,8 +18,7 @@ if [[ "$#" == 4 && "$1" == "build" && "$2" == "-o" && -n "$ci_bin_dir" ]]; then
   package="$4"
   source_name=""
   case "$package" in
-    ./cmd/haco-product) source_name="haco" ;;
-    ./cmd/haco) source_name="hacoq" ;;
+    ./cmd/haco) source_name="haco" ;;
     ./cmd/haco-controller) source_name="haco-controller" ;;
     ./cmd/haco-host) source_name="haco-host" ;;
     ./cmd/haco-vscode) source_name="haco-vscode" ;;

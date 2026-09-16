@@ -3,6 +3,9 @@
 Status: historical; superseded at the public contract by [ADR 0014](0014-persistent-managed-resources.md)  
 Date: 2026-09-06
 
+The unregistered implementation was removed by [ADR 0107](0107-responsibility-layout-and-cli-retirement.md).
+The CLI continues to refuse this command.
+
 The PoC product client offers `haco env switch-base --base <base> <environment>`.
 It requires a managed Workspace, resolves the destination Base before mutation,
 gracefully stops the Environment, and calls canonical controller delete/create

@@ -5,8 +5,8 @@ Status: accepted
 ## Decision
 
 Incus image properties and aliases remain the only built-image inventory. Add a
-small `internal/basemanage` service for reviewed identities and current catalog
-references; keep native observation/removal in `modules/runtime/incus`. The CLI
+small `internal/base/manage` service for reviewed identities and current catalog
+references; keep native observation/removal in `internal/adapters/incus`. The CLI
 selects a current name or an unambiguous fingerprint and sends the exact fingerprint
 and build owner after confirmation. A moved alias never redirects that deletion.
 

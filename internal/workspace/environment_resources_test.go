@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/persistentresource"
 	"github.com/SLktEx/Hacocoon/internal/state"
+	"github.com/SLktEx/Hacocoon/internal/storage/resource"
 )
 
 type environmentDataBackend struct {

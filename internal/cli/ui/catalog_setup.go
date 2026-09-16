@@ -1,0 +1,32 @@
+// Setup guidance is separate from raw script output and diagnostic state tokens.
+package cliui
+
+var setupCatalog = map[string]translation{
+	"setup.invalid_script_options": {"haco: select one script option; use UTF-8 without NUL and at most 1 MiB", "haco: スクリプトのオプションは1つだけ指定してください。スクリプトはNULを含まないUTF-8形式、最大1MiBにしてください。"},
+	"setup.invalid_usage":          {"haco: usage: haco setup [--script <path> | --clear-script] [environment]", "haco: 使い方: haco setup [--script <path> | --clear-script] [environment]"},
+	"setup.script_unreadable":      {"haco: cannot read a regular UTF-8 setup script (maximum 1 MiB)", "haco: セットアップ用の通常ファイルを読み取れません。UTF-8形式で最大1MiBのスクリプトを指定してください。"},
+	"setup.select_option":          {"haco: select one script option; --reapply-script and --script-result are Host-only", "haco: スクリプトのオプションは1つだけ指定してください。--reapply-scriptと--script-resultはHost専用です。"},
+	"setup.truncated":              {"haco: setup output was truncated", "haco: セットアップの出力が上限を超えたため、一部を省略しました。"},
+	"setup.project_cleared":        {"Saved project setup removed.", "プロジェクトの保存手順を解除しました。"},
+	"setup.project_completed":      {"Project setup completed.", "プロジェクトのセットアップが完了しました。"},
+	"setup.project_empty":          {"No saved project setup. Use haco setup --script <path> <environment>.", "プロジェクトの保存手順はありません。haco setup --script <path> <environment>で登録・実行できます。"},
+	"setup.not_sent":               {"No setup request sent. Check haco doctor and the controller service on the WSL/Linux Physical Host.", "セットアップ要求は送信していません。haco doctorとWSL/LinuxのPhysical Host上のcontrollerサービスを確認してください。"},
+	"setup.request":                {"Setup request:", "セットアップの問い合わせ番号:"},
+	"setup.host_result":            {"Host script: state=%s sha256=%s exit_code=%d\n", "Hostの保存手順: state=%s sha256=%s exit_code=%d\n"},
+	"setup.saved_truncated":        {"haco: saved script output was truncated", "haco: 保存手順の出力が上限を超えたため、一部を省略しました。"},
+	"setup.inspect_result":         {"Inspect output: haco setup --script-result. Reapply deliberately: haco setup --reapply-script.", "haco setup --script-resultで出力を確認できます。再実行する場合はhaco setup --reapply-scriptを明示してください。"},
+	"setup.unconfirmed":            {"Setup completion is not confirmed. Completed stages are shown above; resources may remain. Current resource state is unknown until inspected.", "セットアップの完了を確認できませんでした。上に表示した段階までは完了しています。作成済みのデータや環境が残っている可能性があり、現在の状態は確認が必要です。"},
+	"setup.inspect_before_retry":   {"Next: haco doctor. Do not delete resources or blindly replay a saved customization script.", "次にhaco doctorで状態を確認してください。確認前にデータや環境を削除したり、保存手順を再実行したりしないでください。"},
+	"setup.find_request":           {"Find request_id:", "診断ログで検索するrequest_id:"},
+	"setup.observation_ended":      {"Observation canceled or timed out; controller setup may still be running. Inspect diagnostics before another operation.", "待機を中止したか、待機時間を超えました。controllerでセットアップが続いている可能性があります。次の操作の前に診断ログを確認してください。"},
+	"setup.unavailable":            {"Controller unavailable; inspect the controller service before another operation.", "controllerに接続できません。次の操作の前にcontrollerサービスを確認してください。"},
+	"setup.protocol":               {"Controller progress protocol unavailable or incomplete; inspect diagnostics and installed client/controller versions.", "controllerの進捗を正しく受信できませんでした。診断ログとインストール済みclient・controllerのバージョンを確認してください。"},
+	"setup.customization_failed":   {"haco: stage=customization reason=failed; Host prepared, but customization failed; fix your script and rerun haco setup --script <path>, or use --clear-script", "haco: stage=customization reason=failed; Hostの準備は完了しましたが、保存手順に失敗しました。スクリプトを修正してhaco setup --script <path>で再実行するか、--clear-scriptで解除してください。"},
+	"setup.host_failed":            {"haco: Host setup failed; inspect haco doctor and the setup request in the journal", "haco: Hostのセットアップに失敗しました。haco doctorと診断ログ内のセットアップ要求を確認してください。"},
+	"setup.host_cleared":           {"Saved Host script removed; previous effects and last result retained.", "Hostの保存手順を解除しました。これまでの変更内容と最後の実行結果は保持しています。"},
+	"setup.host_completed":         {"Host script completed.", "Hostの保存手順の実行が完了しました。"},
+	"setup.ready":                  {"Host resources prepared. Run haco doctor to verify readiness.", "Hostの準備が完了しました。haco doctorで利用できる状態か確認してください。"},
+	"setup.project_request_failed": {"haco: project setup could not be confirmed. Run haco doctor <environment> before retrying.", "haco: プロジェクトのセットアップを確認できません。再実行する前にhaco doctor <environment>で状態を確認してください。"},
+	"setup.project_failed":         {"haco: project setup failed. Correct the script or Environment and rerun haco setup.", "haco: プロジェクトのセットアップに失敗しました。スクリプトまたは環境を修正してhaco setupを再実行してください。"},
+	"setup.busy":                   {"Another setup is running. Wait and inspect its diagnostics.", "別のセットアップが実行中です。完了を待ち、その診断ログを確認してください。"},
+}

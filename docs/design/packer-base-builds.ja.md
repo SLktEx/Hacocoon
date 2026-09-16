@@ -61,7 +61,7 @@ build自体は規則の保存やダウンロードの承認を行わず、既存
 失敗後に対象が残った場合は再試行前に確認するか、別の新しい名前を使ってください。
 毎回新しい所有情報と、同じ隔離・実行・公開・後始末を使います。
 JSONのshell定義にも `builder_name` を指定でき、明示したCLIオプションが優先します。
-[ADR 0107](../adr/0107-named-build-environments.ja.md)を参照してください。
+[ADR 0109](../adr/0109-named-build-environments.ja.md)を参照してください。
 
 通常のBase選択・Env作成にPackerは不要です。Packerビルドでは、Python／OpenSSHがなければ、
 使い捨てのUbuntu Env内で通常の`apt-get`を使い、Python 3・CA証明書・OpenSSHを準備します。

@@ -38,6 +38,20 @@ acceptance evidence. No release has been published for these changes.
 
 ## M0–M5 remaining work
 
+Main `bfa19ecb` / #694 now owns the responsibility layout and retires the old CLI.
+#708 is being integrated into that layout, retaining #704–#707's selection,
+named-builder, observation and binding-inventory work. Its previous exact head
+`7e5971b5` passed installed Windows reclamation and retained-data restoration;
+its separate race failure is addressed by main's existing close-completion fix.
+See [the distinct results](acceptance-evidence.md#integration-after-the-responsibility-layout-change).
+M2/M3 person-dependent acceptance remains assigned to the user.
+
+The user has replaced the local WSL and selected only Hacocoon development Git
+data for retention. Five source trees were archived and restoration-checked on
+Windows. Restoring the deliberately excluded old installation/application data
+is no longer a prerequisite. Ordinary product transfer/retention, guest-visible
+ownership and authenticated restored use retain their separate acceptance scopes.
+
 Main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702) now contains
 the Git streaming correction after all five exact-head workflows passed. The
 single-pack functional limit is resolved within the documented 16 GiB budget;

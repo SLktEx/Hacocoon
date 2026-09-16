@@ -17,8 +17,8 @@ func TestGeneratedCheckpointMatchesAuthorities(t *testing.T) {
 	checks := map[string]*regexp.Regexp{
 		"docs/status/versioning-and-release-status.md":    regexp.MustCompile(`current milestone position is \*\*(v0\.\d+)\*\*`),
 		"docs/status/versioning-and-release-status.ja.md": regexp.MustCompile(`現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*`),
-		"docs/IMPLEMENTATION_STATUS.md":                  regexp.MustCompile(`current milestone position is \*\*(v0\.\d+)\*\*`),
-		"docs/IMPLEMENTATION_STATUS.ja.md":               regexp.MustCompile(`現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*`),
+		"docs/IMPLEMENTATION_STATUS.md":                   regexp.MustCompile(`current milestone position is \*\*(v0\.\d+)\*\*`),
+		"docs/IMPLEMENTATION_STATUS.ja.md":                regexp.MustCompile(`現在のmilestone位置は\s*\*\*(v0\.\d+)\*\*`),
 	}
 	for rel, re := range checks {
 		data, err := os.ReadFile(filepath.Join(root, rel))

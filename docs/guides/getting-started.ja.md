@@ -27,8 +27,7 @@ WSLへコマンドを明示して渡す場合はPhysical Host側で実行され�
 
 Ubuntuへ直接導入する場合は、Ubuntu用パッケージ全体を展開して `./install-ubuntu.sh` を実行します。
 製品コマンドは、そのPhysical Host上のコントローラー接続グループに所属するユーザーで実行します。
-Gitの認証は信頼されたHost内で行います。Hostシェルへ明示的に入る一時的な方法は
-[CLI移行情報](../reference/cli-migration.md#host-entry)にあります。
+Gitの認証は信頼されたHost内で行います。native Ubuntuには現在、製品の対話的なtrusted Hostシェル接続コマンドがありません。
 Ubuntuへの導入ではログインシェルを変更しません。
 
 中断した登録、現在のパッケージでの再試行、プラットフォーム別の設定、rootでの復旧入口は

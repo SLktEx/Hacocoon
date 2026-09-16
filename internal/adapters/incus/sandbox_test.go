@@ -1,0 +1,306 @@
+package incus
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
+)
+
+const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
+	for label, built := range map[string]bool{"default": false, "built": true} {
+		t.Run(label, func(t *testing.T) {
+
+			initialized, recorded := false, false
+			renewed := false
+			baseName := core.BaseName("")
+			if built {
+				baseName = "owned-tools"
+			}
+			values := map[string]string{}
+			guardCreated := false
+			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				if !built && strings.Contains(strings.Join(args, " "), "haco-base-") {
+					t.Fatal("ordinary image creation materialized redundant retained Base storage", args)
+				}
+				if initialized && !recorded {
+					t.Fatal("provider call before durable ownership receipt", args)
+				}
+				if args[0] == "exec" && args[len(args)-1] == freshGuestSSHIdentity {
+					renewed = true
+				}
+				if built && args[0] == "query" && len(args) > 3 && args[1] == "-X" {
+					var value any
+					if strings.Contains(args[3], "/images/aliases?") {
+						value = []baseAlias{{Name: builtBasePrefix + "owned-tools", Target: sandboxTestFingerprint, Description: builtBaseDescription, Type: "container"}}
+					} else {
+						value = baseImage{Fingerprint: sandboxTestFingerprint, Type: "container", Properties: map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": "owned-tools", "user.hacocoon.build-instance": testEnvironmentInstance}}
+					}
+					data, _ := json.Marshal(value)
+					return host.Result{Stdout: string(data)}, nil
+				}
+				if args[0] == "init" {
+					wantSource := "images:" + sandboxTestFingerprint
+					if built {
+						wantSource = "local:" + sandboxTestFingerprint
+					}
+					if len(args) < 2 || args[1] != wantSource {
+						t.Fatalf("selected Base was substituted: %v", args)
+					}
+					if !strings.Contains(strings.Join(args, " "), "--config boot.autostart=false") {
+						t.Fatal("new Environment can autostart before Hacocoon guards")
+					}
+					initialized = true
+				}
+				if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
+					return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+				}
+				if len(args) > 6 && args[2] == "nft" && args[6] == routedSandboxGuardTable("haco-demo") {
+					if args[3] == "list" && !guardCreated {
+						return host.Result{Stderr: "No such file or directory"}, errors.New("guard absent before creation")
+					}
+					if args[3] == "add" && args[4] == "table" {
+						guardCreated = true
+					}
+				}
+				if result, ok := sandboxNetworkResult(args); ok {
+					return result, nil
+				}
+				if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
+					return rootProfileResult(), nil
+				}
+				if len(args) >= 4 && args[0] == "config" && args[1] == "set" {
+					parts := strings.SplitN(args[3], "=", 2)
+					values[parts[0]] = parts[1]
+					return host.Result{}, nil
+				}
+				if len(args) >= 4 && args[0] == "config" && args[1] == "get" {
+					return host.Result{Stdout: values[args[3]] + "\n"}, nil
+				}
+				if len(args) >= 6 && args[0] == "config" && args[1] == "device" && args[2] == "set" {
+					parts := strings.SplitN(args[5], "=", 2)
+					values["root."+parts[0]] = parts[1]
+					return host.Result{}, nil
+				}
+				if len(args) >= 6 && args[0] == "config" && args[1] == "device" && args[2] == "get" {
+					return host.Result{Stdout: values["root."+args[5]] + "\n"}, nil
+				}
+				return host.Result{}, nil
+			}}
+			provider, err := NewSandboxProvider(New(runner))
+			if err != nil {
+				t.Fatal(err)
+			}
+			budget := core.ResourceBudget{
+				CPU:         core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 4},
+				MemoryBytes: core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 8 << 30},
+				PIDs:        core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 1024},
+				RootBytes:   core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 40 << 30},
+			}
+			created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{Base: baseName, InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget}, func(v core.EnvironmentRuntime) error {
+				if !initialized || recorded || v.Ref != "haco-demo" || v.Resources != budget || v.Base == nil {
+					t.Fatal("invalid creation receipt", v)
+				}
+				recorded = true
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if created.Resources != budget {
+				t.Fatalf("resources = %#v, want %#v", created.Resources, budget)
+			}
+
+			bridge := environmentBridgeName("haco-demo")
+			mac := environmentBridgeMAC("haco-demo")
+			start := -1
+			resourceOps := 0
+			seenNoProfiles := false
+			seenDedicatedBridge := false
+			seenDirectNIC := false
+			seenProxyConfig := false
+			seenMACGuard := false
+			seenDHCPGuard := false
+			seenIPGuard := false
+			for i, call := range runner.calls {
+				joined := strings.Join(call.args, " ")
+				if strings.Contains(joined, "security.nesting=true") {
+					t.Fatal("Base choice alone granted nesting authority", call)
+				}
+				if strings.Contains(joined, "haco-base-") {
+					t.Fatal("ordinary create retained a redundant Base instance")
+				}
+				if len(call.args) > 0 && call.args[0] == "init" && !strings.Contains(joined, "--config "+environmentInstanceKey+"="+testEnvironmentInstance) {
+					t.Fatal("creation omitted durable ID", call.args)
+				}
+				if len(call.args) > 0 && call.args[0] == "start" {
+					start = i
+				}
+				if strings.Contains(joined, "--profile ") {
+					t.Fatalf("sandbox Environment still depends on inherited profile: %#v", call)
+				}
+				if strings.Contains(joined, "--no-profiles") {
+					seenNoProfiles = true
+				}
+				if strings.Contains(joined, "network create "+bridge) {
+					seenDedicatedBridge = true
+					if start >= 0 {
+						t.Fatalf("dedicated Environment bridge created after start: %#v", call)
+					}
+				}
+				if strings.Contains(joined, "network show "+bridge) && start < 0 {
+					seenDedicatedBridge = true
+				}
+				if strings.Contains(joined, "config device add haco-demo eth0 nic") {
+					for _, required := range []string{"network=" + bridge, "hwaddr=" + mac, "security.port_isolation=true"} {
+						if !strings.Contains(joined, required) {
+							t.Fatalf("sandbox NIC missing %q: %#v", required, call)
+						}
+					}
+					for _, forbidden := range []string{"nictype=routed", "ipv4.host_address=", "security.ipv4_filtering", "security.ipv6_filtering", "security.mac_filtering"} {
+						if strings.Contains(joined, forbidden) {
+							t.Fatalf("dedicated bridge NIC retained WSL-incompatible/obsolete key %q: %#v", forbidden, call)
+						}
+					}
+					seenDirectNIC = true
+					if start >= 0 {
+						t.Fatalf("sandbox NIC was added after start: %#v", call)
+					}
+				}
+				if strings.Contains(joined, "nft add rule "+sandboxRoutedFirewallFamily+" "+routedSandboxGuardTable("haco-demo")) {
+					if strings.Contains(joined, "ether saddr != "+mac) {
+						seenMACGuard = true
+					}
+					if strings.Contains(joined, "ip saddr 0.0.0.0 udp sport 68 udp dport 67 accept") {
+						seenDHCPGuard = true
+					}
+					if strings.Contains(joined, "ip saddr != 10.240.0.0/24") {
+						seenIPGuard = true
+					}
+					if start >= 0 {
+						t.Fatalf("source guard was installed after start: %#v", call)
+					}
+				}
+				if strings.Contains(joined, "--config environment.HTTP_PROXY=") && strings.Contains(joined, "--config environment.HTTPS_PROXY=") {
+					seenProxyConfig = true
+				}
+				if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
+					resourceOps++
+					if start >= 0 {
+						t.Fatalf("resource operation occurred after start: %#v", call)
+					}
+				}
+			}
+			if start < 0 {
+				t.Fatal("start call missing")
+			}
+			if !seenNoProfiles || !seenDedicatedBridge || !seenDirectNIC || !seenProxyConfig || !seenMACGuard || !seenDHCPGuard || !seenIPGuard {
+				t.Fatalf("Environment-dedicated bridge materialization incomplete: noProfiles=%v bridge=%v directNIC=%v proxyConfig=%v macGuard=%v dhcpGuard=%v ipGuard=%v calls=%#v", seenNoProfiles, seenDedicatedBridge, seenDirectNIC, seenProxyConfig, seenMACGuard, seenDHCPGuard, seenIPGuard, runner.calls)
+			}
+			if resourceOps != 4 {
+				t.Fatalf("resource set operations = %d, calls=%#v", resourceOps, runner.calls)
+			}
+
+			if built && !renewed {
+				t.Fatal("built Base SSH identity was not renewed before publication")
+			}
+
+		})
+	}
+}
+
+func TestSandboxProviderVerificationFailureCleansUpWithoutStart(t *testing.T) {
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if len(args) >= 2 && args[0] == "image" && args[1] == "info" {
+			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+		}
+		if result, ok := sandboxNetworkResult(args); ok {
+			return result, nil
+		}
+		if len(args) >= 3 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
+			return rootProfileResult(), nil
+		}
+		if len(args) >= 4 && args[0] == "config" && args[1] == "get" && args[3] == "limits.cpu" {
+			return host.Result{Stdout: "999\n"}, nil
+		}
+		return host.Result{}, nil
+	}}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = provider.CreateEnvironment(context.Background(), core.EnvironmentRuntimeSpec{
+		Name: "demo", WorkspacePath: "/tmp/work",
+		Resources: core.ResourceBudget{CPU: core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 2}},
+	})
+	if !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatalf("error = %v", err)
+	}
+	seenDelete := false
+	for _, call := range runner.calls {
+		if len(call.args) > 0 && call.args[0] == "start" {
+			t.Fatalf("unexpected start after verification failure: %#v", call)
+		}
+		if len(call.args) > 0 && call.args[0] == "delete" {
+			seenDelete = true
+		}
+	}
+	if !seenDelete {
+		t.Fatalf("cleanup delete missing: %#v", runner.calls)
+	}
+}
+
+func TestSandboxReceiptFailureLeavesCleanupToLifecycleOwner(t *testing.T) {
+	initialized := false
+	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+		if initialized {
+			t.Fatal("provider performed work after failed receipt", args)
+		}
+		if args[0] == "init" {
+			initialized = true
+		}
+		if len(args) > 1 && args[0] == "image" && args[1] == "info" {
+			return host.Result{Stdout: `{"fingerprint":"` + sandboxTestFingerprint + `"}`}, nil
+		}
+		if out, ok := sandboxNetworkResult(args); ok {
+			return out, nil
+		}
+		if len(args) > 2 && args[0] == "profile" && args[1] == "show" && args[2] == "default" {
+			return rootProfileResult(), nil
+		}
+		return host.Result{}, nil
+	}}
+	provider, err := NewSandboxProvider(New(runner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("durable receipt failed")
+	created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work"}, func(v core.EnvironmentRuntime) error {
+		if !initialized || v.Ref != "haco-demo" {
+			t.Fatal(v)
+		}
+		return failure
+	})
+	if !errors.Is(err, failure) || created.Ref != "haco-demo" {
+		t.Fatal("lost owned failed runtime", created, err)
+	}
+}
+func TestSandboxReceiptRequiresGenerationBeforeProviderAccess(t *testing.T) {
+	provider, err := NewSandboxProvider(New(&fakeRunner{run: func(context.Context, int, string, []string) (host.Result, error) {
+		t.Fatal("provider access without generation")
+		return host.Result{}, nil
+	}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", WorkspacePath: "/tmp/work"}, func(core.EnvironmentRuntime) error { return nil })
+	if !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal(err)
+	}
+}

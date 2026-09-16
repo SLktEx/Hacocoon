@@ -174,12 +174,12 @@ Older helpers reject version-2/interrupted state rather than discarding fields.
 
 | Component | Responsibility |
 |---|---|
-| `modules/runtime/incus` | Native pool selection, pins, FITRIM and measurements |
+| `internal/adapters/incus` | Native pool selection, pins, FITRIM and measurements |
 | `internal/composition` | Installed identity and configured Linux sequence |
-| `internal/reclamation` | Bounded identity/result values; no persisted state |
-| `internal/controlapi` | Management transport, exclusion and deadlines |
-| `cmd/haco-product`, `internal/reclaimclient` | Confirmation, display and fixed Windows bridge |
-| `internal/wslreclaim`, `cmd/haco-wsl` | Enrollment, Windows pins/exclusion, records and worker |
+| `internal/storage/reclamation` | Bounded identity/result values; no persisted state |
+| `internal/controller/api` | Management transport, exclusion and deadlines |
+| `cmd/haco`, `internal/client/reclaim` | Confirmation, display and fixed Windows bridge |
+| `internal/platform/wsl/reclaim`, `cmd/haco-wsl` | Enrollment, Windows pins/exclusion, records and worker |
 
 See [ADR 0048](../adr/0048-storage-reclamation-identity.md) for the rejected
 path/name-only alternatives and authority rationale.

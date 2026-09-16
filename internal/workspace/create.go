@@ -125,10 +125,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 			return core.Environment{}, core.ErrRecoveryRequired
 		}
 	}
-	instanceID, identityErr := core.NewEnvironmentInstanceID()
-	if identityErr != nil {
-		return core.Environment{}, identityErr
-	}
+	instanceID := core.NewEnvironmentInstanceID()
 	if spec.EphemeralInstance != "" {
 		instanceID = spec.EphemeralInstance
 	}

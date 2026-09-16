@@ -378,7 +378,7 @@ Incus, authenticated GitHub, human GUI or large-repository acceptance.
 
 The first focused invocation named nonexistent `internal/approvalreview`; the
 existing Git, capability and product packages passed but the invocation failed.
-The corrected package is `internal/review`. The first lint patch incorrectly
+The corrected package is `internal/policy/review`. The first lint patch incorrectly
 disabled Windows Git newline conversion and included unchanged files; its broad
 findings are not presented as new-code findings. With the correct diff, lint
 found two capitalized error strings and one switch simplification in the reused
@@ -1793,4 +1793,40 @@ syscall.Stat_t test dependency. Its narrowed retry did not run: the local WSL
 failed CreateInstance/E_FAIL while C: had zero free bytes. Generated test binaries
 and source archive were removed; source and logs remain, with only about 20 MiB
 free afterward. No WSL restart, user-data deletion or permission relaxation was
-performed. New installed reclamation/notification acceptance remains pending.
+performed during that attempt. Subsequent installed acceptance is recorded below.
+
+### Integration after the responsibility layout change
+
+At #708 head `7e5971b5`, [Windows run 35052021171](https://github.com/SLktEx/Hacocoon/actions/runs/35052021171)
+and job104654261663 passed ordinary installation, SSH/editor, retained
+Workspace/OCI/snapshot restoration and native notification ownership/refusal.
+Public reclamation completed after 254 open attempts and resumed successfully:
+allocated bytes fell from 7,730,102,272 to 4,957,667,328 (2,772,434,944 recovered),
+with virtual capacity unchanged. This is evidence for that candidate; it does not
+erase preceding attached-disk failures or prove every external client closes.
+
+The same head passed Incus, Ubuntu and quality workflows but
+[test run 35052021206](https://github.com/SLktEx/Hacocoon/actions/runs/35052021206)
+failed its race job104654262485: Japanese forwarding presentation returned while
+the advertised listener still accepted a connection. The other product test jobs
+passed; the evidence aggregate failed because race failed. Main `bfa19ecb` / #694
+already fixes concurrent close completion in the shared stream implementation and
+contains deterministic listener/accepted-connection/relay regressions. Integration
+reuses this fix rather than weakening the failing assertion or rerunning the old
+head until it passes.
+
+After integrating `bfa19ecb`, an isolated copy on the new WSL passed the maintained
+local CI `test` and `race` entry points. The focused CLI/forwarding/stream/Base
+race checks passed first. Windows cross-builds and actual native review (three
+tests) and guard/continuation/detached-open checks (eight tests, plus subtests)
+also passed. These native checks did not stop WSL or compact the installed disk.
+The shared coordination code now lives under `internal/platform/wsl/coord`.
+The unmerged named-builder decision uses ADR 0109 to avoid colliding with main's
+ADR 0107; its behavior is unchanged.
+
+The new local WSL uses installed `bfa19ecb`, Ubuntu 26.04.1 and Incus 7.0.1;
+ordinary-user doctor passed all six checks. The user selected only five Hacocoon
+development Git trees for evacuation. All archived contents, restored Git objects,
+HEADs and working states were verified on Windows. Other application data and
+non-Git test copies were explicitly excluded. This is source preservation, not
+all-managed-data, guest-idmap or authenticated restored-development acceptance.

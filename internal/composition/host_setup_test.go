@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SLktEx/Hacocoon/internal/recipes"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
+	"github.com/SLktEx/Hacocoon/internal/host/recipes"
 )
 
 func TestHostShellWaitsForSetupWithoutReleasingItsExclusion(t *testing.T) {

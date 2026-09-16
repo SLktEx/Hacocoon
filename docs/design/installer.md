@@ -40,7 +40,7 @@ termination. These read-only observations do not start or repair a distribution.
 ## Incus package baseline
 
 Implemented: Ubuntu/WSL installation and both dedicated Incus CI setup paths
-share `scripts/incus-lts.sh`. The supported server is Incus 7.0 LTS
+share `install/incus-lts.sh`. The supported server is Incus 7.0 LTS
 (`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly primary key, rejects
 additional keys, and selects the latest available 7.0.x package from its signed
 `lts-7.0` repository. Persistent APT preferences retain the series without

@@ -135,7 +135,7 @@ Even then, preserve the semantic invariants: explicit lifecycle state, durable o
 
 The production SandboxProvider supports `CreateEnvironmentWithReceipt`. It invokes
 the supplied synchronous receipt immediately after successful Incus init, before
-any device/network/resource configuration or guest start. The BaseRouter qualifies
+any device/network/resource configuration or guest start. The Environment Router qualifies
 the native reference; Workspace persists it through `RecordEnvironmentRuntime`
 while the lease remains acquiring. Only then does the provider run the shared
 configuration path. Duplicate/missing receipts and a changed returned reference

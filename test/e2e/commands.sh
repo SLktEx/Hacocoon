@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for command in go grep mktemp sleep; do
+# Assertions below use the English catalog, independent of the invoking locale.
+export HACO_UI_LANGUAGE=en
+
+for command in go grep mktemp sleep python3; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "missing required command: $command" >&2
     exit 1
@@ -42,18 +45,27 @@ INCUS
 chmod +x "$bin/incus"
 export PATH="$bin:$PATH"
 
-go build -o "$bin/haco" ./cmd/haco-product
-go build -o "$bin/hacoq" ./cmd/haco
+go build -o "$bin/haco" ./cmd/haco
 for name in haco-controller haco-vscode haco-agent-host haco-notify; do
   go build -o "$bin/$name" "./cmd/$name"
 done
-for name in haco hacoq haco-controller haco-vscode haco-agent-host haco-notify; do
+for name in haco haco-controller haco-vscode haco-agent-host haco-notify; do
   test -x "$bin/$name"
 done
 
 # Build with the normal Go cache; isolate HOME only for product execution.
 # Go module directories are read-only and must not become disposable user data.
 export HOME="$root/home"
+
+# Only the executable entrypoint owns logging setup. Invalid configuration
+# must fail once, without a package initializer silently selecting defaults.
+if HACO_LOG_LEVEL=invalid "$bin/haco-controller" >"$root/controller-log.out" 2>"$root/controller-log.err"; then
+  echo 'controller accepted invalid logging configuration' >&2
+  exit 1
+fi
+[[ ! -s "$root/controller-log.out" ]]
+printf '%s\n' 'controller logging configuration is invalid' >"$root/controller-log.expected"
+cmp "$root/controller-log.expected" "$root/controller-log.err"
 
 # Product identity/help must be available before any Incus/runtime/controller
 # initialization. The new haco deliberately exposes no legacy namespaces yet.
@@ -94,8 +106,7 @@ set -e
 [[ ! -s "$root/haco-invalid.out" ]]
 grep -Fq 'command "definitely-not-a-command" is not available yet' "$root/haco-invalid.err"
 
-# Existing controller-backed functionality stays reachable only through the
-# temporary migration CLI. This is compatibility coverage, not a product API.
+# Exercise the installed controller-backed product commands.
 haco_start_test_controller \
   "$bin/haco-controller" \
   "$root/control.sock" \
@@ -153,6 +164,7 @@ import json, sys
 with open(sys.argv[1]) as f: data = json.load(f)
 data['policy'] = {'default':'deny','rules':[]}
 with open(sys.argv[1], 'w') as f: json.dump(data, f)
+print('Configuration editor completed')
 PY
 chmod 700 "$root/editor with spaces"
 VISUAL="" EDITOR="'$root/editor with spaces'" "$bin/haco" config --edit --json >"$root/config-edited.json"
@@ -175,42 +187,6 @@ product_missing_code=$?
 set -e
 [[ "$product_missing_code" == "1" ]]
 [[ ! -e "$root/product-missing-root/state" ]]
-
-"$bin/hacoq" base list >"$root/hacoq-base.out" 2>"$root/hacoq-base.err"
-grep -Fxq 'haco/ubuntu-24.04' "$root/hacoq-base.out"
-grep -Fxq 'haco/ubuntu-26.04' "$root/hacoq-base.out"
-[[ ! -s "$root/hacoq-base.err" ]]
-
-# Legacy controller-client mode must still fail closed rather than initialize
-# local state while the migration surface exists.
-client_mode_root="$root/client-mode-root"
-missing_control="$root/missing-control.sock"
-set +e
-HACO_ROOT="$client_mode_root" HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/hacoq" env list >"$root/env-client.out" 2>"$root/env-client.err"
-env_client_code=$?
-set -e
-[[ "$env_client_code" == "1" ]]
-[[ ! -s "$root/env-client.out" ]]
-[[ ! -e "$client_mode_root/state" ]]
-
-set +e
-HACO_ROOT="$client_mode_root" HACO_CLIENT_MODE=controller HACO_CONTROL_SOCKET="$missing_control" \
-  "$bin/hacoq" base list >"$root/client-mode.out" 2>"$root/client-mode.err"
-client_mode_code=$?
-set -e
-[[ "$client_mode_code" == "1" ]]
-[[ ! -s "$root/client-mode.out" ]]
-grep -Fq 'control endpoint unavailable' "$root/client-mode.err"
-[[ ! -e "$client_mode_root/state" ]]
-
-set +e
-"$bin/hacoq" definitely-not-a-command >"$root/hacoq-invalid.out" 2>"$root/hacoq-invalid.err"
-hacoq_invalid_code=$?
-set -e
-[[ "$hacoq_invalid_code" == "1" ]]
-[[ ! -s "$root/hacoq-invalid.out" ]]
-grep -Fq 'unknown command "definitely-not-a-command"' "$root/hacoq-invalid.err"
 
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
@@ -235,7 +211,7 @@ grep -Fq 'unknown command "definitely-not-a-command"' "$root/vscode.err"
 notify_pid=$!
 notify_ready=0
 for ((attempt = 0; attempt < 50; attempt++)); do
-  if grep -Fq 'Hacocoon browser notifications: http://127.0.0.1:0/' "$root/notify.out"; then
+  if grep -Eq '^Hacocoon browser notifications: http://127\.0\.0\.1:[1-9][0-9]*/$' "$root/notify.out"; then
     notify_ready=1
     break
   fi
@@ -249,9 +225,24 @@ done
   cat "$root/notify.err" >&2 || true
   exit 1
 }
+python3 - "$root/notify.out" <<'PY'
+import json, pathlib, sys, urllib.request
+line = pathlib.Path(sys.argv[1]).read_text().strip()
+prefix = 'Hacocoon browser notifications: '
+assert line.startswith(prefix), line
+endpoint = line[len(prefix):]
+# Use the address the product advertised, including the assigned ephemeral
+# port. Bypass ambient proxies when observing this private local listener.
+client = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+with client.open(endpoint + 'api/v1/events?offset=0&limit=1', timeout=5) as response:
+    assert response.status == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    batch = json.load(response)
+    assert isinstance(batch['events'], list)
+PY
 kill -TERM "$notify_pid"
 wait "$notify_pid"
 notify_pid=""
 [[ ! -s "$root/notify.err" ]]
 
-echo 'PASS: new haco product CLI + temporary hacoq compatibility black-box E2E'
+echo 'PASS: shipped haco and helper black-box E2E'

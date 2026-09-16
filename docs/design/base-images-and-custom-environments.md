@@ -42,7 +42,7 @@ Optional `builder_name` (or CLI `--builder`) selects a new builder's ordinary En
 name so administrator network settings can be scoped before creation. It never
 adopts an existing Env, grants communication, or replaces fresh temporary ownership.
 See [named builders](packer-base-builds.md#dependencies-and-source-files) and
-[ADR 0107](../adr/0107-named-build-environments.md).
+[ADR 0109](../adr/0109-named-build-environments.md).
 
 The command prints a human-readable result. Pass `--json` to read the Base
 name/revision, state and any retained builder name as JSON. Build output is not
@@ -61,11 +61,11 @@ There is no second Hacocoon Base catalog or filesystem retention object.
 Publication produces a compressed image and is not claimed to be a cheap COW
 operation. See [Incus image creation](https://linuxcontainers.org/incus/docs/main/howto/images_create/).
 
-`modules/runtime/incus` owns native image/alias operations and pinned resolution.
-`internal/basebuild` composes canonical temporary Env creation, guest execution,
+`internal/adapters/incus` owns native image/alias operations and pinned resolution.
+`internal/base/build` composes canonical temporary Env creation, guest execution,
 stop, publication and bounded cleanup. `internal/workspace` holds existing
 lifecycle locks and checks the unique temporary Workspace and creation lease.
-`internal/environment` only routes native references; CLI/control transport
+`internal/env` only routes native references; CLI/control transport
 transfers the bounded definition. No generic builder backend or replay state
 machine is introduced. See [ADR 0041](../adr/0041-incus-base-publication.md).
 
@@ -123,8 +123,8 @@ selects an older revision. Deletion previews the exact selection and asks for
 confirmation (`--yes` for explicit automation). It does not delete every revision
 sharing a name or select configured/upstream images as owned built images.
 
-Incus owns image removal and its aliases. `internal/basemanage` adds current
-catalog references and the reviewed identity; `modules/runtime/incus` verifies
+Incus owns image removal and its aliases. `internal/base/manage` adds current
+catalog references and the reviewed identity; `internal/adapters/incus` verifies
 native ownership and references and serializes removal against native create and
 publication. The controller transports the exact fingerprint and build owner,
 so alias movement cannot silently change the deletion target. Used images and

@@ -2,7 +2,7 @@
 param([Parameter(Mandatory=$true)][string]$AdapterPath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-. (Join-Path $PSScriptRoot '../scripts/windows-review.ps1')
+. (Join-Path $PSScriptRoot '../install/windows-review.ps1')
 if ((Get-HacocoonReviewClassID 'Hacocoon') -cne '{d2677f30-7bd6-897e-929f-9a455e17c0ca}' -or
     (Get-HacocoonReviewClassID 'Hacocoon') -cne (Get-HacocoonReviewClassID 'hacocoon')) { throw 'Go/installer COM identity mismatch' }
 $name = 'Hacocoon-Toast-Test-' + [guid]::NewGuid().ToString('N').Substring(0,12)

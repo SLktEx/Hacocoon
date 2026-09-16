@@ -18,8 +18,11 @@ func Serve(ctx context.Context, listener net.Listener, open func(context.Context
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	var workers sync.WaitGroup
-	stop := context.AfterFunc(ctx, func() { _ = listener.Close() })
-	defer func() { cancel(); _ = listener.Close(); workers.Wait(); stop() }()
+	// A second Close may return before a concurrent first Close has finished.
+	// Share its completion with cancellation so return also releases the socket.
+	closeListener := sync.OnceFunc(func() { _ = listener.Close() })
+	stop := context.AfterFunc(ctx, closeListener)
+	defer func() { cancel(); closeListener(); workers.Wait(); stop() }()
 	slots := make(chan struct{}, 16)
 	for {
 		local, err := listener.Accept()
@@ -38,8 +41,9 @@ func Serve(ctx context.Context, listener net.Listener, open func(context.Context
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			defer func() { <-slots; _ = local.Close() }()
-			stopLocal := context.AfterFunc(ctx, func() { _ = local.Close() })
+			closeLocal := sync.OnceFunc(func() { _ = local.Close() })
+			defer func() { <-slots; closeLocal() }()
+			stopLocal := context.AfterFunc(ctx, closeLocal)
 			defer stopLocal()
 			upstream, err := open(ctx)
 			if err == nil {

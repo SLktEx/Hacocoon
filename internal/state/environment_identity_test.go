@@ -61,12 +61,12 @@ func TestEnvironmentInstanceSurvivesReloadButNotRecreation(t *testing.T) {
 }
 func TestEnvironmentInstanceCannotChangeInRuntimeReservation(t *testing.T) {
 	s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: id, EnvironmentID: "dev", WorkspaceID: "work", SourcePath: "/workspace/work", AccessMode: core.WorkspaceReadWrite, Owner: "dev", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	if err := s.BeginEnvironmentCreate(context.Background(), lease); err != nil {
 		t.Fatal(err)
 	}
-	lease.InstanceID, _ = core.NewEnvironmentInstanceID()
+	lease.InstanceID = core.NewEnvironmentInstanceID()
 	lease.RuntimeRef = "haco-dev"
 	if err := s.RecordEnvironmentRuntime(context.Background(), lease); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatalf("identity replacement accepted: %v", err)

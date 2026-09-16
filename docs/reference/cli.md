@@ -2,7 +2,7 @@
 
 [日本語](cli.ja.md) | English
 
-This page describes `cmd/haco-product`, installed as `haco`.
+This page describes `cmd/haco`, installed as `haco`.
 Run management commands in trusted `haco-host` or on its Physical Host.
 Paths passed as input files are client-local; `env create --workspace` instead
 resolves a path on the controller (or a `managed:<id>` identity).
@@ -42,7 +42,7 @@ help and version require no controller.
 `haco env switch-base` is explicitly disabled. Product `haco` has no top-level
 `create/exec/shell/events/connections/forward`, no `plugin git` or `plugin oci seed/docker`,
 and no CPU/memory/PID/root-size flags on `env create` or `run`.
-Those retained legacy surfaces are covered by [migration](cli-migration.md).
+Retired interfaces are recorded in [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md).
 
 Ordinary failure exits nonzero; usage usually exits 2. Temporary execution returns
 the guest exit code after confirmed cleanup, 130 after client cancellation, and

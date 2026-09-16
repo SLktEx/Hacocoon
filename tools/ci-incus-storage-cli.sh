@@ -8,8 +8,9 @@ trap haco_stop_test_controller EXIT
 readonly CLI_ROOT="${RUNNER_TEMP:-}/haco-incus-storage-cli-e2e"
 readonly WORKSPACE="${RUNNER_TEMP:-}/haco-incus-storage-workspace"
 readonly RUN_WORKSPACE="${RUNNER_TEMP:-}/haco-incus-storage-run-workspace"
-readonly HACO_BIN="${RUNNER_TEMP:-}/haco-incus-storage-cli-bin"
-readonly CONTROLLER_BIN="${RUNNER_TEMP:-}/haco-incus-storage-controller-bin"
+readonly HACO_BIN="$CLI_ROOT/haco"
+readonly HOST_BIN="$CLI_ROOT/haco-host"
+readonly CONTROLLER_BIN="$CLI_ROOT/haco-controller"
 readonly PROJECT="hacocoon"
 readonly POOL="haco-local-default"
 readonly ENV_NAME="incus-storage-cli-e2e"
@@ -46,7 +47,7 @@ setup() {
 
   go build -trimpath -o "$HACO_BIN" ./cmd/haco
   go build -trimpath -o "$CONTROLLER_BIN" ./cmd/haco-controller
-  go build -trimpath -o "$CLI_ROOT/haco-product" ./cmd/haco-product
+  go build -trimpath -o "$HOST_BIN" ./cmd/haco-host
   [[ -x "$HACO_BIN" ]] || fail "haco CLI build failed"
   [[ -x "$CONTROLLER_BIN" ]] || fail "haco-controller build failed"
 }
@@ -114,12 +115,13 @@ run_test() {
   [[ "$(id -u)" != "0" ]] || fail "storage CLI acceptance must execute haco as the ordinary runner user"
 
   export HACO_ROOT="$CLI_ROOT"
-  unset HACO_PLUGIN_OCI
 
-  "$HACO_BIN" create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
+  haco_start_test_controller "$CONTROLLER_BIN" "$CLI_ROOT/control.sock" "$CLI_ROOT/controller.out" "$CLI_ROOT/controller.err"
+
+  "$HOST_BIN" env create --base haco/ubuntu-26.04 --workspace "$WORKSPACE" "$ENV_NAME"
   python3 tools/verify_ci_base_provenance.py "$CLI_ROOT/state/environments.json" "$ENV_NAME"
 
-  status_json="$("$HACO_BIN" status "$ENV_NAME" --json)"
+  status_json="$("$HOST_BIN" env status "$ENV_NAME" --json)"
   python3 - "$status_json" <<'PY'
 import json, sys
 row = json.loads(sys.argv[1])
@@ -134,18 +136,19 @@ PY
   assert_incus_managed_storage
   assert_instance_boundary
 
-  read_back="$("$HACO_BIN" exec "$ENV_NAME" -- cat /workspace/host.txt)"
+  read_back="$("$HOST_BIN" env exec "$ENV_NAME" -- cat /workspace/host.txt)"
   [[ "$read_back" == "host-visible" ]] || fail "workspace host->environment read mismatch: $read_back"
-  "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'test -w /workspace && printf "from-environment\n" > /workspace/from-environment.txt'
+  "$HOST_BIN" env exec "$ENV_NAME" -- sh -c 'test -w /workspace && printf "from-environment\n" > /workspace/from-environment.txt'
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "Environment did not write through the real workspace mount"
 
-  "$HACO_BIN" exec "$ENV_NAME" -- sh -c 'printf "rootfs-retained\n" > /root/storage-reuse-sentinel'
+  "$HOST_BIN" env exec "$ENV_NAME" -- sh -c 'printf "rootfs-retained\n" > /root/storage-reuse-sentinel'
 
   # The next rootfs operation must reconcile the existing pool through Incus.
   # Keep existing workspace data to catch destructive replacement on reuse.
   incus storage set "$POOL" btrfs.mount_options=compress=zstd:3 --project "$PROJECT"
   [[ "$(incus storage get "$POOL" btrfs.mount_options --project "$PROJECT")" == "compress=zstd:3" ]] || fail "failed to install stale mount policy"
 
+  haco_stop_test_controller
   haco_start_test_controller \
     "$CONTROLLER_BIN" \
     "$CLI_ROOT/control.sock" \
@@ -161,17 +164,17 @@ assert row["execution"]["stdout"] == "run-ok\n", row
 assert row["cleaned_up"] is True, row
 PY
   [[ "$(cat "$RUN_WORKSPACE/from-run.txt")" == "from-run" ]] || fail "haco run did not write through the real workspace mount"
-  python3 tools/test_temporary_run.py "$CLI_ROOT/haco-product" "$RUN_WORKSPACE"
+  python3 tools/test_temporary_run.py "$HACO_BIN" "$RUN_WORKSPACE"
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_incus_managed_storage
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "workspace data changed during pool reuse"
-  [[ "$("$HACO_BIN" exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
+  [[ "$("$HOST_BIN" env exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
+  "$HOST_BIN" env delete "$ENV_NAME"
   haco_stop_test_controller
-  "$HACO_BIN" delete "$ENV_NAME"
   local remaining
   remaining="$(incus list "$INSTANCE" --project "$PROJECT" --format csv -c n)" || fail "instance absence is unknown"
   if grep -Fxq -- "$INSTANCE" <<< "$remaining"; then
-    fail "named Environment instance remained after hacoq delete"
+    fail "named Environment instance remained after haco-host env delete"
   fi
 }
 

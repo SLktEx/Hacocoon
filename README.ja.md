@@ -45,7 +45,7 @@ managed Git WorkspaceからEnvironmentを作ると、Git brokerは自動で接�
 次回は `haco open --client ssh sample-dev` で再開できます。
 Remote-SSHを導入したVS Codeを使う場合は `haco open sample-dev` を実行します。
 
-現在の製品CLIは `haco` です。旧CLIだけに残る操作は[CLI移行情報](docs/reference/cli-migration.md)にまとめています。
+操作は[現行の `haco` CLI](docs/reference/cli.ja.md)を参照してください。
 
 ## 何が残るか
 

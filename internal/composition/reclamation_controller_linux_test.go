@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/host"
-	"github.com/SLktEx/Hacocoon/internal/reclamation"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 )
 
 var reclaimFixtureTarget = reclamation.WSLTarget{RegistrationID: "{11111111-1111-4111-8111-111111111111}", InstallationID: "22222222-2222-4222-8222-222222222222"}

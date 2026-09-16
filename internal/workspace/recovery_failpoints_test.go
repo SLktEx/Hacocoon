@@ -14,16 +14,16 @@ import (
 type semanticFailpoint string
 
 const (
-	failBeforeBeginCreate       semanticFailpoint = "environment-create/before-reservation"
-	failAfterBeginCreate        semanticFailpoint = "environment-create/after-reservation"
-	failBeforeRecordRuntime     semanticFailpoint = "environment-create/before-runtime-ownership"
-	failAfterRecordRuntime      semanticFailpoint = "environment-create/after-runtime-ownership"
-	failBeforeCommitReady       semanticFailpoint = "environment-create/before-ready-commit"
-	failAfterCommitReady        semanticFailpoint = "environment-create/after-ready-commit"
-	failBeforeFinalizeDelete    semanticFailpoint = "environment-delete/before-state-finalize"
-	failAfterFinalizeDelete     semanticFailpoint = "environment-delete/after-state-finalize"
-	failBeforeRuntimeDelete     semanticFailpoint = "environment-delete/before-runtime-delete"
-	failAfterRuntimeDelete      semanticFailpoint = "environment-delete/after-runtime-delete"
+	failBeforeBeginCreate    semanticFailpoint = "environment-create/before-reservation"
+	failAfterBeginCreate     semanticFailpoint = "environment-create/after-reservation"
+	failBeforeRecordRuntime  semanticFailpoint = "environment-create/before-runtime-ownership"
+	failAfterRecordRuntime   semanticFailpoint = "environment-create/after-runtime-ownership"
+	failBeforeCommitReady    semanticFailpoint = "environment-create/before-ready-commit"
+	failAfterCommitReady     semanticFailpoint = "environment-create/after-ready-commit"
+	failBeforeFinalizeDelete semanticFailpoint = "environment-delete/before-state-finalize"
+	failAfterFinalizeDelete  semanticFailpoint = "environment-delete/after-state-finalize"
+	failBeforeRuntimeDelete  semanticFailpoint = "environment-delete/before-runtime-delete"
+	failAfterRuntimeDelete   semanticFailpoint = "environment-delete/after-runtime-delete"
 )
 
 var errInjectedFailure = errors.New("injected reliability failure")

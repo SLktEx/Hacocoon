@@ -30,15 +30,44 @@ classification in [the PR template](.github/pull_request_template.md).
 From the repository root with the Go version required by [go.mod](go.mod):
 
 ```bash
-go build -o ./bin/haco ./cmd/haco-product
-go build -o ./bin/hacoq ./cmd/haco
+go build -o ./bin/haco ./cmd/haco
 ```
 
-The second binary is the temporary legacy CLI; it is not the product command.
 A standalone CLI build is not an installed Host. Use [installer architecture](docs/design/installer.md)
 and [release instructions](docs/guides/releasing.md) for the complete package.
 Client-specific development lives in [VS Code Agent Workspace](clients/vscode-agent-workspace/README.md)
 and [VS Code notifications](clients/vscode-notify/README.md).
+
+## Repository map
+
+| Change | Start here |
+|---|---|
+| CLI arguments, help, output | `cmd/haco`, `internal/cli`; helper parsers in `internal/cli/*` |
+| Controller startup / API / transport | `internal/controller`, `internal/controller/api`, `internal/controller/transport` |
+| Environment routing, copy, transfer, temporary run | `internal/env` |
+| Canonical lifecycle and Workspace leases | `internal/workspace`; atomic persistence in `internal/state` |
+| Existing checkout / archive input | `internal/workspace/input`; bounded upload files in `internal/staging` |
+| Saved snapshots / restore | `internal/workspace` capture; `internal/snapshot/restore` application service |
+| Base assets, build, image review | `internal/base/{asset,build,manage}` |
+| Incus runtime, storage, isolation | `internal/adapters/incus` |
+| Git ownership / approval / external Git | `internal/git`, `internal/adapters/git` |
+| Policy / approval queue | `internal/policy`, `internal/policy/approvals` |
+| Network authority / DNS and HTTP transports | `internal/network`, `internal/adapters/network` |
+| Retained resources, cache, OCI Stores, reclamation | `internal/storage` |
+| Host execution, setup, recipes | `internal/host`, `internal/composition` |
+| SSH keys, configuration, editor launch | `internal/client/ssh`, `internal/client/vscode` |
+| Windows / WSL identity and workers | `internal/platform/wsl`; command parsing in `internal/cli/wsl` and `internal/cli/tunnel` |
+| Notifications / public clients | `internal/client/notify`, `pkg/clientadapter`, `pkg/interaction`, `pkg/interactionhttp`; extensions in `clients/` |
+| Optional AWS / Packer / OCI tooling | `internal/adapters/{aws,packer,oci}` |
+| Installer / release tooling | `install/`, `tools/` |
+| Process and installed user-journey tests | `test/e2e/`; packaged Linux in `installed/`, Windows/WSL in `windows/` |
+
+`cmd/` only enters the owning implementation. `internal/core` holds domain contracts;
+feature services call those contracts and composition wires implementations.
+Core/Standard/Plugin are architectural roles, not directory trees. External operations
+stay behind adapters; optional integrations do not become Core prerequisites.
+`pkg/` is reserved for the actual public client and interaction APIs. See
+[the layout decision](docs/adr/0107-responsibility-layout-and-cli-retirement.md).
 
 ## Design checks
 
@@ -59,7 +88,7 @@ A change should answer these questions:
 
 Prefer the current vocabulary: Workspace, WorkspaceLease, Environment, Execution, CapabilityRequest, PolicyDecision, and ApprovalRequest.
 
-Historical `Session`, Runtime/Storage-centric, and plugin-heavy code may remain only where current implementation value justifies it. New public APIs and architecture should not deepen old couplings.
+Keep ownership readers and cleanup paths when retained resources still depend on them. Do not recreate retired CLI or internal-package aliases.
 
 Provider-specific concepts stay outside Core. Incus, Git/GitHub, IDE brands, storage backends, OCI tooling, and future cloud-provider models belong behind their respective boundaries.
 
@@ -112,7 +141,6 @@ It mirrors the jobs in `.github/workflows/test.yml` and can also run one job at 
 bash tools/ci-local.sh docs
 bash tools/ci-local.sh workflow-policy
 bash tools/ci-local.sh release-config
-bash tools/ci-local.sh systemd
 bash tools/ci-local.sh test
 bash tools/ci-local.sh race
 bash tools/ci-local.sh e2e

@@ -2,20 +2,19 @@
 
 [English](sandbox-resource-limits.md) | 日本語
 
-状態: **実装済み（プロバイダー・旧CLIの範囲）**。実Incusでの広い制限確認は未完了です。
+状態: **実装済み（プロバイダー・client APIの範囲）**。実Incusでの広い制限確認は未完了です。
 製品`haco env create/run`にはこのbudget フラグはありません。
-[CLI移行情報](../reference/cli-migration.md)で移行用の境界を確認してください。
+配布する `haco-host` companion がコントローラー経由でこのフラグを提供します。
 
 ResourceBudgetはCPU、MemoryBytes、PIDs、RootBytesを持ちます。
 Env内の消費量を制限するもので、Host境界を越えるCapabilityではありません。
 各値は正の有限値または`unlimited`、省略時は無制限です。
 不正・ゼロ・負数・overflow・曖昧・非対応の値は拒否します。
 
-以下はPhysical Hostの旧CLI用であり、導入済み製品の通常手順ではありません。
+配布するcontroller-client補助コマンドでは、作成時のリソース制限を明示できます。
 
 ```bash
-hacoq create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace /absolute/work dev
-hacoq run --cpu 2 --memory 4GiB --workspace /absolute/work -- go test ./...
+haco-host env create --cpu 4 --memory 8GiB --pids 1024 --root-size 40GiB --workspace /absolute/work dev
 ```
 
 CPUとPIDは正の整数です。容量はparserの二進単位を使い、

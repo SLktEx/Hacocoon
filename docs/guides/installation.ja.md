@@ -78,8 +78,8 @@ wsl -d Hacocoon -u root
 
 この入口はWSLを拒否し、Ubuntu・systemdを確認して必要時にsudoを使います。
 利用者のログインシェルは変更しません。
-信頼済みHostへは移行用の[Host接続コマンド](../reference/cli-migration.md#host-entry)を使います。
-接続後の通常開発は製品CLIの`haco`で行います。
+controller経由の `haco` 管理コマンドはPhysical Hostで実行できます。
+native Ubuntuには現在、製品の対話的なtrusted Hostシェル接続コマンドがありません。
 
 ## 完了確認と診断
 

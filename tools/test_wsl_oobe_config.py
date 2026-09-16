@@ -5,7 +5,7 @@ import re
 import subprocess
 import unittest
 
-INSTALLER = (Path(__file__).resolve().parents[1] / "scripts/install-windows.ps1").read_text()
+INSTALLER = (Path(__file__).resolve().parents[1] / "install/install-windows.ps1").read_text()
 TRANSFORM = re.search(r"# BEGIN MANAGED OOBE TRANSFORM\nawk -v uid=\"\$uid\" '\n(.*?)\n' \"\$config\"", INSTALLER, re.S)[1]
 CONFIG = "[oobe]\ncommand = /usr/lib/wsl/wsl-setup\ndefaultUid = 1000\ndefaultName = Ubuntu-26.04\n\n[shortcut]\nicon = /usr/share/wsl/ubuntu.ico\n"
 
