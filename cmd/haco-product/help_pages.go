@@ -63,7 +63,7 @@ var helpPages = []helpPage{
 	{Path: "base list", Syntax: "[--all] [--json]", Message: "command.base.list", Example: "haco base list"},
 	{Path: "base inspect", Syntax: "[--json] <base>", Message: "command.base.inspect", Example: "haco base inspect <base>"},
 	{Path: "base import", Syntax: "--name <base> [--json] <image.tar>", Message: "command.base.import", Example: "haco base import --name my-tools ./my-tools.tar"},
-	{Path: "base build", Syntax: "--name <base> [--from <base>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco base build --name my-tools ./tools-base"},
+	{Path: "base build", Syntax: "--name <base> [--from <base>] [--builder <env>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco base build --name my-tools ./tools-base"},
 	{Path: "base delete", Syntax: "[--yes] <name-or-fingerprint>", Message: "command.base.delete", Example: "haco base delete <base>"},
 	{Path: "snapshot", Syntax: "<command>", Message: "command.snapshot", Example: "haco snapshot list"},
 	{Path: "snapshot create", Syntax: "[--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},

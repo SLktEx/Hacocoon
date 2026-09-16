@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/desktopreview"
+	"github.com/SLktEx/Hacocoon/internal/wslcoord"
 )
 
 // The only channel carrying controller tokens or answers is these anonymous
@@ -84,4 +85,31 @@ func (p *processReviewPeer) Exchange(ctx context.Context, m desktopreview.Messag
 		return desktopreview.Reply{}, ctx.Err()
 	}
 	return reply, err
+}
+
+// The gate is held until a read-only round trip completes. Releasing it after
+// Start alone permits a delayed WSL child to restart a distribution after stop.
+func startReadyReviewPeer(lifetime, startup context.Context, plan desktopreview.Invocation, own, distribution string) (peer *processReviewPeer, err error) {
+	startup, cancelStartup := context.WithTimeout(startup, desktopreview.StartupTimeout)
+	defer cancelStartup()
+	guard, err := wslcoord.AcquireLaunch(distribution)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil && peer != nil {
+			peer.Close()
+			peer = nil
+		}
+		err = errors.Join(err, guard.Close())
+		if err != nil && peer != nil {
+			peer.Close()
+			peer = nil
+		}
+	}()
+	peer, err = startReviewPeer(lifetime, plan, own)
+	if err == nil {
+		err = peer.Ready(startup)
+	}
+	return
 }

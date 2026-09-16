@@ -215,3 +215,13 @@ The private Linux client also waits for the enabled controller through the share
 read-only Ping boundary before consuming any private message. This handles a WSL
 process arriving before its controller socket; it starts no service and retries
 no review or answer. The native parent's startup deadline remains authoritative.
+
+## Review during WSL reclamation
+
+Native Windows review now shares the distribution startup reservation with
+reclamation. Initial and answer peers finish a bounded read-only handshake before
+releasing it; on failure the child is reaped first. A busy reservation refuses a
+new peer without starting WSL or answering/replaying approval. Existing requests
+remain subject to the controller's normal expiry and identity checks. Reopen
+review after reclamation finishes. [ADR 0108](../adr/0108-background-wsl-start-coordination.md)
+records the race and the limits of this coordination.

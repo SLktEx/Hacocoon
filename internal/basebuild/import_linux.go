@@ -39,7 +39,7 @@ func (s *Service) Import(ctx context.Context, req ImportRequest, source io.Reade
 	if n == 0 {
 		return result, core.ErrInvalidArgument
 	}
-	return s.build(ctx, req.Name, func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
+	return s.build(ctx, req.Name, "", func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
 		return creator.CreateFromArchive(ctx, core.EnvironmentSpec{Name: name, TemporaryWorkspace: &work, SkipDefaultResource: true, Resources: builderResources()}, io.NewSectionReader(input, 0, n), root, MaxArchiveBytes)
 	}, nil)
 }

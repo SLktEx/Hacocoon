@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 import json
+import os
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -10,9 +12,55 @@ spec = importlib.util.spec_from_file_location("reclaim_gate", Path(__file__).wit
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 OP = "{11111111-1111-4111-8111-111111111111}"
+PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL": 1}}
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_parent_categories_are_bounded_and_never_emit_arbitrary_names(self):
+        snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 2, "vmmemWSL": 1},
+                    "origins": {"wsl/ssh/editor/other": 1, "ssh/editor/other": 1}}
+        self.assertEqual(gate.observed_process_origins(snapshot),
+                         {"state": "observed", "chains": snapshot["origins"]})
+        for origins in ({"secret.exe": 2}, {"ssh": True}, {"ssh": -1}, {"ssh": 4097},
+                        {"ssh": 1}, {"ssh/" * 8 + "editor": 2}, {"ssh//editor": 2}, []):
+            with self.subTest(origins=origins):
+                self.assertEqual(gate.observed_process_origins(dict(snapshot, origins=origins)),
+                                 {"state": "unavailable"})
+        self.assertEqual(gate.observed_process_origins(dict(PROCESSES, origins={})),
+                         {"state": "observed", "chains": {}})
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell 5.1 query contract")
+    def test_native_query_classifies_parents_and_rejects_pid_reuse(self):
+        # Supply OS-shaped metadata to the actual PowerShell query. No processes
+        # are started/stopped and no raw fixture fields leave its projection.
+        fixture = r"""
+function Get-CimInstance {
+  $start=[datetime]'2026-01-01T00:00:00Z';
+  foreach($v in @(
+    @(1,0,'private-name.exe',0), @(2,1,'Code.exe',1), @(3,2,'ssh.exe',2),
+    @(4,3,'wsl.exe',3), @(5,4,'wsl.exe',4),
+    @(6,99,'wsl.exe',1), @(7,8,'wsl.exe',1), @(8,0,'ssh.exe',2),
+    @(9,9,'wsl.exe',2), @(10,0,'haco-wsl.exe',1),
+    @(11,1,'haco-review.exe',1), @(12,11,'wsl.exe',2),
+    @(13,1,'wslrelay.exe',1), @(14,13,'wsl.exe',2))) {
+      [pscustomobject]@{ ProcessId=$v[0];ParentProcessId=$v[1];Name=$v[2];
+        CreationDate=$start.AddSeconds($v[3]);ExecutablePath='C:\private\'+$v[2] }
+  }
+}
+"""
+        powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command",
+                                 fixture + gate.process_query()], capture_output=True, timeout=25)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+        snapshot = json.loads(result.stdout.decode("utf-8-sig"))
+        self.assertEqual(snapshot["origins"], {"ssh/editor/other": 1,
+                         "wsl/ssh/editor/other": 1, "unavailable": 2, "wsl/unavailable": 1,
+                         "notification/other": 1, "wsl-relay/other": 1})
+        observed = gate.observed_process_origins(snapshot)
+        self.assertEqual(observed["state"], "observed")
+        self.assertNotIn("private", json.dumps(observed))
+        self.assertTrue(gate.helper_is_running(snapshot["helpers"], r"C:\private\haco-wsl.exe"))
+
     def test_japanese_status_still_requires_the_successful_completion_marker(self):
         message = "容量回収の保存結果はありません。この確認で新しい操作は開始していません。\n"
         self.assertFalse(gate.absent_status_completed(message))
@@ -71,11 +119,28 @@ class ReclamationUserPathTests(unittest.TestCase):
                 gate.require_complete(result, OP)
 
     def test_failed_status_stops_observation_without_reentry(self):
-        with patch.object(gate, "read_json", return_value={"operation": OP, "state": "failed"}) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}):
+        with patch.object(gate, "read_json", side_effect=[{"operation": OP, "state": "failed"}, PROCESSES]) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
             with self.assertRaises(RuntimeError):
                 gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
-            self.assertEqual(read.call_count, 1)
-            self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
+            self.assertEqual(read.call_count, 2)
+            self.assertEqual(read.call_args_list[0].args[0][1:], ["_status", OP, OP])
+            self.assertEqual(read.call_args_list[1].args[0][1:4], ["-NoProfile", "-NonInteractive", "-Command"])
+
+    def test_process_counts_are_bounded_and_do_not_expose_paths_or_child_fields(self):
+        observed = gate.observed_process_counts(dict(PROCESSES, helpers=[{"ExecutablePath": "secret-token"}], command="secret-token"))
+        self.assertEqual(observed, {"state": "observed", **PROCESSES["counts"]})
+        self.assertNotIn("secret-token", json.dumps(observed))
+        for bad in (None, {}, {"counts": []}, {"counts": dict(PROCESSES["counts"], extra="secret-token")},
+                    {"counts": dict(PROCESSES["counts"], **{"wsl.exe": True})},
+                    {"counts": dict(PROCESSES["counts"], **{"wsl.exe": -1})},
+                    {"counts": dict(PROCESSES["counts"], **{"wsl.exe": 4097})}):
+            self.assertEqual(gate.observed_process_counts(bad), {"state": "unavailable"})
+
+    def test_failed_diagnostic_preserves_original_worker_failure(self):
+        with patch.object(gate, "read_json", side_effect=[{"operation": OP, "state": "failed"}, RuntimeError("private diagnostic detail")]), patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print") as output:
+            with self.assertRaisesRegex(RuntimeError, "Reclamation failed; retain recorded failure"):
+                gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
+            self.assertNotIn("private diagnostic detail", str(output.call_args_list))
 
     def test_worker_completion_between_status_and_process_observation(self):
         complete = {"operation": OP, "state": "complete", "linux_started": True,
@@ -83,21 +148,25 @@ class ReclamationUserPathTests(unittest.TestCase):
                     "observation": {"StopAttempted": True, "StopRequested": True, "ResumeAttempted": True, "Resumed": True,
                                     "Compaction": {"Attempted": True, "Completed": True, "Virtual": {"Capacity": 1024}}}}
         # The worker publishes completion and exits after the first status read.
-        observations = [{"operation": OP, "state": "pending"}, [], complete]
-        with patch.object(gate, "read_json", side_effect=observations) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
-            gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
-            self.assertEqual(read.call_count, 3)
-            self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
+        for snapshot in (PROCESSES, {"helpers": [], "counts": {"unknown": "private"}}):
+            observations = [{"operation": OP, "state": "pending"}, snapshot, complete]
+            with self.subTest(snapshot=snapshot), patch.object(gate, "read_json", side_effect=observations) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
+                gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
+                self.assertEqual(read.call_count, 3)
+                self.assertEqual(read.call_args.args[0][1:], ["_status", OP, OP])
 
     def test_absent_worker_requires_fresh_complete_result(self):
         for final in ({"operation": OP, "state": "pending"},
                       {"operation": OP, "state": "failed"},
                       {"operation": OP, "state": "complete"},
                       {"operation": "foreign", "state": "complete"}):
-            with self.subTest(final=final), patch.object(gate, "read_json", side_effect=[{"operation": OP, "state": "pending"}, [], final]) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
+            statuses = iter([{"operation": OP, "state": "pending"}, final])
+            def read_response(command):
+                return next(statuses) if command[1] == "_status" else PROCESSES
+            with self.subTest(final=final), patch.object(gate, "read_json", side_effect=read_response) as read, patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), patch("builtins.print"):
                 with self.assertRaises(RuntimeError):
                     gate.wait_for_worker(Path("fixture-haco-wsl.exe"), OP, OP)
-                self.assertEqual(read.call_count, 3)
+                self.assertEqual(sum(call.args[0][1] == "_status" for call in read.call_args_list), 2)
 
     def test_failure_summary_does_not_emit_child_secrets(self):
         result = {"state": "failed", "linux_started": True, "linux": {"failure": "secret-token", "incus_btrfs_loop": {"status": "failed"}}, "observation": {"StopAttempted": False, "Resumed": "secret-token", "Failure": "secret-token", "NativeError": "secret-token"}, "credentials": "secret-token"}

@@ -225,20 +225,20 @@ def inventory(fetch=query):
     return report
 
 
-def catalog_inventory(path, project=None):
+def catalog_inventory(path, project=None, max_bytes=16 * 1024 * 1024):
     """Observe one catalog file without migration, locking writes or authority."""
     if not hasattr(os, "O_NOFOLLOW"):
         raise OSError("catalog observation requires Linux")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as source:
         before = os.fstat(source.fileno())
-        if not stat.S_ISREG(before.st_mode) or before.st_size > 16 * 1024 * 1024:
+        if not stat.S_ISREG(before.st_mode) or before.st_size > max_bytes:
             raise ValueError("invalid catalog file")
-        raw = source.read(16 * 1024 * 1024 + 1)
+        raw = source.read(max_bytes + 1)
         after = os.fstat(source.fileno())
         current = os.stat(path, follow_symlinks=False)
     identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
-    if len(raw) > 16 * 1024 * 1024 or identity(before) != identity(after) or identity(after) != identity(current):
+    if len(raw) > max_bytes or identity(before) != identity(after) or identity(after) != identity(current):
         raise ValueError("catalog changed")
     result = (project or catalog_references)(json.loads(raw))
     result["sha256"] = hashlib.sha256(raw).hexdigest()
@@ -421,42 +421,95 @@ def repository_references(data):
     return result
 
 
+def binding_references(data):
+    result = {"projection_complete": False, "authority": False, "state_validated": False,
+              "review_required": True, "errors": []}
+    try:
+        name = text(data["environment"]["name"])
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?", name):
+            raise ValueError("invalid environment name")
+        workspace = data["workspace"]
+        if workspace.get("kind") != "work":
+            raise ValueError("invalid workspace")
+        work = repository_references(workspace)
+        if not work["projection_complete"]:
+            raise ValueError("incomplete workspace")
+        repos = data.get("repositories", []) if workspace.get("members") else [data["repository"]]
+        if not isinstance(repos, list) or not 1 <= len(repos) <= 8:
+            raise ValueError("invalid repositories")
+        projected = []
+        for repo in repos:
+            if not isinstance(repo, dict) or repo.get("kind") != "repo" or repo.get("members"):
+                raise ValueError("invalid repository")
+            view = repository_references(repo)
+            if not view["projection_complete"]:
+                raise ValueError("incomplete repository")
+            projected.extend(view["records"])
+        result.update(environment=name, workspace=work["records"], repositories=projected)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        result["errors"].append("binding-reference-incomplete")
+    result["projection_complete"] = not result["errors"]
+    return result
+
+
 def repository_inventory(root):
-    result = {"projection_complete": False, "authority": False, "files": [], "errors": [], "unreviewed_entries": []}
+    result = {"projection_complete": False, "authority": False, "files": [], "bindings": [],
+              "errors": [], "unreviewed_entries": []}
     # An explicit directory only; do not follow child symlinks or recurse into data.
     if not hasattr(os, "O_NOFOLLOW"):
         raise OSError("Linux required")
     fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
+    count = 0
+
+    def observe_directory(fd, bindings=False):
+        nonlocal count
         with os.scandir(fd) as entries:
-            for index, entry in enumerate(entries):
+            for entry in entries:
+                index = count
+                count += 1
                 if index >= LIMIT:
                     result["errors"].append("repository-file-budget")
                     break
-                if not re.fullmatch(r"(?:repo|work)-[A-Za-z0-9_-]+\.json", entry.name):
-                    result["errors"].append("unreviewed-repository-entry:" + str(index))
-                    result["unreviewed_entries"].append({"index": index, "name": text(entry.name)})
-                    continue
+                name = ("bindings/" if bindings else "") + entry.name
                 try:
+                    if not bindings and entry.name == "bindings":
+                        child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+                        try:
+                            observe_directory(child, bindings=True)
+                        finally:
+                            os.close(child)
+                        continue
+                    pattern = r"[a-z0-9][a-z0-9-]*\.json" if bindings else r"(?:repo|work)-[A-Za-z0-9_-]+\.json"
+                    if not re.fullmatch(pattern, entry.name):
+                        result["errors"].append("unreviewed-repository-entry:" + str(index))
+                        result["unreviewed_entries"].append({"index": index, "name": text(name)})
+                        continue
                     if not entry.is_file(follow_symlinks=False):
                         raise ValueError("not regular")
                     # Pin the directory FD even if its path is replaced.
-                    record = catalog_inventory("/proc/self/fd/" + str(fd) + "/" + entry.name, repository_references)
-                    if record["records"]:
+                    record = catalog_inventory("/proc/self/fd/" + str(fd) + "/" + entry.name,
+                                               binding_references if bindings else repository_references,
+                                               16384 if bindings else 16 * 1024 * 1024)
+                    if bindings:
+                        if record.get("environment") and record["environment"] + ".json" != entry.name:
+                            raise ValueError("binding filename mismatch")
+                    elif record["records"]:
                         first = record["records"][0]
                         if first.get("kind", "") + "-" + first.get("id", "") + ".json" != entry.name:
                             raise ValueError("record filename mismatch")
-                    record["file"] = entry.name
-                    result["files"].append(record)
+                    record["file"] = name
+                    result["bindings" if bindings else "files"].append(record)
                     if not record["projection_complete"]:
                         result["errors"].append("repository-file:" + str(index))
                 except (ValueError, TypeError, KeyError, OSError):
                     result["errors"].append("repository-file:" + str(index))
-                    result["unreviewed_entries"].append({"index": index, "name": text(entry.name)})
+                    result["unreviewed_entries"].append({"index": index, "name": text(name)})
+    try:
+        observe_directory(fd)
     finally:
         os.close(fd)
     result["projection_complete"] = not result["errors"]
-    result["unreviewed"] = ["native ownership and catalog associations", "consistent capture; directory may change during observation", "Git contents, remote routing and credentials"]
+    result["unreviewed"] = ["native ownership and catalog associations", "current binding validity and authorization", "consistent capture; directory may change during observation", "Git contents, remote routing and credentials"]
     return result
 
 
