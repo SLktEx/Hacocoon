@@ -51,7 +51,10 @@ attempt、job、失敗 step、責務境界、同一 SHA の red→green を含�
 各 attempt の workflow 結果も保持する。job が一件もない開始失敗も、後の attempt が
 開始・成功しても消えない。attempt の識別子は記録された run と source SHA に一致する必要がある。
 依存 job の成功後、Actions API で job の結果が欠落／null の場合だけ、上限付きの
-読み取り待機で反映を確認する。失敗・取消・skip を待ち直して成功にはしない。
+最大180秒の読み取り待機で反映を確認する。以前の60秒では、完了したIncus製品jobの
+反映を確認できず期限切れになった。元の記録と後の確定結果は別に保持する。
+成功を確認できない必須job名も、集約処理の失敗出力に表示する。
+失敗・取消・skip を待ち直して成功にはしない。
 API エラーや確認期限の超過も失敗とし、workflow やテストの再実行は行わない。
 
 失敗 attempt がある source SHA の証拠 check は失敗し続ける。自動免除や green 化する

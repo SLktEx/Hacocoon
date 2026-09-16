@@ -58,7 +58,10 @@ Each attempt's workflow conclusion is also retained. A startup failure with zero
 jobs cannot disappear when a later attempt starts successfully; attempt identity
 must match the recorded run and source SHA.
 After successful dependency completion, the evidence reader allows a bounded
-read-only wait for absent/null job conclusions to appear in the Actions API.
+read-only wait of up to 180 seconds for absent/null job conclusions to appear in the Actions API.
+The previous 60-second observation expired on a completed Incus product job;
+the retained receipt and the later terminal result are recorded separately.
+Missing successful job variants are also named in the gate's failure output.
 Terminal failure, cancellation or skip is never polled away; API errors and
 exhausted observation still fail. This wait does not rerun any workflow or test.
 

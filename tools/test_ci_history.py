@@ -5,6 +5,22 @@ from ci_history import Actions, check_needs, failure_boundary, summarize, missin
 
 
 class HistoryTests(unittest.TestCase):
+    def test_successful_dependency_metadata_can_arrive_after_one_minute(self):
+        clock = [0]
+        def sleep(delay): clock[0] += delay
+        def fetch():
+            return [{"name": "unit", "conclusion": "success" if clock[0] >= 90 else None}]
+        rows = settled_jobs(fetch, ["unit"], now=lambda: clock[0], sleep=sleep)
+        self.assertEqual(rows[0]["conclusion"], "success")
+        self.assertEqual(clock[0], 90)
+
+    def test_default_metadata_observation_still_expires(self):
+        clock = [0]
+        def sleep(delay): clock[0] += delay
+        rows = settled_jobs(lambda: [], ["unit"], now=lambda: clock[0], sleep=sleep)
+        self.assertEqual(rows, [])
+        self.assertEqual(clock[0], 180)
+
     def test_needs_completion_waits_for_null_job_metadata(self):
         calls = []
         def fetch():

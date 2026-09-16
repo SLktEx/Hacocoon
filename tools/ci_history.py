@@ -135,12 +135,13 @@ def missing_job_variants(records, run_id, expected):
     return sorted(set(expected) - passed)
 
 
-def settled_jobs(fetch, expected, timeout=60, now=time.monotonic, sleep=time.sleep):
+def settled_jobs(fetch, expected, timeout=180, now=time.monotonic, sleep=time.sleep):
     """Observe API propagation after needs completion; never replay a job.
 
     Terminal failures are evidence immediately, not a condition to poll away.
     Network/API exceptions still fail without retry. Only absent/null results
     receive a bounded readiness wait, since Actions can publish needs first.
+    An observed Incus result remained null beyond the previous 60-second budget.
     """
     deadline = now() + timeout
     while True:
@@ -199,6 +200,9 @@ def main(argv=None):
               "needs_success": needs_ok, "unresolved_failure": history_failed,
               "required_steps_unproven": steps_unproven, "records": records}
     report["missing_job_variants"] = missing_variants
+    if missing_variants:
+        print("CI evidence has no successful terminal metadata for required jobs: " +
+              ", ".join(missing_variants), file=sys.stderr)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
