@@ -94,7 +94,7 @@ func TestHTTPPrivateDestinationsRemainAuthorizedAndPinned(t *testing.T) {
 				}
 				conn, peer := net.Pipe()
 				go func() {
-					defer peer.Close()
+					defer func() { _ = peer.Close() }()
 					_ = peer.SetDeadline(time.Now().Add(3 * time.Second))
 					req, err := http.ReadRequest(bufio.NewReader(peer))
 					if err == nil && req.Host != "example.com" {
@@ -229,7 +229,7 @@ func TestHTTPResponseFailureLog(t *testing.T) {
 	proxy.dial = func(context.Context, string, string) (net.Conn, error) {
 		conn, peer := net.Pipe()
 		go func() {
-			defer peer.Close()
+			defer func() { _ = peer.Close() }()
 			_ = peer.SetDeadline(time.Now().Add(3 * time.Second))
 			if _, err := http.ReadRequest(bufio.NewReader(peer)); err == nil {
 				_, _ = io.WriteString(peer, "PRIVATE invalid HTTP response\r\n\r\n")
@@ -260,7 +260,7 @@ func TestCONNECTDialFailureLogAfterSNI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	output := make(upstreamLogWriter, 1)
 	logger, err := logging.New(logging.Config{Writer: output, Format: logging.FormatJSON})
 	if err != nil {
@@ -283,7 +283,7 @@ func TestCONNECTDialFailureLogAfterSNI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	_ = client.SetDeadline(time.Now().Add(3 * time.Second))
 	_, err = io.WriteString(client, "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n")
 	if err != nil {
