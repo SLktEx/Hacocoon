@@ -290,9 +290,7 @@ func newImageTransferJournal(root, project, source, socket, operation string) (*
 		return nil, core.ErrInvalidArgument
 	}
 	var random [16]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return nil, err
-	}
+	_, _ = rand.Read(random[:])
 	owner := hex.EncodeToString(random[:])
 	name := "rootfs-" + operation + "-" + owner + ".jsonl"
 	fd, err := unix.Openat(dir, name, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)

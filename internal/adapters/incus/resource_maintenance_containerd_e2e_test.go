@@ -92,10 +92,7 @@ func verifyMetadataImageOperations(t *testing.T, ctx context.Context, runtime *R
 	t.Helper()
 	f := &runtimeImageFixture{runtime: runtime, name: name, resource: resource, instance: generation}
 	service := &oci.ManagedImages{Catalog: f, Environments: f}
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	service.Maintain = func(ctx context.Context, ref core.PersistentResourceRef, action func(context.Context, core.Environment) error) error {
 		if ref != resource.Ref() {
 			return core.ErrCapabilityStale

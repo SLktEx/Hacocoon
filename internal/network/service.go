@@ -44,9 +44,7 @@ type Connection struct {
 
 func (s *Service) reserve(ctx context.Context, source Source, spec Spec) (*active, error) {
 	var token [16]byte
-	if _, err := rand.Read(token[:]); err != nil {
-		return nil, err
-	}
+	_, _ = rand.Read(token[:])
 	now := time.Now().UTC()
 	expires := now.Add(time.Duration(spec.DurationSeconds) * time.Second)
 	sessionCtx, cancel := context.WithDeadline(ctx, expires)

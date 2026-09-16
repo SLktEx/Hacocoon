@@ -94,9 +94,7 @@ func (r *Runtime) PlanSnapshotRestore(ctx context.Context, saved core.Snapshot, 
 			return nil, err
 		}
 		var nonce [16]byte
-		if _, err := rand.Read(nonce[:]); err != nil {
-			return nil, err
-		}
+		_, _ = rand.Read(nonce[:])
 		c, err := r.restoreComponent(restoreBinding{Version: 1, Project: r.project, Owner: hex.EncodeToString(nonce[:]), Source: src})
 		if err != nil {
 			return nil, err

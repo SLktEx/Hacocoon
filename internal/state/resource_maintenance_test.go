@@ -19,10 +19,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
-			work, err := core.NewTemporaryWorkspace()
-			if err != nil {
-				t.Fatal(err)
-			}
+			work := core.NewTemporaryWorkspace()
 			r := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: "oci-containerd", NativeRef: "pool/retained", State: "creating", WorkspaceID: "original", CreatedAt: time.Now().UTC()}
 			if mode == "source" {
 				r.SourceOnly = true
@@ -37,7 +34,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 			run := core.EphemeralRun{InstanceID: "env-" + strings.Repeat("c", 32), EnvironmentID: "maintenance", TemporaryWorkspace: &work, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
 			switch mode {
 			case "other-work":
-				other, _ := core.NewTemporaryWorkspace()
+				other := core.NewTemporaryWorkspace()
 				run.TemporaryWorkspace = &other
 			case "other-run":
 				run.EnvironmentID = "other"
@@ -58,7 +55,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 			case "stale-owner":
 				lease.PersistentResource.Owner = strings.Repeat("b", 32)
 			}
-			err = s.BeginEnvironmentCreate(ctx, lease)
+			err := s.BeginEnvironmentCreate(ctx, lease)
 			if mode != "valid" {
 				if err == nil {
 					t.Fatal("unsafe maintenance reservation accepted")
@@ -76,7 +73,7 @@ func TestResourceMaintenanceLeaseRequiresExactRunAndRetainsData(t *testing.T) {
 				t.Fatalf("removed leased evidence: %v", err)
 			}
 			changed := run
-			otherWork, _ := core.NewTemporaryWorkspace()
+			otherWork := core.NewTemporaryWorkspace()
 			changed.TemporaryWorkspace = &otherWork
 			if err := s.PutEphemeralRun(ctx, changed); !errors.Is(err, core.ErrIncompatibleState) {
 				t.Fatalf("replaced leased evidence: %v", err)

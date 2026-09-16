@@ -6,7 +6,7 @@ import (
 )
 
 func TestApprovalPayloadPreservesTrustedEnvironmentIdentity(t *testing.T) {
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	request := core.ApprovalRequest{CapabilityRequest: core.CapabilityRequest{Capability: "local.echo", Action: "echo", Environment: "dev", EnvironmentInstance: id}}
 	if got := approvalPayload(request).coreRequest(); got.CapabilityRequest.EnvironmentInstance != id {
 		t.Fatal("approval lost creation identity")

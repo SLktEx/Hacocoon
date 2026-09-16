@@ -47,10 +47,7 @@ func TestArchiveRoutesTemporaryWorkspaceWithoutHostPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	spec := core.EnvironmentRuntimeSpec{TemporaryWorkspace: true, WorkspacePath: work.Path}
 	recorded := 0
 	_, err = router.CreateEnvironmentFromArchive(context.Background(), spec, strings.NewReader("archive"), t.TempDir(), 1024, func(core.EnvironmentRuntime) error { recorded++; return nil })

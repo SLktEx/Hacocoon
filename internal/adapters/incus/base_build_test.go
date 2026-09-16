@@ -56,7 +56,7 @@ func TestPublishBaseRecordsOwnershipBeforeVerificationAndPreservesImages(t *test
 	for _, failure := range []string{"", "publish", "verify", "alias", "foreign"} {
 		t.Run(failure, func(t *testing.T) {
 			t.Setenv(baseConfigEnv, "")
-			work, _ := core.NewTemporaryWorkspace()
+			work := core.NewTemporaryWorkspace()
 			id := "env-" + strings.Repeat("a", 32)
 			env := core.Environment{Name: "builder", RuntimeRef: "haco-builder", Workspace: work}
 			lease := core.WorkspaceLease{EnvironmentID: env.Name, RuntimeRef: env.RuntimeRef, InstanceID: id, WorkspaceID: work.ID, SourcePath: work.Path, State: core.WorkspaceLeaseActive}

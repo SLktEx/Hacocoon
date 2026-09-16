@@ -136,9 +136,7 @@ func (s *Session) Handle(ctx context.Context, m Message) Reply {
 	encoded, _ := json.Marshal(current)
 	if m.Action == "select" {
 		var token [32]byte
-		if _, err := rand.Read(token[:]); err != nil {
-			return fail("selection_unavailable")
-		}
+		_, _ = rand.Read(token[:])
 		digest := sha256.Sum256(encoded)
 		view := &View{Request: *current, Token: hex.EncodeToString(token[:]), Digest: hex.EncodeToString(digest[:])}
 		for _, choice := range []capability.SavedChoice{capability.AllowEnvironment, capability.DenyEnvironment, capability.AskEnvironment, capability.AllowGlobal, capability.DenyGlobal, capability.AskGlobal} {

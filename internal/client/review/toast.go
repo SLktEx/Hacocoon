@@ -127,9 +127,7 @@ func (f *ToastFlow) Page() (ToastPage, error) {
 		return ToastPage{}, ErrInvalid
 	}
 	var random [32]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return ToastPage{}, err
-	}
+	_, _ = rand.Read(random[:])
 	f.nonce = hex.EncodeToString(random[:])
 	f.displayed = false
 	p := ToastPage{Nonce: f.nonce}

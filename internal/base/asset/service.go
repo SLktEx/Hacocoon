@@ -45,9 +45,7 @@ func (s *Service) Ensure(ctx context.Context, base core.BaseRef, scope string) (
 		return core.BaseAsset{}, err
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return core.BaseAsset{}, err
-	}
+	_, _ = rand.Read(nonce[:])
 	owner := hex.EncodeToString(nonce[:])
 	a := core.BaseAsset{ID: "base-" + owner, Owner: owner, Base: base, Provider: s.Provider, Scope: scope, State: "planned"}
 	a.NativeRef, a.Binding, err = s.Backend.Plan(ctx, base, scope, owner)

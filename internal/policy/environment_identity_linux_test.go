@@ -17,8 +17,8 @@ func TestSavedPolicySeparatesRecreatedEnvironmentName(t *testing.T) {
 		t.Fatal(err)
 	}
 	evaluator := NewFilePolicyEvaluator(path)
-	first, _ := core.NewEnvironmentInstanceID()
-	second, _ := core.NewEnvironmentInstanceID()
+	first := core.NewEnvironmentInstanceID()
+	second := core.NewEnvironmentInstanceID()
 	request := core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: first}
 	if err := evaluator.Remember(context.Background(), request, AllowEnvironment); err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestSavedPolicySeparatesRecreatedEnvironmentName(t *testing.T) {
 	if err := evaluator.Remember(context.Background(), request, AllowGlobal); err != nil {
 		t.Fatal(err)
 	}
-	request.EnvironmentInstance, _ = core.NewEnvironmentInstanceID()
+	request.EnvironmentInstance = core.NewEnvironmentInstanceID()
 	request.Environment = "other"
 	eval, err = evaluator.Evaluate(context.Background(), request)
 	if err != nil || eval.Decision != core.PolicyAllow {
@@ -59,7 +59,7 @@ func TestLegacySavedNameDoesNotMatchIdentifiedEnvironment(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"default":"require-approval","saved_decisions":[{"capability":"local.echo","action":"echo","resource":"target","environment":"dev","decision":"allow"}]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	evaluation, err := NewFilePolicyEvaluator(path).Evaluate(context.Background(), core.CapabilityRequest{Capability: "local.echo", Action: "echo", Resource: "target", Environment: "dev", EnvironmentInstance: id})
 	if err != nil || evaluation.Decision != core.PolicyRequireApproval {
 		t.Fatal("legacy name-only grant adopted new identity")
@@ -67,7 +67,7 @@ func TestLegacySavedNameDoesNotMatchIdentifiedEnvironment(t *testing.T) {
 }
 
 func TestAuditKeepsTrustedEnvironmentInstance(t *testing.T) {
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	audit := &fakeAudit{}
 	service := newTestService(t, fakePolicy{evaluation: core.PolicyEvaluation{Decision: core.PolicyAllow}}, nil, audit, &fakeProvider{})
 	_, err := service.Request(context.Background(), core.CapabilityRequest{Capability: "local.echo", Action: "echo", Environment: "dev", EnvironmentInstance: id})

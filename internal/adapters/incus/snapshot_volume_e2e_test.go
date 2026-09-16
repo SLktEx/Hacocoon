@@ -42,10 +42,7 @@ func TestRealIncusSnapshotVolumesE2E(t *testing.T) {
 		return hex.EncodeToString(nonce[:])
 	}
 	instance := "haco-snap-probe-" + random()[:16]
-	id, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := core.NewEnvironmentInstanceID()
 	plans := []snapshotVolumePlan{}
 	for _, kind := range []string{"work", "oci"} {
 		p := snapshotVolumeFixture(kind)

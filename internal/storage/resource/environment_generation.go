@@ -48,12 +48,8 @@ func (s *Service) PublishEnvironmentGeneration(ctx context.Context, lease core.W
 		return result, core.ErrCapabilityStale
 	}
 	var nonce, owner [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return result, err
-	}
-	if _, err = rand.Read(owner[:]); err != nil {
-		return result, err
-	}
+	_, _ = rand.Read(nonce[:])
+	_, _ = rand.Read(owner[:])
 	target := core.PersistentResource{ID: "generation:" + hex.EncodeToString(nonce[:]), Owner: hex.EncodeToString(owner[:]), Kind: area.Origin.Kind, SourceOnly: true, State: "creating", CreatedAt: time.Now().UTC(), CopySource: source.Ref(), PublicationOrigin: area.Origin, Producer: source.Ref()}
 	target.NativeRef, err = s.Backend.Plan(ctx, target.Kind, target.Owner)
 	if err != nil {

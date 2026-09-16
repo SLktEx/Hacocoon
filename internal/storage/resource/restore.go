@@ -32,9 +32,7 @@ func (s *Service) RestoreSnapshot(ctx context.Context, id string, saved core.Sna
 		return core.PersistentResource{}, core.ErrUnsupported
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return core.PersistentResource{}, err
-	}
+	_, _ = rand.Read(nonce[:])
 	r := core.PersistentResource{ID: id, Owner: hex.EncodeToString(nonce[:]), WorkspaceID: work, RestoreSource: saved.ID, State: "creating", CreatedAt: time.Now().UTC()}
 	if !core.ValidPersistentResourceRef(r.Ref()) || saved.ID == "" || saved.State != "ready" {
 		return core.PersistentResource{}, core.ErrInvalidArgument

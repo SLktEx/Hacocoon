@@ -73,10 +73,7 @@ func TestCompleteProviderReceiptPreservesMetadataAndFailureOwnership(t *testing.
 func TestCreationRefusalsHaveNoProviderOrReceiptSideEffects(t *testing.T) {
 	p := &baseTestProvider{created: core.EnvironmentRuntime{Ref: "native"}}
 	r, _ := NewRouter(testProvider, Register(testProvider, p))
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	for _, tc := range []struct {
 		name       string
 		router     *Router

@@ -42,9 +42,7 @@ func (s *Service) PlanEnvironmentResources(ctx context.Context, request core.Env
 			}
 		}
 		var nonce [32]byte
-		if _, err := rand.Read(nonce[:]); err != nil {
-			return nil, err
-		}
+		_, _ = rand.Read(nonce[:])
 		r := core.PersistentResource{ID: "env-data:" + hex.EncodeToString(nonce[:16]), Owner: hex.EncodeToString(nonce[16:]), Kind: selection.Origin.Kind, State: "planned", EnvironmentInstance: request.InstanceID, CopySource: selection.Origin.Current, CreatedAt: time.Now().UTC()}
 		a := core.EnvironmentAttachment{Key: selection.Key, Target: selection.Target, Resource: r.Ref(), Origin: selection.Origin}
 		attachments = append(attachments, a)

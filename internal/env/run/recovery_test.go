@@ -166,7 +166,7 @@ func TestRunPersistsMarkerBeforeEnvironmentCreationAndRemovesItAfterCleanup(t *t
 	store := newFakeRunStore()
 	env := &markerCheckingEnvironment{store: store}
 	service := NewWithRecovery(env, store, "/ignored/run-locks")
-	service.newName = func() (string, error) { return "run-marked", nil }
+	service.newName = func() string { return "run-marked" }
 	service.now = func() time.Time { return time.Date(2026, 8, 30, 4, 21, 0, 0, time.UTC) }
 	service.acquireOwnership = func(_, _ string, _ bool) (runOwnershipLock, bool, error) {
 		return &fakeOwnershipLock{}, true, nil
@@ -192,7 +192,7 @@ func TestRunLeavesCleanupRequiredMarkerWhenDeleteFails(t *testing.T) {
 	store := newFakeRunStore()
 	env := &fakeEnvironments{deleteErr: cleanupErr}
 	service := NewWithRecovery(env, store, "/ignored/run-locks")
-	service.newName = func() (string, error) { return "run-cleanup-required", nil }
+	service.newName = func() string { return "run-cleanup-required" }
 	service.now = func() time.Time { return time.Date(2026, 8, 30, 4, 22, 0, 0, time.UTC) }
 	service.acquireOwnership = func(_, _ string, _ bool) (runOwnershipLock, bool, error) {
 		return &fakeOwnershipLock{}, true, nil

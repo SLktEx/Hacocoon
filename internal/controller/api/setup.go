@@ -46,9 +46,7 @@ func RegisterSetup(server *control.Server, service setupService) error {
 		ctx, cancel := context.WithTimeout(ctx, setupTimeout)
 		defer cancel()
 		var id [16]byte
-		if _, err := rand.Read(id[:]); err != nil {
-			return nil, control.NewStatusError("setup_failed", "Cannot start setup diagnostics")
-		}
+		_, _ = rand.Read(id[:])
 		requestID := hex.EncodeToString(id[:])
 		ctx = logging.With(ctx, "component", "bootstrap", "operation", "setup", "request_id", requestID)
 		ctx = recipes.ObserveHostResult(ctx, func(result recipes.HostResult) {

@@ -134,10 +134,7 @@ func TestRealIncusMountedReclaimInspection(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := "haco-reclaim-" + hex.EncodeToString(random[:])
-	generation, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	generation := core.NewEnvironmentInstanceID()
 	dir, err := os.MkdirTemp("/var/lib", "haco-reclaim-inspect-")
 	if err != nil {
 		t.Fatal(err)

@@ -40,7 +40,7 @@ func TestDetachedImagesKeepOneOwnedEnvironmentPerOperation(t *testing.T) {
 				if mode == "busy" {
 					return core.ErrStorageBusy
 				}
-				work, _ := core.NewTemporaryWorkspace()
+				work := core.NewTemporaryWorkspace()
 				f.target.Environment = fmt.Sprintf("run-maintenance-%d", sessions)
 				f.target.Instance = fmt.Sprintf("env-%032x", sessions)
 				env := core.Environment{Name: f.target.Environment, Workspace: work, PersistentResource: ref}

@@ -26,8 +26,7 @@ func savedCreationFixture(t *testing.T) (*EnvironmentJSONStore, core.Snapshot, c
 	saved, err = st.GetSnapshot(ctx, saved.ID)
 	mustSnapshot(t, err)
 	mustSnapshot(t, st.FinalizeEnvironmentDelete(ctx, "dev"))
-	generation, err := core.NewEnvironmentInstanceID()
-	mustSnapshot(t, err)
+	generation := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{SnapshotSource: saved.ID, InstanceID: generation, EnvironmentID: "dev", WorkspaceID: "new-work", SourcePath: "managed:new-work", Owner: "dev", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	return st, saved, lease
 }

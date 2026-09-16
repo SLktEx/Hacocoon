@@ -120,10 +120,7 @@ func TestRealIncusRootfsTransferE2E(t *testing.T) {
 	defer input.Close()
 	runtime := New(runner)
 	runtime.project = project
-	newID, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	newID := core.NewEnvironmentInstanceID()
 	var restored []byte
 	err = runtime.WithImportedRootfs(ctx, input, dir, 16<<20, func(fingerprint string) error {
 		if fingerprint == image.Target {

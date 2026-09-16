@@ -93,10 +93,7 @@ func newRecoveryFixture(t *testing.T) *recoveryFixture {
 		}
 	}
 	env := core.Environment{Name: "dev", Workspace: core.Workspace{ID: core.WorkspaceID("workspace:managed:" + work.Owner), Path: "managed:work"}, RuntimeRef: "test:dev"}
-	identity, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	identity := core.NewEnvironmentInstanceID()
 	f := &recoveryFixture{backend: backend, bound: binding{Environment: env, Workspace: work, Repository: repo}, auditPath: filepath.Join(root, "audit", "capabilities.jsonl"), policy: &recoveryPolicy{}, identities: &identityEnvironmentStore{environment: env, identity: identity}}
 	f.proposal = Proposal{Environment: "dev", Repository: repo.ID, Remote: repo.Remote, Ref: "refs/heads/main", OldOID: old, NewOID: newOID, Operation: "push"}
 	f.agent = gitadapter.AgentRequest{Operation: "push", Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, Ref: f.proposal.Ref, OldOID: old, NewOID: newOID}
@@ -160,7 +157,7 @@ func TestPushRecoveryConfirmAndGenerationFence(t *testing.T) {
 	if err != nil || status.State != "confirmed" || status.Completed == nil || !*status.Completed {
 		t.Fatalf("%+v %v", status, err)
 	}
-	f.identities.identity, _ = core.NewEnvironmentInstanceID()
+	f.identities.identity = core.NewEnvironmentInstanceID()
 	if _, err := f.broker.ReconcilePush(context.Background(), "dev", ""); !errors.Is(err, core.ErrCapabilityStale) || f.backend.reads != 0 {
 		t.Fatalf("new generation: %v", err)
 	}
@@ -187,7 +184,7 @@ func TestPushRecoveryRechecksHistoricalGenerationAfterReadApproval(t *testing.T)
 		}
 		pending = f.broker.Pending()
 	}
-	f.identities.identity, _ = core.NewEnvironmentInstanceID()
+	f.identities.identity = core.NewEnvironmentInstanceID()
 	if err := f.broker.Decide(pending[0].ID, true); err != nil {
 		t.Fatal(err)
 	}

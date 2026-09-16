@@ -83,9 +83,7 @@ func (s *Service) RestoreSnapshot(ctx context.Context, id, name string) (Result,
 		return Result{}, err
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return Result{}, err
-	}
+	_, _ = rand.Read(nonce[:])
 	workName := "restore-" + hex.EncodeToString(nonce[:8])
 	result := Result{Environment: name, State: "failed"}
 	object, err := s.Workspaces.RestoreWorkspace(ctx, workName, saved)

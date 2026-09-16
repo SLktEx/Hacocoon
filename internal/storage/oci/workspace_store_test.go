@@ -137,10 +137,7 @@ func TestTemporaryCopyCleanupChecksWorkspaceOwnershipAndKeepsSource(t *testing.T
 	if _, err := resources.PublishSource(ctx, HostStoreID, StoreKind, func(context.Context, core.PersistentResource) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	copied, err := resolver.Resolve(ctx, work)
 	if err != nil {
 		t.Fatal(err)

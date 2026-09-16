@@ -56,8 +56,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	random := func() string { var v [16]byte; _, err := rand.Read(v[:]); must(err); return hex.EncodeToString(v[:]) }
 	name := "aggregate-" + random()[:16]
 	native := "haco-" + name
-	id, err := core.NewEnvironmentInstanceID()
-	must(err)
+	id := core.NewEnvironmentInstanceID()
 	r := New(WrapEnvironmentNetworkOwnershipRunner(host.ExecRunner{}))
 	r.setRootPool(pool)
 	observed, imageErr := r.runner.Run(ctx, "incus", "query", "/1.0/images/"+image+"?project="+r.project)

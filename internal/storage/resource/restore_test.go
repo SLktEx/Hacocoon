@@ -139,7 +139,7 @@ func TestDeleteRestoredCopyRefusesForeignOwnerAndAcquiringAttachment(t *testing.
 	if err := service.DeleteRestoredCopy(ctx, foreign); !errors.Is(err, core.ErrCapabilityStale) || !b.exists {
 		t.Fatal("foreign generation deleted", err)
 	}
-	generation, _ := core.NewEnvironmentInstanceID()
+	generation := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: generation, EnvironmentID: "new", WorkspaceID: "new-work", SourcePath: "managed:restored", PersistentResource: resource.Ref(), Owner: "new", AccessMode: core.WorkspaceReadWrite, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)

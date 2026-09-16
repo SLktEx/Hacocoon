@@ -43,10 +43,7 @@ func TestRealIncusSnapshotRootfsExportE2E(t *testing.T) {
 	}
 	owner := hex.EncodeToString(random[:])
 	name := "haco-root-export-" + owner[:16]
-	instanceID, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	instanceID := core.NewEnvironmentInstanceID()
 	p := snapshotRootfsPlan{Pool: name, Source: "haco-export-source", SourceInstanceID: instanceID, Owner: owner}
 	root, err := os.MkdirTemp("/var/lib", "haco-rootfs-export-")
 	if err != nil {

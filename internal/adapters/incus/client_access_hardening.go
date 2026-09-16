@@ -78,9 +78,7 @@ func (r *Runtime) PrepareSSHAccess(ctx context.Context, ref string, req core.SSH
 	}
 
 	var random [16]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return core.ClientConnection{}, err
-	}
+	_, _ = rand.Read(random[:])
 	id := "ssh-" + hex.EncodeToString(random[:])
 	// Record pending authority before guest mutation; ambiguous failures remain
 	// visible and cannot authorize a stream.

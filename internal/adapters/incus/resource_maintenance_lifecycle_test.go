@@ -14,7 +14,7 @@ import (
 func TestMaintenanceCreationRecordsBeforePreparingAndAttaching(t *testing.T) {
 	for _, mode := range []string{"ok", "preparation-failure", "tooling-failure", "startup-failure"} {
 		t.Run(mode, func(t *testing.T) {
-			work, _ := core.NewTemporaryWorkspace()
+			work := core.NewTemporaryWorkspace()
 			resource := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: OCIStoreKind, State: "ready", NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32)}
 			initialized, recorded, started, prepared, attached, maintenance, guardCreated := false, false, false, false, false, false, false
 			config := map[string]string{environmentInstanceKey: testEnvironmentInstance}
@@ -147,7 +147,7 @@ func TestMaintenanceCreationRejectsNonTemporaryAndSavedSources(t *testing.T) {
 	}}
 	provider, _ := NewSandboxProvider(New(runner))
 	record := func(core.EnvironmentRuntime) error { t.Fatal("unexpected receipt"); return nil }
-	work, _ := core.NewTemporaryWorkspace()
+	work := core.NewTemporaryWorkspace()
 	resource := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: OCIStoreKind, State: "ready"}
 	for _, mode := range []string{"ordinary", "readonly", "source-only", "missing-resource"} {
 		spec := core.EnvironmentRuntimeSpec{Name: "demo", InstanceID: testEnvironmentInstance, TemporaryWorkspace: true, WorkspacePath: work.Path, PersistentResource: resource, ResourceMaintenance: true}

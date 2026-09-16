@@ -84,8 +84,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		return result.Base
 	}
 	first := build("one")
-	work, err := core.NewTemporaryWorkspace()
-	must(err)
+	work := core.NewTemporaryWorkspace()
 	env, err := envs.Create(ctx, core.EnvironmentSpec{Name: string(name), Base: name, TemporaryWorkspace: &work, SkipDefaultResource: true})
 	must(err)
 	if env.Base == nil || env.Base.Revision != first.Revision {
@@ -115,8 +114,7 @@ func TestRealIncusBaseBuildE2E(t *testing.T) {
 		t.Fatal("pointer did not advance")
 	}
 	must(envs.DeleteTemporary(ctx, env.Name, work))
-	work2, err := core.NewTemporaryWorkspace()
-	must(err)
+	work2 := core.NewTemporaryWorkspace()
 	env2, err := envs.Create(ctx, core.EnvironmentSpec{Name: string(name), Base: name, TemporaryWorkspace: &work2, SkipDefaultResource: true})
 	must(err)
 	out, err := envs.ExecForWorkspace(ctx, env2.Name, work2.ID, core.ExecutionRequest{Argv: []string{"/usr/local/bin/haco-test-tool"}})

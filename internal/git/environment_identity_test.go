@@ -29,11 +29,11 @@ type replacingIdentityCapability struct {
 
 func (c *replacingIdentityCapability) RequestWithApproval(ctx context.Context, request core.CapabilityRequest, _ func(context.Context, core.ApprovalRequest) (bool, error)) (core.CapabilityResult, error) {
 	c.observed = request.EnvironmentInstance
-	c.store.identity, _ = core.NewEnvironmentInstanceID()
+	c.store.identity = core.NewEnvironmentInstanceID()
 	return c.broker.Execute(ctx, request)
 }
 func TestGitPreparedOperationRefusesReplacedEnvironmentIdentity(t *testing.T) {
-	original, _ := core.NewEnvironmentInstanceID()
+	original := core.NewEnvironmentInstanceID()
 	environments := &identityEnvironmentStore{environment: core.Environment{Name: "dev"}, identity: original}
 	broker := NewBroker(nil, environments, "")
 	capabilities := &replacingIdentityCapability{broker: broker, store: environments}

@@ -178,10 +178,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(sockets) })
-	identity, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	identity := core.NewEnvironmentInstanceID()
 	broker := NewBroker(repositories, &identityEnvironmentStore{environment: environment, identity: identity}, sockets)
 	policyPath := filepath.Join(root, "saved-policy.json")
 	initialPolicy := `{"default":"allow","rules":[{"capability":"git.repository","action":"push","environment":"*","resource":"*","attributes":{"repository":"*","remote":"*","target_ref":"*","old_oid":"*","new_oid":"*","operation_id":"*","update_kind":"fast-forward"},"decision":"require-approval"}]}`

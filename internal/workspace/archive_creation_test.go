@@ -83,10 +83,7 @@ func TestArchiveCanonicalCreationOwnsFailureCleanup(t *testing.T) {
 func TestTemporaryArchiveCreationUsesCanonicalWorkspaceLease(t *testing.T) {
 	ctx := context.Background()
 	_, st, _ := captureFixture(t)
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	runtime := &archiveCreateRuntime{receiptRuntime: &receiptRuntime{fakeEnvironmentRuntime: &fakeEnvironmentRuntime{}, t: t, store: st.EnvironmentJSONStore}}
 	svc := New(runtime, st)
 	env, err := svc.CreateFromArchive(ctx, core.EnvironmentSpec{Name: "import-builder", TemporaryWorkspace: &work, SkipDefaultResource: true}, strings.NewReader("rootfs"), t.TempDir(), 1024)

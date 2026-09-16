@@ -96,9 +96,7 @@ func networkCommand(ctx context.Context, client networkClient, args []string, ou
 			}
 			service.Name = f.Args()[0]
 			var token [16]byte
-			if _, err := rand.Read(token[:]); err != nil {
-				return result(nil, err)
-			}
+			_, _ = rand.Read(token[:])
 			service.Instance = "svc-" + hex.EncodeToString(token[:])
 			if capability.ValidateNetworkService(service) != nil {
 				return usage()

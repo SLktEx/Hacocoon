@@ -49,9 +49,7 @@ func saveAWSDownload(ctx context.Context, client awsDownloadClient, spec awsplug
 		return err
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return err
-	}
+	_, _ = rand.Read(nonce[:])
 	temporary := ".haco-download-" + hex.EncodeToString(nonce[:])
 	if err := parent.Mkdir(temporary, 0700); err != nil {
 		return err

@@ -32,10 +32,7 @@ func TestQueuedSavedChoicesUseActualPolicyAndExecutionBoundary(t *testing.T) {
 			}
 			req := request()
 			req.Environment = "dev"
-			req.EnvironmentInstance, err = core.NewEnvironmentInstanceID()
-			if err != nil {
-				t.Fatal(err)
-			}
+			req.EnvironmentInstance = core.NewEnvironmentInstanceID()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := make(chan completion, 1)

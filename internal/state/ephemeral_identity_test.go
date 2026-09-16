@@ -15,10 +15,7 @@ import (
 func runIdentityFixture(t *testing.T) (*EnvironmentJSONStore, core.EphemeralRun, core.WorkspaceLease) {
 	t.Helper()
 	s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
-	id, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := core.NewEnvironmentInstanceID()
 	run := core.EphemeralRun{EnvironmentID: "run-test", InstanceID: id, State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
 	lease := core.WorkspaceLease{EnvironmentID: run.EnvironmentID, InstanceID: id, Ephemeral: true, WorkspaceID: "ws-demo", SourcePath: "/workspace/demo", AccessMode: core.WorkspaceReadWrite, Owner: "run-owner", AcquiredAt: run.CreatedAt, State: core.WorkspaceLeaseAcquiring}
 	return s, run, lease
@@ -31,10 +28,10 @@ func TestRunIdentityCannotBeReassignedDuringLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, change := range []func(*core.EphemeralRun){
-		func(r *core.EphemeralRun) { r.InstanceID, _ = core.NewEnvironmentInstanceID() },
+		func(r *core.EphemeralRun) { r.InstanceID = core.NewEnvironmentInstanceID() },
 		func(r *core.EphemeralRun) { r.InstanceID = "" },
 		func(r *core.EphemeralRun) { r.CreatedAt = r.CreatedAt.Add(time.Second) },
-		func(r *core.EphemeralRun) { w, _ := core.NewTemporaryWorkspace(); r.TemporaryWorkspace = &w },
+		func(r *core.EphemeralRun) { w := core.NewTemporaryWorkspace(); r.TemporaryWorkspace = &w },
 	} {
 		changed := run
 		change(&changed)
@@ -80,7 +77,7 @@ func TestRunCatalogRejectsMissingOrChangedOwnershipAfterRestart(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			s, run, lease := runIdentityFixture(t)
 			if mode == "changed-workspace" {
-				w, _ := core.NewTemporaryWorkspace()
+				w := core.NewTemporaryWorkspace()
 				run.TemporaryWorkspace = &w
 				lease.WorkspaceID = w.ID
 				lease.SourcePath = w.Path
@@ -104,7 +101,7 @@ func TestRunCatalogRejectsMissingOrChangedOwnershipAfterRestart(t *testing.T) {
 			case "missing-marker":
 				delete(data.EphemeralRuns, run.EnvironmentID)
 			case "changed-generation":
-				lease.InstanceID, _ = core.NewEnvironmentInstanceID()
+				lease.InstanceID = core.NewEnvironmentInstanceID()
 			case "ordinary-lease":
 				lease.Ephemeral = false
 			case "changed-workspace":

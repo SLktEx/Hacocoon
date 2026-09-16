@@ -16,10 +16,7 @@ func TestTemporaryWorkspaceNeverBuildsHostDiskDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	if err := provider.addWorkspaceDevice(context.Background(), "haco-temp", core.EnvironmentRuntimeSpec{TemporaryWorkspace: true, WorkspacePath: work.Path}); err != nil {
 		t.Fatal(err)
 	}

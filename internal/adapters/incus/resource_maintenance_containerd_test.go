@@ -14,7 +14,7 @@ import (
 func TestContainerdMaintenanceRequiresOwnedGenerationAndSingleMount(t *testing.T) {
 	for _, mode := range []string{"ok", "host", "source", "owner", "generation", "shared", "wrong-project", "readonly", "shadow", "privileged", "privileged-alias", "missing-profiles", "truncated", "startup"} {
 		t.Run(mode, func(t *testing.T) {
-			generation, _ := core.NewEnvironmentInstanceID()
+			generation := core.NewEnvironmentInstanceID()
 			resource := core.PersistentResource{ID: "oci:maintenance", Owner: strings.Repeat("a", 32), Kind: OCIStoreKind, State: "ready", NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32)}
 			ref := "haco-maintenance"
 			if mode == "host" {

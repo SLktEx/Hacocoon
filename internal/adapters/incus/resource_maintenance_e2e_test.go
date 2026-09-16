@@ -41,10 +41,7 @@ func TestRealIncusResourceMaintenancePreparationE2E(t *testing.T) {
 	}
 	owner := hex.EncodeToString(nonce[:])
 	ref := "haco-maintenance-" + owner[:16]
-	instance, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	instance := core.NewEnvironmentInstanceID()
 	resource := core.PersistentResource{ID: "oci:maintenance-" + owner[:16], Owner: owner, Kind: OCIStoreKind, NativeRef: pool + "/haco-persistent-" + owner, State: "ready", CreatedAt: time.Now().UTC()}
 	dir, err := os.MkdirTemp("/var/lib", "haco-maintenance-")
 	if err != nil {

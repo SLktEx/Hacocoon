@@ -38,9 +38,7 @@ func (s *Service) PlanImportedEnvironmentResources(ctx context.Context, request 
 	selections := make([]core.EnvironmentResourceSelection, 0, len(inputs))
 	for _, input := range inputs {
 		var nonce [16]byte
-		if _, err := rand.Read(nonce[:]); err != nil {
-			return nil, err
-		}
+		_, _ = rand.Read(nonce[:])
 		origin, err := catalog.EnsureResourceGeneration(ctx, "import-"+hex.EncodeToString(nonce[:]), input.Kind, input.Digest)
 		if err != nil {
 			return nil, err

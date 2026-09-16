@@ -24,7 +24,7 @@ func TestCleanupFailuresAlwaysRemainRecoveryRequired(t *testing.T) {
 					env.deleteErr = failure
 				}
 				service := recoveryService(env, store)
-				service.newName = func() (string, error) { return name, nil }
+				service.newName = func() string { return name }
 				service.acquireOwnership = func(string, string, bool) (runOwnershipLock, bool, error) {
 					return &fakeOwnershipLock{}, true, nil
 				}
@@ -94,7 +94,7 @@ func TestFailedActivationUsesOwnedCleanupAndPreservesBothFailures(t *testing.T) 
 				env.deleteErr = cleanupErr
 			}
 			service := NewWithRecovery(env, activationFailingStore{store, activationErr}, t.TempDir())
-			service.newName = func() (string, error) { return "run-activation", nil }
+			service.newName = func() string { return "run-activation" }
 			result, err := service.Run(context.Background(), Spec{WorkspacePath: "/work/retained", Argv: []string{"true"}})
 			if !errors.Is(err, activationErr) || result.CleanedUp == failCleanup {
 				t.Fatalf("result=%+v err=%v", result, err)
@@ -123,7 +123,7 @@ func TestFailedCreateKeepsTemporaryDataUntilCanonicalRecoveryCompletes(t *testin
 		t.Fatal("temporary data cleanup ran before runtime absence")
 		return nil
 	})
-	service.newName = func() (string, error) { return "run-create", nil }
+	service.newName = func() string { return "run-create" }
 	result, err := service.Run(context.Background(), Spec{Argv: []string{"true"}})
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, core.ErrRecoveryRequired) || result.CleanedUp {
 		t.Fatalf("result=%+v err=%v", result, err)

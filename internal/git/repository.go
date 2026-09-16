@@ -315,9 +315,7 @@ func syncDir(path string) error {
 }
 func randomID() string {
 	var value [16]byte
-	if _, err := rand.Read(value[:]); err != nil {
-		panic(err)
-	}
+	_, _ = rand.Read(value[:])
 	return hex.EncodeToString(value[:])
 }
 

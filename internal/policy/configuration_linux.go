@@ -77,9 +77,7 @@ func (c *PolicyConfiguration) Replace(ctx context.Context, edit PolicySnapshot) 
 		return PolicySnapshot{}, core.ErrInvalidArgument
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return PolicySnapshot{}, err
-	}
+	_, _ = rand.Read(nonce[:])
 	requestID := hex.EncodeToString(nonce[:])
 	next := PolicySnapshot{Revision: policyRevision(data), Policy: data}
 	record := func(kind string) error {

@@ -119,10 +119,7 @@ func TestImportedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 func TestArchiveTemporaryBuilderRefusesAttachmentsBeforeNativeWork(t *testing.T) {
 	for _, mode := range []string{"path", "readonly", "oci", "data"} {
 		t.Run(mode, func(t *testing.T) {
-			work, err := core.NewTemporaryWorkspace()
-			if err != nil {
-				t.Fatal(err)
-			}
+			work := core.NewTemporaryWorkspace()
 			spec := core.EnvironmentRuntimeSpec{Name: "builder", InstanceID: "env-" + strings.Repeat("a", 32), WorkspacePath: work.Path, TemporaryWorkspace: true}
 			switch mode {
 			case "path":

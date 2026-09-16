@@ -11,14 +11,14 @@ import (
 func TestTemporaryWorkspaceAndEnvironmentCreationHaveIndependentIdentities(t *testing.T) {
 	seen := map[string]bool{}
 	for range 16 {
-		work, err := NewTemporaryWorkspace()
-		if err != nil || !ValidTemporaryWorkspace(work) || !IsTemporaryWorkspacePath(work.Path) || seen[work.Path] {
-			t.Fatal("temporary workspace identity is not fresh and self-contained", work, err)
+		work := NewTemporaryWorkspace()
+		if !ValidTemporaryWorkspace(work) || !IsTemporaryWorkspacePath(work.Path) || seen[work.Path] {
+			t.Fatal("temporary workspace identity is not fresh and self-contained", work)
 		}
 		seen[work.Path] = true
-		instance, err := NewEnvironmentInstanceID()
-		if err != nil || !ValidEnvironmentInstanceID(instance) || seen[instance] {
-			t.Fatal("Environment creation identity was reused", instance, err)
+		instance := NewEnvironmentInstanceID()
+		if !ValidEnvironmentInstanceID(instance) || seen[instance] {
+			t.Fatal("Environment creation identity was reused", instance)
 		}
 		seen[instance] = true
 		for _, invalid := range []Workspace{

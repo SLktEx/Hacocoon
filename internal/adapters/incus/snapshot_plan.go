@@ -64,15 +64,12 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 			pool = d["pool"]
 		}
 	}
-	owner := func() (string, error) {
+	owner := func() string {
 		var value [16]byte
-		_, err := rand.Read(value[:])
-		return hex.EncodeToString(value[:]), err
+		_, _ = rand.Read(value[:])
+		return hex.EncodeToString(value[:])
 	}
-	rootOwner, err := owner()
-	if err != nil {
-		return nil, err
-	}
+	rootOwner := owner()
 	root := snapshotRootfsPlan{Pool: pool, Source: source.Environment.RuntimeRef, SourceInstanceID: source.InstanceID, Owner: rootOwner}
 	verified, err := r.snapshotRootfsObservation(ctx, root, false)
 	if err != nil {
@@ -132,10 +129,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if !validWorkspaceAttachment(m) || !gitadapter.ValidID(m.Repository) {
 			return nil, core.ErrIncompatibleState
 		}
-		targetOwner, err := owner()
-		if err != nil {
-			return nil, err
-		}
+		targetOwner := owner()
 		member := strings.TrimPrefix(m.Volume, "haco-work-")
 		p := snapshotVolumePlan{Pool: m.Pool, Source: m.Volume, SourceOwner: m.Owner, SourceKind: "work", SourceID: m.Repository, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "workspace:" + member, Remote: m.Remote, Branch: m.Branch, Device: m.Device, Path: m.Path}
 		if err := addVolume(p); err != nil {
@@ -147,10 +141,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if !core.ValidPersistentResourceRef(attachment) {
 			return nil, core.ErrInvalidArgument
 		}
-		targetOwner, err := owner()
-		if err != nil {
-			return nil, err
-		}
+		targetOwner := owner()
 		p := snapshotVolumePlan{Pool: pool, Source: "haco-persistent-" + attachment.Owner, SourceOwner: attachment.Owner, SourceKind: OCIStoreKind, SourceID: attachment.ID, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "oci", Device: "persistent-resource", Path: OCIStorePath}
 		if err := addVolume(p); err != nil {
 			return nil, err
@@ -161,10 +152,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if area.Origin.Kind != CacheResourceKind || !validEnvironmentDataTarget(area.Target) {
 			return nil, core.ErrUnsupported
 		}
-		targetOwner, err := owner()
-		if err != nil {
-			return nil, err
-		}
+		targetOwner := owner()
 		plan := snapshotVolumePlan{Pool: pool, Source: "haco-persistent-" + area.Resource.Owner, SourceOwner: area.Resource.Owner, SourceKind: CacheResourceKind, SourceID: area.Resource.ID, SourceInstance: root.Source, SourceInstanceID: root.SourceInstanceID, Owner: targetOwner, Role: "data:" + area.Key, Device: environmentDataDevicePrefix + area.Key, Path: area.Target}
 		if err := addVolume(plan); err != nil {
 			return nil, err

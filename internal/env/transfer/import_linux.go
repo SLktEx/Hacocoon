@@ -127,9 +127,7 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 		component := manifest.Components[len(manifest.Components)-len(manifest.Data)+i]
 		dataInputs = append(dataInputs, core.EnvironmentResourceImport{Key: d.Key, Target: d.Target, Kind: d.Kind, Digest: component.SHA256, Archive: reader})
 	}
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return result, err
-	}
+	_, _ = rand.Read(nonce[:])
 	workName := "import-" + hex.EncodeToString(nonce[:])
 	result.Environment = name
 	result.State = "failed"

@@ -37,10 +37,7 @@ func TestControllerEgressPolicyDoesNotReadAmbientApproval(t *testing.T) {
 	// Catalog-only fixture: this test checks the composed Policy boundary and
 	// does not claim a running provider Environment.
 	store := state.NewEnvironmentJSONStore(filepath.Join(root, "state", "environments.json"))
-	instance, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	instance := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: instance, EnvironmentID: "env-a", WorkspaceID: "work", SourcePath: "/workspace/work", AccessMode: core.WorkspaceReadWrite, Owner: "env-a", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	ctx := context.Background()
 	if err := store.BeginEnvironmentCreate(ctx, lease); err != nil {

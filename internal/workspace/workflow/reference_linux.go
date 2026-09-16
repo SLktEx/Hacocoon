@@ -37,9 +37,7 @@ type PathReference struct {
 
 func NewName() string {
 	var b [12]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
+	_, _ = rand.Read(b[:])
 	return "work-" + hex.EncodeToString(b[:])
 }
 

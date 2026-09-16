@@ -31,7 +31,7 @@ func (r *identityResolverFixture) EnvironmentInstance(_ context.Context, expecte
 	return r.id, nil
 }
 func TestServiceResolvesIdentityBeforeApprovalAndRefusesReplacement(t *testing.T) {
-	first, _ := core.NewEnvironmentInstanceID()
+	first := core.NewEnvironmentInstanceID()
 	resolver := &identityResolverFixture{id: first}
 	audit := &fakeAudit{}
 	provider := &fakeProvider{}
@@ -41,7 +41,7 @@ func TestServiceResolvesIdentityBeforeApprovalAndRefusesReplacement(t *testing.T
 		if prompt.CapabilityRequest.EnvironmentInstance != first {
 			t.Fatal("approval lacks resolved identity")
 		}
-		resolver.id, _ = core.NewEnvironmentInstanceID()
+		resolver.id = core.NewEnvironmentInstanceID()
 		return ApprovalDecision{Approved: true}, nil
 	})
 	if !errors.Is(err, core.ErrCapabilityStale) || provider.calls != 0 {
@@ -54,8 +54,8 @@ func TestServiceResolvesIdentityBeforeApprovalAndRefusesReplacement(t *testing.T
 	}
 }
 func TestServiceRejectsAssertedOrUnavailableIdentity(t *testing.T) {
-	first, _ := core.NewEnvironmentInstanceID()
-	other, _ := core.NewEnvironmentInstanceID()
+	first := core.NewEnvironmentInstanceID()
+	other := core.NewEnvironmentInstanceID()
 	for _, tc := range []struct {
 		asserted string
 		failure  error

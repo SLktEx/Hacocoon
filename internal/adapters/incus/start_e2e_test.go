@@ -53,10 +53,7 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	}
 	// The provider fixture starts stopped; use canonical transitions for ownership.
 	st := state.NewEnvironmentJSONStore(filepath.Join(root, "state.json"))
-	instanceID, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	instanceID := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: instanceID, EnvironmentID: name, WorkspaceID: core.WorkspaceID(work), SourcePath: work, AccessMode: core.WorkspaceReadWrite, Owner: name, State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now()}
 	if err := st.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)
@@ -86,10 +83,7 @@ func TestRealIncusResumeE2E(t *testing.T) {
 	if err := p.VerifyEnvironmentIdentity(ctx, ref, instanceID); err != nil {
 		t.Fatal(err)
 	}
-	otherID, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	otherID := core.NewEnvironmentInstanceID()
 	if err := p.VerifyEnvironmentIdentity(ctx, ref, otherID); !errors.Is(err, core.ErrCapabilityStale) {
 		t.Fatalf("foreign creation ID accepted: %v", err)
 	}

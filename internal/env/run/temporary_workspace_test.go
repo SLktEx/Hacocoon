@@ -43,7 +43,7 @@ func TestTemporaryRunRetainsIdentityUntilAllCleanupCompletes(t *testing.T) {
 		return nil
 	}}
 	service := NewWithRecovery(env, store, t.TempDir())
-	service.newName = func() (string, error) { return "run-temp", nil }
+	service.newName = func() string { return "run-temp" }
 	service.acquireOwnership = func(string, string, bool) (runOwnershipLock, bool, error) { return &fakeOwnershipLock{}, true, nil }
 	service.ConfigureTemporaryWorkspace(func(ctx context.Context, w core.Workspace) error {
 		if !deleted || w != recorded {
@@ -74,10 +74,7 @@ func TestTemporaryRunRetainsIdentityUntilAllCleanupCompletes(t *testing.T) {
 	}
 }
 func TestTemporaryRunKeepsResourcesWhileRuntimeAbsenceUncertain(t *testing.T) {
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	instance := "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	env := temporaryEnvironments{&fakeEnvironments{createSpec: core.EnvironmentSpec{EphemeralInstance: instance, TemporaryWorkspace: &work}}, func(context.Context, string, core.Workspace) error { return core.ErrIncompatibleState }}
 	service := New(env)

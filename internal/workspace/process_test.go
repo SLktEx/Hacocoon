@@ -35,7 +35,7 @@ func (r *processRuntimeFixture) ExecEnvironmentStream(ctx context.Context, ref s
 func TestRunProcessPinsCreationThroughConcurrentDeletion(t *testing.T) {
 	ctx := context.Background()
 	catalog := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	marker := core.EphemeralRun{InstanceID: id, EnvironmentID: "run-process", State: core.EphemeralRunCreating, CreatedAt: time.Now().UTC()}
 	if err := catalog.PutEphemeralRun(ctx, marker); err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestRunProcessPinsCreationThroughConcurrentDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := core.ProcessRequest{WorkingDirectory: "/workspace", Argv: []string{"cat"}}
-	other, _ := core.NewEnvironmentInstanceID()
+	other := core.NewEnvironmentInstanceID()
 	if _, err := service.ExecRunStream(ctx, env.Name, other, request, strings.NewReader(""), io.Discard, io.Discard); !errors.Is(err, core.ErrCapabilityStale) {
 		t.Fatal("wrong creation executed", err)
 	}

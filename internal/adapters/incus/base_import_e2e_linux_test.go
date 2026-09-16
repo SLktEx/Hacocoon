@@ -49,8 +49,7 @@ func TestRealIncusBaseArchiveImportE2E(t *testing.T) {
 	p.sources["fixture-parent"] = "local:" + image
 	store := state.NewEnvironmentJSONStore(filepath.Join(dir, "state.json"))
 	envs := workspace.New(p, store)
-	work, err := core.NewTemporaryWorkspace()
-	must(err)
+	work := core.NewTemporaryWorkspace()
 	name := "import-source-" + strings.TrimPrefix(filepath.Base(dir), "haco-base-import-")
 	source, err := envs.Create(ctx, core.EnvironmentSpec{Name: name, Base: "fixture-parent", TemporaryWorkspace: &work, SkipDefaultResource: true})
 	must(err)
@@ -117,8 +116,7 @@ func TestRealIncusBaseArchiveImportE2E(t *testing.T) {
 	if logical.Revision != result.Base.Revision {
 		t.Fatal("mutable or unconfirmed Base")
 	}
-	nextWork, err := core.NewTemporaryWorkspace()
-	must(err)
+	nextWork := core.NewTemporaryWorkspace()
 	next, err := envs.Create(ctx, core.EnvironmentSpec{Name: string(base), Base: base, TemporaryWorkspace: &nextWork, SkipDefaultResource: true})
 	must(err)
 	read, err := envs.ExecForWorkspace(ctx, next.Name, nextWork.ID, core.ExecutionRequest{Argv: []string{"/usr/local/bin/imported-tool"}})

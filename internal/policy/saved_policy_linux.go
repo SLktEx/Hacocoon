@@ -119,9 +119,7 @@ func (e *FilePolicyEvaluator) updatePolicy(ctx context.Context, change func([]by
 		return fmt.Errorf("Policy size limit exceeded")
 	}
 	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return err
-	}
+	_, _ = rand.Read(nonce[:])
 	temporary := ".policy-" + hex.EncodeToString(nonce[:])
 	f, err := root.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0600)
 	if err != nil {

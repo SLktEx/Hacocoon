@@ -67,7 +67,7 @@ func TestMaintainResourceSharesRunOwnershipAndCleanup(t *testing.T) {
 				return nil
 			}
 			service := NewWithRecovery(runtime, store, t.TempDir())
-			service.newName = func() (string, error) { return "run-maintenance", nil }
+			service.newName = func() string { return "run-maintenance" }
 			service.acquireOwnership = func(string, string, bool) (runOwnershipLock, bool, error) { return &fakeOwnershipLock{}, true, nil }
 			service.ConfigureTemporaryWorkspace(func(ctx context.Context, work core.Workspace) error {
 				if mode != "create-failure" && !removed {

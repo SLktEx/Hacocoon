@@ -103,14 +103,9 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 // build owns the single execution/publication/cleanup sequence for definitions
 // and archive inputs. The creator always uses canonical Environment ownership.
 func (s *Service) build(ctx context.Context, base core.BaseName, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(Execute, *Result) error) (result Result, err error) {
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		return result, err
-	}
+	work := core.NewTemporaryWorkspace()
 	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return result, err
-	}
+	_, _ = rand.Read(nonce[:])
 	name := "build-" + hex.EncodeToString(nonce[:])
 	result = Result{Base: core.BaseInfo{Name: base}, Builder: name, State: "failed"}
 	env, err := create(ctx, name, work)

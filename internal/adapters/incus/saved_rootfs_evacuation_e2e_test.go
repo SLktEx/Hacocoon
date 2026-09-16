@@ -46,10 +46,7 @@ func TestRealIncusSavedRootfsEvacuationE2E(t *testing.T) {
 	}
 	owner := hex.EncodeToString(random[:])
 	pool, project := "haco-root-evac-"+owner[:16], "haco-root-evac-"+owner[:16]
-	generation, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	generation := core.NewEnvironmentInstanceID()
 	p := snapshotRootfsPlan{Pool: pool, Source: "haco-evac-source", SourceInstanceID: generation, Owner: owner}
 	root, err := os.MkdirTemp("/var/lib", "haco-saved-rootfs-evacuation-")
 	if err != nil {
@@ -133,10 +130,7 @@ func TestRealIncusSavedRootfsEvacuationE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(bytes)
-	newGeneration, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	newGeneration := core.NewEnvironmentInstanceID()
 	run("incus", "init", "--empty", "destination", "--project", project, "--no-profiles", "--storage", pool, "--config", key+"="+owner, "--config", environmentInstanceKey+"="+newGeneration, "--config", "boot.autostart=false", "--config", "security.privileged=false")
 	targetRoot := path("destination")
 	run("env", "-u", "TAR_OPTIONS", "tar", "--acls", "--xattrs", "--xattrs-include=*", "--numeric-owner", "--same-owner", "--same-permissions", "-xpf", archive, "-C", targetRoot)

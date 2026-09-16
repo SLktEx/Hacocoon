@@ -58,7 +58,7 @@ type Service struct {
 	environments              environmentLifecycle
 	runs                      ephemeralRunStore
 	lockDir                   string
-	newName                   func() (string, error)
+	newName                   func() string
 	now                       func() time.Time
 	cleanupTimeout            time.Duration
 	acquireOwnership          ownershipLockFunc
@@ -126,30 +126,22 @@ func (s *Service) run(ctx context.Context, spec Spec, resource core.PersistentRe
 	if err := s.Reconcile(ctx); err != nil {
 		return Result{}, fmt.Errorf("reconcile abandoned ephemeral runs: %w", err)
 	}
-	name, err := s.newName()
-	if err != nil {
-		return Result{}, fmt.Errorf("allocate run environment name: %w", err)
-	}
+	name := s.newName()
 
 	var temporary *core.Workspace
 	if spec.WorkspacePath == "" {
 		if !s.recoveryEnabled() || s.cleanupTemporaryWorkspace == nil || spec.AccessMode == core.WorkspaceReadOnly {
 			return Result{}, core.ErrUnsupported
 		}
-		work, err := core.NewTemporaryWorkspace()
-		if err != nil {
-			return Result{}, err
-		}
+		work := core.NewTemporaryWorkspace()
 		temporary = &work
 	}
-	instance, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		return Result{}, err
-	}
+	instance := core.NewEnvironmentInstanceID()
 	marker := core.EphemeralRun{InstanceID: instance, TemporaryWorkspace: temporary, EnvironmentID: name, State: core.EphemeralRunCreating, CreatedAt: s.now().UTC()}
 	var ownership runOwnershipLock
 	if s.recoveryEnabled() {
 		var acquired bool
+		var err error
 		ownership, acquired, err = s.acquireOwnership(s.lockDir, name, true)
 		if err != nil {
 			return Result{Environment: name}, fmt.Errorf("claim ephemeral run ownership %q: %w", name, err)
@@ -229,10 +221,8 @@ func outputByteCount(explicit, decoded int64) int64 {
 	return decoded
 }
 
-func randomEnvironmentName() (string, error) {
+func randomEnvironmentName() string {
 	var bytes [8]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return "", err
-	}
-	return "run-" + hex.EncodeToString(bytes[:]), nil
+	_, _ = rand.Read(bytes[:])
+	return "run-" + hex.EncodeToString(bytes[:])
 }

@@ -120,9 +120,7 @@ func (f *files) replace(name string, b []byte) error {
 		return err
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return err
-	}
+	_, _ = rand.Read(nonce[:])
 	temp := "hacocoon/.write-" + hex.EncodeToString(nonce[:])
 	file, err := f.root.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {

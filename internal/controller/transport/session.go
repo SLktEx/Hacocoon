@@ -75,12 +75,10 @@ func (s *serverSession) complete(err error) {
 	})
 }
 
-func newSessionID() (string, error) {
+func newSessionID() string {
 	buffer := make([]byte, sessionIDBytes)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generate control session id: %w", err)
-	}
-	return hex.EncodeToString(buffer), nil
+	_, _ = rand.Read(buffer)
+	return hex.EncodeToString(buffer)
 }
 
 func (s *Server) createSession(terminal *terminalControl, cancel context.CancelFunc) (string, *serverSession, error) {
@@ -88,10 +86,7 @@ func (s *Server) createSession(terminal *terminalControl, cancel context.CancelF
 		return "", nil, ErrInvalidArgument
 	}
 	for attempts := 0; attempts < 4; attempts++ {
-		id, err := newSessionID()
-		if err != nil {
-			return "", nil, err
-		}
+		id := newSessionID()
 		state := newServerSession()
 		state.terminal = terminal
 		state.cancel = cancel

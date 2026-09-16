@@ -39,10 +39,7 @@ func TestRealIncusSnapshotRootfsE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := hex.EncodeToString(nonce[:])
-	id, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := core.NewEnvironmentInstanceID()
 	p := snapshotRootfsPlan{Pool: pool, Source: "haco-root-probe-" + owner[:16], SourceInstanceID: id, Owner: owner}
 	stateDir, err := os.MkdirTemp("/var/lib", "haco-snapshot-root-")
 	if err != nil {

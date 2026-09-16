@@ -39,9 +39,7 @@ func (s *Service) PublishGeneration(ctx context.Context, expected core.ResourceG
 		return result, nil
 	}
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return result, err
-	}
+	_, _ = rand.Read(nonce[:])
 	candidate, err := s.PublishSource(ctx, "generation:"+hex.EncodeToString(nonce[:]), expected.Kind, prepare)
 	result.Candidate = candidate
 	if err != nil {

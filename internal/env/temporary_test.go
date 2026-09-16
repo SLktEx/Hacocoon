@@ -13,10 +13,7 @@ func TestTemporaryWorkspaceRequiresProviderOptInBeforeCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	spec := core.EnvironmentRuntimeSpec{Name: "temp", WorkspacePath: work.Path, TemporaryWorkspace: true}
 	if _, err := router.CreateEnvironment(context.Background(), spec); !errors.Is(err, core.ErrUnsupported) {
 		t.Fatal(err)

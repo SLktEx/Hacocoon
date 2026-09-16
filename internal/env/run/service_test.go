@@ -57,7 +57,7 @@ func (f *fakeEnvironments) DeleteRun(ctx context.Context, name, instance string)
 
 func serviceWithName(env *fakeEnvironments, name string) *Service {
 	s := New(env)
-	s.newName = func() (string, error) { return name, nil }
+	s.newName = func() string { return name }
 	return s
 }
 

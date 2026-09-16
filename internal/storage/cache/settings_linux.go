@@ -135,9 +135,7 @@ func (s Settings) Replace(ctx context.Context, edit SettingsSnapshot) (SettingsS
 		return SettingsSnapshot{}, core.ErrCapabilityStale
 	}
 	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return SettingsSnapshot{}, err
-	}
+	_, _ = rand.Read(nonce[:])
 	name := ".cache-settings-" + hex.EncodeToString(nonce[:])
 	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0600)
 	if err != nil {

@@ -48,13 +48,12 @@ func (s *Service) ConfigureEnvironmentIdentity(resolver EnvironmentIdentityResol
 }
 
 type Service struct {
-	identities   EnvironmentIdentityResolver
-	policy       PolicyEvaluator
-	approval     ApprovalProvider
-	audit        AuditSink
-	providers    map[string]Provider
-	now          func() time.Time
-	newRequestID func() (string, error)
+	identities EnvironmentIdentityResolver
+	policy     PolicyEvaluator
+	approval   ApprovalProvider
+	audit      AuditSink
+	providers  map[string]Provider
+	now        func() time.Time
 }
 
 func New(policy PolicyEvaluator, approval ApprovalProvider, audit AuditSink, providers ...Provider) (*Service, error) {
@@ -73,12 +72,11 @@ func New(policy PolicyEvaluator, approval ApprovalProvider, audit AuditSink, pro
 		registered[name] = provider
 	}
 	return &Service{
-		policy:       policy,
-		approval:     approval,
-		audit:        audit,
-		providers:    registered,
-		now:          time.Now,
-		newRequestID: randomRequestID,
+		policy:    policy,
+		approval:  approval,
+		audit:     audit,
+		providers: registered,
+		now:       time.Now,
 	}, nil
 }
 
@@ -144,10 +142,7 @@ func (s *Service) request(ctx context.Context, req core.CapabilityRequest, appro
 		identitySnapshot = snapshot
 	}
 
-	requestID, err := s.newRequestID()
-	if err != nil {
-		return core.CapabilityResult{}, fmt.Errorf("create capability request id: %w", err)
-	}
+	requestID := randomRequestID()
 	baseResult := core.CapabilityResult{RequestID: requestID, ExecutionState: core.CapabilityNotExecuted}
 	if err := s.record(ctx, requestID, req, core.CapabilityAuditEvent{Type: "requested"}); err != nil {
 		return baseResult, fmt.Errorf("record capability request: %w", err)
@@ -393,12 +388,10 @@ func validDecision(decision core.PolicyDecision) bool {
 	return decision == core.PolicyAllow || decision == core.PolicyDeny || decision == core.PolicyRequireApproval
 }
 
-func randomRequestID() (string, error) {
+func randomRequestID() string {
 	value := make([]byte, 16)
-	if _, err := rand.Read(value); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(value), nil
+	_, _ = rand.Read(value)
+	return hex.EncodeToString(value)
 }
 
 // auditErrorReason deliberately converts provider failures into a closed set of

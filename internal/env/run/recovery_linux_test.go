@@ -147,7 +147,7 @@ func TestSIGTERMServiceRunHelper(t *testing.T) {
 	}
 	env := &signalCleanupEnvironment{cleanupPath: os.Getenv("HACO_TEST_RUN_SIGNAL_CLEANUP")}
 	service := New(env)
-	service.newName = func() (string, error) { return "run-signal-helper", nil }
+	service.newName = func() string { return "run-signal-helper" }
 	service.cleanupTimeout = time.Second
 	result, err := service.Run(context.Background(), Spec{WorkspacePath: "/work/helper", Argv: []string{"block"}})
 	if !errors.Is(err, context.Canceled) || !result.CleanedUp {
