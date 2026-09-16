@@ -7,31 +7,36 @@ NERDCTL_VERSION="2.3.5"
 case "$(dpkg --print-architecture)" in
   amd64)
     NERDCTL_ARCH="amd64"
-    NERDCTL_SHA256="de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee"
+    NERDCTL_SHA256="b697295c623639734aaab737523c808fd3cc8d3046039fd94fff1744e4c317aa"
     ;;
   arm64)
     NERDCTL_ARCH="arm64"
-    NERDCTL_SHA256="76ced9bd0d03f6140f9cf7b927958b654cb8d5ecd3c58af585d096c8bdf9d6c2"
+    NERDCTL_SHA256="6e4b687f1d138e750a3c8372abc0f81d3d7490b6359c48c0562fc7dfe98859b2"
     ;;
   *)
-    echo "unsupported architecture for nerdctl: $(dpkg --print-architecture)" >&2
+    echo "unsupported architecture for nerdctl-full: $(dpkg --print-architecture)" >&2
     exit 1
     ;;
 esac
 
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl openssh-server
+apt-get install -y --no-install-recommends ca-certificates curl iptables openssh-server
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' 0 HUP INT TERM
-archive="$tmp_dir/nerdctl.tar.gz"
+archive="$tmp_dir/nerdctl-full.tar.gz"
 
 curl --fail --location --silent --show-error --retry 3 \
   --output "$archive" \
-  "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-${NERDCTL_VERSION}-linux-${NERDCTL_ARCH}.tar.gz"
+  "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-full-${NERDCTL_VERSION}-linux-${NERDCTL_ARCH}.tar.gz"
 printf '%s  %s\n' "$NERDCTL_SHA256" "$archive" | sha256sum -c -
-tar -xzf "$archive" -C /usr/local/bin nerdctl
-chmod 0755 /usr/local/bin/nerdctl
+tar -xzf "$archive" -C /usr/local
+
 /usr/local/bin/nerdctl --version
+/usr/local/bin/containerd --version
+/usr/local/bin/runc --version
+/usr/local/bin/buildkitd --version
+
+systemctl enable containerd.service buildkit.service
 
 rm -rf /var/lib/apt/lists/*
