@@ -104,6 +104,10 @@ $helpers=@($rows | Where-Object { $_.Name -eq 'haco-wsl.exe' } | Select-Object E
 $counts=@{};foreach($name in @('wslhost.exe','wsl.exe','vmmemWSL')) { $counts[$name]=@($rows | Where-Object { $_.Name -eq $name }).Count };
 $byId=@{};foreach($row in $rows) { $byId[[string]$row.ProcessId]=$row };
 $classes=@{'wsl.exe'='wsl';'haco-wsl.exe'='reclamation';'ssh.exe'='ssh';'Code.exe'='editor';'cmd.exe'='shell';'powershell.exe'='powershell';'pwsh.exe'='powershell';'python.exe'='python';'python3.exe'='python';'WindowsTerminal.exe'='terminal';'OpenConsole.exe'='terminal';'conhost.exe'='terminal';'wslservice.exe'='service';'haco-notify.exe'='notification'};
+foreach($name in @('haco-review.exe','haco-notify.exe')) { $classes[$name]='notification' };
+foreach($name in @('haco-vscode.exe','haco-agent-host.exe','haco-tunnel.exe')) { $classes[$name]='hacocoon-client' };
+$classes['wslhost.exe']='wsl-host';$classes['wslrelay.exe']='wsl-relay';
+foreach($name in @('explorer.exe','svchost.exe','services.exe','taskhostw.exe','taskeng.exe','RuntimeBroker.exe','WmiPrvSE.exe','SearchIndexer.exe','dllhost.exe')) { $classes[$name]='windows-service' };
 $origins=@{};
 foreach($row in @($rows | Where-Object { $_.Name -eq 'wsl.exe' })) {
     $chain=@();$child=$row;$seen=@{};
@@ -138,7 +142,8 @@ def observed_process_origins(snapshot):
     # Parent names are categories, not executable/ownership authentication. The
     # Windows snapshot omits missing/reused parents and never emits names or PIDs.
     kinds = {"wsl", "reclamation", "ssh", "editor", "shell", "powershell",
-             "python", "terminal", "service", "notification", "other", "unavailable"}
+             "python", "terminal", "service", "notification", "hacocoon-client",
+             "wsl-host", "wsl-relay", "windows-service", "other", "unavailable"}
     origins = snapshot.get("origins") if isinstance(snapshot, dict) else None
     counts = observed_process_counts(snapshot)
     if not isinstance(origins, dict) or len(origins) > 64 or counts["state"] != "observed":

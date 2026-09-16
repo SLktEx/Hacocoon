@@ -100,6 +100,9 @@ or weakening refusal. The first installed result (#706, `38aeae56`) showed WSL
 processes disappearing and later returning, but still failed with `compact_attached`.
 Fixed parent-chain categories now narrow the next investigation; the restart source
 and detachment cause remain pending under #381. Counts never authorize compaction.
+The `c3a2cc86` retry also failed: the returning launcher had an unclassified parent.
+The category set now includes Hacocoon's native review/client helpers and Windows
+WSL host/relay/services; the earlier category set could not exclude those sources.
 Read-only comparisons isolate enrollment visibility to the init interop route;
 the underlying Windows cause remains unproven. Human notification/VS Code answers remain unperformed.
 

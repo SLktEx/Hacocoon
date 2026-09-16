@@ -40,7 +40,9 @@ function Get-CimInstance {
     @(1,0,'private-name.exe',0), @(2,1,'Code.exe',1), @(3,2,'ssh.exe',2),
     @(4,3,'wsl.exe',3), @(5,4,'wsl.exe',4),
     @(6,99,'wsl.exe',1), @(7,8,'wsl.exe',1), @(8,0,'ssh.exe',2),
-    @(9,9,'wsl.exe',2), @(10,0,'haco-wsl.exe',1))) {
+    @(9,9,'wsl.exe',2), @(10,0,'haco-wsl.exe',1),
+    @(11,1,'haco-review.exe',1), @(12,11,'wsl.exe',2),
+    @(13,1,'wslrelay.exe',1), @(14,13,'wsl.exe',2))) {
       [pscustomobject]@{ ProcessId=$v[0];ParentProcessId=$v[1];Name=$v[2];
         CreationDate=$start.AddSeconds($v[3]);ExecutablePath='C:\private\'+$v[2] }
   }
@@ -52,7 +54,8 @@ function Get-CimInstance {
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
         snapshot = json.loads(result.stdout.decode("utf-8-sig"))
         self.assertEqual(snapshot["origins"], {"ssh/editor/other": 1,
-                         "wsl/ssh/editor/other": 1, "unavailable": 2, "wsl/unavailable": 1})
+                         "wsl/ssh/editor/other": 1, "unavailable": 2, "wsl/unavailable": 1,
+                         "notification/other": 1, "wsl-relay/other": 1})
         observed = gate.observed_process_origins(snapshot)
         self.assertEqual(observed["state"], "observed")
         self.assertNotIn("private", json.dumps(observed))

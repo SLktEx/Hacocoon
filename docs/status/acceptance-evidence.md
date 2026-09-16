@@ -1682,6 +1682,7 @@ the later notification gate was skipped.
 | `c0692cdf327be7f809333c2a9ea23753bd1f5661` (#705, before documentation update) | 35009099013 / 104516251265 | passed |
 | `428b2bdb53b1070ec4d870bf7589778f29f90042` (#705) | 35011032772 / 104522727488 | passed |
 | `38aeae56ed769b41e59c0d9e89859f2f7e50c52e` (#706, counts only) | 35012950293 / 104529173573 | passed |
+| `c3a2cc8678cdfc4e396d6ac0699eb1cca9d0c626` (#706, second attempt) | 35016859540 / 104544769661 | passed |
 
 Earlier successful allocation recovery remains valid within its recorded scope;
 these later failures remain unresolved under #381. Virtual observation handles
@@ -1718,6 +1719,21 @@ descendants. That local observation does not identify the CI restart source.
 The archived Linux follow-up passed 14 observation tests (0.50s; the Windows-only
 query test was SKIP), 12 retention tests (0.61s), maintained local docs (20.78s)
 and workflow policy (1.86s). The same root-user-session warning remained.
+
+At `c3a2cc86`, the first Windows attempt (job104542349177) failed before product
+installation: the pinned Microsoft VS Code ZIP response ended prematurely.
+Native Windows unit tests passed; installation and later stages were skipped.
+One failed-job rerun successfully downloaded/verified that unchanged archive and
+passed installation, HTTPS, SSH/editor and Linux reclaim. Public reclaim then
+failed as above. At 6.9 seconds all observed WSL launch/host processes disappeared;
+at 29.1 seconds two launch processes returned with `other` / `wsl/other` parents.
+Thus that run did not identify an SSH, editor, terminal or reclamation parent.
+Unknown does not exclude Hacocoon: the initial categories omitted `haco-review.exe`.
+The follow-up includes installed notification/client executables and known Windows
+WSL host/relay/service categories. It changes no product behavior or timeout.
+The extended native PowerShell query passed all 15 Windows regressions (0.52s).
+The combined Linux archive passed 14 observation tests (0.21s, one Windows-only
+SKIP), local docs (11.48s) and workflow policy (2.16s).
 
 ### Current Git binding inventory
 
