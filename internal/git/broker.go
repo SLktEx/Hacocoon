@@ -173,7 +173,7 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 		if err != nil {
 			return err
 		}
-		if repo.Remote != member.Remote || repo.Branch != member.Branch {
+		if repo.Remote != member.Remote {
 			return core.ErrCapabilityStale
 		}
 		if len(workspace.Members) == 0 {
@@ -270,7 +270,7 @@ func (b *Broker) validateBinding(ctx context.Context, bound binding) error {
 			return core.ErrCapabilityStale
 		}
 		repo, err := b.Repositories.Get("repo", member.Repository)
-		if err != nil || !reflect.DeepEqual(repo, repos[i]) || repo.Remote != member.Remote || repo.Branch != member.Branch {
+		if err != nil || !reflect.DeepEqual(repo, repos[i]) || repo.Remote != member.Remote {
 			return core.ErrCapabilityStale
 		}
 		i++
@@ -302,11 +302,11 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req gitadapter.Req
 			break
 		}
 	}
-	ref := "refs/heads/" + repo.Branch
+	ref := ""
 	if repo.ID == "" || req.Repository != repo.ID {
 		return gitadapter.Response{}, core.ErrPolicyDenied
 	}
-	agent := gitadapter.AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, PackOutput: req.PackOutput, Heads: append([]gitadapter.Head(nil), req.Heads...)}
+	agent := gitadapter.AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, PackOutput: req.PackOutput, Heads: append([]gitadapter.Head(nil), req.Heads...)}
 	agent.Haves = append([]string(nil), req.Haves...)
 	switch req.Operation {
 	case "list":

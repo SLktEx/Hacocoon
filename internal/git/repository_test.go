@@ -56,7 +56,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 			backend := &ownershipBackend{t: t, fail: failure}
 			service := NewRepositoryService(t.TempDir(), backend)
 			backend.service = service
-			object, err := service.Clone(context.Background(), "demo", "https://github.com/example/repo.git", "main")
+			object, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
 			if failure == "" {
 				if err != nil || object.State != "ready" || !backend.populated {
 					t.Fatalf("object=%+v err=%v", object, err)
@@ -69,7 +69,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 					t.Fatalf("incomplete record reusable: %v", err)
 				}
 			}
-			if _, err := service.Clone(context.Background(), "demo", "https://github.com/example/repo.git", "main"); !errors.Is(err, core.ErrAlreadyExists) {
+			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
 				t.Fatalf("replaced owned record: %v", err)
 			}
 		})
@@ -78,7 +78,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 	for _, id := range []string{"../escape", "/absolute", "--option", "", "a\nb", strings.Repeat("a", 49)} {
 		service := NewRepositoryService(t.TempDir(), nil)
-		if _, err := service.Clone(context.Background(), id, "https://github.com/example/repo.git", "main"); !errors.Is(err, core.ErrInvalidArgument) {
+		if _, err := service.Add(context.Background(), id, "https://github.com/example/repo.git"); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatalf("id=%q err=%v", id, err)
 		}
 	}
@@ -86,5 +86,27 @@ func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 		if gitadapter.ValidateRemote(remote) == nil {
 			t.Fatalf("accepted remote %q", remote)
 		}
+	}
+}
+
+func TestSourceRecordRejectsBranchIdentity(t *testing.T) {
+	s := NewRepositoryService(t.TempDir(), nil)
+	source := Object{Kind: "repo", ID: "sample", Repository: "sample", Remote: "https://github.com/example/repo.git", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
+	if !validObject(source) {
+		t.Fatal("branchless source rejected")
+	}
+	source.Branch = "main"
+	if err := s.save(source); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Get("repo", "sample"); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatal("branch-centric source accepted", err)
+	}
+	if _, err := os.Stat(s.path("repo", "sample")); err != nil {
+		t.Fatal("incompatible owned state was removed", err)
+	}
+	source.Kind = "work"
+	if !validObject(source) {
+		t.Fatal("Workspace checkout provenance rejected")
 	}
 }

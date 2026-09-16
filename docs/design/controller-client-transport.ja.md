@@ -14,7 +14,7 @@ Status: **部分実装**。Local Unix domain プロトコル、Physical Host コ
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
 
-製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
+製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.add`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
 
 WSLは有効なコントローラーサービスがソケットをbindする前にlogin シェルを開くことがある。login aliasは読み取り専用pingで最大2分待ち、通信未準備だけを再試行する。プロトコル・operationの拒否は再試行せず、クライアントが第二のコントローラーを起動したりサービス状態を変更したりしない。この起動待ち期限は対話セッションの寿命を制限しない。
 

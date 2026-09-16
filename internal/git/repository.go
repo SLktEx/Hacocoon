@@ -16,16 +16,17 @@ import (
 )
 
 type Object struct {
-	RestoredFrom string   `json:"restored_from,omitempty"`
-	Kind         string   `json:"kind"`
-	ID           string   `json:"id"`
-	Repository   string   `json:"repository"`
-	Remote       string   `json:"remote"`
-	Branch       string   `json:"branch"`
-	NativeRef    string   `json:"native_ref"`
-	Owner        string   `json:"owner"`
-	State        string   `json:"state"`
-	Members      []Object `json:"members,omitempty"`
+	RestoredFrom string `json:"restored_from,omitempty"`
+	Kind         string `json:"kind"`
+	ID           string `json:"id"`
+	Repository   string `json:"repository"`
+	Remote       string `json:"remote"`
+	// Branch is optional Workspace checkout provenance, never source identity.
+	Branch    string   `json:"branch,omitempty"`
+	NativeRef string   `json:"native_ref"`
+	Owner     string   `json:"owner"`
+	State     string   `json:"state"`
+	Members   []Object `json:"members,omitempty"`
 }
 
 type Backend interface {
@@ -48,17 +49,22 @@ func NewRepositoryService(root string, backend Backend) *RepositoryService {
 	return &RepositoryService{Root: root, Backend: backend}
 }
 
-func (s *RepositoryService) Clone(ctx context.Context, id, remote, branch string) (Object, error) {
-	if !gitadapter.ValidID(id) || !gitadapter.ValidBranch(branch) || gitadapter.ValidateRemote(remote) != nil {
+func (s *RepositoryService) Add(ctx context.Context, id, remote string) (Object, error) {
+	if !gitadapter.ValidID(id) || gitadapter.ValidateRemote(remote) != nil {
 		return Object{}, core.ErrInvalidArgument
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote, Branch: branch}, nil)
+	return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote}, nil)
 }
 
 func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository string) (Object, error) {
-	if !gitadapter.ValidID(id) || !gitadapter.ValidID(repository) {
+	return s.CopyWorkspaceBranch(ctx, id, repository, "")
+}
+
+// CopyWorkspaceBranch selects an initial checkout without changing source identity.
+func (s *RepositoryService) CopyWorkspaceBranch(ctx context.Context, id, repository, branch string) (Object, error) {
+	if !gitadapter.ValidID(id) || !gitadapter.ValidID(repository) || (branch != "" && !gitadapter.ValidBranch(branch)) {
 		return Object{}, core.ErrInvalidArgument
 	}
 	s.mu.Lock()
@@ -70,7 +76,7 @@ func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository st
 	if err := s.Backend.InspectVolume(ctx, repo); err != nil {
 		return Object{}, err
 	}
-	return s.create(ctx, Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: repo.Branch}, &repo)
+	return s.create(ctx, Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: branch}, &repo)
 }
 
 // CopyWorkspaceSet reserves the entire immutable collection before creating
@@ -102,7 +108,7 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		if err != nil {
 			return Object{}, err
 		}
-		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: source.Branch, NativeRef: ref, Owner: randomID(), State: "creating"})
+		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, NativeRef: ref, Owner: randomID(), State: "creating"})
 		sources = append(sources, source)
 	}
 	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {
@@ -161,7 +167,7 @@ func validObject(o Object) bool {
 		return false
 	}
 	if len(o.Members) == 0 {
-		routing := gitadapter.ValidBranch(o.Branch) && gitadapter.ValidateRemote(o.Remote) == nil
+		routing := o.Branch == "" && gitadapter.ValidateRemote(o.Remote) == nil
 		if o.Kind == "work" {
 			routing = gitadapter.ValidWorkspaceRouting(o.Remote, o.Branch)
 		}

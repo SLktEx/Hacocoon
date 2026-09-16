@@ -53,7 +53,7 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	r := New(runner)
 	r.project = project
 	r.setRootPool(pool)
-	o := gitrepo.Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", Branch: "main", NativeRef: pool + "/haco-repo-source", Owner: owner, State: "ready"}
+	o := gitrepo.Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", NativeRef: pool + "/haco-repo-source", Owner: owner, State: "ready"}
 	dir, err := os.MkdirTemp("/var/lib", "haco-source-delete-")
 	must(err)
 	write := func(name string, v any) {

@@ -7,7 +7,7 @@ separate from repository implementation.
 
 ## Use
 
-Register the intended upstream using `haco repo clone`. Its current Host-owned
+Register the intended upstream using `haco repo add`. Its current Host-owned
 routing supplies Git connectivity; the input cannot choose a Host path or import
 credentials. Then, from the client that can read the source directory:
 

@@ -63,11 +63,12 @@ Authentication, dotfiles and additional personal or organization-specific tools
 are not baked into the standard Host tool set.
 
 The public example is sufficient for reading and local edits. For your own work,
-replace the URL and branch with a repository and an **existing** branch you may use.
+replace the URL with a repository you may use. Its current default branch is
+selected when the Workspace is created.
 Keep the names consistent in the permission rules below.
 
 ```bash
-haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
+haco repo add sample https://github.com/SLktEx/Hacocoon.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco env status sample-dev

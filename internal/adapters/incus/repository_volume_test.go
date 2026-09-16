@@ -14,7 +14,7 @@ import (
 )
 
 func repositoryObject(kind, id, repository string) gitrepo.Object {
-	return gitrepo.Object{Kind: kind, ID: id, Repository: repository, NativeRef: "haco-local-default/haco-" + kind + "-" + id, Owner: strings.Repeat("a", 32), State: "ready", Remote: "https://github.com/example/" + repository + ".git", Branch: "main"}
+	return gitrepo.Object{Kind: kind, ID: id, Repository: repository, NativeRef: "haco-local-default/haco-" + kind + "-" + id, Owner: strings.Repeat("a", 32), State: "ready", Remote: "https://github.com/example/" + repository + ".git"}
 }
 
 // These fields are Incus's custom filesystem-volume API response, including the
@@ -261,7 +261,7 @@ func TestRepositoryWorkspaceAttachmentsKeepMembersAndRoutingSeparate(t *testing.
 				}
 				return
 			}
-			want := []WorkspaceAttachment{{Device: "workspace", Pool: "haco-local-default", Volume: "haco-work-task-one", Path: "/workspace", Owner: first.Owner, Repository: "one", Remote: first.Remote, Branch: "main"}}
+			want := []WorkspaceAttachment{{Device: "workspace", Pool: "haco-local-default", Volume: "haco-work-task-one", Path: "/workspace", Owner: first.Owner, Repository: "one", Remote: first.Remote}}
 			if mode == "collection" {
 				want[0].Device, want[0].Path = "workspace-one", "/workspace/one"
 				want = append(want, WorkspaceAttachment{Device: "workspace-two", Pool: "haco-local-default", Volume: "haco-work-task-two", Path: "/workspace/two", Owner: second.Owner, Repository: "two"})

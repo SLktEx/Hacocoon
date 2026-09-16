@@ -61,7 +61,7 @@ func TestRestoreSelectedMembershipKeepsSavedDataAndPinsAdditions(t *testing.T) {
 			s := NewRepositoryService(t.TempDir(), b)
 			b.service = s
 			s.SnapshotCatalog = &workspaceCopyCatalog{}
-			repo := Object{Kind: "repo", ID: "three", Repository: "three", Remote: "https://github.com/example/three.git", Branch: "main", Owner: strings.Repeat("c", 32), NativeRef: "pool/haco-repo-three", State: "ready"}
+			repo := Object{Kind: "repo", ID: "three", Repository: "three", Remote: "https://github.com/example/three.git", Owner: strings.Repeat("c", 32), NativeRef: "pool/haco-repo-three", State: "ready"}
 			if err := s.reserve(repo); err != nil {
 				t.Fatal(err)
 			}

@@ -20,17 +20,16 @@ const (
 )
 
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
-var branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_/-]{0,127}$`)
 
 // ValidWorkspaceRouting also accepts an explicitly offline Workspace. Source
-// repositories still require a nonempty validated remote and branch.
+// repositories require a validated remote; branch is only checkout provenance.
 func ValidWorkspaceRouting(remote, branch string) bool {
-	return (remote == "" && branch == "") || (ValidateRemote(remote) == nil && ValidBranch(branch))
+	return (remote == "" && branch == "") || (ValidateRemote(remote) == nil && (branch == "" || ValidBranch(branch)))
 }
 
 func ValidID(s string) bool { return idPattern.MatchString(s) }
 func ValidBranch(s string) bool {
-	return branchPattern.MatchString(s) && !strings.Contains(s, "//") && !strings.HasSuffix(s, "/")
+	return !strings.HasPrefix(s, "-") && s != "HEAD" && ValidHeadRef("refs/heads/"+s)
 }
 func ValidOID(s string) bool {
 	if len(s) != 40 {
@@ -84,14 +83,15 @@ type Response struct {
 // AgentRequest is sent only from the controller to the verified trusted Host.
 // It is a separate type so guest requests cannot smuggle paths or upstreams.
 type AgentRequest struct {
-	Haves      []string  `json:"haves,omitempty"`
-	Ref        string    `json:"ref,omitempty"`
-	Heads      []Head    `json:"heads,omitempty"`
-	Operation  string    `json:"operation"`
-	Repository string    `json:"repository"`
-	Workspace  string    `json:"workspace,omitempty"`
-	Remote     string    `json:"remote"`
-	Branch     string    `json:"branch"`
+	Haves      []string `json:"haves,omitempty"`
+	Ref        string   `json:"ref,omitempty"`
+	Heads      []Head   `json:"heads,omitempty"`
+	Operation  string   `json:"operation"`
+	Repository string   `json:"repository"`
+	Workspace  string   `json:"workspace,omitempty"`
+	Remote     string   `json:"remote"`
+	// Branch selects only a fresh Workspace checkout.
+	Branch     string    `json:"branch,omitempty"`
 	OldOID     string    `json:"old_oid,omitempty"`
 	NewOID     string    `json:"new_oid,omitempty"`
 	Pack       io.Reader `json:"-"`

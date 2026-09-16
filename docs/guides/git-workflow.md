@@ -159,13 +159,35 @@ Remove a saved entry through [haco config](../reference/configuration.md) to rev
 A saved-choice receipt requires durable storage and audit; execution failure
 afterward may leave the saved Policy in place.
 
-## Multiple repositories
+## Register once, choose branches when creating work
 
-Register each upstream/branch, then create one collection:
+Run on the trusted management side:
 
 ```bash
-haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
-haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
+haco repo add sample https://github.com/OWNER/REPO.git
+haco workspace create --repo sample --branch main work-main
+haco workspace create --repo sample --branch feature/foo work-feature
+```
+
+Both branches must exist upstream. The two Workspaces have independent files
+and `.git` directories and use the same registered source. Registration needs no
+branch and grants no push permission. Omit `--branch` to use the remote's current
+default branch at Workspace creation; `workspace prepare` does this too. The
+registration does not remember a default branch. Later branch switching uses
+ordinary Git inside the Environment. Collection creation chooses each remote's
+default; `--branch` is supported only for a single source.
+
+The pre-1.0 command `repo clone` and its API are removed, with no deprecated
+alias. Old source records containing a branch are incompatible and retained
+without automatic conversion; see [the decision](../adr/0108-branch-independent-repositories.md).
+
+## Multiple repositories
+
+Register each repository once, then create one collection:
+
+```bash
+haco repo add first https://github.com/OWNER/FIRST.git
+haco repo add second https://github.com/OWNER/SECOND.git
 haco workspace create --repo first,second both
 haco env create --workspace managed:both both-dev
 ```
@@ -184,7 +206,7 @@ explicit Workspace deletion destroys its Git data too.
 A source repository cannot be deleted while any Workspace record uses its route.
 
 Imported GitHub routes can reconnect only to an explicitly registered source with
-the same ID, URL and branch. File-route and legacy imports remain offline;
+the same ID and URL. File-route and legacy imports remain offline;
 a same-name source must not activate them.
 See [imported Git reconnection](../design/git-and-github-capability.md#reconnect-an-imported-github-workspace).
 Native imported fetch/push acceptance remains pending.
@@ -206,7 +228,7 @@ haco open ./task-next
 ```
 
 `first` retains its source changes; `third` must already be registered with
-`haco repo clone`. Unselected members remain in the original work. OCI data is
+`haco repo add`. Unselected members remain in the original work. OCI data is
 copied independently. Omit `--repo` to keep the whole collection. See
 [copy semantics](../design/workspace-workflow.md#choose-the-copys-repositories).
 

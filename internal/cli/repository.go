@@ -62,10 +62,10 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	var branch, repo, save string
 	n := 1
 	switch operation {
-	case "repo clone":
-		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
+	case "repo add":
 		n = 2
 	case "workspace create":
+		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
 		flags.StringVar(&repo, "repo", "", cliMessage("detail.repos"))
 	case "git connect":
 	case "git approve", "git deny":
@@ -79,7 +79,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 2
 	}
 	pos := flags.Args()
-	if len(pos) != n || (operation == "repo clone" && branch == "") || (operation == "workspace create" && repo == "") {
+	if len(pos) != n || (operation == "workspace create" && repo == "") {
 		return usage()
 	}
 	var choice capabilityapp.SavedChoice
@@ -107,11 +107,14 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	var result any
 	var err error
 	switch operation {
-	case "repo clone":
-		result, err = client.CloneRepository(ctx, controlapi.RepositoryCloneRequest{ID: pos[0], Remote: pos[1], Branch: branch})
+	case "repo add":
+		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]})
 	case "workspace create":
-		request := controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo}
+		request := controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo, Branch: branch}
 		if strings.Contains(repo, ",") {
+			if branch != "" {
+				return usage()
+			}
 			request.Repository = ""
 			request.Repositories = strings.Split(repo, ",")
 		}

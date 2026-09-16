@@ -12,13 +12,13 @@
 
 ```bash
 haco doctor
-haco repo clone --branch main sample https://github.com/OWNER/REPO.git
+haco repo add sample https://github.com/OWNER/REPO.git
 haco workspace create --repo sample sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco open sample-dev
 ```
 
-OWNER/REPOと既存branchを置き換えてください。private Gitの認証はtrusted haco-hostに保持します。[管理repository手順](../guides/git-workflow.ja.md)を参照してください。Baseは設定済み既定値を使います。任意OCI Storeのコピーは自動で、`--no-oci`で省略できます。CoreにOCI runtimeは必須ではありません。
+OWNER/REPOを置き換えてください。Workspace作成時のremoteの既定ブランチを使います。private Gitの認証はtrusted haco-hostに保持します。[管理repository手順](../guides/git-workflow.ja.md)を参照してください。Baseは設定済み既定値を使います。任意OCI Storeのコピーは自動で、`--no-oci`で省略できます。CoreにOCI runtimeは必須ではありません。
 
 **WSL/Linux Physical Host内**の既存ファイルなら`haco env create --workspace /absolute/path/to/work sample-dev`も使えます。pathはWindowsやhaco-hostコンテナではなく、そのPhysical Host上のものです。書込み可能なWorkspaceはEnv内の処理からも変更できます。`haco open .`は準備済みの所有者を固定したWorkspace参照を再開します。ディレクトリ内容を暗黙にコピー・マウントしません。[準備とfork](../design/workspace-workflow.md)を参照してください。
 

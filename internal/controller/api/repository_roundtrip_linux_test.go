@@ -98,15 +98,15 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 	}
 	sources := map[string]gitrepo.Object{}
 	for _, id := range []string{"api", "web"} {
-		request := RepositoryCloneRequest{ID: id, Remote: "https://github.com/example/" + id + ".git", Branch: "main"}
-		object, err := client.CloneRepository(ctx, request)
-		if err != nil || object.ID != id || object.Repository != id || object.Remote != request.Remote || object.Branch != request.Branch || object.Kind != "repo" || object.State != "ready" || len(object.Owner) != 32 {
-			t.Fatal("clone receipt lost ownership/routing", object, err)
+		request := RepositoryAddRequest{ID: id, Remote: "https://github.com/example/" + id + ".git"}
+		object, err := client.AddRepository(ctx, request)
+		if err != nil || object.ID != id || object.Repository != id || object.Remote != request.Remote || object.Branch != "" || object.Kind != "repo" || object.State != "ready" || len(object.Owner) != 32 {
+			t.Fatal("registration receipt lost ownership/routing", object, err)
 		}
 		sources[id] = object
 	}
-	single, err := client.CopyWorkspace(ctx, WorkspaceCopyRequest{ID: "single", Repository: "api"})
-	if err != nil || single.State != "ready" || single.Owner == sources["api"].Owner || single.NativeRef == sources["api"].NativeRef || single.Remote != sources["api"].Remote {
+	single, err := client.CopyWorkspace(ctx, WorkspaceCopyRequest{ID: "single", Repository: "api", Branch: "feature/foo"})
+	if err != nil || single.Branch != "feature/foo" || single.State != "ready" || single.Owner == sources["api"].Owner || single.NativeRef == sources["api"].NativeRef || single.Remote != sources["api"].Remote {
 		t.Fatal("workspace copy retained source authority", single, err)
 	}
 	group, err := client.CopyWorkspace(ctx, WorkspaceCopyRequest{ID: "group", Repositories: []string{"api", "web"}})
@@ -147,19 +147,28 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 			t.Fatal("repository review lost owner or dependent Workspaces", use)
 		}
 	}
-	for _, request := range []WorkspaceCopyRequest{{ID: "bad", Repository: "api", Repositories: []string{"api", "web"}}, {ID: "bad", Repositories: []string{"api", "api"}}, {ID: "bad", Repository: "missing"}} {
+	for _, request := range []WorkspaceCopyRequest{{ID: "bad", Repository: "api", Repositories: []string{"api", "web"}}, {ID: "bad", Repositories: []string{"api", "api"}}, {ID: "bad", Repository: "missing"}, {ID: "bad", Repositories: []string{"api", "web"}, Branch: "main"}} {
 		if _, err := client.CopyWorkspace(ctx, request); err == nil {
 			t.Fatal("ambiguous/missing workspace source accepted", request)
 		}
 	}
-	for _, method := range []string{MethodRepositoryClone, MethodWorkspaceCopy, MethodGitConnect, MethodGitDecide} {
+	for _, method := range []string{MethodRepositoryAdd, MethodWorkspaceCopy, MethodGitConnect, MethodGitDecide} {
 		var status *control.StatusError
 		if err := client.wire.Call(ctx, method, "invalid request", nil); !errors.As(err, &status) || status.Code != "invalid_argument" {
 			t.Fatal("malformed repository request accepted", method, err)
 		}
 	}
-	if _, err := client.CloneRepository(ctx, RepositoryCloneRequest{ID: "bad", Remote: "https://token@github.com/example/api.git", Branch: "main"}); err == nil {
+	if _, err := client.AddRepository(ctx, RepositoryAddRequest{ID: "bad", Remote: "https://token@github.com/example/api.git"}); err == nil {
 		t.Fatal("credential-bearing remote accepted")
+	}
+	for _, request := range []map[string]string{
+		{"id": "bad", "remote": "https://github.com/example/api.git", "branch": "main"},
+		{"id": "bad", "remote": "https://github.com/example/api.git", "branch": ""},
+	} {
+		var status *control.StatusError
+		if err := client.wire.Call(ctx, MethodRepositoryAdd, request, nil); !errors.As(err, &status) || status.Code != "invalid_argument" {
+			t.Fatal("branch entered registration API", err)
+		}
 	}
 	backend.mu.Lock()
 	defer backend.mu.Unlock()
