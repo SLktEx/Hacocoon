@@ -423,7 +423,7 @@ func (p streamProgress) Write(data []byte) (int, error) {
 		return 0, w.failure
 	}
 	if w.finished {
-		return 0, fmt.Errorf("Git response already complete")
+		return 0, fmt.Errorf("git response already complete")
 	}
 	var prefix [4]byte
 	binary.BigEndian.PutUint32(prefix[:], progressFrame|uint32(len(line)))

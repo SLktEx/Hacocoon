@@ -46,7 +46,7 @@ func TestRepositoryRegistrationStreamsBeforeCompletion(t *testing.T) {
 	server := control.NewServer()
 	release := make(chan struct{})
 	if err := registerRepositoryAdd(server, addRepositoryFunc(func(ctx context.Context, id, remote string) (gitrepo.Object, error) {
-		io.WriteString(gitadapter.ProgressWriter(ctx), "Receiving objects: 50% (1/2)\r")
+		_, _ = io.WriteString(gitadapter.ProgressWriter(ctx), "Receiving objects: 50% (1/2)\r")
 		<-release
 		return gitrepo.Object{Kind: "repo", ID: id, Remote: remote, State: "ready"}, nil
 	})); err != nil {
@@ -80,7 +80,7 @@ func TestRepositoryRegistrationStreamsBeforeCompletion(t *testing.T) {
 func TestRepositoryDisconnectCancelsSilentOperation(t *testing.T) {
 	server := control.NewServer()
 	started, stopped := make(chan struct{}), make(chan struct{})
-	registerRepositoryAdd(server, addRepositoryFunc(func(ctx context.Context, _, _ string) (gitrepo.Object, error) {
+	if err := registerRepositoryAdd(server, addRepositoryFunc(func(ctx context.Context, _, _ string) (gitrepo.Object, error) {
 		if _, ok := ctx.Deadline(); ok {
 			t.Error("blanket registration timeout")
 		}
@@ -88,7 +88,9 @@ func TestRepositoryDisconnectCancelsSilentOperation(t *testing.T) {
 		<-ctx.Done()
 		close(stopped)
 		return gitrepo.Object{}, ctx.Err()
-	}))
+	})); err != nil {
+		t.Fatal(err)
+	}
 	client := repositoryTestClient(t, server)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -111,10 +113,12 @@ func TestRepositoryDisconnectCancelsSilentOperation(t *testing.T) {
 
 func TestRepositoryRegistrationRejectsLegacyBranch(t *testing.T) {
 	server := control.NewServer()
-	registerRepositoryAdd(server, addRepositoryFunc(func(context.Context, string, string) (gitrepo.Object, error) {
+	if err := registerRepositoryAdd(server, addRepositoryFunc(func(context.Context, string, string) (gitrepo.Object, error) {
 		t.Error("invalid registration reached service")
 		return gitrepo.Object{}, nil
-	}))
+	})); err != nil {
+		t.Fatal(err)
+	}
 	client := repositoryTestClient(t, server)
 	_, err := client.wire.OpenStream(context.Background(), MethodRepositoryAdd, map[string]string{"id": "sample", "remote": "https://github.com/example/repo.git", "branch": "main"})
 	if err == nil {
@@ -124,9 +128,11 @@ func TestRepositoryRegistrationRejectsLegacyBranch(t *testing.T) {
 
 func TestRepositoryRegistrationPreservesRecoveryFailure(t *testing.T) {
 	server := control.NewServer()
-	registerRepositoryAdd(server, addRepositoryFunc(func(context.Context, string, string) (gitrepo.Object, error) {
+	if err := registerRepositoryAdd(server, addRepositoryFunc(func(context.Context, string, string) (gitrepo.Object, error) {
 		return gitrepo.Object{}, errors.Join(core.ErrRecoveryRequired, core.ErrAlreadyExists)
-	}))
+	})); err != nil {
+		t.Fatal(err)
+	}
 	client := repositoryTestClient(t, server)
 	_, err := client.AddRepository(context.Background(), RepositoryAddRequest{ID: "sample", Remote: "https://github.com/example/repo.git"}, io.Discard)
 	var status *control.StatusError
@@ -138,9 +144,11 @@ func TestRepositoryRegistrationPreservesRecoveryFailure(t *testing.T) {
 func TestRepositoryStreamRejectsMissingFinalAndHostileFrames(t *testing.T) {
 	for _, payload := range []string{"", `{"progress":"token=secret"}` + "\n", strings.Repeat("x", 33<<10), `{"done":true}` + "\n", `{"done":true,"result":{"kind":"repo","id":"other","state":"ready"}}` + "\n"} {
 		server := control.NewServer()
-		server.RegisterStream(MethodRepositoryAdd, func(context.Context, json.RawMessage) (control.Stream, error) {
+		if err := server.RegisterStream(MethodRepositoryAdd, func(context.Context, json.RawMessage) (control.Stream, error) {
 			return func(_ context.Context, c net.Conn) error { _, err := io.WriteString(c, payload); return err }, nil
-		})
+		}); err != nil {
+			t.Fatal(err)
+		}
 		client := repositoryTestClient(t, server)
 		var progress bytes.Buffer
 		_, err := client.AddRepository(context.Background(), RepositoryAddRequest{ID: "sample", Remote: "https://github.com/example/repo.git"}, &progress)

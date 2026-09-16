@@ -16,7 +16,7 @@ import (
 
 func TestProductRepoAddKeepsJSONAndProgressSeparate(t *testing.T) {
 	server := control.NewServer()
-	server.RegisterStream(controlapi.MethodRepositoryAdd, func(_ context.Context, raw json.RawMessage) (control.Stream, error) {
+	if err := server.RegisterStream(controlapi.MethodRepositoryAdd, func(_ context.Context, raw json.RawMessage) (control.Stream, error) {
 		var req map[string]string
 		if json.Unmarshal(raw, &req) != nil || len(req) != 2 || req["id"] != "sample" || req["remote"] != "https://github.com/example/repo.git" {
 			t.Error("incorrect registration", string(raw))
@@ -25,7 +25,9 @@ func TestProductRepoAddKeepsJSONAndProgressSeparate(t *testing.T) {
 			_, err := io.WriteString(c, "{\"progress\":\"Receiving objects: 100% (2/2), done.\"}\n{\"done\":true,\"result\":{\"kind\":\"repo\",\"id\":\"sample\",\"remote\":\"https://github.com/example/repo.git\",\"state\":\"ready\"}}\n")
 			return err
 		}, nil
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(t.TempDir(), "control.sock")
 	listener, err := control.ListenUnix(path, 0600)
 	if err != nil {

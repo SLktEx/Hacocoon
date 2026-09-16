@@ -20,8 +20,8 @@ func TestTrustedGitCancellationStopsDescendantHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
-	defer writer.Close()
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "sleep 60 & echo ready; wait")
 	cmd.Stdout = writer
 	if err := configureGitProcess(cmd); err != nil {
@@ -30,8 +30,8 @@ func TestTrustedGitCancellationStopsDescendantHelpers(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	writer.Close()
+	defer func() { _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }()
+	_ = writer.Close()
 	output := bufio.NewReader(reader)
 	if line, err := output.ReadString('\n'); err != nil || line != "ready\n" {
 		t.Fatal(line, err)

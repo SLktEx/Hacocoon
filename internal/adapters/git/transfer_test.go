@@ -207,7 +207,7 @@ func TestProgressArrivesBeforePackAndPreservesRequestLifetime(t *testing.T) {
 	defer cancel()
 	input, _ := RequestBody(Request{Operation: "fetch", Repository: "demo"})
 	reader, writer := io.Pipe()
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	done := make(chan error, 1)
 	go func() {
 		err := ServeExchange(ctx, input, writer, func(ctx context.Context, req Request) (Response, error) {
@@ -221,7 +221,7 @@ func TestProgressArrivesBeforePackAndPreservesRequestLifetime(t *testing.T) {
 			<-ctx.Done()
 			return Response{}, ctx.Err()
 		})
-		writer.Close()
+		_ = writer.Close()
 		done <- err
 	}()
 	var diagnostic bytes.Buffer
@@ -244,9 +244,9 @@ func TestProgressNeverCountsAsPackOrReplacesReceipt(t *testing.T) {
 	input, _ := RequestBody(Request{Operation: "fetch", Repository: "demo"})
 	var wire, progress, pack bytes.Buffer
 	if err := ServeExchange(context.Background(), input, &wire, func(ctx context.Context, req Request) (Response, error) {
-		io.WriteString(ProgressWriter(ctx), "Receiving objects: 50% (1/2)\n")
+		_, _ = io.WriteString(ProgressWriter(ctx), "Receiving objects: 50% (1/2)\n")
 		n, err := io.WriteString(req.PackOutput, "pack bytes")
-		io.WriteString(ProgressWriter(ctx), "Resolving deltas: 100% (1/1), done.\n")
+		_, _ = io.WriteString(ProgressWriter(ctx), "Resolving deltas: 100% (1/1), done.\n")
 		return Response{PackBytes: int64(n)}, err
 	}); err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestProgressNeverCountsAsPackOrReplacesReceipt(t *testing.T) {
 	}
 	for _, line := range []string{"remote: token=secret", strings.Repeat("x", 4097), ""} {
 		var malicious bytes.Buffer
-		binary.Write(&malicious, binary.BigEndian, progressFrame|uint32(len(line)))
+		_ = binary.Write(&malicious, binary.BigEndian, progressFrame|uint32(len(line)))
 		malicious.WriteString(line)
 		malicious.Write(original)
 		if _, err := ReadResponseProgress(&malicious, io.Discard, io.Discard); err == nil {

@@ -87,7 +87,7 @@ func (c *Client) AddRepository(ctx context.Context, req RepositoryAddRequest, pr
 	if err != nil {
 		return gitrepo.Object{}, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	reader := bufio.NewReaderSize(conn, 32<<10)
 	for {
 		line, err := reader.ReadSlice('\n')
