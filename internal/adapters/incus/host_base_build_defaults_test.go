@@ -43,7 +43,10 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHBuild(t *testing.T
 		t.Fatalf("unexpected Packer template: mode=%q content=%q", packer.mode, packer.content)
 	}
 	setup := published[trustedHostOpenSSHBaseBuildDir+"/setup.sh"]
-	if setup.mode != "0755" || !strings.Contains(setup.content, "openssh-server") {
+	if setup.mode != "0755" ||
+		!strings.Contains(setup.content, "apt-get update") ||
+		!strings.Contains(setup.content, "apt-get install -y --no-install-recommends openssh-server") ||
+		!strings.Contains(setup.content, "rm -rf /var/lib/apt/lists/*") {
 		t.Fatalf("unexpected setup script: mode=%q content=%q", setup.mode, setup.content)
 	}
 	build := published[trustedHostOpenSSHBaseBuildDir+"/build.sh"]
