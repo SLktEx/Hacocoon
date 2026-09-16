@@ -1,6 +1,6 @@
-# ADR 0108: Register repositories independently of checkout branches
+# ADR 0110: Register repositories independently of checkout branches
 
-[日本語](0108-branch-independent-repositories.ja.md) | English
+[日本語](0110-branch-independent-repositories.ja.md) | English
 
 Status: accepted. Refs #709.
 

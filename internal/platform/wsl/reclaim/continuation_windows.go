@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/platform/wsl/coord"
 	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 
 	"golang.org/x/sys/windows"
@@ -112,6 +113,13 @@ func (r registration) withReclamationTarget(ctx context.Context, visit func(*ope
 		return targetStage("exclusion", err)
 	}
 	defer func() { err = errors.Join(err, guard.Close()) }()
+	// Keep native notification peers from reopening this WSL between stop and
+	// compaction/resume. The registration/disk checks remain mutation authority.
+	launchGuard, err := wslcoord.AcquireLaunch(r.Name)
+	if err != nil {
+		return targetStage("exclusion", err)
+	}
+	defer func() { err = errors.Join(err, launchGuard.Close()) }()
 	path, err := r.diskPath()
 	if err != nil {
 		return targetStage("disk_path", err)

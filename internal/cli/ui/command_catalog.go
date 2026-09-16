@@ -185,6 +185,8 @@ var commandCatalog = map[string]translation{
 	"run.truncated":                    {"haco: command output was truncated", "haco: 出力が長いため一部を省略しました。"},
 	"run.cleanup_unknown":              {"haco: execution or cleanup failed; inspect Environment %s. Cleanup is not confirmed.", "haco: 実行または片付けに失敗し、片付け完了は未確認です。haco env status %sで確認してください。"},
 	"run.no_result":                    {"haco: temporary execution failed before a result was received; inspect haco env list", "haco: 一時実行の結果を受け取れませんでした。haco env listで確認してください。"},
+	"run.failure_reason":               {"haco: temporary execution failed (reason=%s).", "haco: 一時実行に失敗しました（reason=%s）。"},
+	"run.busy":                         {"Workspace or storage is in use. Inspect haco env list and the existing Environment. Stopping an Environment retains its Workspace lease; use that Environment or an independent Workspace copy.", "Workspaceまたは保存領域が使用中です。haco env listと既存Envの状態を確認してください。Envを停止してもWorkspaceの使用権は残ります。既存Envを使うか、Workspaceの独立コピーを選んでください。"},
 	"run.invalid_exit":                 {"haco: invalid command exit status", "haco: コマンドの終了値が不正です。"},
 	"run.execution_failed":             {"haco: execution failed; Environment cleanup completed", "haco: 実行に失敗しました。Envの片付けは完了しています。"},
 	"run.flag_input":                   {"stream standard input and output", "標準入力と出力を逐次転送する"},

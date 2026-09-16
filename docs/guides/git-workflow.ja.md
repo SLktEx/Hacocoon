@@ -164,7 +164,7 @@ haco workspace create --repo sample --branch feature/foo work-feature
 
 pre-1.0の方針に従い、`repo clone`と旧APIは非推奨aliasを残さず削除しました。
 branchを含む旧ソース記録は非互換として扱い、データを保持したまま自動変換は行いません。
-[判断理由](../adr/0108-branch-independent-repositories.ja.md)を参照してください。
+[判断理由](../adr/0110-branch-independent-repositories.ja.md)を参照してください。
 
 ## 複数リポジトリ
 

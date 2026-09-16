@@ -52,7 +52,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"help", "help.help"},
 		{"version", "help.version"},
 	} {
-		_, _ = fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s", command.name), language.Text(command.message), 60))
+		_, _ = fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s ", command.name), language.Text(command.message), 60))
 	}
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, language.Text("help.daily"))

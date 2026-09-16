@@ -85,4 +85,4 @@ Repository tests cover shipped CLI registration/open over Unix RPC, independent
 multi-repository ownership, normal Base selection, stop/resume with retained
 edits, duplicate opens, cancellation, lost replies and unsafe references. Native
 Incus, package downloads/approvals and desktop startup require separate acceptance.
-See [ADR 0109](../adr/0109-default-development-session.md).
+See [ADR 0111](../adr/0111-default-development-session.md).

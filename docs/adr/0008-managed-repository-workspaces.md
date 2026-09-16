@@ -4,7 +4,7 @@ Status: accepted for implementation
 Date: 2026-09-06
 
 The branch-from-registration decision is superseded by
-[ADR 0108](0108-branch-independent-repositories.md). Source ownership and
+[ADR 0110](0110-branch-independent-repositories.md). Source ownership and
 independent Workspace isolation remain unchanged.
 
 ## Context

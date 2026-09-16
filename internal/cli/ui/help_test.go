@@ -1,11 +1,26 @@
 package cliui
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
 	"golang.org/x/text/width"
 )
+
+func TestLongCommandNamesStaySeparateFromExplanations(t *testing.T) {
+	for _, language := range []Language{English, Japanese} {
+		var out bytes.Buffer
+		pages := []CommandHelp{
+			{Path: "parent", Message: "command.env"},
+			{Path: "parent long-command-name", Message: "command.env.create"},
+		}
+		if !WriteCommandHelp(&out, "haco", "parent", pages, language) ||
+			!strings.Contains(out.String(), "  long-command-name ") {
+			t.Fatalf("command runs into its explanation: %s", out.String())
+		}
+	}
+}
 
 func TestHelpExplanationFitsNarrowAndNormalTerminals(t *testing.T) {
 	for _, columns := range []int{60, 80} {

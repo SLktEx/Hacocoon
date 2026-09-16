@@ -72,4 +72,4 @@ open自身がワイルドカードルール・保存済み承認・権限を追�
 実バイナリとUnix RPCによる複数repoの登録・open、独立した所有権、既定Baseの選択、
 編集を保持した停止・再開、同時open、キャンセル、応答喪失、不正な参照を
 リポジトリテストで検証します。Incus実機、パッケージ取得・承認、デスクトップ起動は
-別途確認が必要です。[ADR 0109](../adr/0109-default-development-session.ja.md)を参照してください。
+別途確認が必要です。[ADR 0111](../adr/0111-default-development-session.ja.md)を参照してください。

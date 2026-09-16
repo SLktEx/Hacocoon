@@ -104,7 +104,7 @@ its identity, request or persisted source record. `repository.add` replaces
 The shared storage record's optional `branch` field belongs only to Workspaces.
 Source records containing a branch are incompatible and fail closed; automatic
 conversion of old source records is not provided. Existing owned data is retained.
-See [ADR 0108](../adr/0108-branch-independent-repositories.md).
+See [ADR 0110](../adr/0110-branch-independent-repositories.md).
 
 The trusted source remains an ordinary Git repository on its existing owned
 volume. Registration uses `clone --no-checkout --no-tags` with the normal all-heads

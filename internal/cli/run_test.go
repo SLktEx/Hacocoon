@@ -7,6 +7,8 @@ import (
 	"net"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
@@ -70,6 +72,64 @@ func TestTemporaryUsageDoesNotStartWork(t *testing.T) {
 		var out, diag bytes.Buffer
 		if code := temporaryCommand(context.Background(), args, &out, &diag); code != 2 {
 			t.Fatalf("args=%q code=%d", args, code)
+		}
+	}
+}
+
+func TestTemporaryFailureExplainsBusyWithoutExposingBackend(t *testing.T) {
+	for _, language := range []string{"en", "ja"} {
+		for _, reason := range []string{"busy", "private-unrecognized"} {
+			t.Run(language+"/"+reason, func(t *testing.T) {
+				t.Setenv("HACO_UI_LANGUAGE", language)
+				server := control.NewServer()
+				var calls atomic.Int32
+				if err := server.RegisterStream(controlapi.MethodRun, func(context.Context, json.RawMessage) (control.Stream, error) {
+					return func(_ context.Context, c net.Conn) error {
+						calls.Add(1)
+						return json.NewEncoder(c).Encode(map[string]any{
+							"result": runapp.Result{Environment: "run-refused"},
+							"error":  control.NewStatusError(reason, "PRIVATE-BACKEND\nsecret"),
+						})
+					}, nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				socket := filepath.Join(t.TempDir(), "controller.sock")
+				listener, err := control.ListenUnix(socket, 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				done := make(chan error, 1)
+				go func() { done <- server.Serve(ctx, listener) }()
+				t.Cleanup(func() { cancel(); <-done })
+				t.Setenv("HACO_CONTROL_SOCKET", socket)
+				var out, diag bytes.Buffer
+				if code := temporaryCommand(ctx, []string{"--json", "--workspace", "managed:work", "--", "true"}, &out, &diag); code != 1 {
+					t.Fatalf("code=%d", code)
+				}
+				var result runapp.Result
+				if err := json.Unmarshal(out.Bytes(), &result); err != nil || result.CleanedUp || result.Environment != "run-refused" {
+					t.Fatalf("receipt=%s err=%v", out.String(), err)
+				}
+				wantReason := "failed"
+				if reason == "busy" {
+					wantReason = "busy"
+					want := map[string]string{"en": "Stopping an Environment retains its Workspace lease", "ja": "Envを停止してもWorkspaceの使用権は残ります"}[language]
+					if !strings.Contains(diag.String(), want) || !strings.Contains(diag.String(), "haco env list") {
+						t.Fatalf("missing busy guidance: %s", diag.String())
+					}
+				}
+				if !strings.Contains(diag.String(), "reason="+wantReason) || !strings.Contains(diag.String(), "run-refused") {
+					t.Fatalf("missing reason or cleanup guidance: %s", diag.String())
+				}
+				if strings.Contains(diag.String(), "PRIVATE") || strings.Contains(diag.String(), "secret") || strings.Contains(diag.String(), "private-unrecognized") {
+					t.Fatalf("backend detail exposed: %s", diag.String())
+				}
+				if calls.Load() != 1 {
+					t.Fatalf("run was retried %d times", calls.Load())
+				}
+			})
 		}
 	}
 }

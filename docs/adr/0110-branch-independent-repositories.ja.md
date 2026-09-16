@@ -1,6 +1,6 @@
-# ADR 0108: チェックアウトするブランチに依存せずリポジトリを登録する
+# ADR 0110: チェックアウトするブランチに依存せずリポジトリを登録する
 
-[English](0108-branch-independent-repositories.md) | 日本語
+[English](0110-branch-independent-repositories.md) | 日本語
 
 状態: 採用。関連: #709。
 

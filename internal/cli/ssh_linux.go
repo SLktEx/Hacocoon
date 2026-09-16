@@ -28,17 +28,17 @@ func runSSH(args []string) int {
 			err = sshclient.Cleanup(ctx, client, desktop)
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "haco: SSH cleanup could not establish stale targets")
+			fmt.Fprintln(os.Stderr, cliMessage("ssh.cleanup_unconfirmed"))
 			return 1
 		}
 		return 0
 	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(os.Stdout, "Usage: haco ssh setup [environment]; blank selection cancels. Keys stay on the desktop client.")
+		commandHelp(os.Stdout, "ssh", cliLanguage())
 		return 0
 	}
 	if len(args) == 0 || args[0] != "setup" || len(args) > 2 {
-		fmt.Fprintln(os.Stderr, "Usage: haco ssh setup [environment]")
+		commandHelp(os.Stderr, "ssh", cliLanguage())
 		return 2
 	}
 	return setupDesktopSSH(args[1:], "")
@@ -84,18 +84,22 @@ func runOpen(args []string) int {
 		return 2
 	}
 	if *jsonOutput && ((!pathMode && !defaultMode) || *selected != "none") {
-		fmt.Fprintln(os.Stderr, cliMessage("detail.open_json"))
+		fmt.Fprintln(os.Stderr, cliMessage("open.json_path"))
 		return 2
 	}
 	if !pathMode && (*repos != "" || *workName != "" || (!defaultMode && (*base != "" || *oci != "" || *selected == "none"))) {
-		fmt.Fprintln(os.Stderr, "haco: --repo, --name, --base, --oci and --client none require a directory")
+		fmt.Fprintln(os.Stderr, cliMessage("open.path_options"))
+		return 2
+	}
+	if (*closePreview || *noBrowser) && !portSet {
+		fmt.Fprintln(os.Stderr, cliMessage("open.preview_port"))
+		return 2
+	}
+	if portSet && (*port < 1 || *port > 65535 || *selected != "vscode") {
+		fmt.Fprintln(os.Stderr, cliMessage("open.preview_options"))
 		return 2
 	}
 	if defaultMode {
-		if *closePreview || *noBrowser {
-			flags.Usage()
-			return 2
-		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
@@ -121,12 +125,6 @@ func runOpen(args []string) int {
 		}
 	}
 	if pathMode {
-		if (*closePreview || *noBrowser) && !portSet {
-			return 2
-		}
-		if portSet && (*port < 1 || *port > 65535 || *selected != "vscode") {
-			return 2
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
 		client := controlapi.NewDefaultClient()
@@ -143,21 +141,14 @@ func runOpen(args []string) int {
 			}
 			return 0
 		}
-		fmt.Fprintln(os.Stderr, "Workspace ready:", result.Name, "— edit the isolated copy under /workspace")
+		fmt.Fprintln(os.Stderr, cliMessage("open.workspace_ready", displayCell(result.Name)))
 	}
 	if portSet {
-		if *port < 1 || *port > 65535 || *selected != "vscode" {
-			return 2
-		}
 		name := ""
 		if len(selectedArgs) == 1 {
 			name = selectedArgs[0]
 		}
 		return openPreview(name, *port, *closePreview, *noBrowser, os.Stdout, os.Stderr)
-	}
-	if *closePreview || *noBrowser {
-		fmt.Fprintln(os.Stderr, "haco: --close and --no-browser require --port")
-		return 2
 	}
 	return setupDesktopSSHSelected(selectedArgs, *selected, preparedEnvironment)
 }
@@ -212,7 +203,7 @@ func setupDesktopSSHSelected(args []string, launch string, selectedEnvironment *
 		return dailyFailure(os.Stderr, "open", "ssh_connection", name, err)
 	}
 	fmt.Fprintln(os.Stderr, "[succeeded] ssh_connection")
-	if _, err := fmt.Fprintln(os.Stdout, "SSH ready:", alias); err != nil {
+	if _, err := fmt.Fprintln(os.Stdout, cliMessage("ssh.ready", displayCell(alias))); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, cliMessage("error.write_result"))
 		return 1
 	}
@@ -229,7 +220,7 @@ func setupDesktopSSHSelected(args []string, launch string, selectedEnvironment *
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
 		if err := command.Run(); err != nil {
-			fmt.Fprintln(os.Stderr, "haco: SSH client:", err)
+			fmt.Fprintln(os.Stderr, cliMessage("ssh.client_failed"), err)
 			return 1
 		}
 		return 0
@@ -245,9 +236,9 @@ func setupDesktopSSHSelected(args []string, launch string, selectedEnvironment *
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
-		fmt.Fprintln(os.Stderr, "SSH preparation remains available; inspect the Env before retrying haco open.")
+		fmt.Fprintln(os.Stderr, cliMessage("open.editor_retry"))
 		return 1
 	}
-	fmt.Fprintln(os.Stderr, "Editor process launched; connection/edit/build/test readiness is not yet confirmed.")
+	fmt.Fprintln(os.Stderr, cliMessage("open.editor_launched"))
 	return 0
 }

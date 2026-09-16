@@ -179,7 +179,7 @@ default; `--branch` is supported only for a single source.
 
 The pre-1.0 command `repo clone` and its API are removed, with no deprecated
 alias. Old source records containing a branch are incompatible and retained
-without automatic conversion; see [the decision](../adr/0108-branch-independent-repositories.md).
+without automatic conversion; see [the decision](../adr/0110-branch-independent-repositories.md).
 
 ## Multiple repositories
 

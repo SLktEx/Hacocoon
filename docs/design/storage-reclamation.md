@@ -219,3 +219,12 @@ retry, record clearing, relaxed enrollment or change to disk ownership is introd
 A saved `compact_attached` result explains that Windows compaction did not start
 because the disk remained in use, data remains retained, and another attempt requires
 explicit review. It does not stop other WSL distributions to force disk readiness.
+
+## Background notification starts
+
+Reclamation also holds the shared per-user/distribution launch reservation through
+its whole protected operation. Native notification peer startup holds the same
+reservation until a bounded read-only handshake finishes, then releases it.
+A busy reservation refuses a new peer without launching WSL or replaying an
+answer. Existing external clients can still prevent detachment; the original
+ownership checks, 90-second bound and refusal remain. See [ADR 0108](../adr/0108-background-wsl-start-coordination.md).

@@ -63,6 +63,11 @@ func TestLocalizedHelpPreservesCurrentMainEntry(t *testing.T) {
 	for _, language := range []cliui.Language{cliui.English, cliui.Japanese} {
 		var out bytes.Buffer
 		writeLocalizedHelp(&out, language)
+		for _, command := range []string{"experimental edit vscode", "ssh cleanup"} {
+			if !strings.Contains(out.String(), "  "+command+" ") {
+				t.Fatalf("command runs into its explanation: %s", out.String())
+			}
+		}
 		for _, command := range []string{"experimental edit vscode", "ssh cleanup", "haco env stop <name>", "haco env delete <name>"} {
 			if !strings.Contains(out.String(), command) {
 				t.Fatalf("missing %q: %s", command, out.String())

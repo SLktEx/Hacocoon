@@ -69,7 +69,7 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 ## Packerでひな形を作る
 
 ```sh
-haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--builder <env>] [--output] [--json] <directory>
 ```
 
 フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。
