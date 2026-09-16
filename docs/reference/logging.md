@@ -237,3 +237,11 @@ and `host_origins` for WSL host processes, even when their launcher has exited.
 Both use the same fixed parent categories and reject missing/reused parent
 identities. Raw names, paths, PIDs and command lines remain excluded. These
 Windows-wide observations diagnose timing; they never authorize a stop or compaction.
+
+A separate bounded Windows process-start subscription records short-lived launchers
+that can disappear between snapshots. `reclamation_windows_start` emits only
+fixed `state`, `kind`, parent `chain` and elapsed `duration_ms`; parent PID reuse
+is rejected against the event's UTC creation time. At most 128 events are retained
+for 700 seconds, with explicit unavailable/truncated results. Raw WMI fields and
+errors are discarded. This observer never enters WSL, changes a worker result or
+kills the worker; teardown stops only its own observer process.

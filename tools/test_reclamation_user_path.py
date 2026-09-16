@@ -16,6 +16,69 @@ PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_start_event_projection_rejects_private_fields_and_unbounded_values(self):
+        valid = {"state": "observed", "kind": "wsl", "chain": "notification/powershell/other", "duration_ms": 12}
+        self.assertEqual(gate.observed_start_event(valid), valid)
+        for key, value in (("kind", "private.exe"), ("chain", "private.exe"), ("chain", []),
+                           ("duration_ms", True), ("duration_ms", -1), ("duration_ms", 725001),
+                           ("private", "secret")):
+            with self.subTest(key=key, value=value):
+                self.assertEqual(gate.observed_start_event(dict(valid, **{key: value})), {"state": "unavailable"})
+        self.assertEqual(gate.observed_start_event({"state": "unavailable", "error": "private"}), {"state": "unavailable"})
+
+    def test_event_reader_is_bounded_and_records_missing_readiness(self):
+        import io
+        from types import SimpleNamespace
+        for content, state in ((b'', 'unavailable'), (b'x' * 2049, 'unavailable'),
+                               (b'{"state":"ready"}\n' * 200, 'truncated')):
+            observer = gate.ProcessStartObserver()
+            observer.process = SimpleNamespace(stdout=io.BytesIO(content))
+            observer.read()
+            self.assertTrue(observer.ready.is_set())
+            self.assertEqual(observer.rows[-1], {"state": state})
+            self.assertLessEqual(len(observer.rows), 132)
+
+    def test_unavailable_observer_cannot_replace_product_failure(self):
+        with patch.dict(gate.os.environ, {"SystemRoot": r"C:\Windows"}), \
+             patch.object(gate.subprocess, 'CREATE_NO_WINDOW', 0, create=True), \
+             patch.object(gate.subprocess, 'Popen', side_effect=OSError('private error')), \
+             patch('builtins.print') as output:
+            with self.assertRaisesRegex(RuntimeError, 'original worker failure'):
+                with gate.ProcessStartObserver():
+                    raise RuntimeError('original worker failure')
+            self.assertNotIn('private', str(output.call_args_list))
+            self.assertIn('unavailable', str(output.call_args_list))
+
+    @unittest.skipUnless(os.name == "nt", "Windows PowerShell event projection contract")
+    def test_event_projection_keeps_exited_launch_and_rejects_reused_parent(self):
+        fixture = r"""
+function Register-CimIndicationEvent { }
+function Unregister-Event { }
+function Remove-Event { }
+function Get-Event { }
+$script:events=0;
+function Wait-Event {
+  $script:events++;if($script:events -gt 2) { throw 'end fixture' };
+  [pscustomobject]@{EventIdentifier=1;SourceEventArgs=[pscustomobject]@{NewEvent=[pscustomobject]@{
+    ProcessName='wsl.exe';ProcessID=10;ParentProcessID=$script:events;
+    TIME_CREATED=([datetime]'2026-01-01T00:00:10Z').ToFileTimeUtc() }}}
+}
+function Get-CimInstance {
+  # The child has exited before this snapshot. Event parent identity remains.
+  [pscustomobject]@{ProcessId=1;ParentProcessId=99;Name='haco-review.exe';CreationDate=[datetime]'2026-01-01T00:00:00Z'};
+  [pscustomobject]@{ProcessId=2;ParentProcessId=99;Name='private.exe';CreationDate=[datetime]'2026-01-01T00:01:00Z'};
+}
+"""
+        powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command',
+                                 fixture + gate.process_event_query()], capture_output=True, timeout=25)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        rows = [json.loads(line) for line in result.stdout.decode('utf-8-sig').splitlines()]
+        events = [row for row in rows if row['state'] == 'observed']
+        self.assertEqual([row['chain'] for row in events], ['notification/unavailable', 'unavailable'])
+        self.assertTrue(all(gate.observed_start_event(row) == row for row in rows))
+        self.assertNotIn('private', result.stdout.decode('utf-8-sig'))
+
     def test_host_origins_remain_visible_without_a_live_launcher(self):
         snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 0, "vmmemWSL": 1},
                     "origins": {}, "host_origins": {"service/other": 1, "unavailable": 1}}

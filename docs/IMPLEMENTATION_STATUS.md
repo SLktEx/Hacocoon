@@ -69,8 +69,11 @@ Implemented in the current candidate: shared Incus signing-key retrieval tolerat
 bounded transient connection failures before changing APT state. At `1054688e`,
 Windows installation, native tunnel cleanup and public reclamation passed, but
 Incus standalone setup failed to connect to the key source before product tests.
-The failure and pending corrected-head acceptance remain in the
-[acceptance record](status/acceptance-evidence.md#incus-key-download).
+At `a0303de9`, the corrected Incus and Ubuntu paths passed, but Windows public
+reclamation again refused an attached disk and successfully resumed WSL.
+Read-only process-start observations now complement periodic diagnostics; this is
+not yet a root-cause fix. These failures and the remaining acceptance are kept in
+the [acceptance record](status/acceptance-evidence.md#incus-key-download).
 
 Optional `haco base build --builder <env>` is **implemented in this checkout**
 ([#705](https://github.com/SLktEx/Hacocoon/pull/705) tracks main integration). It permits ordinary administrator communication rules to name the build

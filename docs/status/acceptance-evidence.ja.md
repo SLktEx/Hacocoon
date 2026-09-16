@@ -1636,3 +1636,21 @@ HTTPSと固定primary keyの照合は維持。隔離TLSサーバーと実curlに
 最初の追加fixtureはContent-Length不足によるTLS EOFで失敗し、HTTP応答を修正後に
 共通helperの13試験が9.19秒で成功。修正後headの配布相当・native CI確認は未完了とし、
 過去の失敗記録も保持する。
+
+`a0303de9`はtest35104226448・quality35104226544・Ubuntu35104226594・
+Incus35104226446が成功。鍵helperの13試験はCIでも9.01秒で成功した。別のローカル確認では、
+実curlの接続拒否（終了理由7）を観測してから隔離TLS listenerを開始し、無改変helperでの
+取得復旧を確認。鍵解析・Host/パッケージ変更はcommand-boundary fixtureの模擬と区別する。
+
+Windows35104226632/job104821130448は導入・HTTPS・SSH/エディタ・転送Ctrl+C終了・
+Linux回収まで成功し、公開回収で`compact_attached`、357回、圧縮未開始、復帰成功となった。
+通知はSKIP。host数は7.7秒で0、29.1秒で`service/windows-service/other`由来の2件が現れ、
+45.2秒で0に戻った。そのsnapshotにlauncherはなく、共有VMは残存。93.2秒の起動はworkerの
+復帰処理だった。5秒間隔では短命な起動元や対象distributionを確定できず、この失敗は未解決。
+
+snapshotを補う上限付き・読み取り専用のWindows起動イベント観測を追加した。親分類を共有し、
+生の名前・パス・ID・引数を記録せず、worker結果の変更・再試行・WSLへの接続を行わない。
+手元のPowerShell 5.1の投影試験で終了済み子と再利用された親、reader試験で上限・不正項目・
+秘密項目・観測失敗時の元の製品失敗保持を確認。実イベント購読はWindowsのアクセス制御で
+拒否されたため、イベントprovider自体の確認はCI待ち。手元の別WSLは稼働中のまま触れず、
+新たな導入済み容量回収は実行していない。同head再実行・main統合なし。

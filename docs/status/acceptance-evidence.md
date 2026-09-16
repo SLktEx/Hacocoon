@@ -1952,3 +1952,28 @@ curl against an isolated TLS server covers 503 recovery, exhaustion, permanent
 first new fixture omitted Content-Length and failed on TLS EOF; after fixing
 the fixture's HTTP framing, all 13 helper tests passed in 9.19 s. Corrected-head
 packaged/native CI acceptance remains pending; earlier failures remain recorded.
+
+At `a0303de9`, test35104226448, quality35104226544, Ubuntu35104226594 and
+Incus35104226446 passed. The new 13 key-helper tests passed in CI (9.01 s).
+A separate local real-curl probe observed actual connection refusal (exit 7),
+then started the isolated TLS listener and confirmed recovery through the unchanged
+helper. Key parsing and Host/package mutations remained command-boundary fixtures.
+
+Windows35104226632/job104821130448 passed installation, HTTPS, SSH/editor,
+tunnel Ctrl+C cleanup and Linux reclamation, then failed public reclamation:
+`compact_attached`, 357 opens, no compaction attempted, resume succeeded;
+notification was skipped. WSL host counts fell to zero at 7.7 s, returned at
+29.1 s with `service/windows-service/other` ancestry, and fell to zero at 45.2 s.
+No launcher was present in those snapshots; the shared VM remained. The 93.2 s
+launch was the worker's recovery. Five-second sampling cannot exclude shorter
+launchers or establish the exact distribution. This failure is unresolved.
+
+A bounded read-only Windows process-start subscription now complements snapshots,
+sharing parent classification and reporting no raw names, paths, IDs or arguments.
+It never changes worker results, retries work or enters WSL. Local PowerShell 5.1
+projection tests cover an already-exited child and a reused parent; reader tests
+cover limits, malformed/private fields and diagnostic failure preserving the
+original product failure. Actual local subscription was denied by Windows access
+control, so event-provider acceptance remains pending CI. Another local WSL was
+running and was left untouched; no new installed reclaim was attempted. No
+same-head rerun or main merge was performed.

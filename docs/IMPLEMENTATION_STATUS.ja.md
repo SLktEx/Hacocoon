@@ -65,7 +65,10 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 現候補に実装済み: Incus署名鍵の共通取得処理は、APT設定を変える前に一時的な接続失敗を
 回数・時間の上限付きで再試行する。`1054688e`ではWindows導入・通常転送の終了・容量回収が
 成功した一方、Incus standaloneは署名鍵の配布元へ接続できず、製品試験前に失敗した。
-失敗と修正後headの確認待ちは[検証証拠](status/acceptance-evidence.ja.md#incus-key-download)に記録する。
+`a0303de9`で修正後のIncus・Ubuntu経路は成功したが、Windowsの公開容量回収は使用中の
+ディスクを再び拒否し、WSLの再開は成功した。定期的な診断に読み取り専用のプロセス開始観測を
+追加したが、根本原因の修正は未完了。失敗と残る確認は
+[検証証拠](status/acceptance-evidence.ja.md#incus-key-download)に記録する。
 
 任意の `haco base build --builder <env>` は**このcheckoutに実装済み**。
 main統合は[#705](https://github.com/SLktEx/Hacocoon/pull/705)で追跡する。

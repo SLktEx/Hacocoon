@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -95,6 +96,30 @@ def read_json(command):
     return json.loads(result.stdout.decode("utf-8-sig"))
 
 
+def process_origin_script():
+    return """
+$classes=@{'wsl.exe'='wsl';'haco-wsl.exe'='reclamation';'ssh.exe'='ssh';'Code.exe'='editor';'cmd.exe'='shell';'powershell.exe'='powershell';'pwsh.exe'='powershell';'python.exe'='python';'python3.exe'='python';'WindowsTerminal.exe'='terminal';'OpenConsole.exe'='terminal';'conhost.exe'='terminal';'wslservice.exe'='service';'haco-notify.exe'='notification'};
+foreach($name in @('haco-review.exe','haco-notify.exe')) { $classes[$name]='notification' };
+foreach($name in @('haco-vscode.exe','haco-agent-host.exe','haco-tunnel.exe')) { $classes[$name]='hacocoon-client' };
+$classes['wslhost.exe']='wsl-host';$classes['wslrelay.exe']='wsl-relay';
+foreach($name in @('explorer.exe','svchost.exe','services.exe','taskhostw.exe','taskeng.exe','RuntimeBroker.exe','WmiPrvSE.exe','SearchIndexer.exe','dllhost.exe')) { $classes[$name]='windows-service' };
+function Get-ProcessOrigin($row, $byId) {
+    $chain=@();$child=$row;$seen=@{};
+    for($depth=0;$depth -lt 8;$depth++) {
+        $parent=$byId[[string]$child.ParentProcessId];
+        if($null -eq $parent -or $seen.ContainsKey([string]$parent.ProcessId) -or
+           $null -eq $parent.CreationDate -or $null -eq $child.CreationDate -or
+           $parent.CreationDate.ToUniversalTime() -gt $child.CreationDate.ToUniversalTime()) { $chain+='unavailable';break };
+        $seen[[string]$parent.ProcessId]=$true;
+        $kind=$classes[[string]$parent.Name];
+        if($null -eq $kind) { $chain+='other';break };
+        $chain+=$kind;$child=$parent;
+    };
+    return ($chain -join '/');
+};
+"""
+
+
 def process_query():
     # Windows process metadata only: do not enter WSL to observe its shutdown.
     # Existing helper identity checks still receive only helper executable paths.
@@ -103,30 +128,132 @@ $rows=@(Get-CimInstance Win32_Process -Property Name,ExecutablePath,ProcessId,Pa
 $helpers=@($rows | Where-Object { $_.Name -eq 'haco-wsl.exe' } | Select-Object ExecutablePath);
 $counts=@{};foreach($name in @('wslhost.exe','wsl.exe','vmmemWSL')) { $counts[$name]=@($rows | Where-Object { $_.Name -eq $name }).Count };
 $byId=@{};foreach($row in $rows) { $byId[[string]$row.ProcessId]=$row };
-$classes=@{'wsl.exe'='wsl';'haco-wsl.exe'='reclamation';'ssh.exe'='ssh';'Code.exe'='editor';'cmd.exe'='shell';'powershell.exe'='powershell';'pwsh.exe'='powershell';'python.exe'='python';'python3.exe'='python';'WindowsTerminal.exe'='terminal';'OpenConsole.exe'='terminal';'conhost.exe'='terminal';'wslservice.exe'='service';'haco-notify.exe'='notification'};
-foreach($name in @('haco-review.exe','haco-notify.exe')) { $classes[$name]='notification' };
-foreach($name in @('haco-vscode.exe','haco-agent-host.exe','haco-tunnel.exe')) { $classes[$name]='hacocoon-client' };
-$classes['wslhost.exe']='wsl-host';$classes['wslrelay.exe']='wsl-relay';
-foreach($name in @('explorer.exe','svchost.exe','services.exe','taskhostw.exe','taskeng.exe','RuntimeBroker.exe','WmiPrvSE.exe','SearchIndexer.exe','dllhost.exe')) { $classes[$name]='windows-service' };
+""" + process_origin_script() + """
 $origins=@{};$hostOrigins=@{};
 foreach($row in @($rows | Where-Object { $_.Name -in @('wsl.exe','wslhost.exe') })) {
-    $chain=@();$child=$row;$seen=@{};
-    for($depth=0;$depth -lt 8;$depth++) {
-        $parent=$byId[[string]$child.ParentProcessId];
-        if($null -eq $parent -or $seen.ContainsKey([string]$parent.ProcessId) -or
-           $null -eq $parent.CreationDate -or $null -eq $child.CreationDate -or
-           $parent.CreationDate -gt $child.CreationDate) { $chain+='unavailable';break };
-        $seen[[string]$parent.ProcessId]=$true;
-        $kind=$classes[[string]$parent.Name];
-        if($null -eq $kind) { $chain+='other';break };
-        $chain+=$kind;$child=$parent;
-    };
-    $key=$chain -join '/';
+    $key=Get-ProcessOrigin $row $byId;
     $selected=if($row.Name -eq 'wsl.exe') { $origins } else { $hostOrigins };
     if($selected.ContainsKey($key)) { $selected[$key]++ } else { $selected[$key]=1 };
 };
 ConvertTo-Json -Compress -Depth 3 -InputObject @{ helpers=$helpers; counts=$counts; origins=$origins; host_origins=$hostOrigins }
 """
+
+
+def process_event_query():
+    # Event metadata survives a launcher exiting between five-second snapshots.
+    # Never emit provider strings, process IDs, paths, argv, SID or raw errors.
+    return """[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$ErrorActionPreference='Stop';
+""" + process_origin_script() + """
+$source='Hacocoon-Reclamation-Observation-'+[guid]::NewGuid().ToString('N');
+$clock=[Diagnostics.Stopwatch]::StartNew();$registered=$false;$count=0;
+try {
+    Register-CimIndicationEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='wsl.exe' OR ProcessName='wslhost.exe'" -SourceIdentifier $source | Out-Null;
+    $registered=$true;[Console]::WriteLine('{"state":"ready"}');
+    while($clock.ElapsedMilliseconds -lt 700000) {
+        $event=Wait-Event -SourceIdentifier $source -Timeout 1;
+        if($null -eq $event) { continue };
+        if($count -ge 128) { [Console]::WriteLine('{"state":"truncated"}');break };
+        $count++;$record=$event.SourceEventArgs.NewEvent;
+        if($null -eq $record.TIME_CREATED -or $null -eq $record.ProcessID -or $null -eq $record.ParentProcessID) { throw 'Incomplete event' };
+        $created=[DateTime]::FromFileTimeUtc([long]$record.TIME_CREATED);
+        $kind=if($record.ProcessName -eq 'wsl.exe') { 'wsl' } elseif($record.ProcessName -eq 'wslhost.exe') { 'wsl-host' } else { throw 'Unknown event kind' };
+        $row=[pscustomobject]@{ProcessId=$record.ProcessID;ParentProcessId=$record.ParentProcessID;CreationDate=$created};
+        $byId=@{};foreach($parent in @(Get-CimInstance Win32_Process -Property Name,ProcessId,ParentProcessId,CreationDate)) { $byId[[string]$parent.ProcessId]=$parent };
+        $chain=Get-ProcessOrigin $row $byId;
+        [Console]::WriteLine((ConvertTo-Json -Compress -InputObject @{state='observed';kind=$kind;chain=$chain;duration_ms=$clock.ElapsedMilliseconds}));
+        Remove-Event -EventIdentifier $event.EventIdentifier;
+    };
+} catch { [Console]::WriteLine('{"state":"unavailable"}') }
+finally { if($registered) { Unregister-Event -SourceIdentifier $source -ErrorAction SilentlyContinue;Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event } };
+"""
+
+
+def observed_start_event(row):
+    if not isinstance(row, dict):
+        return {"state": "unavailable"}
+    if set(row) == {"state"} and row["state"] in ("ready", "unavailable", "truncated"):
+        return row
+    if (set(row) != {"state", "kind", "chain", "duration_ms"} or row["state"] != "observed"
+            or row["kind"] not in ("wsl", "wsl-host") or type(row["duration_ms"]) is not int
+            or not 0 <= row["duration_ms"] <= 725000):
+        return {"state": "unavailable"}
+    process = "wsl.exe" if row["kind"] == "wsl" else "wslhost.exe"
+    field = "origins" if process == "wsl.exe" else "host_origins"
+    if not isinstance(row["chain"], str):
+        return {"state": "unavailable"}
+    snapshot = {"counts": {"wsl.exe": 0, "wslhost.exe": 0, "vmmemWSL": 0}, field: {row["chain"]: 1}}
+    snapshot["counts"][process] = 1
+    return row if observed_process_origins(snapshot, process)["state"] == "observed" else {"state": "unavailable"}
+
+
+class ProcessStartObserver:
+    """Bounded Windows-only diagnostics; failure never changes product acceptance."""
+    def __init__(self):
+        self.process = None
+        self.thread = None
+        self.ready = threading.Event()
+        self.rows = []
+        self.lock = threading.Lock()
+
+    def __enter__(self):
+        try:
+            powershell = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
+            self.process = subprocess.Popen([powershell, "-NoProfile", "-NonInteractive", "-Command", process_event_query()],
+                                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                            creationflags=subprocess.CREATE_NO_WINDOW)
+            self.thread = threading.Thread(target=self.read, daemon=True)
+            self.thread.start()
+            if not self.ready.wait(15):
+                self.emit({"state": "unavailable"})
+                self.close()
+        except (OSError, KeyError, subprocess.TimeoutExpired):
+            self.emit({"state": "unavailable"})
+        return self
+
+    def emit(self, row):
+        with self.lock:
+            if len(self.rows) < 132:
+                self.rows.append(row)
+
+    def read(self):
+        try:
+            for _ in range(131):
+                line = self.process.stdout.readline(2049)
+                if not line:
+                    if not self.ready.is_set():
+                        self.emit({"state": "unavailable"})
+                    return
+                if len(line) > 2048 or not line.endswith(b'\n'):
+                    raise ValueError('oversized observation')
+                row = observed_start_event(json.loads(line.decode('utf-8-sig')))
+                self.emit(row)
+                self.ready.set()
+                if row['state'] in ('unavailable', 'truncated'):
+                    return
+            self.emit({"state": "truncated"})
+        except (OSError, ValueError):
+            self.emit({"state": "unavailable"})
+        finally:
+            self.ready.set()
+
+    def close(self):
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.terminate()  # Only our read-only observer, never WSL/worker.
+            self.process.wait(timeout=5)
+            if self.thread is not None:
+                self.thread.join(timeout=5)
+            self.process.stdout.close()
+
+    def __exit__(self, *_):
+        try:
+            self.close()
+        except (OSError, subprocess.TimeoutExpired):
+            self.emit({"state": "unavailable"})
+        with self.lock:
+            for row in self.rows:
+                print(json.dumps({"component": "ci", "operation": "reclamation_windows_start",
+                                  "scope": "all-windows-wsl-processes", **row}), flush=True)
 
 
 def observed_process_counts(snapshot):
@@ -311,7 +438,8 @@ def main():
             stage = 7
 
     try:
-        terminal.run(on_output=drive)
+        with ProcessStartObserver():
+            terminal.run(on_output=drive)
         if stage != 7:
             raise RuntimeError("Public reclamation journey incomplete")
     finally:
