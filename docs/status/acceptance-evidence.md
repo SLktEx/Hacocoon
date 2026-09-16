@@ -1977,3 +1977,42 @@ original product failure. Actual local subscription was denied by Windows access
 control, so event-provider acceptance remains pending CI. Another local WSL was
 running and was left untouched; no new installed reclaim was attempted. No
 same-head rerun or main merge was performed.
+
+<a id="private-windows-launch-descendants"></a>
+
+## Private Windows launch descendants
+
+The preceding #708 head `a67a982acaaacb8f446db338d8b40808e096b467` passed all
+five required workflows and was merged as `63bc41d14336b8c50895b4f689b12e2a49583a31`.
+Windows run35110190568/job104841576457 recovered 2,805,989,376 allocated bytes,
+resumed the same WSL and passed retained-data, native tunnel Ctrl+C and notification
+routes. Its actual process-start observer saw no new WSL launch between stop and
+recovery. That pass does not explain the earlier failed candidates above.
+
+On that main baseline, a new native component regression reproduced a descendant
+writing after failed readiness and `peer.Close` (2.21 s, failure). The private-job
+fix is `aec8d4bca6ed9f07b2ad74c76f99ac6895082442`. Native review package tests then
+passed (3.86 s), including delayed descendants, an exited wrapper, unrelated-peer
+survival, cancellation and launch exclusion. The interactive toast surface test
+was SKIP because no interactive notification session was enabled; human clicks
+were not exercised. Windows amd64 test compilation and arm64 compilation passed,
+as did the shared review/forward Linux packages. A one-off native read-only
+`SessionPlan("Hacocoon")` handshake and confirmed close succeeded against the
+installed `d8ec1374` distribution (0.06 s). This did not replace installed binaries
+or submit an approval. Packaged acceptance of this fix remains pending.
+
+Separate investigation of installed `d8ec1374` passed three ordinary Windows
+native-owner / 8x1 MiB / half-close / Ctrl+C tunnel runs. The fourth stopped before
+exchange when `Get-NetTCPConnection` observation exceeded its 15-second bound;
+that is an unresolved observation failure, not another Ctrl+C failure. A bounded
+pipe-only probe through ordinary Host entry passed 25 real WSL-to-Windows Ctrl+C
+cancellations. The first probe attempted direct outer-WSL execution and failed
+with exec-format error; it was not cancellation evidence. None of these passes
+establishes the cause of the older `423fa602` tunnel nonzero exit.
+
+No new local public reclamation ran: another distribution remained running and
+was left untouched. The actual local Windows process-start subscription remained
+unavailable due to Windows access control. The prior `a0303de9` attached-disk
+failure remains unresolved; the new reproduced ownership defect is a concrete
+fix, not proof of identity with every intermittent failure. See
+[ADR 0110](../adr/0110-private-windows-process-ownership.md).

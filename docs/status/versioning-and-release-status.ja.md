@@ -15,6 +15,10 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 
 ## checkpoint履歴
 
+Windows通知の子孫プロセス終了修正は、既存の起動排他の契約を修復するものであり、
+v0.68の範囲に含める。[ADR 0110](../adr/0110-private-windows-process-ownership.ja.md)を参照。
+この修正によるタグ・リリース作成は行わない。
+
 #708とmainの責務整理の統合はv0.68内の変更です。既存のビルダー名指定・棚卸し・
 Windows起動調整を保持し、mainのstream終了待ち修正を再利用します。
 [候補ごとの検証結果](acceptance-evidence.ja.md#責務整理後の統合)を参照してください。

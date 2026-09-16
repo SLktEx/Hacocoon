@@ -54,6 +54,14 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 
 ## 確認の境界
 
+実装済み: Windowsの通知用起動は、作成時から子孫プロセスを所有する。
+接続準備に失敗した場合は、終了を確認してから起動排他を解放する。
+`63bc41d1` で子孫が残る不具合を実Windowsで再現し、`aec8d4bc` で回帰テストと
+手元の導入済みWSLへの読み取り接続が成功した。過去の接続中ディスク・転送の
+間欠的失敗すべてが解決した証拠ではない。
+[所有の決定](adr/0110-private-windows-process-ownership.ja.md)と
+[確認範囲](status/acceptance-evidence.ja.md#private-windows-launch-descendants)を参照。
+
 コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。
 
 CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入試験を区別します。実AWS・非公開 registry・実デスクトップなど、前提がなくスキップした検証は合格扱いにしません。障害時の権限・リース・後始末は[失敗時の表](reliability/failure-injection-matrix.md)と各設計が定義します。

@@ -50,6 +50,14 @@ and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs
 
 ## Verification boundary
 
+Implemented: Windows private notification launches own their descendants from
+process creation. Failed readiness releases its launch reservation only after
+confirmed tree cleanup. The native regression reproduced surviving descendants on
+`63bc41d1`; `aec8d4bc` passes it and a local installed read-only WSL handshake.
+This is not proof that all earlier intermittent attached-disk/tunnel failures are
+resolved. See [the ownership decision](adr/0110-private-windows-process-ownership.md)
+and [scoped evidence](status/acceptance-evidence.md#private-windows-launch-descendants).
+
 Implemented: [Incus 7.0 LTS installation](design/installer.md#incus-package-baseline)
 is shared by Ubuntu, Windows/WSL and both native CI setup paths, with patch updates
 and actual-server version validation. Doctor reports unsupported servers; 6.0
