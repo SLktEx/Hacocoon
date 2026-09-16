@@ -79,6 +79,12 @@ for the same runtime fail closed. Writes use a confined filesystem root, a setup
 lock and atomic replacement. Windows uses the client's inherited filesystem ACLs
 and native key-generation permissions; no client directory is exposed to workloads.
 
+Keys, configuration fragments and host-key pins must be regular files. Linux opens
+them without following links or waiting for FIFO writers, then checks the opened
+descriptor before reading. This prevents a special file from indefinitely holding
+the setup lock, including after cancellation; ordinary files use the same bounded
+read and atomic replacement path.
+
 ProxyCommand resumes a stopped Environment under the canonical lifecycle lock. Setup
 reuses a matching persistent grant and restores its managed files from the pinned
 metadata. New host-key files are keyed by runtime identity and public key.

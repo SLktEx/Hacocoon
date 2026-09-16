@@ -9,11 +9,10 @@ import (
 var environmentInstancePattern = regexp.MustCompile("^env-[a-f0-9]{32}$")
 
 // NewEnvironmentInstanceID identifies one creation, independently of its name.
-func NewEnvironmentInstanceID() (string, error) {
+// crypto/rand.Read fills the buffer or terminates the process; it never returns an error.
+func NewEnvironmentInstanceID() string {
 	var value [16]byte
-	if _, err := rand.Read(value[:]); err != nil {
-		return "", err
-	}
-	return "env-" + hex.EncodeToString(value[:]), nil
+	_, _ = rand.Read(value[:])
+	return "env-" + hex.EncodeToString(value[:])
 }
 func ValidEnvironmentInstanceID(id string) bool { return environmentInstancePattern.MatchString(id) }

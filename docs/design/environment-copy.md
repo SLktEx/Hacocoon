@@ -32,8 +32,8 @@ Hacocoon must coordinate rootfs and Work/OCI copies. See [Incus instance backup
 scope](https://linuxcontainers.org/incus/docs/main/howto/instances_backup/) and
 [volume copy](https://linuxcontainers.org/incus/docs/main/howto/storage_move_volume/).
 
-`internal/environmentcopy` composes the existing stopped aggregate capture and
-`internal/snapshotrestore` service. Both stages use native Incus Btrfs COW, not
+`internal/env/copy` composes the existing stopped aggregate capture and
+`internal/snapshot/restore` service. Both stages use native Incus Btrfs COW, not
 file export/import or a new storage engine. The intermediate aggregate costs an
 extra native COW copy; this reuses the existing exact-owned receipts and source
 write exclusion without inventing another multi-resource transaction. It is

@@ -171,11 +171,11 @@ func (c *scriptedConn) Close() error {
 	c.closeOne.Do(func() { close(c.closed) })
 	return nil
 }
-func (c *scriptedConn) LocalAddr() net.Addr                 { return testAddr("local") }
-func (c *scriptedConn) RemoteAddr() net.Addr                { return testAddr("remote") }
-func (c *scriptedConn) SetDeadline(time.Time) error         { return nil }
-func (c *scriptedConn) SetReadDeadline(time.Time) error     { return nil }
-func (c *scriptedConn) SetWriteDeadline(time.Time) error    { return nil }
+func (c *scriptedConn) LocalAddr() net.Addr              { return testAddr("local") }
+func (c *scriptedConn) RemoteAddr() net.Addr             { return testAddr("remote") }
+func (c *scriptedConn) SetDeadline(time.Time) error      { return nil }
+func (c *scriptedConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *scriptedConn) SetWriteDeadline(time.Time) error { return nil }
 func (c *scriptedConn) isClosed() bool {
 	select {
 	case <-c.closed:
@@ -191,7 +191,7 @@ type failingReadConn struct {
 }
 
 func newFailingReadConn(err error) *failingReadConn { return &failingReadConn{err: err} }
-func (c *failingReadConn) Read([]byte) (int, error)  { return 0, c.err }
+func (c *failingReadConn) Read([]byte) (int, error) { return 0, c.err }
 func (c *failingReadConn) Write(p []byte) (int, error) {
 	return len(p), nil
 }
@@ -199,9 +199,9 @@ func (c *failingReadConn) Close() error {
 	c.closed = true
 	return nil
 }
-func (c *failingReadConn) CloseWrite() error              { return nil }
-func (c *failingReadConn) LocalAddr() net.Addr            { return testAddr("local") }
-func (c *failingReadConn) RemoteAddr() net.Addr           { return testAddr("remote") }
+func (c *failingReadConn) CloseWrite() error               { return nil }
+func (c *failingReadConn) LocalAddr() net.Addr             { return testAddr("local") }
+func (c *failingReadConn) RemoteAddr() net.Addr            { return testAddr("remote") }
 func (c *failingReadConn) SetDeadline(time.Time) error     { return nil }
 func (c *failingReadConn) SetReadDeadline(time.Time) error { return nil }
 func (c *failingReadConn) SetWriteDeadline(time.Time) error {

@@ -32,9 +32,9 @@ and a late upstream registration. This changes no policy grants or CLI steps.
 ## Implemented authorization engine
 
 - `internal/core` defines provider-neutral `EgressRequest` / `EgressGrant` values.
-- `internal/egress` canonicalizes DNS hostnames and routes `network.egress/connect` through the existing Policy / Approval / Capability / audit boundary.
+- `internal/network/egress` canonicalizes DNS hostnames and routes `network.egress/connect` through the existing Policy / Approval / Capability / audit boundary.
 - IP literals are rejected before policy evaluation.
-- `modules/standard/egressproxy` implements explicit HTTP and HTTPS proxy enforcement.
+- `internal/adapters/network/proxy` implements explicit HTTP and HTTPS proxy enforcement.
 - HTTP absolute-target and `Host` authorities must identify the same hostname and port.
 - DNS is resolved on the trusted Host only after hostname authorization.
 - The resolved address set is pinned for that connection; dialing does not resolve the hostname again.
@@ -49,6 +49,10 @@ The canonical Environment provider uses one owned bridge per Environment, with N
 The proxy resolves its peer through trusted Incus runtime state and the controller's persisted Environment store, rather than accepting an Environment name from the guest. It listens only on the fixed Physical Host endpoint `169.254.254.1:18080`. Missing, ambiguous or unmanaged source identities fail closed. Restart does not retain a connection grant or turn a hostname grant into an IP allowlist.
 
 Persisted runtime references include their provider route. Source binding uses the Environment router's reference decoder and requires both the configured source provider and its native runtime reference to match. An identical native reference under another provider grants no authority.
+
+The retired logical-name-only format does not authorize egress: the resolver no
+longer derives a native reference by adding `haco-` to an Environment name.
+Existing exact native references still use the router's retained-state reader.
 
 ## Policy example
 
@@ -75,7 +79,7 @@ Use `require-approval` instead of `allow` when the existing approval provider mu
 
 ## Operational path
 
-The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service. New `haco` needs no egress-serving command, and the retained `hacoq egress serve` is legacy functionality.
+The installed unit runs `haco-controller --standard-egress`. This serves the existing composition's Standard proxy, Policy, audit and persisted source resolver on the fixed endpoint after the Incus adapter verifies its guards. A bare controller is available for isolated control-transport use; the installer always enables the Standard service.
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
@@ -89,7 +93,7 @@ The Windows workflow adds a separate installed-controller packet check after the
 
 The probe requires certificate-verified HTTPS through the installed proxy, proxy 403 for an unapproved hostname, and refusal of a direct TCP connection to a public endpoint first proved reachable from the Physical Host. It also checks that management socket paths are absent. Guest route startup is only observed; no packages, NAT exceptions, firewall changes, service overrides or mount repairs are injected. This is controller/provider packet acceptance, not a claim that the planned product Environment CLI or ordinary policy UI is implemented. Commit-bound results belong in implementation status.
 
-Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, legacy network migration, unmanaged DNS/ACL drift and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
+Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, dedicated bridge and source-guard drift, and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
 
 ## Source observation ownership
 

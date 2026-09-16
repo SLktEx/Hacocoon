@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	clientapp "github.com/SLktEx/Hacocoon/internal/client"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/state"
-	"github.com/SLktEx/Hacocoon/modules/runtime/incus"
 )
 
 func TestClientAccessCrossesRealProcessBoundary(t *testing.T) {

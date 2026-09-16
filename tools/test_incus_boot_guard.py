@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('guard', ROOT / 'modules/runtime/incus/packaging/incus-boot-guard.py')
+spec = importlib.util.spec_from_file_location('guard', ROOT / 'internal/adapters/incus/packaging/incus-boot-guard.py')
 guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 BOOT = '8e951216-a1e4-4397-818a-4710984907ad'

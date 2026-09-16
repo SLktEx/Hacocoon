@@ -25,9 +25,9 @@ Environment
 
 ## 認可と通信の検査
 
-- `internal/core` が `EgressRequest`／`EgressGrant`、`internal/egress` がホスト名の正規化と `network.egress/connect` の仲介を担当します。
+- `internal/core` が `EgressRequest`／`EgressGrant`、`internal/network/egress` がホスト名の正規化と `network.egress/connect` の仲介を担当します。
 - IP アドレスの直接指定は Policy 評価前に拒否します。
-- `modules/standard/egressproxy` が明示的な HTTP／HTTPS プロキシを実装します。HTTP の絶対 URI と `Host` は同じホスト名・ポートを指す必要があります。
+- `internal/adapters/network/proxy` が明示的な HTTP／HTTPS プロキシを実装します。HTTP の絶対 URI と `Host` は同じホスト名・ポートを指す必要があります。
 - 認可後に Host 側で DNS 解決し、その接続にアドレス集合を固定します。接続時に名前を再解決しません。
 - 私設、ループバック、リンクローカル、CGNAT、ベンチマーク用、文書用、マルチキャストなどのアドレスを拒否します。公開・私設が混在した応答は全体を拒否します。
 - HTTPS CONNECT の文字列だけを証拠にしません。上流へ TLS データを送る前に上限付きの ClientHello を解析し、SNI が許可した CONNECT ホスト名と一致することを要求します。
@@ -40,6 +40,10 @@ Environment
 Environment の自己申告名は信頼せず、Incus の状態とコントローラーの永続記録から接続元を照合します。固定接続先だけで待ち受け、不在・不明確・管理対象外の識別を拒否します。再起動を越えて接続許可を保持しません。
 
 保存された実行基盤の参照にはプロバイダーの経路も含みます。Environment のルーターを使って復号し、設定した接続元プロバイダーとその内部参照の両方を照合します。別プロバイダーの同じ内部参照に権限を与えません。
+
+Env名だけを保存した旧形式では外向き通信を認可しません。名前に `haco-` を付けて
+実体の参照を推測する処理は廃止しました。正確な実体参照を持つ既存の保存記録は、
+引き続きルーターの読み取り処理で扱います。
 
 ## Policy例
 
@@ -66,7 +70,7 @@ Environment の自己申告名は信頼せず、Incus の状態とコントロ�
 
 ## 起動経路
 
-インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。`hacoq egress serve` は旧機能です。
+インストールしたサービスは `haco-controller --standard-egress` を実行します。Incus 側の保護を検証してから、既存の Policy・監査・永続的な送信元照合を使う Standard プロキシを起動します。引数なしのコントローラーは独立した通信試験用に残りますが、通常のインストーラーは Standard を有効にします。
 
 コントローラーとプロキシの終了は連動し、CONNECT を含む全接続を閉じます。ヘッダー上限は16 KiB、読取期限は10秒、保持接続上限は256です。通信失敗は固定の構造化メッセージで記録し、任意の panic 出力を含めません。
 
@@ -80,7 +84,7 @@ Windows の導入手順が成功した後、同じ導入済みコントローラ
 
 検証用 Policy は対象 Environment の github.com:443 だけを許可します。既存 Policy は上書きせず、後始末は変更されていない自分の検証用設定だけを対象とします。証明書確認付き HTTPS の成功、未許可ホスト名の403、Host から到達できる公開先への直接 TCP 拒否、管理ソケットの非公開を確認します。
 
-このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、旧ネットワーク移行、不正な DNS／ACL、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
+このパケット検証は、別途検証する製品 CLI や設定 UI の証拠を兼ねません。リポジトリ内では許可・拒否・承認、IP 直接指定、共有 IP、別ホスト名、混在 DNS、SNI 不一致、専用bridgeとsource guardの設定の食い違い、送信元照合を検査します。実際の Incus・nftables・dnsmasq の条件は[検証証拠](../status/acceptance-evidence.ja.md)で区別します。
 
 ## 通信元観測の責任者
 

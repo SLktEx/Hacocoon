@@ -54,7 +54,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 
 ## 確認の境界
 
-コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。古いrootコマンドとSeed/Docker操作は[CLI移行情報](reference/cli-migration.md)へ分離しています。
+コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。
 
 CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入試験を区別します。実AWS・非公開 registry・実デスクトップなど、前提がなくスキップした検証は合格扱いにしません。障害時の権限・リース・後始末は[失敗時の表](reliability/failure-injection-matrix.md)と各設計が定義します。
 
@@ -103,3 +103,7 @@ Gitの開発候補は両方の既存境界で全量base64を上限付きのバ�
 単一packの32 MiB制限を撤去し、refごとの独立したpush承認と最終バイト数の確認を維持する。
 32 MiB超のローカル実Gitと全体検証は成功、導入済み検証は確認待ち。
 [ADR 0106](adr/0106-streaming-git-packs.ja.md)を参照。
+
+## 構成整理と旧CLIの廃止
+
+製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0107-responsibility-layout-and-cli-retirement.ja.md)も参照してください。

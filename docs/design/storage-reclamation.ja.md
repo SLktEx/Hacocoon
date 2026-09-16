@@ -159,12 +159,12 @@ consoleなし、NUL入出力、OS指定の作業ディレクトリ、消去し�
 
 | 実装 | 責任 |
 |---|---|
-| `modules/runtime/incus` | プール選択、実体固定、FITRIM、計測 |
+| `internal/adapters/incus` | プール選択、実体固定、FITRIM、計測 |
 | `internal/composition` | 導入情報と設定済みLinux処理順 |
-| `internal/reclamation` | 上限付きの識別子・結果。永続状態は持たない |
-| `internal/controlapi` | 管理通信、排他、期限 |
-| `cmd/haco-product`、`internal/reclaimclient` | 確認、表示、固定Windows bridge |
-| `internal/wslreclaim`、`cmd/haco-wsl` | Windows登録・参照・排他・記録・worker |
+| `internal/storage/reclamation` | 上限付きの識別子・結果。永続状態は持たない |
+| `internal/controller/api` | 管理通信、排他、期限 |
+| `cmd/haco`、`internal/client/reclaim` | 確認、表示、固定Windows bridge |
+| `internal/platform/wsl/reclaim`、`cmd/haco-wsl` | Windows登録・参照・排他・記録・worker |
 
 パスや名前だけでの判断を却下した理由と権限境界は[ADR 0048](../adr/0048-storage-reclamation-identity.md)にあります。
 

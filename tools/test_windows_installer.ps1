@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 # Load function ASTs only. Never execute installer entry points in component tests.
-$installer = Join-Path $PSScriptRoot "../scripts/install-windows.ps1"
+$installer = Join-Path $PSScriptRoot "../install/install-windows.ps1"
 $tokens = $null
 $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile($installer, [ref]$tokens, [ref]$errors)
@@ -352,7 +352,7 @@ try {
 }
 # Native review checksum verification runs in the same minimal PowerShell host.
 # Get-FileHash is deliberately unavailable in these component tests.
-. (Join-Path $PSScriptRoot '../scripts/windows-review.ps1')
+. (Join-Path $PSScriptRoot '../install/windows-review.ps1')
 $reviewHashRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-review-hash-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($reviewHashRoot)
 $reviewHashFile = Join-Path $reviewHashRoot 'haco-review.exe'

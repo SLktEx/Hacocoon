@@ -8,7 +8,7 @@ The current repository model is deliberately **solo-maintainer and contribution-
 
 ## 1. SHA-256 integrity
 
-GoReleaser publishes `checksums.txt`, and `scripts/install.sh` verifies the selected archive before extracting or installing binaries.
+GoReleaser publishes `checksums.txt`, and `install/install.sh` verifies the selected archive before extracting or installing binaries.
 
 This detects corruption and mismatched downloads. It does **not** independently authenticate the publisher because the artifact and its checksum are published by the same release authority.
 

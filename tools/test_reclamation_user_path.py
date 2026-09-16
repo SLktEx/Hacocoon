@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location("reclaim_gate", Path(__file__).with_name("windows-reclamation-user-path-e2e.py"))
+spec = importlib.util.spec_from_file_location("reclaim_gate", Path(__file__).resolve().parents[1] / "test/e2e/windows/reclamation.py")
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 OP = "{11111111-1111-4111-8111-111111111111}"

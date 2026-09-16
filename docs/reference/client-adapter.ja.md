@@ -10,7 +10,8 @@ Hacocoon は `github.com/SLktEx/Hacocoon/pkg/clientadapter` を通じて、clien
 
 | Operation | 役割 |
 | --- | --- |
-| `NewLocal` | local Hacocoon Hostへアダプターを開く |
+| `NewController` / `NewControllerAt` | 設定済み／明示した controller socket を通してライフサイクル・接続を操作する |
+| `NewLocal` | Physical Host のローカルサービスと対話イベント reader を初期化する |
 | `Ensure` | Environment/Workspace/access-modeが完全一致すれば再利用し、それ以外は新規作成 |
 | `Status` | client-safeなEnvironment 状態を取得 |
 | `Connections` | Hacocoon/runtime 状態から現在のクライアント接続を照合・調整 |
@@ -19,6 +20,11 @@ Hacocoon は `github.com/SLktEx/Hacocoon/pkg/clientadapter` を通じて、clien
 | `Revoke` | 管理対象の SSH/forward 接続を1つ撤回 |
 | `Delete` | EnvironmentとHacocoon ライフサイクル状態を削除 |
 | `InteractionBatch` | minimized/resumableな `pkg/interaction` eventを読む |
+
+`NewController() *Adapter` は接続を開かず、設定済みの接続先を選択します。
+`NewControllerAt(path string) (*Adapter, error)` は明示した socket path が空でないことも検証します。
+接続やプロトコルの失敗は、要求した操作から返されます。
+`NewController` は、使われていなかった生成時のエラーを返さなくなりました。
 
 アダプターへ返すEnvironment内Workspace パスは常に次です。
 
@@ -88,10 +94,10 @@ Incus-backed 接続照合・調整は永続 SSH grant と明示的 forwarding �
 
 ## VS Codeを使わないgeneric proof
 
-以下は Physical Host の旧 `hacoq` による外部パス用アダプターの例です。通常の管理 Workspace は[利用開始](../guides/getting-started.ja.md)の手順を使います。VS Code の拡張機能や通信方式には依存しません。
+以下は Physical Host の明示的な外部パスを使う例です。通常の管理 Workspace は[利用開始](../guides/getting-started.ja.md)の手順を使います。VS Code の拡張機能や通信方式には依存しません。
 
 ```sh
-hacoq create --workspace "$PWD" demo
+haco env create --no-oci --workspace "$PWD" demo
 haco ssh setup demo
 ssh haco-demo
 ```
@@ -99,8 +105,7 @@ ssh haco-demo
 クライアントシェルや別アダプタープロセスを再起動した後も確認できます。
 
 ```sh
-hacoq status demo --json
-hacoq connections demo --json
+haco env status --json demo
 ```
 
 クライアント接続だけを撤回する場合:
@@ -112,7 +117,7 @@ haco env disconnect demo <grant-id>
 Environment ライフサイクルを終える場合:
 
 ```sh
-hacoq delete demo
+haco env delete demo
 ```
 
 非公開 keyを使うのは通常の `ssh` クライアントであり、Hacocoonではありません。
@@ -132,6 +137,15 @@ minimization、再開 cursor、Browser Notification mappingは [`INTERACTION_EVE
 ## Public compatibility boundary
 
 `pkg/clientadapter` のexported signatureはpackage-owned DTOと公開 error sentinelだけを使い、`internal/core` typeを公開しません。provider/runtimeやIDE固有詳細はアダプター境界の内側に残します。
+
+信頼済み `haco-host` 内を含む通常のクライアントは、controller 経由の constructor を使います。
+`NewLocal` はローカルサービスの初期化に Physical Host の権限を必要とします。
+`InteractionBatch` は `NewLocal` で利用できます。controller 経由の constructor が現在提供するのは、
+ライフサイクルと接続の操作です。
+
+明示した controller endpoint が空なら `ErrInvalidArgument` を返します。呼び出し側の中断と
+期限切れは、それぞれ `context.Canceled` と `context.DeadlineExceeded` を `errors.Is` で
+判別できます。endpoint の不在や接続拒否は `ErrUnavailable` を返します。
 
 pre-1.0のためbreaking changeはまだあり得ますが、クライアント固有branchingはHacocoon Coreではなくクライアントアダプター側へ置きます。
 

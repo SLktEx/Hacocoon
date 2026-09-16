@@ -18,10 +18,7 @@ func snapshotCatalogFixture(t *testing.T, configure ...func(*core.Environment)) 
 	t.Helper()
 	s := NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	ctx := context.Background()
-	id, err := core.NewEnvironmentInstanceID()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := core.NewEnvironmentInstanceID()
 	lease := core.WorkspaceLease{InstanceID: id, EnvironmentID: "dev", WorkspaceID: "work", SourcePath: "managed:work", AccessMode: core.WorkspaceReadWrite, Owner: "dev", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	if err := s.BeginEnvironmentCreate(ctx, lease); err != nil {
 		t.Fatal(err)

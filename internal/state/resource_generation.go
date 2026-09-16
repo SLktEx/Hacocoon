@@ -9,12 +9,10 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-func generationEpoch() (string, error) {
+func generationEpoch() string {
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(nonce[:]), nil
+	_, _ = rand.Read(nonce[:])
+	return hex.EncodeToString(nonce[:])
 }
 
 // EnsureResourceGeneration never silently changes a configured compatibility
@@ -31,10 +29,7 @@ func (s *EnvironmentJSONStore) EnsureResourceGeneration(ctx context.Context, nam
 			result = current
 			return false, nil
 		}
-		epoch, err := generationEpoch()
-		if err != nil {
-			return false, err
-		}
+		epoch := generationEpoch()
 		result = core.ResourceGeneration{Name: name, Kind: kind, Compatibility: compatibility, Epoch: epoch}
 		data.ResourceGenerations[name] = result
 		return true, nil
@@ -108,10 +103,7 @@ func (s *EnvironmentJSONStore) ResetResourceGeneration(ctx context.Context, expe
 		if current, ok := data.ResourceGenerations[expected.Name]; !ok || current != expected {
 			return false, core.ErrSourceGenerationStale
 		}
-		epoch, err := generationEpoch()
-		if err != nil {
-			return false, err
-		}
+		epoch := generationEpoch()
 		if epoch == expected.Epoch {
 			return false, core.ErrIncompatibleState
 		}

@@ -352,7 +352,7 @@ main `7e876bc1`へ #585（`d93f61fb`）と #587（`7bdd3db6`）を再利用し�
 認証GitHub、人のGUI回答、巨大レポの受入とは扱いません。
 
 最初の集中コマンドは存在しない`internal/approvalreview`を指定したためFAIL。
-Git・capability・製品はその時点でもPASSし、指定を既存の`internal/review`へ修正しました。
+Git・capability・製品はその時点でもPASSし、指定を既存の`internal/policy/review`へ修正しました。
 最初のlint差分はWindows Gitの改行変換を無効にして未変更ファイルも含んだため、
 その広い指摘を新規変更の指摘とは扱いません。正しい差分では再利用コードのエラー文字列2件と
 switch簡略化1件が検出され、修正後に上記の最終検証がPASSしました。

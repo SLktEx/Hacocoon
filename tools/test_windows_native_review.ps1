@@ -2,7 +2,7 @@
 param([string]$Distro = 'Hacocoon')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-. (Join-Path $PSScriptRoot '../scripts/windows-review.ps1')
+. (Join-Path $PSScriptRoot '../install/windows-review.ps1')
 $scheme = Get-HacocoonReviewScheme $Distro
 $directory = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ('Hacocoon\review\' + $scheme)
 $adapter = [IO.Path]::GetFullPath((Join-Path $directory 'haco-review.exe'))

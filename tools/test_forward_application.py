@@ -1,13 +1,27 @@
 """The Linux application fixture waits for client readiness before accept's budget."""
 import concurrent.futures
+import importlib.util
 import os
+from pathlib import Path
 import socket
 import subprocess
 import sys
 import time
 import unittest
 
-from test_client_forward_native import arm_application, line, server_source
+spec = importlib.util.spec_from_file_location(
+    "installed_forward", Path(__file__).resolve().parents[1] / "test/e2e/installed/forward.py")
+forward = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(forward)
+arm_application, line, server_source = forward.arm_application, forward.line, forward.server_source
+
+
+class ApplicationBudgetTests(unittest.TestCase):
+    def test_invalid_deadlines_are_rejected_before_starting_application(self):
+        for name, maximum in (("startup_seconds", 180), ("accept_seconds", 40)):
+            for value in (0, -1, maximum + 1, float("inf"), float("nan")):
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    server_source(**{name: value})
 
 
 @unittest.skipUnless(os.name == 'posix', 'application fixture runs inside Linux')
@@ -35,7 +49,7 @@ class ForwardApplicationTests(unittest.TestCase):
         arm_application(process)
 
         def exchange(index):
-            data = bytes(range(256)) * 256 + bytes([index])
+            data = bytes(range(256)) * (1024 + index) + bytes([index])
             with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
                 client.sendall(data)
                 client.shutdown(socket.SHUT_WR)

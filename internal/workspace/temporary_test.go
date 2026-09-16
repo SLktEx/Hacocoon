@@ -13,10 +13,7 @@ import (
 
 func TestTemporaryWorkspaceUsesCanonicalLeaseAndRefusesRecycledName(t *testing.T) {
 	ctx := context.Background()
-	work, err := core.NewTemporaryWorkspace()
-	if err != nil {
-		t.Fatal(err)
-	}
+	work := core.NewTemporaryWorkspace()
 	runtime := &fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "owned-temp"}}
 	store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 	service := New(runtime, store)
@@ -31,7 +28,7 @@ func TestTemporaryWorkspaceUsesCanonicalLeaseAndRefusesRecycledName(t *testing.T
 	if err != nil || lease.WorkspaceID != work.ID {
 		t.Fatal("missing canonical lease")
 	}
-	other, _ := core.NewTemporaryWorkspace()
+	other := core.NewTemporaryWorkspace()
 	if err := service.DeleteTemporary(ctx, env.Name, other); !errors.Is(err, core.ErrIncompatibleState) {
 		t.Fatal(err)
 	}
@@ -67,7 +64,7 @@ func TestTemporaryResourceRequiresReviewedOwnerAndRetainsStore(t *testing.T) {
 	for _, mode := range []string{"valid", "missing-owner", "stale-owner", "missing-run", "source"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
-			work, _ := core.NewTemporaryWorkspace()
+			work := core.NewTemporaryWorkspace()
 			store := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
 			resource := core.PersistentResource{ID: "oci:retained", Owner: strings.Repeat("a", 32), Kind: "oci-containerd", NativeRef: "pool/owned", State: "creating", WorkspaceID: "original", CreatedAt: time.Now().UTC()}
 			if mode == "source" {

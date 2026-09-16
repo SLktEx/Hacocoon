@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/install-windows.ps1"
+      - "install/install-windows.ps1"
       - ".github/workflows/windows-wsl-image-cache.yml"
   workflow_dispatch:
 
@@ -27,7 +27,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           $cacheRoot = Join-Path $env:RUNNER_TEMP "hacocoon-wsl-cache"
           New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null
-          Copy-Item -LiteralPath "scripts/install-windows.ps1" -Destination (Join-Path $cacheRoot "install-windows.ps1") -Force
+          Copy-Item -LiteralPath "install/install-windows.ps1" -Destination (Join-Path $cacheRoot "install-windows.ps1") -Force
           "HACO_WSL_CACHE_ROOT=$cacheRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Restore or reserve Ubuntu 26.04 WSL image cache

@@ -22,7 +22,7 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-bat-exit-' + [guid]::
 [IO.Directory]::CreateDirectory($fixtureRoot) | Out-Null
 $files = @('install-windows.bat', 'install-windows.ps1', 'powershell.exe', 'native-exit.txt', 'release-hold.txt', 'hold-ready.txt')
 try {
-    [IO.File]::Copy((Join-Path $PSScriptRoot '../scripts/install-windows.bat'), (Join-Path $fixtureRoot 'install-windows.bat'))
+    [IO.File]::Copy((Join-Path $PSScriptRoot '../install/install-windows.bat'), (Join-Path $fixtureRoot 'install-windows.bat'))
     [IO.File]::WriteAllText((Join-Path $fixtureRoot 'install-windows.ps1'), '# Native boundary stand-in only')
     Add-Type -OutputType ConsoleApplication -OutputAssembly (Join-Path $fixtureRoot 'powershell.exe') -TypeDefinition @'
 using System;

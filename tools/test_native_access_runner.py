@@ -8,11 +8,11 @@ import time
 from types import SimpleNamespace
 import unittest
 
-spec = importlib.util.spec_from_file_location('native_runner', Path(__file__).with_name('windows-native-access-e2e.py'))
+spec = importlib.util.spec_from_file_location('native_runner', Path(__file__).resolve().parents[1] / 'test/e2e/windows/access.py')
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
-driver_spec = importlib.util.spec_from_file_location('native_entry_driver', Path(__file__).with_name('windows-installer-user-path-e2e.py'))
+driver_spec = importlib.util.spec_from_file_location('native_entry_driver', Path(__file__).resolve().parents[1] / 'test/e2e/windows/install.py')
 entry_driver = importlib.util.module_from_spec(driver_spec)
 sys.modules[driver_spec.name] = entry_driver
 driver_spec.loader.exec_module(entry_driver)

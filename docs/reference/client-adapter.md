@@ -10,7 +10,8 @@ The package is a **client integration boundary**, not a new UI and not an author
 
 | Operation | Purpose |
 | --- | --- |
-| `NewLocal` | Open the adapter against the local Hacocoon Host |
+| `NewController` / `NewControllerAt` | Open lifecycle and connection operations through the configured / explicit controller socket |
+| `NewLocal` | Initialize local composition and an interaction reader on the Physical Host |
 | `Ensure` | Reuse an exact Environment/Workspace/access-mode match or create it |
 | `Status` | Inspect client-safe Environment state |
 | `Connections` | Reconcile current client connections from Hacocoon/runtime state |
@@ -19,6 +20,12 @@ The package is a **client integration boundary**, not a new UI and not an author
 | `Revoke` | Revoke one managed SSH/forward connection |
 | `Delete` | Delete the Environment and its Hacocoon lifecycle state |
 | `InteractionBatch` | Read minimized, resumable `pkg/interaction` events |
+
+`NewController() *Adapter` selects the configured endpoint without opening a
+connection. `NewControllerAt(path string) (*Adapter, error)` also validates an
+explicit, nonempty socket path. Connection and protocol failures are reported
+by the requested operation. Callers of `NewController` no longer receive an
+unused constructor error.
 
 Every Environment returned to an adapter reports the in-guest workspace as:
 
@@ -89,10 +96,10 @@ Incus-backed connection reconciliation reads persistent SSH grants and explicit 
 
 ## Generic non-VS-Code proof
 
-The retained `hacoq` CLI exercises this external-path adapter on the Physical Host. For ordinary managed Workspace use, follow [getting started](../guides/getting-started.md).
+The controller-backed CLI can explicitly select an external path on the Physical Host. For ordinary managed Workspace use, follow [getting started](../guides/getting-started.md).
 
 ```sh
-hacoq create --workspace "$PWD" demo
+haco env create --no-oci --workspace "$PWD" demo
 haco ssh setup demo
 ssh haco-demo
 ```
@@ -100,8 +107,7 @@ ssh haco-demo
 Inspect/reconnect after restarting the client shell or another adapter process:
 
 ```sh
-hacoq status demo --json
-hacoq connections demo --json
+haco env status --json demo
 ```
 
 Revoke only the client connection:
@@ -113,7 +119,7 @@ haco env disconnect demo <grant-id>
 Or delete the Environment when its lifecycle is finished:
 
 ```sh
-hacoq delete demo
+haco env delete demo
 ```
 
 The private key is consumed by the ordinary `ssh` client, not Hacocoon.
@@ -133,6 +139,16 @@ See [`INTERACTION_EVENTS.md`](interaction-events.md) for event minimization, res
 ## Public compatibility boundary
 
 `pkg/clientadapter` exported signatures use package-owned DTOs and public error sentinels rather than `internal/core` types. Provider/runtime and IDE-specific details remain implementation details behind the adapter boundary.
+
+Ordinary clients, including those inside trusted `haco-host`, use the controller
+constructors. `NewLocal` requires Physical Host authority to initialize local
+services. `InteractionBatch` is available from `NewLocal`; the controller
+constructors currently expose only lifecycle and connection operations.
+
+An empty explicit controller endpoint returns `ErrInvalidArgument`. Caller
+cancellation and deadline expiry preserve `context.Canceled` and
+`context.DeadlineExceeded` for `errors.Is`; a missing or refused endpoint returns
+`ErrUnavailable`.
 
 This is a pre-1.0 contract. Breaking changes are still possible, but client-specific branching should be added in the client adapter, not Hacocoon Core.
 

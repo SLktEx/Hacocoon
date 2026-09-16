@@ -11,7 +11,7 @@ acceptance does not establish the intended 7.0 baseline.
 ## Decision
 
 The supported server range is `>= 7.0.1` and `< 7.1`. Product installation and
-disposable CI call the same packaged [helper](../../scripts/incus-lts.sh).
+disposable CI call the same packaged [helper](../../install/incus-lts.sh).
 It verifies the pinned Zabbly primary key, rejects additional keys, configures
 the `lts-7.0` source, and selects the greatest supported package version
 available from that exact source. Persistent APT preferences allow all

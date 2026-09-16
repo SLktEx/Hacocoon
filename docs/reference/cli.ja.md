@@ -2,7 +2,7 @@
 
 [English](cli.md) | 日本語
 
-`cmd/haco-product`から作る製品コマンド`haco`を説明します。
+`cmd/haco`から作る製品コマンド`haco`を説明します。
 管理コマンドは信頼済み`haco-host`またはPhysical Hostで実行します。
 入力ファイルのパスはクライアント側です。ただし`env create --workspace`のパスは
 コントローラー側で解決するか、`managed:<id>`を使います。
@@ -43,7 +43,7 @@ help・versionにコントローラーは不要です。
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の
 `create/exec/shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
 `env create`・`run`のCPU・memory・PID・root容量フラグはありません。
-残る旧機能は[移行情報](cli-migration.md)へ分離しています。
+旧インターフェースの廃止判断は [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)に記録しています。
 
 通常の失敗は非ゼロ、構文誤りは多くの場合2です。一時実行は後始末確認後にゲストの終了値を返し、
 クライアントキャンセル時は130、後始末不明は失敗です。`reclaim`の開始受付は完了ではありません。

@@ -29,7 +29,7 @@ Hacocoon is pre-1.0; check [available scope and limits](IMPLEMENTATION_STATUS.md
 
 ## Command and configuration reference
 
-- [Current CLI](reference/cli.md) and [legacy CLI migration](reference/cli-migration.md)
+- [Current CLI](reference/cli.md)
 - [Configuration and approval policy](reference/configuration.md), [egress authorization](design/egress-authorization.md), [AWS operations](design/aws-operations.md)
 - [Client API](reference/client-adapter.md), [interaction events](reference/interaction-events.md), [logging](reference/logging.md)
 - [Build and release identity](reference/build-release-identity.md)

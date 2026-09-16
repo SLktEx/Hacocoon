@@ -4,7 +4,7 @@ Status: accepted; implementation updated 2026-09-07
 Date: 2026-09-06
 
 The WSL Physical Host remains the sole controller and Incus owner. The explicit
-administrator operation `scripts/setup-wsl-host-interop.py` projects existing
+administrator operation `install/setup-wsl-host-interop.py` projects existing
 DrvFs drive roots, read-only `/init` and the WSL interop socket directory into
 the exactly marked trusted `haco-host`. It does not change shared profiles,
 Environment devices, network guards, Incus authority or controller ownership.

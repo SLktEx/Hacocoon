@@ -43,8 +43,7 @@ network operations. Exit the development shell, then run `haco env stop sample-d
 in the Host. Later, `haco open --client ssh sample-dev` resumes it.
 Use `haco open sample-dev` for VS Code with Remote-SSH installed.
 
-The current product CLI is `haco`. Remaining legacy-only operations are isolated
-in [CLI migration](docs/reference/cli-migration.md).
+Use the [current `haco` CLI](docs/reference/cli.md).
 
 ## Know what persists
 

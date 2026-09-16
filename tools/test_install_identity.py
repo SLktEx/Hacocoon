@@ -7,7 +7,7 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER = (ROOT / "scripts/install.sh").read_text(encoding="utf-8")
+INSTALLER = (ROOT / "install/install.sh").read_text(encoding="utf-8")
 
 
 def function(name: str) -> str:

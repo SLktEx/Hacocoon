@@ -1,0 +1,24 @@
+package environment
+
+import (
+	"context"
+	"errors"
+	"github.com/SLktEx/Hacocoon/internal/core"
+	"testing"
+)
+
+func TestTemporaryWorkspaceRequiresProviderOptInBeforeCreate(t *testing.T) {
+	provider := &fakeProvider{}
+	router, err := NewRouter(testProvider, Register(testProvider, provider))
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := core.NewTemporaryWorkspace()
+	spec := core.EnvironmentRuntimeSpec{Name: "temp", WorkspacePath: work.Path, TemporaryWorkspace: true}
+	if _, err := router.CreateEnvironment(context.Background(), spec); !errors.Is(err, core.ErrUnsupported) {
+		t.Fatal(err)
+	}
+	if provider.created != 0 {
+		t.Fatal("unsupported provider performed side effects")
+	}
+}

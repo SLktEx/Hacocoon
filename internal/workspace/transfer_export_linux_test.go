@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/environmenttransfer"
+	"github.com/SLktEx/Hacocoon/internal/env/transfer"
 	"github.com/SLktEx/Hacocoon/internal/state"
 )
 
@@ -82,15 +82,25 @@ func TestTransferExportUsesCanonicalLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			other := New(runtime, state.NewEnvironmentJSONStore(catalog.path))
-			called := false
-			exporter := environmenttransfer.Exporter{Root: root, Snapshots: svc, Component: func(ctx context.Context, c core.SnapshotComponent, _ string, _ int64) (environmenttransfer.Archive, error) {
-				called = true
+			assertReserved := func(ctx context.Context) {
+				t.Helper()
 				// Independent service instances must respect the same reservation.
 				limited, cancel := context.WithTimeout(ctx, 60*time.Millisecond)
 				defer cancel()
 				if err := other.DeleteSnapshot(limited, runtime.id); !errors.Is(err, context.DeadlineExceeded) {
 					t.Fatal("source deletion bypassed export", err)
 				}
+			}
+			called := false
+			exporter := environmenttransfer.Exporter{Root: root, Snapshots: svc, Workspaces: func(ctx context.Context, saved core.Snapshot) ([]environmenttransfer.Workspace, error) {
+				assertReserved(ctx)
+				if saved.ID != runtime.id || len(saved.Components) != 2 || saved.Components[1].Role != "workspace:main" || saved.Components[1].Binding != "protected-binding-workspace:main" {
+					t.Fatal("metadata did not use the protected Workspace binding", saved)
+				}
+				return []environmenttransfer.Workspace{{Role: "workspace", Name: "main"}}, nil
+			}, Component: func(ctx context.Context, c core.SnapshotComponent, _ string, _ int64) (environmenttransfer.Archive, error) {
+				called = true
+				assertReserved(ctx)
 				if which == "producer-fails" {
 					return nil, errors.New("native export failed")
 				}
@@ -102,8 +112,9 @@ func TestTransferExportUsesCanonicalLifecycle(t *testing.T) {
 					t.Fatal(result, err)
 				}
 				defer result.Bundle.Close()
-				if _, err := environmenttransfer.Inspect(result.Bundle.Reader(), 1<<20); err != nil {
-					t.Fatal(err)
+				manifest, err := environmenttransfer.Inspect(result.Bundle.Reader(), 1<<20)
+				if err != nil || manifest.Version != 2 || !reflect.DeepEqual(manifest.Workspaces, []environmenttransfer.Workspace{{Role: "workspace", Name: "main"}}) {
+					t.Fatal(manifest, err)
 				}
 			} else if err == nil || result.Bundle != nil {
 				t.Fatal("failed export published", result, err)

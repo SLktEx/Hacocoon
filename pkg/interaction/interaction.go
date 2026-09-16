@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SLktEx/Hacocoon/internal/controlapi"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 )
@@ -93,10 +93,7 @@ func NewReader(root string) (*Reader, error) {
 func NewDefaultReader() (*Reader, error) {
 	switch strings.TrimSpace(os.Getenv("HACO_CLIENT_MODE")) {
 	case "controller":
-		client, err := controlapi.NewDefaultClient()
-		if err != nil {
-			return nil, err
-		}
+		client := controlapi.NewDefaultClient()
 		return &Reader{events: controllerSource{client: client}}, nil
 	case "":
 	default:

@@ -72,7 +72,6 @@ jobs:
           test -f dist/checksums.txt
           listing="$(tar -tzf dist/haco_linux_amd64.tar.gz)"
           grep -Fx haco <<<"$listing"
-          grep -Fx hacoq <<<"$listing"
 
       - name: "[fixture] Build and extract release-equivalent Ubuntu package"
         shell: bash
@@ -112,7 +111,6 @@ jobs:
           dpkg --compare-versions "$VERSION_ID" ge 26.04
           test "$(ps -p 1 -o comm= | tr -d '[:space:]')" = systemd
           command -v haco
-          command -v hacoq
           command -v incus
 
           # Product CLI identity/help must work without touching runtime state.
@@ -156,21 +154,13 @@ jobs:
 
       - name: "[product] Exercise installed product CLI lifecycle"
         shell: bash
-        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/tools/installer-product-lifecycle-e2e.sh"
-
-      - name: "[product] Exercise installed Hacocoon legacy user journey during migration"
-        shell: bash
-        run: |
-          set -euo pipefail
-          login_user="$(id -un)"
-          journey="$GITHUB_WORKSPACE/tools/installer-user-journey-e2e.sh"
-          sudo -u "$login_user" -- env HACO_BIN=/usr/local/bin/hacoq bash "$journey"
+        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/test/e2e/installed/lifecycle.sh"
 
       - name: "[product] Verify installed network isolation and spoofing guards"
         shell: bash
         run: |
           set -euo pipefail
-          sudo env HACO_BIN=/usr/local/bin/hacoq bash "$GITHUB_WORKSPACE/tools/installer-network-security-e2e.sh"
+          sudo env HACO_BIN=/usr/local/bin/haco-host bash "$GITHUB_WORKSPACE/test/e2e/installed/network_security.sh"
 
       - name: "[fixture] Collect diagnostics"
         if: failure()
@@ -179,13 +169,13 @@ jobs:
         run: |
           haco --version || true
           haco help || true
-          sudo hacoq doctor || true
-          sudo hacoq env list || true
+          sudo haco doctor || true
+          sudo haco env list || true
           getent group hacocoon || true
           id || true
           sudo -u "$(id -un)" -- id || true
           sudo stat -Lc '%U:%G:%a %n' /run/hacocoon/control.sock || true
-          sudo env HACO_BIN=/usr/local/bin/hacoq bash "$GITHUB_WORKSPACE/tools/installer-dhcp-diagnostics.sh" || true
+          sudo env HACO_BIN=/usr/local/bin/haco-host bash "$GITHUB_WORKSPACE/tools/installer-dhcp-diagnostics.sh" || true
           sudo nft list ruleset || true
           systemctl --no-pager --failed || true
           sudo systemctl status haco-controller.service --no-pager || true

@@ -378,7 +378,7 @@ Incus, authenticated GitHub, human GUI or large-repository acceptance.
 
 The first focused invocation named nonexistent `internal/approvalreview`; the
 existing Git, capability and product packages passed but the invocation failed.
-The corrected package is `internal/review`. The first lint patch incorrectly
+The corrected package is `internal/policy/review`. The first lint patch incorrectly
 disabled Windows Git newline conversion and included unchanged files; its broad
 findings are not presented as new-code findings. With the correct diff, lint
 found two capitalized error strings and one switch simplification in the reused

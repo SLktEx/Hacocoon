@@ -34,11 +34,11 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.11 | Base Images & Custom Environments | implemented（現行の機能制約は実装状況を参照） |
 | v0.12 | Sandbox Resource Limits | implemented（現行の機能制約は実装状況を参照） |
 | v0.13 | Managed Sandbox Network | implemented（現行の機能制約は実装状況を参照） |
-| v0.14 | Git Fetch Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
+| v0.14 | Git Fetch Plugin | historical（旧CLI実装を廃止） |
 | v0.15 | OCI Seed Recommendation | historical（Seedの実装を撤去） |
 | v0.16 | OCI Image Deletion | historical（現行の管理対象イメージ削除へ置換） |
 | v0.17 | OCI Seed Builder & Btrfs/COW | historical（Seedの実装を撤去） |
-| v0.18 | Docker Compatibility Plugin | 旧方式はimplemented（移行用hacoq。通常のStore手順とは別） |
+| v0.18 | Docker Compatibility Plugin | historical（旧CLI実装を廃止） |
 | v0.19 | Domain-aware Egress Authorization | implemented（現行の機能制約は実装状況を参照） |
 | v0.20 | Managed Btrfs Rootfs Storage | implemented（現行の機能制約は実装状況を参照） |
 | v0.21 | Managed Btrfs Transparent Compression | implemented（現行の機能制約は実装状況を参照） |

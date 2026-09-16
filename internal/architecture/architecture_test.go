@@ -60,6 +60,10 @@ func TestApplicationCodeUsesCanonicalLifecycleAndProviderBoundaries(t *testing.T
 			if strings.HasPrefix(filepath.ToSlash(rel), "internal/state/") {
 				return nil
 			}
+			// Native commands belong to these implementation owners. Lifecycle
+			// mutation checks still apply inside the adapters and platform code.
+			providerCommands := strings.HasPrefix(filepath.ToSlash(rel), "internal/adapters/incus/") ||
+				strings.HasPrefix(filepath.ToSlash(rel), "internal/platform/")
 
 			file, err := parser.ParseFile(fset, path, nil, 0)
 			if err != nil {
@@ -75,7 +79,7 @@ func TestApplicationCodeUsesCanonicalLifecycleAndProviderBoundaries(t *testing.T
 						position := fset.Position(call.Pos())
 						violations = append(violations, position.String()+": direct low-level Environment/Workspace state mutation "+selector.Sel.Name+" bypasses the lifecycle transition API")
 					}
-					if selector.Sel.Name == "Run" && len(call.Args) >= 2 {
+					if !providerCommands && selector.Sel.Name == "Run" && len(call.Args) >= 2 {
 						if command, ok := stringLiteral(call.Args[1]); ok {
 							if _, forbidden := infrastructureCommands[command]; forbidden {
 								position := fset.Position(call.Pos())
@@ -84,7 +88,7 @@ func TestApplicationCodeUsesCanonicalLifecycleAndProviderBoundaries(t *testing.T
 						}
 					}
 				}
-				if ident, ok := call.Fun.(*ast.Ident); ok && ident.Name == "Command" && len(call.Args) > 0 {
+				if ident, ok := call.Fun.(*ast.Ident); !providerCommands && ok && ident.Name == "Command" && len(call.Args) > 0 {
 					if command, ok := stringLiteral(call.Args[0]); ok {
 						if _, forbidden := infrastructureCommands[command]; forbidden {
 							position := fset.Position(call.Pos())

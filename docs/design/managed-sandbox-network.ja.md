@@ -2,7 +2,7 @@
 
 Status: **正規の Environment プロバイダーは実装済み。install済みWindowsでproxy許可/拒否と直接egress拒否の受入が成功。**
 
-現在のIncus SandboxProviderはLinux/WSLのEnvironmentごとに専用管理対象の bridgeを作る。旧shared `haco-sandbox0` / ACL / プロファイル helperは旧実装 RuntimeとSeed経路に残るが、現在のEnvironment 構成や代替経路ではない。
+Incus SandboxProviderはLinux/WSLのEnvironmentごとに専用の管理対象bridgeを作る。旧共有 `haco-sandbox0`・ACL・profileの準備処理と、Runtime/Baseの別の作成経路は削除した。[廃止の判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)を参照。
 
 ## 現在のtopologyと所有権
 
@@ -22,7 +22,7 @@ bridgeはIncusが選ぶIPv4 アドレス・DHCP・経路選択を使い、`ipv4.
 
 ## 実装上の制約
 
-正規のデータ planeはbridge方式だが、helper/constantの一部に移行時の `Routed` / `routed` 名が残る。名前からrouted NIC実装と推測しない。残存shared bridge helperとテストは旧実装の検証であり、現在のEnvironmentをそのNAT経路へ接続する許可ではない。
+正規のデータplaneはbridge方式だが、helper/constantの一部に移行時の `Routed` / `routed` 名が残る。名前からrouted NIC実装と推測しない。Environment作成に共有NAT bridgeへの代替経路はない。
 
 install済みunitは既存Physical Host コントローラー内のStandard proxyを有効にする。アダプターが共有保護処理を検証してから固定listenerへbindし、準備/bind失敗ならコントローラーサービスは起動しない。片方のサービス終了で他方も止め、通常HTTP ソケットとhijack済みCONNECT ソケットを閉じる。headless require-approvalは安全側で拒否となる。[ADR 0007](../adr/0007-controller-owned-standard-egress.ja.md) を参照。ライフサイクルとパッケージのEnvironment allow/denyは、明示的な管理者Policy設定を用いてWindowsで受入済み。通常の Policy 確認・編集は `haco config`、承認待ちの確認は `haco approve` で行います。
 

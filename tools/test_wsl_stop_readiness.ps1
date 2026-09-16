@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $tokens = $null
 $errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../scripts/install-windows.ps1'), [ref]$tokens, [ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../install/install-windows.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'Installer syntax failed' }
 foreach ($node in $ast.EndBlock.Statements) {
     if ($node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('Wait-WslStopped', 'Assert-SafeName')) {

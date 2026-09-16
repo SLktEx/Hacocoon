@@ -192,7 +192,7 @@ acceptance. Reproduce on a root Linux/WSL host with Incus and Btrfs:
 
 ```bash
 HACO_E2E_INCUS_PERSISTENT_COPY=1 go test -count=1 \
-  -run '^TestRealIncusPersistentCopyE2E$' -v ./modules/runtime/incus
+  -run '^TestRealIncusPersistentCopyE2E$' -v ./internal/adapters/incus
 ```
 
 The former `hacoq plugin oci distribute` CLI, RPC, archive service and save/load
@@ -224,8 +224,8 @@ Linux/WSL Incus host, prepare a new fixture directory and run:
 
 ```bash
 python3 tools/prepare-oci-runtime-fixture.py /tmp/haco-oci-runtime-assets
-CGO_ENABLED=0 go build -o /tmp/haco-oci-runtime-assets/oci-probe ./modules/runtime/incus/testdata/oci-probe
-go test -c -o /tmp/haco-area.test ./modules/runtime/incus
+CGO_ENABLED=0 go build -o /tmp/haco-oci-runtime-assets/oci-probe ./internal/adapters/incus/testdata/oci-probe
+go test -c -o /tmp/haco-area.test ./internal/adapters/incus
 HACO_E2E_INCUS_HOST_AREA_COPY=1 HACO_E2E_OCI_RUNTIME_ASSETS=/tmp/haco-oci-runtime-assets \
   /tmp/haco-area.test -test.run='^TestRealIncusHostAreaCopyE2E$' -test.v -test.timeout=14m
 ```

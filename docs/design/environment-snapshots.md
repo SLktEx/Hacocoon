@@ -120,7 +120,7 @@ layer. See [ADR 0040](../adr/0040-incus-first-snapshots.md).
 ## Capture and ownership boundary
 
 `internal/workspace` holds canonical Environment then Workspace locks and checks
-the current active lease and fresh creation identity. `modules/runtime/incus`
+the current active lease and fresh creation identity. `internal/adapters/incus`
 enumerates the full device/volume inventory, verifies ownership, stopped state,
 exclusive attachments and Btrfs placement. External-path Workspaces remain
 unsupported here because guest stop does not exclude Host writers.
@@ -259,16 +259,16 @@ state machine is introduced.
 
 ## Package and interface responsibilities
 
-- `modules/runtime/incus`: native copy/instance/volume/device operations and exact
+- `internal/adapters/incus`: native copy/instance/volume/device operations and exact
   provider observations. Btrfs is an explicit supported precondition.
-- `modules/standard/gitrepo`: normal Workspace registration and destination-owned cleanup.
+- `internal/git`: normal Workspace registration and destination-owned cleanup.
 - `internal/workspace`: aggregate locks and ordered capture/preparation/cleanup,
   plus canonical creation and lifecycle leases.
-- `internal/snapshotrestore`: the public restore application service, composing
+- `internal/snapshot/restore`: the public restore application service, composing
   normal Workspace/Store registration and canonical creation/start without a new
   recovery catalog.
 - `internal/state`: durable data/generation ownership and atomic lifecycle guards.
-- `internal/environment`: routing and qualification of Incus native references.
+- `internal/env`: routing and qualification of Incus native references.
 - `internal/core`: small manifests and domain identity types.
 
 `SnapshotBackend` and `RestoreBackend` keep native storage mechanics testable and
@@ -328,7 +328,7 @@ operation, automatic backup or old approval replay occurs. Omit the name to use
 `<source>-restored` (source prefix limited to 48 characters). Existing names and
 incomplete creation leases are refused; there is no implicit replacement.
 
-The application service in `internal/snapshotrestore` orders existing registry,
+The application service in `internal/snapshot/restore` orders existing registry,
 Store and Environment operations. Each native copy owns its source reservation;
 if the saved source is explicitly deleted between completed stages, the next
 stage fails and cleans its newly owned destinations. Complete copies are already

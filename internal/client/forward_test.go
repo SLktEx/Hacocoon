@@ -38,7 +38,7 @@ func (r *forwardRuntime) DialEnvironmentTCP(_ context.Context, ref, instance, ad
 
 func TestTCPForwardRequiresCurrentReadyCreationAndPinsProvider(t *testing.T) {
 	ctx := context.Background()
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	store := &forwardCatalog{fakeStore: fakeStore{environment: core.Environment{Name: "demo", RuntimeRef: "stored-route"}}, instance: id}
 	runtime := &forwardRuntime{fakeRuntime: fakeRuntime{status: core.EnvironmentRuntimeStatus{State: core.EnvironmentRunning}}}
 	service := New(runtime, store)
@@ -49,7 +49,7 @@ func TestTCPForwardRequiresCurrentReadyCreationAndPinsProvider(t *testing.T) {
 	if _, err = service.DialTCPForward(ctx, target); !errors.Is(err, core.ErrRuntimeUnavailable) || runtime.calls != 1 || runtime.ref != "stored-route" || runtime.instance != id || runtime.address != "::1" || runtime.port != 8080 {
 		t.Fatal(runtime, err)
 	}
-	other, _ := core.NewEnvironmentInstanceID()
+	other := core.NewEnvironmentInstanceID()
 	store.instance = other
 	if _, err = service.DialTCPForward(ctx, target); !errors.Is(err, core.ErrCapabilityStale) || runtime.calls != 1 {
 		t.Fatal(err, runtime.calls)

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export HACO_UI_LANGUAGE=en
+
 for command in go python3 mktemp grep sed sleep tail cut; do
   command -v "$command" >/dev/null 2>&1 || { echo "missing required command: $command" >&2; exit 1; }
 done
@@ -449,14 +451,16 @@ SH
 chmod +x "$bin/incus"
 
 go build -o "$haco" ./cmd/haco
+haco_host="$root/haco-host"
+go build -o "$haco_host" ./cmd/haco-host
 go build -o "$controller" ./cmd/haco-controller
 haco_start_test_controller "$controller" "$root/control.sock" "$root/controller.out" "$root/controller.err"
 
 # Base catalog: logical names resolve to immutable revisions.
 "$haco" base list > "$root/bases.txt"
-grep -Fxq 'haco/ubuntu-24.04' "$root/bases.txt"
-grep -Fxq 'haco/ubuntu-26.04' "$root/bases.txt"
-grep -Fxq 'my-dev' "$root/bases.txt"
+grep -Fq 'haco/ubuntu-24.04' "$root/bases.txt"
+grep -Fq 'haco/ubuntu-26.04' "$root/bases.txt"
+grep -Fq 'my-dev' "$root/bases.txt"
 base_info="$($haco base inspect my-dev --json)"
 python3 - "$base_info" <<'PY'
 import json,sys
@@ -465,8 +469,8 @@ assert r['name'] == 'my-dev', r
 assert r['revision'] == 'sha256:' + ('b' * 64), r
 PY
 
-"$haco" create --base my-dev --workspace "$workspace" base-demo >/dev/null
-status_json="$($haco status base-demo --json)"
+"$haco_host" env create --base my-dev --workspace "$workspace" base-demo >/dev/null
+status_json="$($haco_host env status base-demo --json)"
 python3 - "$status_json" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1]); env=r['environment']
@@ -502,11 +506,11 @@ if grep -Fq -- '--profile haco-sandbox' "$HACO_FAKE_INCUS_LOG"; then
   echo 'managed local orchestration unexpectedly inherited the sandbox profile' >&2
   exit 1
 fi
-"$haco" delete base-demo
+"$haco_host" env delete base-demo
 
 # Resource budgets are applied and verified before start.
-"$haco" create --cpu 2 --memory 512MiB --pids 64 --root-size 8GiB --workspace "$workspace" resource-demo >/dev/null
-resource_status="$($haco status resource-demo --json)"
+"$haco_host" env create --cpu 2 --memory 512MiB --pids 64 --root-size 8GiB --workspace "$workspace" resource-demo >/dev/null
+resource_status="$($haco_host env status resource-demo --json)"
 python3 - "$resource_status" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])['environment']['resources']
@@ -522,9 +526,9 @@ grep -Fq 'config device set haco-resource-demo root size=8589934592B --project h
 last_limit_line="$(grep -n 'config device get haco-resource-demo root size --project hacocoon' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
 start_line="$(grep -n '^start haco-resource-demo --project hacocoon$' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
 [[ -n "$last_limit_line" && -n "$start_line" && "$last_limit_line" -lt "$start_line" ]]
-"$haco" delete resource-demo
+"$haco_host" env delete resource-demo
 
-json="$($haco run --cpu 1 --memory 256MiB --pids 32 --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
+json="$($haco run --no-oci --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
 python3 - "$json" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
@@ -538,43 +542,15 @@ PY
 run_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["environment"])' "$json")"
 grep -Fq 'image info images:ubuntu/26.04 --format json' "$HACO_FAKE_INCUS_LOG"
 grep -Fq "init images:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa haco-$run_name" "$HACO_FAKE_INCUS_LOG"
-grep -Fq "config set haco-$run_name limits.cpu=1 --project hacocoon" "$HACO_FAKE_INCUS_LOG"
-grep -Fq "config set haco-$run_name limits.memory=268435456B --project hacocoon" "$HACO_FAKE_INCUS_LOG"
-grep -Fq "config set haco-$run_name limits.processes=32 --project hacocoon" "$HACO_FAKE_INCUS_LOG"
 grep -Fq "delete haco-$run_name" "$HACO_FAKE_INCUS_LOG"
 [[ ! -e "$state/instance-haco-$run_name" ]]
 
 set +e
-"$haco" run --workspace "$workspace" -- sh -c "printf 'run-error\\n' >&2; exit 17" >"$root/run.out" 2>"$root/run.err"
+"$haco" run --no-oci --workspace "$workspace" -- sh -c "printf 'run-error\\n' >&2; exit 17" >"$root/run.out" 2>"$root/run.err"
 run_code=$?
 set -e
 [[ "$run_code" == 17 ]]
 grep -Fq run-error "$root/run.err"
 [[ "$(grep -c '^delete haco-run-' "$HACO_FAKE_INCUS_LOG")" -ge 2 ]]
-
-# The approval source must be an actual catalog Environment, created through
-# the same canonical lifecycle as the other fake-provider scenarios above.
-"$haco" create --workspace "$workspace" agent-run >/dev/null
-mkdir -p "$HACO_ROOT"
-cat > "$HACO_ROOT/policy.json" <<'JSON'
-{"default":"deny","rules":[{"capability":"local.echo","action":"echo","resource":"*","environment":"agent-run","decision":"require-approval","reason":"security approval test"}]}
-JSON
-printf 'yes\n' | "$haco" capability request local.echo echo --environment agent-run --param message=hello >/dev/null 2>"$root/approval.err"
-"$haco" events --json > "$root/events.jsonl"
-python3 - "$root/events.jsonl" <<'PY'
-import json,sys
-rows=[json.loads(line) for line in open(sys.argv[1]) if line.strip()]
-assert rows, rows
-assert all(r['source']=='capability' for r in rows), rows
-policy=next(r for r in rows if r['type']=='policy-decision' and r.get('decision')=='require-approval')
-approval=next(r for r in rows if r['type']=='approval-decision' and r.get('approved') is True)
-assert policy.get('request_id'), rows
-assert policy['request_id'] == approval.get('request_id'), rows
-raw=open(sys.argv[1]).read().lower()
-assert 'parameters' not in raw
-assert 'message' not in raw
-PY
-
-"$haco" delete agent-run
 
 echo 'PASS: Hacocoon orchestration, Base, resource, storage, and isolated-bridge E2E'

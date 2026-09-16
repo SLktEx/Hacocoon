@@ -7,7 +7,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location("windows_user_path", Path(__file__).with_name("windows-installer-user-path-e2e.py"))
+spec = importlib.util.spec_from_file_location("windows_user_path", Path(__file__).resolve().parents[1] / "test/e2e/windows/install.py")
 gate = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = gate
 spec.loader.exec_module(gate)
@@ -40,6 +40,47 @@ class EnvironmentBoundaryTest(unittest.TestCase):
                     gate.inherited_child_environment()
         with patch.dict(gate.os.environ, {"RUNNER_TEMP": "fixture-directory"}, clear=True):
             self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
+
+
+class InstallerCommandTest(unittest.TestCase):
+    def test_normal_and_cached_installs_type_the_shipped_command_once(self):
+        for cached, expected in ((False, "install-windows.bat\r\n"),
+                                 (True, "install-windows.bat -UseCachedWslImage\r\n")):
+            writes = []
+
+            class Terminal:
+                def __init__(self, *, cwd):
+                    self.cwd = cwd
+
+                def write(self, command):
+                    writes.append(command)
+
+                def run(self, *, responders, on_output):
+                    prompt = "C:\\package> "
+                    on_output(prompt, self)
+                    on_output(prompt, self)  # A repainted prompt must not rerun BAT.
+                    complete = prompt + "\nHacocoon WSL installation complete\nHacocoon Windows installation complete.\n"
+                    on_output(complete, self)
+                    on_output(complete, self)
+                    return complete
+
+            with self.subTest(cached=cached), patch.object(gate, "TerminalProcess", Terminal):
+                gate.run_bat(Path("package"), use_cached_wsl_image=cached)
+                self.assertEqual(writes, [expected, "exit\r\n"])
+
+    def test_incomplete_install_does_not_retry_or_exit_as_success(self):
+        from unittest.mock import Mock
+        terminal = Mock()
+
+        def incomplete(*, responders, on_output):
+            on_output("C:\\package> ", terminal)
+            return "installation failed"
+
+        terminal.run.side_effect = incomplete
+        with patch.object(gate, "TerminalProcess", return_value=terminal):
+            with self.assertRaisesRegex(RuntimeError, "BAT did not complete"):
+                gate.run_bat(Path("package"))
+        terminal.write.assert_called_once_with("install-windows.bat\r\n")
 
 
 class LanguageAssertionTest(unittest.TestCase):

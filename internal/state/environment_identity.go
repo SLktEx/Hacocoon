@@ -60,10 +60,7 @@ func (s *EnvironmentJSONStore) EnvironmentInstance(ctx context.Context, expected
 		// Legacy migration only: preserve the existing resource and assign its
 		// missing identity once, under the same catalog lock. Never derive it from
 		// a reusable name, provider reference, owner label or wall-clock timestamp.
-		lease.InstanceID, err = core.NewEnvironmentInstanceID()
-		if err != nil {
-			return "", err
-		}
+		lease.InstanceID = core.NewEnvironmentInstanceID()
 		if err = ctx.Err(); err != nil {
 			return "", err
 		}

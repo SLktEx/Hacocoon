@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/git"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
-	"github.com/SLktEx/Hacocoon/modules/standard/gitrepo"
 )
 
 type repositoryWorkspaceProvider struct{ repositories *gitrepo.RepositoryService }

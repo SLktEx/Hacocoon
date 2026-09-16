@@ -29,6 +29,7 @@ class CheckDocsRegressionTest(unittest.TestCase):
             cls.repo,
             ignore=shutil.ignore_patterns(
                 ".git",
+                ".coverage",
                 "dist",
                 "bin",
                 "__pycache__",

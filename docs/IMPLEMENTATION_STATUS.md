@@ -57,7 +57,7 @@ fallbacks remain best effort. Vendor daemon recognition and anonymous volume
 export preserve ownership checks. [Acceptance evidence](status/acceptance-evidence.md#incus-lts)
 separates the successful integrated candidate from this main-targeted extraction.
 
-Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings. Old root commands and Seed/Docker operations are separated into [CLI migration](reference/cli-migration.md).
+Use the [CLI reference](reference/cli.md) for commands/defaults and [configuration reference](reference/configuration.md) for settings.
 
 CI distinguishes repository tests, real Incus substrate tests and packaged installation acceptance. Missing prerequisites for real AWS, private registries or desktop sessions are skips, not passes. Authority, leases and cleanup failures follow the [failure matrix](reliability/failure-injection-matrix.md) and owning designs.
 
@@ -113,3 +113,7 @@ binary frames on both existing transport boundaries. It removes the 32 MiB
 single-pack restriction, retains separate exact-ref push approval and checks a
 final byte-count receipt. Local real Git over 32 MiB and full repository validation pass; installed
 validation is pending. See [ADR 0106](adr/0106-streaming-git-packs.md).
+
+## Repository layout and retired CLI
+
+The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).

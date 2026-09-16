@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
-	cacheapp "github.com/SLktEx/Hacocoon/modules/standard/cache"
+	cacheapp "github.com/SLktEx/Hacocoon/internal/storage/cache"
 )
 
 type interruptedGenerationBackend struct {

@@ -51,7 +51,7 @@ func TestManagedWorkspaceDeletionUsesLifecycleLockAndRejectsLease(t *testing.T) 
 		t.Fatal(err)
 	}
 	unlock()
-	id, _ := core.NewEnvironmentInstanceID()
+	id := core.NewEnvironmentInstanceID()
 	l := core.WorkspaceLease{InstanceID: id, EnvironmentID: "dev", WorkspaceID: work.ID, SourcePath: work.Path, AccessMode: core.WorkspaceReadWrite, Owner: "dev", State: core.WorkspaceLeaseAcquiring, AcquiredAt: time.Now().UTC()}
 	if err := catalog.BeginEnvironmentCreate(ctx, l); err != nil {
 		t.Fatal(err)

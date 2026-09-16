@@ -48,9 +48,7 @@ func (s *Service) PrepareSnapshotRestore(ctx context.Context, name, savedID stri
 		return result, core.ErrUnsupported
 	}
 	var nonce [16]byte
-	if _, err = rand.Read(nonce[:]); err != nil {
-		return result, err
-	}
+	_, _ = rand.Read(nonce[:])
 	id := "restore-" + hex.EncodeToString(nonce[:])
 	err = s.withSnapshotSource(ctx, name, func(ctx context.Context, current core.SnapshotSource) error {
 		saved, err := catalog.GetSnapshot(ctx, savedID)
