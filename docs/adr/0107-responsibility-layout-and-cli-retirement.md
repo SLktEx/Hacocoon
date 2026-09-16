@@ -68,6 +68,11 @@ both from the Env alone would erase a mismatch before the provider validates the
 lease. Regressions cover valid routes, unsupported and ambiguous registrations,
 and publication with a different provider or native owner in the lease.
 
+Egress source binding also uses that exact route comparison. Its old Incus-only
+logical-name alias is removed: constructing `haco-<name>` is no longer a second
+way to infer source ownership. This does not remove retained-resource readers
+or change the native reference emitted by current Environment creation.
+
 Installer source moves from `scripts/` to `install/`. Direct source URLs change;
 there are no forwarding scripts. Release archive names and installer bundle
 filenames stay the same. The installer rejects archives containing the retired

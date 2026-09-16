@@ -148,7 +148,7 @@ func TestPersistedSourceResolverFailsClosedOnStateLookupFailure(t *testing.T) {
 	}
 }
 
-func TestPersistedSourceResolverSupportsLegacyLogicalRuntimeRef(t *testing.T) {
+func TestPersistedSourceResolverRejectsLegacyLogicalRuntimeAlias(t *testing.T) {
 	resolver, err := NewPersistedSourceResolver(environmentapp.ProviderIncus,
 		fakeRuntimeSourceResolver{ref: "haco-demo"},
 		fakeEnvironmentLister{environments: []core.Environment{{Name: "demo", RuntimeRef: "demo"}}},
@@ -157,11 +157,8 @@ func TestPersistedSourceResolverSupportsLegacyLogicalRuntimeRef(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := resolver.ResolveEnvironment(context.Background(), net.ParseIP("10.200.0.23"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "demo" {
-		t.Fatalf("environment = %q, want demo", got)
+	if !errors.Is(err, core.ErrPolicyDenied) || got != "" {
+		t.Fatalf("logical name accepted as native ownership: %q, %v", got, err)
 	}
 }
 
@@ -180,7 +177,7 @@ func TestSourceInstanceRequiresExactPersistedCreationEvidence(t *testing.T) {
 	const id = "env-11111111111111111111111111111111"
 	for _, scenario := range []string{"valid", "stale", "invalid", "unsupported", "ambiguous", "orphan"} {
 		t.Run(scenario, func(t *testing.T) {
-			env := core.Environment{Name: "demo", RuntimeRef: "demo"}
+			env := core.Environment{Name: "demo", RuntimeRef: "haco-demo"}
 			store := &instanceEnvironmentLister{fakeEnvironmentLister: fakeEnvironmentLister{environments: []core.Environment{env}}, instance: id}
 			switch scenario {
 			case "stale":

@@ -87,7 +87,7 @@ func (r *PersistedSourceResolver) resolveSnapshot(ctx context.Context, source ne
 	var matched core.Environment
 	matches := 0
 	for _, environment := range environments {
-		if !matchesPersistedRuntimeRef(environment, r.provider, runtimeRef) {
+		if !environmentapp.MatchesRuntimeRef(environment.RuntimeRef, r.provider, runtimeRef) {
 			continue
 		}
 		matches++
@@ -97,14 +97,4 @@ func (r *PersistedSourceResolver) resolveSnapshot(ctx context.Context, source ne
 		return core.Environment{}, core.ErrPolicyDenied
 	}
 	return matched, nil
-}
-
-func matchesPersistedRuntimeRef(environment core.Environment, provider, runtimeRef string) bool {
-	if environmentapp.MatchesRuntimeRef(environment.RuntimeRef, provider, runtimeRef) {
-		return true
-	}
-	// Pre-v0.7 Environment state could persist the logical Environment name as
-	// the Incus runtime ref. Keep that narrow compatibility shape without
-	// accepting arbitrary aliases: the provider ref must be exactly haco-<name>.
-	return provider == environmentapp.ProviderIncus && environment.RuntimeRef == environment.Name && runtimeRef == "haco-"+environment.Name
 }

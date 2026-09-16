@@ -50,6 +50,10 @@ The proxy resolves its peer through trusted Incus runtime state and the controll
 
 Persisted runtime references include their provider route. Source binding uses the Environment router's reference decoder and requires both the configured source provider and its native runtime reference to match. An identical native reference under another provider grants no authority.
 
+The retired logical-name-only format does not authorize egress: the resolver no
+longer derives a native reference by adding `haco-` to an Environment name.
+Existing exact native references still use the router's retained-state reader.
+
 ## Policy example
 
 The implementation uses the existing exact-resource policy model. A permanent allow for one HTTPS hostname can be written as:
