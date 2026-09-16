@@ -189,6 +189,11 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 				}
 				if strings.Contains(joined, "--config environment.HTTP_PROXY=") && strings.Contains(joined, "--config environment.HTTPS_PROXY=") {
 					seenProxyConfig = true
+					for _, key := range []string{"NO_PROXY", "no_proxy"} {
+						if !strings.Contains(joined, "--config environment."+key+"=localhost,127.0.0.1,::1") {
+							t.Fatalf("Environment-local loopback bypass missing: %v", call.args)
+						}
+					}
 				}
 				if strings.Contains(joined, "limits.cpu=4") || strings.Contains(joined, "limits.memory=8589934592B") || strings.Contains(joined, "limits.processes=1024") || strings.Contains(joined, "size=42949672960B") {
 					resourceOps++

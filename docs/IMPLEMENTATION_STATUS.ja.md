@@ -52,6 +52,12 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 制限したままIncus SDKの別名を受け付けます。[所有権](adr/0002-environment-lifecycle-ownership.md)と
 [移送](design/environment-transfer.ja.md)を参照してください。
 
+Standard の外向き通信は、Policy 認可済みの私設・グローバルユニキャスト宛てを許可し、
+Physical Host のループバック拒否、DNS の固定、Environment 内の localhost 迂回を維持します。
+ログは DNS 解決失敗・空の応答、アドレス拒否、接続失敗を区別します。
+コンポーネント試験で検証しており、導入済み環境の私設ネットワークとゲストの localhost は
+別途受け入れ確認が必要です。[外向き通信の認可](design/egress-authorization.ja.md)を参照してください。
+
 ## 確認の境界
 
 コマンドと既定値は[CLI参照](reference/cli.ja.md)、設定は[設定参照](reference/configuration.ja.md)を参照してください。
