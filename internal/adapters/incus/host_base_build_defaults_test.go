@@ -14,7 +14,7 @@ type publishedBaseBuildFile struct {
 	mode    string
 }
 
-func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHBuild(t *testing.T) {
+func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHAndNerdctlBuild(t *testing.T) {
 	published := map[string]publishedBaseBuildFile{}
 	runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 		if len(args) >= 4 && args[0] == "file" && args[1] == "push" {
@@ -45,7 +45,13 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHBuild(t *testing.T
 	setup := published[trustedHostOpenSSHBaseBuildDir+"/setup.sh"]
 	if setup.mode != "0755" ||
 		!strings.Contains(setup.content, "apt-get update") ||
-		!strings.Contains(setup.content, "apt-get install -y --no-install-recommends openssh-server") ||
+		!strings.Contains(setup.content, "apt-get install -y --no-install-recommends ca-certificates curl openssh-server") ||
+		!strings.Contains(setup.content, `NERDCTL_VERSION="2.3.5"`) ||
+		!strings.Contains(setup.content, "de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee") ||
+		!strings.Contains(setup.content, "76ced9bd0d03f6140f9cf7b927958b654cb8d5ecd3c58af585d096c8bdf9d6c2") ||
+		!strings.Contains(setup.content, "sha256sum -c -") ||
+		!strings.Contains(setup.content, `tar -xzf "$archive" -C /usr/local/bin nerdctl`) ||
+		!strings.Contains(setup.content, "/usr/local/bin/nerdctl --version") ||
 		!strings.Contains(setup.content, "rm -rf /var/lib/apt/lists/*") {
 		t.Fatalf("unexpected setup script: mode=%q content=%q", setup.mode, setup.content)
 	}
