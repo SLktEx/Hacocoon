@@ -424,6 +424,16 @@ HostのCLIは同じ言語です。Host権限を使う場所であることと、
 
 controllerは共有構造化loggerに固定stage/state/reason、所要時間、生成した`request_id`を記録します。CLIも上限付きの固定語彙を再検証します。providerの任意エラー、helperの生出力、秘密、recipe本文は診断欄に含めません。WSL helperの終了値42だけを`native_binfmt_incompatible`と分類し、原因未確定は`failed`のままにします。timeout、canceled、incompatible_state、recovery_required、unavailable、denied、busy、not_found、unsupported等も区別します。
 
+`setup` 全体の開始と終了は controller API だけが管理します。既定の Base ビルド用ファイルの
+準備を有効にした場合も含め、セットアップに属する処理はすべてサービス呼び出しの中で完了し、
+その後に `setup=succeeded` または `setup=failed` を通知します。未登録の子工程名は固定値
+`unknown` として扱い、親工程の `setup` には置き換えません。元の任意文字列は進捗やログに出しません。
+
+最後の子工程から通知のない時間が空いても、client は setup の終了通知と最終応答を待ちます。
+子工程の完了後に短い無通信時間を理由として打ち切ることはありません。controller の処理上限15分、
+CLI の観測上限16分は維持し、キャンセルは client の観測を終了します。終了通知または最終応答より
+前の EOF は完了未確認として扱います。子工程の成功だけでは全体の完了や再実行の根拠になりません。
+
 通知サービス更新は`stage=notification_setup`と固定の`notification_<operation>_failed`を使います。
 操作は`enable_state`（有効化状態の確認）、`activity`（稼働確認）、`disable`（無効化）、
 `reload`（定義の再読込）、`failure_state`（失敗状態の確認）、`reset`（失敗状態の解除）、

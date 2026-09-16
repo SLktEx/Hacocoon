@@ -453,6 +453,19 @@ start, WSL interop, client mode/provisioning, Host storage, notifications and
 customization. Repeated stages mean actual repeated reconciliation checks.
 Optional stages are absent when not configured, not reported as completed.
 
+The controller API owns the single `setup` lifecycle. All setup-owned work,
+including default Base build provisioning when enabled, finishes inside the
+service call before `setup=succeeded` or `setup=failed` is published. Unregistered
+child stages use the fixed diagnostic name `unknown`; they must never be
+rewritten as `setup`. Raw stage names remain excluded from progress and logs.
+
+The client waits for the terminal setup event and final acknowledgement, even
+when they arrive after a quiet interval following the last child event. There
+is no child-completion idle timeout. The controller's 15-minute operation limit
+and CLI's 16-minute observation limit still apply, and cancellation ends client
+observation. EOF before the terminal event or acknowledgement is incomplete;
+successful child stages alone cannot confirm setup completion or justify retry.
+
 The controller records fixed stage/state/reason, duration and a generated
 `request_id` through the shared structured logger. The CLI validates this bounded
 vocabulary again. Arbitrary provider errors, helper output, credentials and
