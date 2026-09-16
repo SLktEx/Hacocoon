@@ -131,3 +131,7 @@ final byte-count receipt. Local real Git over 32 MiB and full repository validat
 All five exact-head workflows passed, including the ordinary Windows installation,
 SSH/editor, reclamation and notification route. Actual large Git through Incus and
 person-dependent acceptance remain separate. See [ADR 0106](adr/0106-streaming-git-packs.md).
+
+Ordinary SSH/editor entry now uses shared English/Japanese selection and result
+notices in this checkout. Invalid preview options give corrective guidance before
+Workspace preparation; fresh packaged desktop acceptance remains separate.

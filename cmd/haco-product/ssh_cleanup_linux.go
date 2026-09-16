@@ -20,6 +20,6 @@ func cleanupDesktopSSH(ctx context.Context, client *controlapi.Client, name, gra
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(diagnostics, "haco: connection removed; managed desktop entry could not be cleaned")
+		fmt.Fprintln(diagnostics, cliMessage("ssh.cleanup_incomplete"))
 	}
 }

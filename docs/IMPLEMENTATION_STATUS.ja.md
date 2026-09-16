@@ -120,3 +120,7 @@ main `6cdfe5d0` / [#702](https://github.com/SLktEx/Hacocoon/pull/702)は、両�
 32 MiB超のローカル実Gitと全体検証は成功。同一headの5系統CIが成功し、通常Windows導入・
 SSH/エディタ・容量回収・通知経路を確認した。実Incus経由の大容量Gitと本人操作は別の確認として残す。
 [ADR 0106](adr/0106-streaming-git-packs.ja.md)を参照。
+
+このcheckoutでは、通常のSSH・エディタ入口の環境選択と結果案内を共通の日英表示に
+そろえています。プレビューの不正な指定はWorkspace準備前に修正方法を示します。
+この変更後の配布相当版によるデスクトップ確認は別途必要です。

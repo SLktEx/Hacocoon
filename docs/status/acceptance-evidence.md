@@ -1750,3 +1750,19 @@ retained privately; source metadata, services and Policy were not changed.
 `authority` and binding `state_validated` remain false. This does not prove that
 the saved connection is current, that all required data was selected, or that data
 has been captured, restored or used for authenticated development.
+
+### SSH and editor entry language
+
+The ordinary SSH/open follow-up uses the shared catalog for Environment selection,
+readiness, editor retry and cleanup notices. Common preview-option validation now
+reports corrections before Workspace preparation; accepted requests are unchanged.
+An isolated 1,669-file Linux copy passed CLI/catalog tests (12.35s), including
+actual PTY selection/cancellation and client-owned SSH configuration in English
+and Japanese. Maintained local CI `test` passed (80.54s), including all Go tests,
+vet, maintenance helpers and notification client tests; local CI `docs` passed
+(9.92s). The first Japanese PTY attempt failed because the test binary's common
+initializer cleared the language override. The test now explicitly restores its
+requested language in the child; both languages then passed. Product selection
+or authority was not changed to make that test pass. The existing WSL root-user
+session warning remains. These component checks do not prove installed Windows
+editor connectivity or person-dependent approval. Those remain separate checks.

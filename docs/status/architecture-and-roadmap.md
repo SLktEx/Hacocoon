@@ -58,6 +58,11 @@ Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
 
+M1's ordinary SSH/editor selection and result guidance now use the shared Japanese/
+English catalog in this checkout. Invalid preview options explain the correction
+before preparing a Workspace. Local CLI/real-PTY and maintained repository checks
+passed; main integration and installed desktop acceptance remain separate.
+
 M5's named current-data selection and aggregate comparison helper is implemented
 in this checkout for [#703](https://github.com/SLktEx/Hacocoon/issues/703).
 It reuses the existing portable manifest comparer and preserves partial/unreviewed

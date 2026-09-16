@@ -19,13 +19,13 @@ var errEnvironmentChoiceCanceled = errors.New("Environment selection canceled")
 // Selection is presentation only; SetupSelected rechecks the selected identity.
 func chooseDesktopEnvironment(environments []core.Environment, interactive bool, in io.Reader, out io.Writer) (core.Environment, error) {
 	if len(environments) == 0 {
-		return core.Environment{}, fmt.Errorf("no Environments; create one with haco env create --workspace <workspace> <name>")
+		return core.Environment{}, errors.New(cliMessage("ssh.choose_empty"))
 	}
 	if len(environments) == 1 {
 		return environments[0], nil
 	}
 	if len(environments) > 1000 {
-		return core.Environment{}, fmt.Errorf("too many Environments to display; specify a name")
+		return core.Environment{}, errors.New(cliMessage("ssh.choose_many"))
 	}
 	choices := append([]core.Environment(nil), environments...)
 	sort.Slice(choices, func(i, j int) bool { return choices[i].Name < choices[j].Name })
@@ -38,9 +38,9 @@ func chooseDesktopEnvironment(environments []core.Environment, interactive bool,
 		}
 	}
 	if !interactive {
-		return core.Environment{}, fmt.Errorf("specify an Environment name when input is not interactive")
+		return core.Environment{}, errors.New(cliMessage("ssh.choose_noninteractive"))
 	}
-	if _, err := fmt.Fprint(out, "Choose an Environment (blank cancels): "); err != nil {
+	if _, err := fmt.Fprint(out, cliMessage("ssh.choose_prompt")); err != nil {
 		return core.Environment{}, err
 	}
 	reader := bufio.NewReader(io.LimitReader(in, 129))
