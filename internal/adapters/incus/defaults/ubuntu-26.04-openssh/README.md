@@ -1,8 +1,8 @@
 # Ubuntu 26.04 + OpenSSH Base
 
-This managed build context creates `ubuntu-26.04-openssh` from `haco/ubuntu-26.04` and ensures `openssh-server` plus `nerdctl` v2.3.5 are installed.
+This managed build context creates `ubuntu-26.04-openssh` from `haco/ubuntu-26.04` and ensures `openssh-server` plus the full `nerdctl` v2.3.5 distribution are installed.
 
-The `nerdctl` binary is installed from the official upstream release archive with a pinned SHA-256 digest for amd64 and arm64.
+The `nerdctl-full` archive provides the bundled container runtime and build tooling, including `nerdctl`, `containerd`, `runc`, BuildKit, and CNI plugins. The official upstream archive is installed with a pinned SHA-256 digest for amd64 and arm64, and the containerd and BuildKit systemd services are enabled for subsequent boots.
 
 From trusted `haco-host`, run:
 
