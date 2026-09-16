@@ -5,8 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-
-	"github.com/SLktEx/Hacocoon/internal/host/setup"
 )
 
 const trustedHostOpenSSHBaseBuildDir = "/root/base-builds/ubuntu-26.04-openssh"
@@ -29,9 +27,7 @@ type trustedHostBaseBuildFile struct {
 	data []byte
 }
 
-func (r *Runtime) provisionTrustedHostBaseBuildDefaults(ctx context.Context) (resultErr error) {
-	defer hostsetup.Track(ctx, "base_build_defaults")(&resultErr)
-
+func (r *Runtime) provisionTrustedHostBaseBuildDefaults(ctx context.Context) error {
 	files := []trustedHostBaseBuildFile{
 		{name: "base.pkr.hcl", mode: "0644", data: trustedHostOpenSSHPacker},
 		{name: "setup.sh", mode: "0755", data: trustedHostOpenSSHSetup},
