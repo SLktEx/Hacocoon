@@ -45,13 +45,18 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHAndNerdctlBuild(t 
 	setup := published[trustedHostOpenSSHBaseBuildDir+"/setup.sh"]
 	if setup.mode != "0755" ||
 		!strings.Contains(setup.content, "apt-get update") ||
-		!strings.Contains(setup.content, "apt-get install -y --no-install-recommends ca-certificates curl openssh-server") ||
+		!strings.Contains(setup.content, "apt-get install -y --no-install-recommends ca-certificates curl iptables openssh-server") ||
 		!strings.Contains(setup.content, `NERDCTL_VERSION="2.3.5"`) ||
-		!strings.Contains(setup.content, "de3206aeb7cbd5f20f5fb1f55c1e3bf2db1be567812a8a3f5e65eba2488347ee") ||
-		!strings.Contains(setup.content, "76ced9bd0d03f6140f9cf7b927958b654cb8d5ecd3c58af585d096c8bdf9d6c2") ||
+		!strings.Contains(setup.content, "b697295c623639734aaab737523c808fd3cc8d3046039fd94fff1744e4c317aa") ||
+		!strings.Contains(setup.content, "6e4b687f1d138e750a3c8372abc0f81d3d7490b6359c48c0562fc7dfe98859b2") ||
+		!strings.Contains(setup.content, "nerdctl-full-${NERDCTL_VERSION}-linux-${NERDCTL_ARCH}.tar.gz") ||
 		!strings.Contains(setup.content, "sha256sum -c -") ||
-		!strings.Contains(setup.content, `tar -xzf "$archive" -C /usr/local/bin nerdctl`) ||
+		!strings.Contains(setup.content, `tar -xzf "$archive" -C /usr/local`) ||
 		!strings.Contains(setup.content, "/usr/local/bin/nerdctl --version") ||
+		!strings.Contains(setup.content, "/usr/local/bin/containerd --version") ||
+		!strings.Contains(setup.content, "/usr/local/bin/runc --version") ||
+		!strings.Contains(setup.content, "/usr/local/bin/buildkitd --version") ||
+		!strings.Contains(setup.content, "systemctl enable containerd.service buildkit.service") ||
 		!strings.Contains(setup.content, "rm -rf /var/lib/apt/lists/*") {
 		t.Fatalf("unexpected setup script: mode=%q content=%q", setup.mode, setup.content)
 	}
