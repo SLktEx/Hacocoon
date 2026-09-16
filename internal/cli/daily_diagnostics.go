@@ -13,7 +13,7 @@ import (
 
 func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 	reason := dailyFailureReason(err)
-	fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
+	_, _ = fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
 	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
 	if !configEnvironmentName.MatchString(name) {
 		name = "<name>"
