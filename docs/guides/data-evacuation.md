@@ -57,6 +57,17 @@ observations. A deleted producer or former generation can be valid history; a mi
 reference is a review item, never automatic corruption, adoption or deletion authority.
 No data content, arbitrary configuration or credentials are included in the report.
 
+Repository inventory also reads the ordinary `bindings/*.json` records and shows
+the saved Environment name, Workspace/member references and repository references
+under `bindings`. It omits remote URLs, branches, configuration and credential
+contents. Single-repository and collection bindings share the repository reference
+projection. Files use the same no-follow/stable-read checks, with the broker's
+16 KiB per-binding limit and one shared 4,096-entry directory budget. A malformed
+file, name mismatch, link or unexpected entry remains a gap without hiding valid
+records. These are saved associations, not proof of a currently valid connection;
+`state_validated` and `authority` remain false. Restore connections through normal
+product commands rather than adopting these records as authority.
+
 Association comparison is bounded to 4096 rows. It distinguishes observed/missing/
 mismatched markers, unsupported routes, ambiguous views and incomplete queries.
 Reverse native review can report no supported reference; that is **not an orphan

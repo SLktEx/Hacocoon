@@ -65,6 +65,12 @@ outcomes. The remaining selection work is choosing the operator's actual require
 data and checking independent retention, owner namespaces and ordinary resumed use.
 No old-version reconstruction or automatic deletion is added.
 
+The current inventory now projects saved Git bindings, including collection
+members, without exposing remote URLs or granting connection authority. Read-only
+use on the dedicated WSL resolved the previously unprojected `bindings` directory
+(two repository files and one binding). Actual selection and restored use remain
+separate; this does not turn saved associations into current authority.
+
 Complete ordinary Packer setup/download/build/publication and reuse first when the
 required communication configuration is available. Automatic approval review
 refused the proposed all-Environment require-approval configuration; it has not

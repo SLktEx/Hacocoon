@@ -1718,3 +1718,19 @@ descendants. That local observation does not identify the CI restart source.
 The archived Linux follow-up passed 14 observation tests (0.50s; the Windows-only
 query test was SKIP), 12 retention tests (0.61s), maintained local docs (20.78s)
 and workflow policy (1.86s). The same root-user-session warning remained.
+
+### Current Git binding inventory
+
+The M5 inventory follow-up projects saved single/collection Git bindings through
+the existing repository-reference reader. Windows ran 25 tests successfully with
+seven Linux-only skips. An archived Linux checkout passed inventory32 (0.36s),
+association18 (0.28s), selection7 (0.15s), maintained local docs (13.75s) and
+workflow policy (1.70s); the root-user-session warning remained.
+
+Read-only use against the current dedicated WSL observed two repository records
+and one binding, with complete reference projection and no unreviewed directory
+entries. The preceding inventory had left `bindings` unprojected. The result is
+retained privately; source metadata, services and Policy were not changed.
+`authority` and binding `state_validated` remain false. This does not prove that
+the saved connection is current, that all required data was selected, or that data
+has been captured, restored or used for authenticated development.
