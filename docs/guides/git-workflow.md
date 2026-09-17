@@ -159,13 +159,40 @@ Remove a saved entry through [haco config](../reference/configuration.md) to rev
 A saved-choice receipt requires durable storage and audit; execution failure
 afterward may leave the saved Policy in place.
 
-## Multiple repositories
+## Register once, select branches per Workspace
 
-Register each upstream/branch, then create one collection:
+Run these commands in the trusted management terminal. The remote must contain
+both existing branches:
 
 ```bash
-haco repo clone --branch first-branch first https://github.com/OWNER/REPO.git
-haco repo clone --branch second-branch second https://github.com/OWNER/REPO.git
+haco repo add sample https://github.com/OWNER/REPO.git
+haco workspace create --repo sample --branch main main-work
+haco workspace create --repo sample --branch feature/task task-work
+```
+
+Registration stores no branch. Omit Workspace `--branch` to resolve the remote's
+current default branch. Preparation fetches the selected branch before copying;
+branches added after registration work with the same source. Each Workspace keeps
+its own initial checkout. Reads and pushes still use independent per-ref Policy.
+Path-based preparation and collections use each remote's default branch;
+`--branch` currently applies only to single-repository `workspace create`.
+
+`repo add` displays native Git transfer counters on stderr, including with
+`--json`; stdout contains only the result. Unknown remote messages, URLs and
+paths are withheld; recognized failures give credential-free diagnostics.
+Registration runs until completion or cancellation, without the former five-minute
+agent cutoff. Ctrl+C or client disconnect cancels the request. An interrupted
+creation retains its ownership record as recovery-required; inspect `repo list`
+before retrying. General interrupted-preparation recovery remains incomplete.
+The former `repo clone --branch` command is removed.
+
+## Multiple repositories
+
+Register each upstream, then create one collection using their default branches:
+
+```bash
+haco repo add first https://github.com/OWNER/FIRST.git
+haco repo add second https://github.com/OWNER/SECOND.git
 haco workspace create --repo first,second both
 haco env create --workspace managed:both both-dev
 ```
@@ -184,7 +211,7 @@ explicit Workspace deletion destroys its Git data too.
 A source repository cannot be deleted while any Workspace record uses its route.
 
 Imported GitHub routes can reconnect only to an explicitly registered source with
-the same ID, URL and branch. File-route and legacy imports remain offline;
+the same ID and URL; the saved Workspace branch remains authoritative. File-route and legacy imports remain offline;
 a same-name source must not activate them.
 See [imported Git reconnection](../design/git-and-github-capability.md#reconnect-an-imported-github-workspace).
 Native imported fetch/push acceptance remains pending.
@@ -206,7 +233,7 @@ haco open ./task-next
 ```
 
 `first` retains its source changes; `third` must already be registered with
-`haco repo clone`. Unselected members remain in the original work. OCI data is
+`haco repo add`. Unselected members remain in the original work. OCI data is
 copied independently. Omit `--repo` to keep the whole collection. See
 [copy semantics](../design/workspace-workflow.md#choose-the-copys-repositories).
 

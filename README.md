@@ -31,8 +31,8 @@ After installing and entering trusted `haco-host`, the core sequence is:
 
 ```bash
 haco doctor
-haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample sample-work
+haco repo add sample https://github.com/SLktEx/Hacocoon.git
+haco workspace create --repo sample --branch main sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco open --client ssh sample-dev
 ```

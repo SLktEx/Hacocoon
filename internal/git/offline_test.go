@@ -54,7 +54,7 @@ func (b *offlineBrokerBackend) ConnectGit(context.Context, core.Environment, Obj
 	return nil
 }
 func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T) {
-	for _, mode := range []string{"offline", "mixed", "remote-drift", "branch-drift"} {
+	for _, mode := range []string{"offline", "mixed", "remote-drift", "other-workspace-branch"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -90,7 +90,7 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			if mode == "remote-drift" {
 				work.Members[1].Remote = "https://github.com/example/other.git"
 			}
-			if mode == "branch-drift" {
+			if mode == "other-workspace-branch" {
 				work.Members[1].Branch = "other"
 			}
 			if err := s.reserve(work); err != nil {
@@ -108,7 +108,7 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			}
 			defer b.Close()
 			err = b.Connect(ctx, "dev")
-			if mode != "mixed" {
+			if mode != "mixed" && mode != "other-workspace-branch" {
 				want := core.ErrCapabilityStale
 				if mode == "offline" {
 					want = core.ErrUnsupported
