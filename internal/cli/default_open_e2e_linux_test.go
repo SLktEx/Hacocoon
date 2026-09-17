@@ -22,8 +22,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
-// Only native volumes/runtime are fixtures. The shipped CLI process, Unix RPC,
-// repository catalog, collection ownership and lifecycle/lease store are real.
+// Native Git, volumes and runtime are fixtures. The shipped CLI process, Unix
+// RPC, repository catalog, collection ownership and lifecycle/lease store are real.
 // This is repository E2E coverage, not installed Incus/desktop acceptance.
 func TestDefaultWorkflowE2E(t *testing.T) {
 	root := t.TempDir()
@@ -97,6 +97,9 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 		if err != nil || source.Owner == member.Owner || source.NativeRef == member.NativeRef {
 			t.Fatal("source reused as work", err)
 		}
+		if source.Branch != "" || member.Branch != "main" {
+			t.Fatal("branch selection is not confined to the Workspace", source.Branch, member.Branch)
+		}
 		if err := os.WriteFile(filepath.Join(member.NativeRef, "edit"), []byte("uncommitted"), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -119,6 +122,9 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 	if native.creates != 1 || native.starts != 1 || !native.running {
 		t.Fatal("reopen did not reuse lifecycle", native.creates, native.starts)
 	}
+	if native.resolves != 2 {
+		t.Fatal("branches must be resolved once per source, not again on reopen", native.resolves)
+	}
 }
 
 type defaultNativeFixture struct {
@@ -127,6 +133,7 @@ type defaultNativeFixture struct {
 	repos           *gitrepo.RepositoryService
 	volumes         map[string]gitrepo.Object
 	creates, starts int
+	resolves        int
 	running         bool
 }
 
@@ -159,8 +166,24 @@ func (f *defaultNativeFixture) InspectVolume(_ context.Context, object gitrepo.O
 func (f *defaultNativeFixture) Populate(ctx context.Context, object gitrepo.Object) error {
 	return f.InspectVolume(ctx, object)
 }
-func (*defaultNativeFixture) RunGit(context.Context, gitadapter.AgentRequest) (gitadapter.Response, error) {
-	return gitadapter.Response{}, core.ErrUnsupported
+func (f *defaultNativeFixture) RunGit(ctx context.Context, req gitadapter.AgentRequest) (gitadapter.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return gitadapter.Response{}, err
+	}
+	if req.Operation != "resolve" {
+		return gitadapter.Response{}, core.ErrUnsupported
+	}
+	if !gitadapter.ValidID(req.Repository) || (req.Branch != "" && req.Branch != "main") {
+		return gitadapter.Response{}, core.ErrInvalidArgument
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	source, ok := f.volumes[filepath.Join(f.root, "repo-"+req.Repository)]
+	if !ok || source.Kind != "repo" || source.Repository != req.Repository || source.Remote != req.Remote {
+		return gitadapter.Response{}, core.ErrCapabilityStale
+	}
+	f.resolves++
+	return gitadapter.Response{Ref: "refs/heads/main", OID: strings.Repeat("a", 40)}, nil
 }
 func (*defaultNativeFixture) ConnectGit(context.Context, core.Environment, gitrepo.Object, string) error {
 	return core.ErrUnsupported
