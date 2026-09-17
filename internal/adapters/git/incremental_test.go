@@ -71,7 +71,7 @@ func TestOrdinaryIncrementalGitWithHistoryLargerThanPackLimit(t *testing.T) {
 	testGit(t, seed, "commit", "-m", "existing history exceeds transport limit")
 	old := testGit(t, seed, "rev-parse", "HEAD")
 	testGit(t, seed, "push", "file://"+remote, "main")
-	req := AgentRequest{Operation: "clone", Repository: "demo", Remote: "file://" + remote}
+	req := AgentRequest{Operation: "clone", Repository: "demo", Remote: "file://" + remote, Branch: "main"}
 	ctx := context.Background()
 	if _, err := RunAgent(ctx, req, repos, ""); err != nil {
 		t.Fatal(err)

@@ -33,7 +33,7 @@ func (m Manifest) validateWorkspaces(count int) error {
 		if w.Remote == "" && w.Branch == "" {
 			continue
 		}
-		if !gitadapter.ValidWorkspaceRouting(w.Remote, w.Branch) {
+		if gitadapter.ValidateRemote(w.Remote) != nil || !gitadapter.ValidBranch(w.Branch) {
 			return ErrInvalidBundle
 		}
 	}

@@ -18,8 +18,12 @@ import (
 func runRepository(namespace string, args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
-	defer cancel()
+	operationArgs, _, _ := splitJSONFlag(args)
+	if namespace != "repo" || len(operationArgs) == 0 || operationArgs[0] != "add" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 15*time.Minute)
+		defer cancel()
+	}
 	return repositoryCommand(ctx, namespace, args, os.Stdout, os.Stderr)
 }
 func repositoryCommand(ctx context.Context, namespace string, args []string, out, diagnostic io.Writer) int {
@@ -79,7 +83,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 2
 	}
 	pos := flags.Args()
-	if len(pos) != n || (operation == "workspace create" && repo == "") {
+	if len(pos) != n || (operation == "workspace create" && (repo == "" || (branch != "" && strings.Contains(repo, ",")))) {
 		return usage()
 	}
 	var choice capabilityapp.SavedChoice
@@ -108,13 +112,10 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	var err error
 	switch operation {
 	case "repo add":
-		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]})
+		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]}, diagnostic)
 	case "workspace create":
 		request := controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo, Branch: branch}
 		if strings.Contains(repo, ",") {
-			if branch != "" {
-				return usage()
-			}
 			request.Repository = ""
 			request.Repositories = strings.Split(repo, ",")
 		}

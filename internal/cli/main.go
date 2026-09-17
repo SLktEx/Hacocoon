@@ -45,14 +45,18 @@ func Main() {
 	}
 
 	if filepath.Base(os.Args[0]) == "git-remote-haco" {
-		if err := gitadapter.Helper(context.Background(), os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitadapter.UnixExchange(gitadapter.GuestSocket)); err != nil {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := gitadapter.Helper(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr, gitadapter.UnixExchange(gitadapter.GuestSocket)); err != nil {
 			fmt.Fprintln(os.Stderr, "git-remote-haco:", err)
 			os.Exit(1)
 		}
 		return
 	}
 	if len(os.Args) == 2 && os.Args[1] == "_git-agent" {
-		if err := gitadapter.Agent(context.Background(), os.Stdin, os.Stdout); err != nil {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := gitadapter.Agent(gitadapter.WithProgress(ctx, os.Stderr), os.Stdin, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "haco: invalid trusted Git operation")
 			os.Exit(1)
 		}

@@ -206,15 +206,3 @@ func TestSnapshotVolumeInvalidBindingsNeverReachProvider(t *testing.T) {
 		})
 	}
 }
-
-func TestSnapshotVolumeAllowsOnlineRoutingWithoutBranch(t *testing.T) {
-	p := snapshotVolumeFixture("work")
-	p.Remote = "https://github.com/example/repo.git"
-	if err := p.validate(); err != nil {
-		t.Fatal("branchless Workspace snapshot rejected", err)
-	}
-	p.Branch = "--invalid"
-	if p.validate() == nil {
-		t.Fatal("invalid provenance accepted")
-	}
-}

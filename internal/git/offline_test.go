@@ -29,7 +29,7 @@ func TestOfflineWorkspaceImportAndSavedRestore(t *testing.T) {
 	if validObject(repo) {
 		t.Fatal("empty source repository accepted")
 	}
-	for _, pair := range [][2]string{{"", "main"}} {
+	for _, pair := range [][2]string{{"", "main"}, {"https://github.com/example/repo.git", ""}} {
 		if gitadapter.ValidWorkspaceRouting(pair[0], pair[1]) {
 			t.Fatal("partial routing accepted")
 		}
@@ -54,14 +54,14 @@ func (b *offlineBrokerBackend) ConnectGit(context.Context, core.Environment, Obj
 	return nil
 }
 func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T) {
-	for _, mode := range []string{"offline", "mixed", "remote-drift", "branch-drift"} {
+	for _, mode := range []string{"offline", "mixed", "remote-drift", "other-workspace-branch"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			backend := &offlineBrokerBackend{}
 			s := NewRepositoryService(t.TempDir(), backend)
 			makeRepo := func(id string) Object {
-				return Object{Kind: "repo", ID: id, Repository: id, Remote: "https://github.com/example/" + id + ".git", Owner: strings.Repeat("a", 32), NativeRef: "pool/" + id, State: "ready"}
+				return Object{Kind: "repo", ID: id, Repository: id, Remote: "https://github.com/example/" + id + ".git", Branch: "main", Owner: strings.Repeat("a", 32), NativeRef: "pool/" + id, State: "ready"}
 			}
 			offlineRepo := makeRepo("offline")
 			onlineRepo := makeRepo("online")
@@ -90,7 +90,7 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			if mode == "remote-drift" {
 				work.Members[1].Remote = "https://github.com/example/other.git"
 			}
-			if mode == "branch-drift" {
+			if mode == "other-workspace-branch" {
 				work.Members[1].Branch = "other"
 			}
 			if err := s.reserve(work); err != nil {
@@ -108,7 +108,7 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			}
 			defer b.Close()
 			err = b.Connect(ctx, "dev")
-			if mode != "mixed" && mode != "branch-drift" {
+			if mode != "mixed" && mode != "other-workspace-branch" {
 				want := core.ErrCapabilityStale
 				if mode == "offline" {
 					want = core.ErrUnsupported
@@ -148,7 +148,7 @@ func TestOfflineWorkspaceDoesNotRetainUnrelatedHostSource(t *testing.T) {
 	b := &sourceDeleteBackend{t: t}
 	s := NewRepositoryService(t.TempDir(), b)
 	b.service = s
-	source := Object{Kind: "repo", ID: "repo", Repository: "repo", Remote: "https://github.com/example/repo.git", NativeRef: "pool/source", Owner: strings.Repeat("a", 32), State: "ready"}
+	source := Object{Kind: "repo", ID: "repo", Repository: "repo", Remote: "https://github.com/example/repo.git", Branch: "main", NativeRef: "pool/source", Owner: strings.Repeat("a", 32), State: "ready"}
 	if err := s.reserve(source); err != nil {
 		t.Fatal(err)
 	}

@@ -221,7 +221,7 @@ func (b *Broker) listenLocked(bound binding) error {
 		return err
 	}
 	slot := make(chan struct{}, 1)
-	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Minute, WriteTimeout: 10 * time.Minute, BaseContext: func(net.Listener) context.Context { return b.ctx }}
+	server := &http.Server{ReadHeaderTimeout: 5 * time.Second, BaseContext: func(net.Listener) context.Context { return b.ctx }}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case slot <- struct{}{}:
@@ -234,10 +234,11 @@ func (b *Broker) listenLocked(bound binding) error {
 			http.NotFound(w, r)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 9*time.Minute)
+		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		w.Header().Set("Content-Type", "application/octet-stream")
-		err := gitadapter.ServeExchange(ctx, r.Body, w, func(ctx context.Context, request gitadapter.Request) (gitadapter.Response, error) {
+		_ = http.NewResponseController(w).EnableFullDuplex()
+		err := gitadapter.ServeExchange(ctx, r.Body, gitResponseWriter{w}, func(ctx context.Context, request gitadapter.Request) (gitadapter.Response, error) {
 			return b.exchange(ctx, bound, request)
 		})
 		if err != nil {
@@ -307,6 +308,12 @@ func (b *Broker) exchange(ctx context.Context, bound binding, req gitadapter.Req
 		return gitadapter.Response{}, core.ErrPolicyDenied
 	}
 	agent := gitadapter.AgentRequest{Operation: req.Operation, Repository: repo.ID, Remote: repo.Remote, OldOID: req.OldOID, NewOID: req.NewOID, Pack: req.Pack, PackOutput: req.PackOutput, Heads: append([]gitadapter.Head(nil), req.Heads...)}
+	for _, member := range bound.Workspace.Copies() {
+		if member.Repository == repo.ID {
+			agent.Branch = member.Branch
+			break
+		}
+	}
 	agent.Haves = append([]string(nil), req.Haves...)
 	switch req.Operation {
 	case "list":
@@ -614,4 +621,20 @@ func (b *Broker) SavedApprovalScope(ctx context.Context, request core.Capability
 		scope.Attributes[key] = "*"
 	}
 	return scope, nil
+}
+
+// Bound a stalled response write, not the duration of a healthy Git operation.
+// Flush each frame fragment so counters are visible before pack production.
+type gitResponseWriter struct{ http.ResponseWriter }
+
+func (w gitResponseWriter) Write(p []byte) (int, error) {
+	c := http.NewResponseController(w.ResponseWriter)
+	if err := c.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return 0, err
+	}
+	n, err := w.ResponseWriter.Write(p)
+	if err == nil {
+		err = c.Flush()
+	}
+	return n, err
 }

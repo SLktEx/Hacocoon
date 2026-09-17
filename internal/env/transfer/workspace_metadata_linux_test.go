@@ -75,7 +75,7 @@ func TestWorkspaceMetadataRejectsInvalidRoutingBeforeNativeExport(t *testing.T) 
 				case "bad-branch":
 					w[0].Branch = "--upload-pack=bad"
 				case "partial-routing":
-					w[0].Remote = ""
+					w[0].Branch = ""
 				case "oversized":
 					w[0].Remote = "file:///" + string(bytes.Repeat([]byte("a"), 4096))
 				case "callback-error":
@@ -103,21 +103,5 @@ func TestWorkspaceMetadataLegacyRules(t *testing.T) {
 	m.Version = 1
 	if !errors.Is(m.validate(1<<20), ErrInvalidBundle) {
 		t.Fatal("v1 accepted routing extension")
-	}
-}
-
-func TestWorkspaceMetadataAllowsBranchlessOnlineRouting(t *testing.T) {
-	s, a := snapshotFixture(2, false)
-	workspaces := metadataFixture()
-	for i := range workspaces {
-		workspaces[i].Branch = ""
-	}
-	var out bytes.Buffer
-	if err := writeSnapshot(&out, s, a, 1<<20, workspaces); err != nil {
-		t.Fatal(err)
-	}
-	manifest, err := Inspect(bytes.NewReader(out.Bytes()), 1<<20)
-	if err != nil || !reflect.DeepEqual(manifest.Workspaces, workspaces) {
-		t.Fatal(manifest.Workspaces, err)
 	}
 }

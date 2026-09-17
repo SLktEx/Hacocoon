@@ -71,7 +71,7 @@ func TestReadHeadsRejectsExcessAndNonCommitBeforePack(t *testing.T) {
 				return nil, nil
 			}
 		}
-		req := AgentRequest{Operation: "list"}
+		req := AgentRequest{Operation: "list", Branch: "main"}
 		if mode == "tree" {
 			req.Operation = "fetch"
 			req.PackOutput = io.Discard
@@ -80,41 +80,5 @@ func TestReadHeadsRejectsExcessAndNonCommitBeforePack(t *testing.T) {
 		if _, err := readHeads(git, req, func([]byte) (int64, error) { t.Fatal("invalid remote reached pack"); return 0, nil }); err == nil {
 			t.Fatal("invalid remote accepted", mode)
 		}
-	}
-}
-
-// Fixtures follow git ls-remote --symref's tab-separated output contract.
-func TestRemoteHeadsObservesDefaultWithoutPinningRegistration(t *testing.T) {
-	oid := strings.Repeat("a", 40)
-	heads := oid + "\trefs/heads/release/v1.2\n"
-	for _, tc := range []struct {
-		name, output, wantRef string
-		invalid               bool
-	}{
-		{"symbolic", "ref: refs/heads/release/v1.2\tHEAD\n" + oid + "\tHEAD\n" + heads, "refs/heads/release/v1.2", false},
-		{"absent", heads, "", false},
-		{"tag-named-HEAD", heads + oid + "\trefs/tags/HEAD\n", "", false},
-		{"detached", oid + "\tHEAD\n" + heads, "", false},
-		{"dangling", "ref: refs/heads/missing\tHEAD\n" + heads, "", false},
-		{"unsafe", "ref: refs/heads/../bad\tHEAD\n" + heads, "", true},
-		{"duplicate", "ref: refs/heads/a\tHEAD\nref: refs/heads/b\tHEAD\n" + heads, "", true},
-		{"bad-oid", "wrong\tHEAD\n" + heads, "", true},
-		{"duplicate-head", heads + heads, "", true},
-		{"malformed", "wrong\n", "", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := remoteHeads(func(_ []byte, args ...string) ([]byte, error) {
-				if strings.Join(args, " ") != "ls-remote --symref -- file:///fixture HEAD refs/heads/*" {
-					t.Fatal(args)
-				}
-				return []byte(tc.output), nil
-			}, "file:///fixture")
-			if (err != nil) != tc.invalid || result.Ref != tc.wantRef {
-				t.Fatal(result, err)
-			}
-		})
-	}
-	if _, err := remoteHeads(func([]byte, ...string) ([]byte, error) { return []byte(heads), fmt.Errorf("observation failed") }, "file:///fixture"); err == nil {
-		t.Fatal("failed observation accepted")
 	}
 }

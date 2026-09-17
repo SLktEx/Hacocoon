@@ -60,7 +60,7 @@ func TestRepositoryGitProcessHelper(t *testing.T) {
 		os.Exit(71)
 	}
 	request, err := gitadapter.ReadAgentRequest(os.Stdin)
-	if err != nil || request.Repository != "demo" || request.Remote != "https://github.com/example/demo.git" || request.Branch != "" {
+	if err != nil || request.Repository != "demo" || request.Remote != "https://github.com/example/demo.git" || request.Branch != "main" {
 		os.Exit(72)
 	}
 	var pack []byte
@@ -135,7 +135,7 @@ func TestRepositoryRunGitRequiresCompleteProcessAndReceipt(t *testing.T) {
 			backend := &RepositoryBackend{Runtime: New(runner)}
 			payload := bytes.Repeat([]byte{0, 255, '\n', '{', '}'}, 40000)
 			var output bytes.Buffer
-			request := gitadapter.AgentRequest{Operation: "prepare", Repository: "demo", Workspace: "task", Remote: "https://github.com/example/demo.git", Pack: bytes.NewReader(payload), PackOutput: &output}
+			request := gitadapter.AgentRequest{Operation: "prepare", Repository: "demo", Workspace: "task", Remote: "https://github.com/example/demo.git", Branch: "main", Pack: bytes.NewReader(payload), PackOutput: &output}
 			failure := errors.New("output closed")
 			if mode == "output-fails" {
 				request.PackOutput = repositoryFailedOutput{failure}
@@ -177,7 +177,7 @@ func TestRepositoryRunGitCancellationWaitsForOwnedChild(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := backend.RunGit(ctx, gitadapter.AgentRequest{Operation: "clone", Repository: "demo", Remote: "https://github.com/example/demo.git"})
+		_, err := backend.RunGit(ctx, gitadapter.AgentRequest{Operation: "clone", Repository: "demo", Remote: "https://github.com/example/demo.git", Branch: "main"})
 		done <- err
 	}()
 	deadline := time.NewTimer(10 * time.Second)

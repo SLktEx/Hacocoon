@@ -115,7 +115,7 @@ func TestSourceDeletionLocalePreservesRequestJSONAndRawFailure(t *testing.T) {
 	for _, language := range []string{"en", "ja"} {
 		t.Run(language, func(t *testing.T) {
 			setCLITestLocale(t, language)
-			object := gitrepo.Object{Kind: "repo", ID: "source", Owner: strings.Repeat("a", 32), State: "ready", Remote: "https://example.test/repo.git"}
+			object := gitrepo.Object{Kind: "repo", ID: "source", Owner: strings.Repeat("a", 32), State: "ready", Remote: "https://example.test/repo.git", Branch: "main"}
 			c := &sourceClientFake{all: controlapi.RepositoryManageResponse{Sources: []gitrepo.SourceUse{{Source: object}}}}
 			var out, diagnostic bytes.Buffer
 			if code := sourceManageCommand(context.Background(), c, []string{"list", "--json"}, strings.NewReader(""), &out, &diagnostic); code != 0 {

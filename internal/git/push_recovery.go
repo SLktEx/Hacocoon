@@ -182,7 +182,7 @@ func (b *Broker) ReconcilePush(ctx context.Context, environment, requestID strin
 		if identityErr != nil || current != started.EnvironmentInstance {
 			return gitadapter.Response{}, core.ErrCapabilityStale
 		}
-		response, err := b.Repositories.RunGit(ctx, repo, gitadapter.AgentRequest{Operation: "observe", Repository: repo.ID, Remote: repo.Remote, Ref: status.Ref})
+		response, err := b.Repositories.RunGit(ctx, repo, gitadapter.AgentRequest{Operation: "observe", Repository: repo.ID, Remote: repo.Remote, Branch: repo.Branch, Ref: status.Ref})
 		if err != nil {
 			return gitadapter.Response{}, err
 		}

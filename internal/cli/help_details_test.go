@@ -57,7 +57,7 @@ func TestDailyHelpExplainsRequiredInputDefaultsAndAuthorityInBothLanguages(t *te
 				"env create":        {"--workspace", "--no-oci"},
 				"workspace prepare": {"--path", "--repo", "auto"},
 				"repo add":          {"<id>", "<URL>", "push"},
-				"git approve":       {"ask-env", "ask-all", "push"},
+				"git approve":       {"ask-env", "ask-all", "main"},
 				"reclaim":           {"--status", "--review"},
 				"setup":             {"--script", "--clear-script"},
 				"config":            {"--edit", "--file"},

@@ -1,50 +1,52 @@
-# ADR 0110: Register repositories independently of checkout branches
+# ADR 0110: Register repositories independently of Workspace branches
 
-[日本語](0110-branch-independent-repositories.ja.md) | English
-
-Status: accepted. Refs #709.
+Status: accepted. Updates the source-branch assumptions in
+[ADR 0008](0008-managed-repository-workspaces.md) and
+[ADR 0055](0055-offline-workspace-routing.md).
 
 ## Decision
 
-Repository registration names a Git remote through `haco repo add <id> <remote>`
-and `repository.add`. A branch belongs to a Workspace's initial checkout or an
-individual Git operation, never to source identity or broker source matching.
-This supersedes the branch-from-registration portion of
-[ADR 0008](0008-managed-repository-workspaces.md).
+One registered source identifies a remote repository, not a branch. The canonical
+command is `haco repo add`; the former `repo clone --branch` command is removed.
+The trusted source stores all advertised branches. Workspace preparation resolves
+and fetches one existing branch, defaulting to remote HEAD, before an independent
+copy. That selected branch belongs to the protected Workspace route.
 
-Keep the existing owned source volume and independent Workspace volume copies.
-The source is a normal all-heads clone without checkout. A fresh copy refreshes
-upstream heads and checks out an explicitly selected branch or the current
-remote symbolic HEAD, then receives only the non-authorizing helper config.
-Never run this authenticated preparation against imported or restored guest
-data. Source owner, registered remote, Environment identity and exact-ref Policy
-remain mandatory. Missing default HEAD does not invalidate other heads; an
-explicit branch can prepare a Workspace in that case.
+The Workspace branch records initial checkout provenance, not an authorization
+limit. All-head discovery and each exact-ref read still require their existing
+Policy checks. Push approval binds the requested ref and old/new OIDs. Source
+owner, URL and Environment identity remain pinned. A guest ref never grants authority.
+Different Workspaces may use different branches of the same source without
+duplicating registration or credentials. Offline data remains offline.
 
-The shared persisted object uses `branch` only as optional Workspace provenance.
-Source records with a branch fail closed as incompatible. This change does not
-automatically rewrite old registrations or delete their owned volumes. Saved
-Workspace branches remain valid provenance and need not match registration.
-Snapshot/transfer routing permits a registered remote without branch metadata;
-an absent remote remains offline and cannot acquire authority by a matching name.
+Existing source records may retain their legacy branch field for read compatibility;
+it is ignored for branch selection and authorization. Workspace and snapshot/transfer
+records retain their branch semantics. No owned data or Core schema is migrated.
 
-## Alternatives and consequences
+Repository registration has a streaming management method and an explicit final
+receipt. Git transfer counters go to stderr through a bounded line filter; only
+numeric native progress and fixed credential-free failure diagnostics are exposed.
+Raw remote messages, paths and URLs are not forwarded or logged. A silent Git
+process is canceled by request lifetime, with controller disconnect propagated through the Incus exec signal channel
+to the signal-aware agent, rather than a blanket five-minute timeout. Incomplete provider creation
+retains ownership and recovery-required state.
 
-A rename retaining required/default branch metadata would preserve the wrong
-identity. Separate registrations per branch would duplicate ownership and Git
-authority. Shared worktrees or alternates would expose trusted Git metadata to
-guest writes. A bare/mirror layout would require unnecessary changes to the
-current volume-copy contract; an ordinary clone already retains all heads.
+## Rejected alternatives
 
-The pre-1.0 [compatibility policy](../../CONTRIBUTING.md) permits deliberate
-removal. The old CLI and API are removed rather than keeping an alias whose
-`--branch` is ignored or wrongly interpreted as registration identity. Initial
-selection is the optional `workspace create --branch` flag for one source;
-collections and `workspace prepare` use each current remote default. Reopening,
-forking and importing preserve existing work and never reset its checkout.
+A deprecated branch-bearing registration alias would preserve the wrong model.
+Using the Host clone's checked-out branch as authority would couple independent
+Workspaces. Trusting a guest-selected ref would broaden approved access. Replacing
+source metadata or volumes during upgrade would risk existing ownership and data.
+Passing raw Git stderr through a generic token regex would miss arbitrary remote
+credential echoes. A longer fixed timeout alone would still fail healthy transfers
+and would not cancel silent work on client disconnect.
 
-The [Git design](../design/git-and-github-capability.md#branch-independent-registration)
-owns detailed semantics and observation/refusal rules. Tests cover branchless
-CLI/API/storage, independent multi-branch copies, changes after registration,
-missing heads and preserved broker ownership checks. Local Git and repository
-tests do not establish native Incus or installed Windows acceptance.
+## Consequences
+
+Single-repository Workspace creation supports explicit branch selection. Collections
+and path preparation use each source's remote default. All-head fetch, independent
+ref approval, new-branch push and the 16 GiB per-pack streaming limit remain.
+Bounded progress frames share the broker response with pack frames, but never
+count as pack data or replace the final receipt. Fetch has no elapsed-time cutoff;
+header and stalled-output deadlines still bound transport setup and backpressure. Installed Incus disconnect handling and large/private repository acceptance
+must be measured separately from repository tests.

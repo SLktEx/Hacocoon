@@ -3,9 +3,9 @@
 Status: accepted for implementation  
 Date: 2026-09-06
 
-The branch-from-registration decision is superseded by
-[ADR 0110](0110-branch-independent-repositories.md). Source ownership and
-independent Workspace isolation remain unchanged.
+Source branch selection is superseded by
+[ADR 0110](0110-branch-independent-repositories.md); the Workspace route now owns
+the selected branch. The ownership and credential boundaries below remain.
 
 ## Context
 

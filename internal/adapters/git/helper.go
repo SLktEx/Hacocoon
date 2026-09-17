@@ -20,7 +20,7 @@ func UnixExchange(socket string) Exchange {
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
 	}, DisableKeepAlives: true}
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Minute}
+	client := &http.Client{Transport: transport}
 	return func(ctx context.Context, request Request) (Response, error) {
 		body, err := RequestBody(request)
 		if err != nil {
@@ -35,7 +35,7 @@ func UnixExchange(socket string) Exchange {
 			return Response{}, fmt.Errorf("Environment Git broker is unavailable")
 		}
 		defer response.Body.Close()
-		result, err := ReadResponse(response.Body, request.PackOutput)
+		result, err := ReadResponseProgress(response.Body, request.PackOutput, ProgressWriter(ctx))
 		if err != nil {
 			return Response{}, err
 		}
@@ -47,6 +47,7 @@ func UnixExchange(socket string) Exchange {
 }
 
 func Helper(ctx context.Context, args []string, input io.Reader, output, diagnostic io.Writer, exchange Exchange) error {
+	ctx = WithProgress(ctx, diagnostic)
 	if len(args) != 2 || !strings.HasPrefix(args[1], "haco://") {
 		return fmt.Errorf("git remote must use haco://<registered-repository>")
 	}
@@ -67,6 +68,13 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 		case strings.HasPrefix(line, "option "):
 			fields := strings.Fields(line)
 			if len(fields) == 3 && (fields[1] == "verbosity" || fields[1] == "progress") {
+				if fields[1] == "progress" {
+					if fields[2] == "false" {
+						ctx = WithProgress(ctx, io.Discard)
+					} else {
+						ctx = WithProgress(ctx, diagnostic)
+					}
+				}
 				fmt.Fprintln(output, "ok")
 			} else {
 				fmt.Fprintln(output, "unsupported")
@@ -78,16 +86,13 @@ func Helper(ctx context.Context, args []string, input io.Reader, output, diagnos
 				return err
 			}
 			heads, err := ValidateHeads(listed.Heads)
-			if err != nil || (listed.Ref == "" && listed.OID != "") || (listed.Ref != "" && (!ValidOID(listed.OID) || heads[listed.Ref] != listed.OID)) {
+			if err != nil || !ValidOID(listed.OID) || heads[listed.Ref] != listed.OID {
 				return fmt.Errorf("invalid remote ref listing")
 			}
 			for _, head := range listed.Heads {
 				_, _ = fmt.Fprintf(output, "%s %s\n", head.OID, head.Ref)
 			}
-			if listed.Ref != "" {
-				_, _ = fmt.Fprintf(output, "@%s HEAD\n", listed.Ref)
-			}
-			_, _ = fmt.Fprintln(output)
+			_, _ = fmt.Fprintf(output, "@%s HEAD\n\n", listed.Ref)
 		case strings.HasPrefix(line, "fetch "):
 			batch, err := helperBatch(scanner, line)
 			if err != nil {

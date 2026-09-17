@@ -10,6 +10,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -21,7 +22,8 @@ type Object struct {
 	ID           string `json:"id"`
 	Repository   string `json:"repository"`
 	Remote       string `json:"remote"`
-	// Branch is optional Workspace checkout provenance, never source identity.
+	// Branch belongs to a Workspace route. Legacy source records may contain
+	// it, but it is not used to select or authorize a source repository ref.
 	Branch    string   `json:"branch,omitempty"`
 	NativeRef string   `json:"native_ref"`
 	Owner     string   `json:"owner"`
@@ -62,7 +64,6 @@ func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository st
 	return s.CopyWorkspaceBranch(ctx, id, repository, "")
 }
 
-// CopyWorkspaceBranch selects an initial checkout without changing source identity.
 func (s *RepositoryService) CopyWorkspaceBranch(ctx context.Context, id, repository, branch string) (Object, error) {
 	if !gitadapter.ValidID(id) || !gitadapter.ValidID(repository) || (branch != "" && !gitadapter.ValidBranch(branch)) {
 		return Object{}, core.ErrInvalidArgument
@@ -76,7 +77,25 @@ func (s *RepositoryService) CopyWorkspaceBranch(ctx context.Context, id, reposit
 	if err := s.Backend.InspectVolume(ctx, repo); err != nil {
 		return Object{}, err
 	}
+	branch, err = s.resolveBranch(ctx, repo, branch)
+	if err != nil {
+		return Object{}, err
+	}
 	return s.create(ctx, Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: branch}, &repo)
+}
+
+// Resolve and fetch under the source lock before making an independent copy.
+// The remote default is observed here; it is never repository identity.
+func (s *RepositoryService) resolveBranch(ctx context.Context, repo Object, branch string) (string, error) {
+	result, err := s.Backend.RunGit(ctx, gitadapter.AgentRequest{Operation: "resolve", Repository: repo.ID, Remote: repo.Remote, Branch: branch})
+	if err != nil {
+		return "", err
+	}
+	const prefix = "refs/heads/"
+	if !strings.HasPrefix(result.Ref, prefix) || !gitadapter.ValidBranch(strings.TrimPrefix(result.Ref, prefix)) || (branch != "" && result.Ref != prefix+branch) || !gitadapter.ValidOID(result.OID) {
+		return "", core.ErrIncompatibleState
+	}
+	return strings.TrimPrefix(result.Ref, prefix), nil
 }
 
 // CopyWorkspaceSet reserves the entire immutable collection before creating
@@ -104,11 +123,15 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		if err := s.Backend.InspectVolume(ctx, source); err != nil {
 			return Object{}, err
 		}
+		branch, err := s.resolveBranch(ctx, source, "")
+		if err != nil {
+			return Object{}, err
+		}
 		ref, err := s.Backend.Plan(ctx, "work", id+"-"+name)
 		if err != nil {
 			return Object{}, err
 		}
-		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, NativeRef: ref, Owner: randomID(), State: "creating"})
+		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: branch, NativeRef: ref, Owner: randomID(), State: "creating"})
 		sources = append(sources, source)
 	}
 	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {
@@ -167,7 +190,7 @@ func validObject(o Object) bool {
 		return false
 	}
 	if len(o.Members) == 0 {
-		routing := o.Branch == "" && gitadapter.ValidateRemote(o.Remote) == nil
+		routing := (o.Branch == "" || gitadapter.ValidBranch(o.Branch)) && gitadapter.ValidateRemote(o.Remote) == nil
 		if o.Kind == "work" {
 			routing = gitadapter.ValidWorkspaceRouting(o.Remote, o.Branch)
 		}
@@ -199,6 +222,9 @@ func (s *RepositoryService) create(ctx context.Context, object Object, source *O
 // createPrepared is the existing single-volume ownership/publication transition.
 // Native imports already contain their data and do not run Git population.
 func (s *RepositoryService) createPrepared(ctx context.Context, object Object, create func(context.Context, Object) error, populate func(context.Context, Object) error) (Object, error) {
+	if err := ctx.Err(); err != nil {
+		return Object{}, err
+	}
 	ref, err := s.Backend.Plan(ctx, object.Kind, object.ID)
 	if err != nil {
 		return Object{}, err

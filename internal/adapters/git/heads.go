@@ -56,43 +56,20 @@ func readHeads(git func([]byte, ...string) ([]byte, error), req AgentRequest, pa
 	if req.Operation == "fetch" {
 		return fetchHead(git, req, pack)
 	}
-	return remoteHeads(git, req.Remote)
-}
-
-// remoteHeads uses Git's ls-remote --symref records. HEAD is a current remote
-// observation, never a property of the registered repository. Missing/dangling
-// HEAD does not prevent discovery and explicit use of the available branches.
-func remoteHeads(git func([]byte, ...string) ([]byte, error), remote string) (Response, error) {
-	data, err := git(nil, "ls-remote", "--symref", "--", remote, "HEAD", "refs/heads/*")
+	// Discovery transfers names/OIDs only. No branch objects are fetched before
+	// the broker's per-ref Policy check, even when all-head discovery is allowed.
+	data, err := git(nil, "ls-remote", "--heads", "--", req.Remote)
 	if err != nil {
 		return Response{}, err
 	}
-	result := Response{}
+	result := Response{Ref: "refs/heads/" + req.Branch}
 	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
-		value, ref, ok := strings.Cut(line, "\t")
+		oid, ref, ok := strings.Cut(line, "\t")
 		if !ok {
 			return Response{}, fmt.Errorf("invalid remote head listing")
 		}
-		if ref == "HEAD" {
-			if target, symbolic := strings.CutPrefix(value, "ref: "); symbolic {
-				if result.Ref != "" || !ValidHeadRef(target) {
-					return Response{}, fmt.Errorf("invalid remote HEAD")
-				}
-				result.Ref = target
-			} else if !ValidOID(value) || value == ZeroOID {
-				return Response{}, fmt.Errorf("invalid remote HEAD object")
-			}
-			continue
-		}
-		// ls-remote patterns also match ref tails, so HEAD can include a tag
-		// or another namespace ending in /HEAD. Only heads enter this API.
-		if !strings.HasPrefix(ref, "refs/heads/") {
-			if !ValidOID(value) || value == ZeroOID {
-				return Response{}, fmt.Errorf("invalid remote ref listing")
-			}
-			continue
-		}
-		result.Heads = append(result.Heads, Head{Ref: ref, OID: value})
+		head := Head{Ref: ref, OID: oid}
+		result.Heads = append(result.Heads, head)
 	}
 	current, err := ValidateHeads(result.Heads)
 	if err != nil {
@@ -100,7 +77,7 @@ func remoteHeads(git func([]byte, ...string) ([]byte, error), remote string) (Re
 	}
 	result.OID = current[result.Ref]
 	if result.OID == "" {
-		result.Ref = ""
+		return Response{}, fmt.Errorf("registered checkout branch is unavailable")
 	}
 	return result, nil
 }
@@ -111,7 +88,7 @@ func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest, pa
 	}
 	head := req.Heads[0]
 	tracking := readCachePrefix + strings.TrimPrefix(head.Ref, "refs/heads/")
-	if _, err := git(nil, "fetch", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+head.Ref+":"+tracking); err != nil {
+	if _, err := git(nil, "fetch", "--progress", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+head.Ref+":"+tracking); err != nil {
 		return Response{}, fmt.Errorf("trusted remote fetch failed; check registration and Host authentication")
 	}
 	value, err := git(nil, "rev-parse", "--verify", tracking)

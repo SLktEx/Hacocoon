@@ -40,7 +40,7 @@ func TestSourceDeletionPreservesReferencesAndAmbiguousCleanup(t *testing.T) {
 	b := &sourceDeleteBackend{t: t}
 	s := NewRepositoryService(t.TempDir(), b)
 	b.service = s
-	o := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
+	o := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", Branch: "main", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
 	if err := s.reserve(o); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestQueuedGitCannotUseSameNameSourceReplacement(t *testing.T) {
 	b := &sourceDeleteBackend{t: t}
 	s := NewRepositoryService(t.TempDir(), b)
 	b.service = s
-	original := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
+	original := Object{Kind: "repo", ID: "source", Repository: "source", Remote: "https://github.com/example/source.git", Branch: "main", NativeRef: "pool/haco-repo-source", Owner: strings.Repeat("a", 32), State: "ready"}
 	if err := s.reserve(original); err != nil {
 		t.Fatal(err)
 	}

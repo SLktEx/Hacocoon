@@ -41,7 +41,7 @@ func (s *RepositoryService) ListSources(ctx context.Context) ([]SourceUse, error
 	return result, nil
 }
 
-// DeleteSource shares the registry lock with registration/copy. All Workspace records,
+// DeleteSource shares the registry lock with clone/copy. All Workspace records,
 // with Git routing, including interrupted creations/deletions, keep their source alive.
 // Offline data has no dependency on a coincidentally same-named Host repository.
 func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) error {
@@ -95,7 +95,7 @@ func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) 
 }
 
 // RunGit rechecks the exact source under the same registry lock as deletion and
-// registration. A request that waited after approval cannot use a same-name replacement.
+// clone. A request that waited after approval cannot use a same-name replacement.
 func (s *RepositoryService) RunGit(ctx context.Context, expected Object, req gitadapter.AgentRequest) (gitadapter.Response, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

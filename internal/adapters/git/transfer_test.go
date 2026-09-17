@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 const legacyPackLimit = 32 << 20
@@ -197,6 +198,74 @@ func TestTransferMetadataRejectsUnknownGuestAuthorityAndMalformedDocuments(t *te
 		wire.Write([]byte{0, 0, 0, 0})
 		if _, err := ReadRequest(&wire); err == nil {
 			t.Fatal("invalid metadata accepted", data)
+		}
+	}
+}
+
+func TestProgressArrivesBeforePackAndPreservesRequestLifetime(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	input, _ := RequestBody(Request{Operation: "fetch", Repository: "demo"})
+	reader, writer := io.Pipe()
+	defer func() { _ = reader.Close() }()
+	done := make(chan error, 1)
+	go func() {
+		err := ServeExchange(ctx, input, writer, func(ctx context.Context, req Request) (Response, error) {
+			if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) < 55*time.Minute {
+				t.Error("short fetch deadline")
+			}
+			_, err := io.WriteString(ProgressWriter(ctx), "Receiving objects: 50% (1/2)\rremote: token=secret\n")
+			if err != nil {
+				return Response{}, err
+			}
+			<-ctx.Done()
+			return Response{}, ctx.Err()
+		})
+		_ = writer.Close()
+		done <- err
+	}()
+	var diagnostic bytes.Buffer
+	progress := progressWriterFunc(func(p []byte) (int, error) {
+		n, err := diagnostic.Write(p)
+		cancel() // Progress must be observable while the operation is still live.
+		return n, err
+	})
+	_, err := ReadResponseProgress(reader, io.Discard, progress)
+	if err == nil || !errors.Is(<-done, context.Canceled) || diagnostic.String() != "Receiving objects: 50% (1/2)\n" {
+		t.Fatal(diagnostic.String(), err)
+	}
+}
+
+type progressWriterFunc func([]byte) (int, error)
+
+func (f progressWriterFunc) Write(p []byte) (int, error) { return f(p) }
+
+func TestProgressNeverCountsAsPackOrReplacesReceipt(t *testing.T) {
+	input, _ := RequestBody(Request{Operation: "fetch", Repository: "demo"})
+	var wire, progress, pack bytes.Buffer
+	if err := ServeExchange(context.Background(), input, &wire, func(ctx context.Context, req Request) (Response, error) {
+		_, _ = io.WriteString(ProgressWriter(ctx), "Receiving objects: 50% (1/2)\n")
+		n, err := io.WriteString(req.PackOutput, "pack bytes")
+		_, _ = io.WriteString(ProgressWriter(ctx), "Resolving deltas: 100% (1/1), done.\n")
+		return Response{PackBytes: int64(n)}, err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	original := append([]byte(nil), wire.Bytes()...)
+	result, err := ReadResponseProgress(&wire, &pack, &progress)
+	if err != nil || result.PackBytes != 10 || pack.String() != "pack bytes" || !strings.Contains(progress.String(), "Resolving deltas:") {
+		t.Fatal(result, err, &pack, &progress)
+	}
+	if _, err := ReadResponseProgress(bytes.NewReader(original[:len(original)-1]), io.Discard, io.Discard); err == nil {
+		t.Fatal("missing receipt accepted")
+	}
+	for _, line := range []string{"remote: token=secret", strings.Repeat("x", 4097), ""} {
+		var malicious bytes.Buffer
+		_ = binary.Write(&malicious, binary.BigEndian, progressFrame|uint32(len(line)))
+		malicious.WriteString(line)
+		malicious.Write(original)
+		if _, err := ReadResponseProgress(&malicious, io.Discard, io.Discard); err == nil {
+			t.Fatal("malformed progress accepted")
 		}
 	}
 }

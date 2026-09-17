@@ -28,7 +28,7 @@ func TestTrustedFetchRejectsStaleDeletedAndUnlistedCommits(t *testing.T) {
 	testGit(t, seed, "push", "origin", "main")
 	testGit(t, seed, "branch", "topic")
 	testGit(t, seed, "push", "origin", "topic")
-	req := gitadapter.AgentRequest{Operation: "clone", Repository: "demo", Remote: "file://" + remote}
+	req := gitadapter.AgentRequest{Operation: "clone", Repository: "demo", Branch: "main", Remote: "file://" + remote}
 	if _, err := gitadapter.RunAgent(context.Background(), req, repos, ""); err != nil {
 		t.Fatal(err)
 	}

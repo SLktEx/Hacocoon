@@ -145,30 +145,34 @@ haco git approve --save ask-env <id>
 取り消すときは[`haco config`](../reference/configuration.ja.md)で対応する保存項目を削除します。
 保存結果の成功には永続化と監査が必要ですが、その後の実行が失敗しても設定が残る場合があります。
 
-## 一度登録し、作業を作るときにブランチを選ぶ
+## 一度登録して、Workspaceごとにブランチを選ぶ
 
-信頼された管理側で実行します。
+信頼された管理端末で実行します。次の二つのブランチが取得元に存在することが前提です。
 
 ```bash
 haco repo add sample https://github.com/OWNER/REPO.git
-haco workspace create --repo sample --branch main work-main
-haco workspace create --repo sample --branch feature/foo work-feature
+haco workspace create --repo sample --branch main main-work
+haco workspace create --repo sample --branch feature/task task-work
 ```
 
-両ブランチは取得元に存在する必要があります。同じ登録元から、ファイルと`.git`が
-独立した二つのWorkspaceを作成します。登録時にブランチは不要で、push権限も与えません。
-`--branch`を省略するとWorkspace作成時点の取得元の既定ブランチを使います。
-`workspace prepare`も同様です。登録情報に既定ブランチを固定保存しません。
-その後の切り替えはEnvironment内の通常のGitで行います。集合の作成では取得元ごとの
-既定ブランチを使い、`--branch`は単一リポジトリの作成だけで指定できます。
+取得元の登録にはブランチを保存しません。Workspaceの `--branch` を省略すると、
+リモートの現在の既定ブランチを解決します。コピー前に選択ブランチを取得するため、
+登録後に追加されたブランチも同じ取得元で利用できます。各Workspaceは独立した
+初期チェックアウトをそれぞれ保持します。読み取りとpushは引き続きrefごとのPolicyで判断します。
+パスによる準備と集合では各取得元の既定ブランチを使います。現在 `--branch` を
+指定できるのは、単一リポジトリの `workspace create` です。
 
-pre-1.0の方針に従い、`repo clone`と旧APIは非推奨aliasを残さず削除しました。
-branchを含む旧ソース記録は非互換として扱い、データを保持したまま自動変換は行いません。
-[判断理由](../adr/0110-branch-independent-repositories.ja.md)を参照してください。
+`repo add` はGit本来の転送件数・進捗をstderrへ表示し、`--json` 指定時もstdoutには
+結果だけを出します。未知のリモートメッセージ・URL・パスは表示せず、既知の失敗は
+認証情報を含まない診断に変換します。従来のエージェントの5分制限はなく、完了または
+キャンセルまで処理を続けます。Ctrl+Cやクライアント切断で処理を中止します。
+作成途中の中断では所有記録を復旧必要として保持するため、再実行前に `repo list` を
+確認してください。準備中断からの一般的な復旧は未完了です。
+従来の `repo clone --branch` コマンドは削除されています。
 
 ## 複数リポジトリ
 
-リポジトリごとに一度登録して、一つの集合を作ります。
+取得元を登録して、それぞれの既定ブランチから一つの集合を作ります。
 
 ```bash
 haco repo add first https://github.com/OWNER/FIRST.git
@@ -190,7 +194,7 @@ Workspace自体の削除ではGit情報も失われます。
 取得元・Workspace・Storeの整理は[データの寿命](data-lifetime.ja.md)を参照してください。
 Workspaceの記録が接続先として使っている取得元は削除できません。
 
-インポート済みのGitHub接続先は、同じID・URLを明示的に登録した取得元だけに再接続できます。
+インポート済みのGitHub接続先は、同じID・URLを明示的に登録した取得元だけに再接続できます。ブランチは保存済みWorkspaceの指定を維持します。
 ファイル接続先と旧形式のインポートはオフラインのままで、同名の取得元を作っても有効になりません。
 [インポート後のGit再接続](../design/git-and-github-capability.md#reconnect-an-imported-github-workspace)を参照してください。
 インポートした実機でのfetch／pushは未確認です。

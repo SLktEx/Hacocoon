@@ -29,6 +29,13 @@ func (localBackend) InspectVolume(context.Context, Object) error                
 func (localBackend) Populate(context.Context, Object) error                             { return nil }
 func (localBackend) ConnectGit(context.Context, core.Environment, Object, string) error { return nil }
 func (b localBackend) RunGit(ctx context.Context, request gitadapter.AgentRequest) (gitadapter.Response, error) {
+	if request.Operation == "resolve" && b.repos == "" {
+		branch := request.Branch
+		if branch == "" {
+			branch = "main"
+		}
+		return gitadapter.Response{Ref: "refs/heads/" + branch, OID: strings.Repeat("a", 40)}, nil
+	}
 	input, err := gitadapter.AgentRequestBody(request)
 	if err != nil {
 		return gitadapter.Response{}, err
@@ -148,7 +155,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	testGit(t, seed, "push", "origin", "feature/independent")
 	testGit(t, seed, "switch", "main")
 	backend := localBackend{repos: filepath.Join(root, "repos"), workspaces: filepath.Join(root, "workspaces")}
-	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
+	repo := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "file://" + remote, Branch: "main", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
 	work := repo
 	work.Kind = "work"
 	work.ID = "work"
@@ -269,7 +276,10 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	}
 	upstream := testCommit(t, seed, "upstream.txt", "pulled normally\n")
 	testGit(t, seed, "push", "origin", "main")
-	testGit(t, workspace, "pull", "--ff-only")
+	fetchOutput := testGit(t, workspace, "pull", "--progress", "--ff-only")
+	if !strings.Contains(fetchOutput, "Receiving objects:") {
+		t.Fatal("broker fetch lost native progress", fetchOutput)
+	}
 	if got := testGit(t, workspace, "rev-parse", "HEAD"); got != upstream {
 		t.Fatalf("pull=%s", got)
 	}

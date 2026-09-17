@@ -89,24 +89,36 @@ func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 	}
 }
 
-func TestSourceRecordRejectsBranchIdentity(t *testing.T) {
-	s := NewRepositoryService(t.TempDir(), nil)
-	source := Object{Kind: "repo", ID: "sample", Repository: "sample", Remote: "https://github.com/example/repo.git", NativeRef: "test-volume", Owner: strings.Repeat("a", 32), State: "ready"}
-	if !validObject(source) {
-		t.Fatal("branchless source rejected")
+type canceledRegistrationBackend struct {
+	ownershipBackend
+	started chan struct{}
+}
+
+func (b *canceledRegistrationBackend) Populate(ctx context.Context, object Object) error {
+	b.record(object, "created")
+	close(b.started)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestCanceledRegistrationRetainsExactOwnership(t *testing.T) {
+	b := &canceledRegistrationBackend{ownershipBackend: ownershipBackend{t: t}, started: make(chan struct{})}
+	s := NewRepositoryService(t.TempDir(), b)
+	b.service = s
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := s.Add(ctx, "demo", "https://github.com/example/repo.git"); done <- err }()
+	<-b.started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) || !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatal("cancellation lost recovery obligation", err)
 	}
-	source.Branch = "main"
-	if err := s.save(source); err != nil {
-		t.Fatal(err)
+	retained, err := s.Get("repo", "demo")
+	if !errors.Is(err, core.ErrRecoveryRequired) || retained.State != "created" || retained.Owner == "" || retained.NativeRef == "" || retained.Branch != "" {
+		t.Fatal("cancellation discarded source ownership", retained, err)
 	}
-	if _, err := s.Get("repo", "sample"); !errors.Is(err, core.ErrIncompatibleState) {
-		t.Fatal("branch-centric source accepted", err)
-	}
-	if _, err := os.Stat(s.path("repo", "sample")); err != nil {
-		t.Fatal("incompatible owned state was removed", err)
-	}
-	source.Kind = "work"
-	if !validObject(source) {
-		t.Fatal("Workspace checkout provenance rejected")
+	if _, err := s.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
+		t.Fatal("retry adopted or overwrote incomplete source", err)
 	}
 }

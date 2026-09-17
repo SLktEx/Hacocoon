@@ -228,3 +228,10 @@ reservation until a bounded read-only handshake finishes, then releases it.
 A busy reservation refuses a new peer without launching WSL or replaying an
 answer. Existing external clients can still prevent detachment; the original
 ownership checks, 90-second bound and refusal remain. See [ADR 0108](../adr/0108-background-wsl-start-coordination.md).
+
+Private notification launches belong to a Windows job from process creation.
+Cancellation terminates the owned descendants, including children of an exited
+wrapper, and confirms zero active members before failed startup releases its
+reservation. Unconfirmed cleanup reports failure and retains the reservation and
+job handle until the owner exits. Other processes/distributions are not cleanup
+targets. See [ADR 0110](../adr/0110-private-windows-process-ownership.md).

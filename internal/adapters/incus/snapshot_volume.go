@@ -43,7 +43,7 @@ func (p snapshotVolumePlan) validate() error {
 		}
 	}
 	if p.Remote != "" || p.Branch != "" {
-		if p.SourceKind != "work" || !gitadapter.ValidWorkspaceRouting(p.Remote, p.Branch) {
+		if p.SourceKind != "work" || gitadapter.ValidateRemote(p.Remote) != nil || !gitadapter.ValidBranch(p.Branch) {
 			return core.ErrInvalidArgument
 		}
 	}
