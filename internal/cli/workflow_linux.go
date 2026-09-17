@@ -59,6 +59,9 @@ func preparePath(ctx context.Context, c workflowClient, h *workflow.ReferenceHan
 	}
 	if ref.State == "preparing" {
 		response, e := c.WorkspaceWorkflow(ctx, controlapi.WorkflowRequest{Operation: "prepare", Prepare: &workflow.PrepareSpec{Name: ref.Name, Repositories: ref.Repositories}})
+		if response.Reference != nil && (response.Reference.Name != ref.Name || (ref.Workspace != "" && response.Reference.Workspace != ref.Workspace)) {
+			return ref, core.ErrCapabilityStale
+		}
 		if response.Reference != nil && response.Reference.Workspace != "" {
 			ref.Reference = *response.Reference
 		}
@@ -91,6 +94,11 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 	if err != nil {
 		return result, err
 	}
+	return openPreparedWorkspace(ctx, c, h, ref, opts)
+}
+
+func openPreparedWorkspace(ctx context.Context, c workflowClient, h *workflow.ReferenceHandle, ref workflow.PathReference, opts pathOpenOptions) (workflow.OpenResult, error) {
+	var result workflow.OpenResult
 	base, oci := ref.Base, ref.OCI
 	expected := ref.Resource
 	if opts.Base != "" {
@@ -107,7 +115,7 @@ func openWorkspacePath(ctx context.Context, c workflowClient, opts pathOpenOptio
 	if err != nil {
 		return result, err
 	}
-	if result.Workspace != ref.Workspace || result.Environment.Workspace.ID != ref.Workspace {
+	if result.Name != ref.Name || result.Workspace != ref.Workspace || result.Environment.Workspace.ID != ref.Workspace || result.Environment.Name == "" {
 		return result, core.ErrCapabilityStale
 	}
 	// Persist preferences only after successful canonical open. On a lost response

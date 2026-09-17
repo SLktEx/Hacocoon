@@ -5,86 +5,66 @@
 Status: **implemented CLI workflow**. Provider/desktop acceptance is recorded
 separately in [acceptance evidence](../status/acceptance-evidence.md#development-branch-integration).
 
-## Prepare once
+## Add repositories, then open
 
-Install with the [Windows/WSL installer](../guides/installation.md). In a
-Windows terminal, `wsl -d <your-installed-distribution>` opens trusted
-`haco-host` when the managed login entry is installed. `haco-host` is trusted
-management infrastructure; run untrusted tools in an Env. Product management
-commands also work from the WSL/Linux Physical Host against the same controller.
-
-In **trusted haco-host**, verify readiness and prepare a managed repository:
+After [installation](../guides/installation.md), run in the trusted management terminal:
 
 ```bash
-haco doctor
-haco repo add sample https://github.com/OWNER/REPO.git
-haco workspace create --repo sample --branch main sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco open sample-dev
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-Replace OWNER/REPO and the existing branch. Private Git authentication stays in
-trusted haco-host; see [managed repositories](../guides/git-workflow.md).
-Base selection defaults to the configured Base. An optional OCI Store copy is
-automatic; `--no-oci` skips it. There is no required OCI runtime for Core.
+Replace the URLs with your repositories. Normal open prepares independent files,
+uses the default Base and configured storage, creates/reuses the Environment,
+then opens VS Code with Remote-SSH. Use `haco open --client ssh` for a shell.
+Repository credentials stay in trusted Host storage. Edit in `/workspace/api`
+and `/workspace/web`; one repository uses `/workspace`.
 
-For existing files on the **WSL/Linux Physical Host**, an alternative is
-`haco env create --workspace /absolute/path/to/work sample-dev`. The path belongs
-to that Physical Host, not Windows or the haco-host container. Writable files
-are writable by Env workloads. `haco open .` can instead reopen an explicitly prepared, owner-pinned managed
-Workspace reference; it does not copy or mount the directory contents. See
-[Workspace preparation and forks](../design/workspace-workflow.md).
+Follow progress on stderr. If a permission request is pending, review it with
+`haco approve` in another trusted terminal; waiting work continues afterward.
+Default deny creates no prompt. Review required package/Git scopes with
+`haco config --edit` and retry `haco open`. Neither registration nor open grants
+push or unrestricted package/network access. See [first-use permissions](../guides/getting-started.md#review-required-permissions).
 
-`haco open` prepares desktop-owned SSH keys/settings and launches the configured
-editor. `haco open --client ssh sample-dev` opens a standard SSH shell instead.
-Use `haco ssh setup sample-dev` to prepare SSH without launching a client.
-Desktop keys stay on the desktop. Editor process launch does not prove that its
-connection or build/test is ready. See [Windows SSH](windows-environment-ssh.md).
+## Return to work
 
-Before the first `open`, a Base without `sshd` needs package access to install
-`openssh-server`. In **trusted haco-host**, `haco config` shows current Policy and
-`haco approve --list` lists pending requests without deciding. No pending request
-does not mean network access is allowed: default deny creates no approval prompt.
-Use `haco config --edit` to review the existing snapshot and add only the required
-Env/hostname/protocol/port rules; preserve other rules and default deny. Ubuntu's
-default package sources use `archive.ubuntu.com` and `security.ubuntu.com`; inspect
-your Base for mirrors. See the [Policy example](../design/egress-authorization.md#policy-example).
-An SSH failure does not establish its cause. Inspect Env state/connections and
-Policy before explicitly preparing SSH again. Successfully installed packages
-remain in the Env rootfs across stop/start.
+Run `haco open` again from the same management user's home. It reuses the same
+project data and resumes a stopped Environment. Closing the editor or leaving
+the shell does not stop it. For a deliberate stop, find the name with
+`haco env list`, then run `haco env stop <environment>`; the next `haco open`
+resumes it without a separate start command. Stop preserves installed tools,
+rootfs, project edits and configured OCI data. Delete has different effects.
 
-## Work, stop and return tomorrow
+The initial default set contains one to eight repositories. Later registration
+changes never overwrite existing work; use an explicit fork for a changed set.
+See [default-session semantics](../design/default-development-session.md).
 
-Inside the **Env**, edit under `/workspace` and run that repository's build/test
-commands. For example, in a Go repository: `go build ./...` then `go test ./...`.
-Network/package/Git operations still require the applicable Policy/approval.
-`haco run --no-oci -- <command>` is a separate temporary-Env execution, not an
-execution inside the named persistent Env.
+## Advanced selection and configuration
 
-Exit the Env shell or return to the **trusted haco-host** terminal:
+Existing explicit commands remain available. Open an Environment by name,
+choose one with `haco open --select`, or use an owner-pinned directory reference
+with `haco open .`. A new directory requires `--repo`; its contents are never
+implicitly imported. [Workspace preparation and forks](../design/workspace-workflow.md)
+and the [CLI reference](cli.md) cover explicit Workspace/Env/Base, storage,
+network and configuration workflows. `--base` and `--oci` are also available on
+the default open, subject to existing compatibility checks.
 
-```bash
-haco env stop sample-dev
-# Tomorrow, in trusted haco-host:
-haco env list
-haco env status sample-dev
-haco env start sample-dev
-haco open sample-dev
-```
-
-Stop keeps the Env rootfs, Workspace and OCI data. Do not substitute delete for
-stop when you want to resume the same installed tools/rootfs tomorrow.
+`haco ssh setup <environment>` prepares access without launching a client.
+`haco open --client none --json` prepares/resumes the default work and returns
+its identity without desktop preparation. Editor process launch is not proof
+that the connection or build/test succeeded. See [Windows SSH](windows-environment-ssh.md).
 
 ## Targets, scripts and cancellation
 
-Mutation commands require an explicit name. `open` and `ssh setup` can select
+Explicit lifecycle commands require a name. `open --select` and `ssh setup` can select
 from a numbered terminal list; a blank answer cancels before connection changes.
 A single existing Env can be selected automatically. For scripts, always specify
 the name; noninteractive ambiguous selection never waits for input. Put options
 before positional targets. Command-specific `--help` shows the supported form.
 
 Results remain on stdout; progress and diagnostics use stderr. Use
-`haco env list --json` and `haco env status --json sample-dev` for scripts.
+`haco env list --json` and `haco env status --json <environment>` for scripts.
 Env creation retains its existing JSON result. Deletion of retained data needs
 terminal confirmation or explicit `--yes`; a pipe/FIFO is never a confirmation
 prompt. Ctrl+C may stop observation before a controller mutation finishes.
@@ -99,8 +79,8 @@ reports whether cleanup is confirmed.
 | setup running / succeeded / failed | These are observed stages, not percentages. Inspect the fixed stage/reason and request ID. |
 | busy | Another operation owns the target; inspect/wait for that operation. It is not approval waiting. |
 | pending Capability approval | In another trusted terminal use `haco approve` to list/review; observation never approves. |
-| create/start/stop/delete/SSH failure | Resource state is unknown until `haco env status sample-dev` and `haco doctor sample-dev` inspect it. Do not assume cleanup succeeded. |
-| editor launch failure after SSH preparation | Env/connection remain; use `haco open --client ssh sample-dev` or fix the desktop editor. |
+| create/start/stop/delete/SSH failure | Resource state is unknown until `haco env status <environment>` and `haco doctor <environment>` inspect it. Do not assume cleanup succeeded. |
+| editor launch failure after SSH preparation | Env/connection remain; use `haco open --client ssh <environment>` or fix the desktop editor. |
 | setup customization failure | Substrate stages may have succeeded; the saved script and its side effects remain. Inspect/correct it before an explicit replay. `--clear-script` removes the saved recipe, not its side effects. |
 
 For setup, run `haco doctor`. An administrator on the **WSL/Linux Physical Host**
@@ -116,7 +96,7 @@ be running. See [setup diagnostics](../design/trusted-host.md#setup-progress-and
 
 ## Delete deliberately
 
-In **trusted haco-host**, `haco env delete sample-dev` prints the explicit target
+In **trusted haco-host**, `haco env delete <environment>` prints the explicit target
 and data effects before calling the existing canonical deletion API. It removes
 the Env runtime/rootfs/connections and retains Workspace, OCI Stores and independent
 snapshots. The explicit Env name remains the authorization intent; no new prompt
