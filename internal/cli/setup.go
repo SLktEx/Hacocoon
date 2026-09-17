@@ -155,7 +155,7 @@ func setup(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 		var status *control.StatusError
 		switch {
-		case ctx.Err() != nil:
+		case ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 			_, _ = fmt.Fprintln(stderr, cliMessage("setup.observation_ended"))
 			return 1
 		case errors.Is(err, control.ErrUnavailable):
