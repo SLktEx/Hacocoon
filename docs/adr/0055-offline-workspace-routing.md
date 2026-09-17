@@ -4,6 +4,10 @@
 
 Status: accepted. Extends [ADR 0053](0053-workspace-native-import.md).
 
+[ADR 0110](0110-branch-independent-repositories.md) supersedes the requirement
+for a source branch: the Workspace keeps its branch and the source is independent.
+Offline routing and exact source ownership checks remain unchanged.
+
 ## Decision
 
 An empty remote **and** branch means a Workspace has no managed Git route.

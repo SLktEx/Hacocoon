@@ -100,7 +100,7 @@ func (s *RepositoryService) RunGit(ctx context.Context, expected Object, req git
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, err := s.Get("repo", expected.ID)
-	if err != nil || expected.Kind != "repo" || !reflect.DeepEqual(current, expected) || req.Repository != expected.ID || req.Remote != expected.Remote || req.Branch != expected.Branch {
+	if err != nil || expected.Kind != "repo" || !reflect.DeepEqual(current, expected) || req.Repository != expected.ID || req.Remote != expected.Remote {
 		return gitadapter.Response{}, core.ErrCapabilityStale
 	}
 	return s.Backend.RunGit(ctx, req)

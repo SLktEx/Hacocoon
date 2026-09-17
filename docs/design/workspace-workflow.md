@@ -111,8 +111,8 @@ with the existing repository command; private repositories use the existing
 trusted Host authentication setup.
 
 ~~~bash
-haco repo clone --branch main first https://github.com/OWNER/FIRST.git
-haco repo clone --branch main second https://github.com/OWNER/SECOND.git
+haco repo add first https://github.com/OWNER/FIRST.git
+haco repo add second https://github.com/OWNER/SECOND.git
 mkdir task task-fork
 haco open --repo first,second --name task --client none ./task
 haco open --client ssh ./task

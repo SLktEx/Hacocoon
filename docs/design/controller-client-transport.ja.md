@@ -14,7 +14,7 @@ Status: **部分実装**。Local Unix domain プロトコル、Physical Host コ
 Git専用接続先には登録しない。Environment作成はWorkspaceと追加永続資源の利用権を
 同じtransactionで予約する。[Persistent OCI Store](persistent-oci-store.md)を参照。
 
-製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.clone`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
+製品 `haco` は[管理repo利用手順](../guides/git-workflow.md)で既存コントローラーを呼ぶ。型付き管理APIは `repository.add`、`workspace.copy`、`environment.stop`、`git.connect/pending/decide` を提供する。これらは信頼された管理接続先に限り、EnvironmentのGit専用ソケットには公開しない。受入は[実装状況](../IMPLEMENTATION_STATUS.ja.md)、コマンドとオプションは[CLI参照](../reference/cli.ja.md)を参照。
 
 WSLは有効なコントローラーサービスがソケットをbindする前にlogin シェルを開くことがある。login aliasは読み取り専用pingで最大2分待ち、通信未準備だけを再試行する。プロトコル・operationの拒否は再試行せず、クライアントが第二のコントローラーを起動したりサービス状態を変更したりしない。この起動待ち期限は対話セッションの寿命を制限しない。
 
@@ -434,3 +434,10 @@ Linux側のinterop子を端末の前面process groupから分け、Ctrl+Cは所�
 通常ログインと同じcontroller準備待ちを使います。WSLプロセスの起動だけでは接続口の
 準備完了を証明できません。接続不能時の読み取り専用pingだけを再試行し、拒否や実際の
 操作は再送しません。親の中止は起動したprivateな子プロセスだけを終了します。
+
+## リポジトリ登録の進捗
+
+`repository.add`は管理用のストリームで、上限付きの進捗フレームと明示的な完了応答を使います。
+ブランチを指定せずに取得元を登録します。`--json`でも進捗はstderr、最終結果だけをstdoutへ出します。
+接続断は無出力のGit処理もキャンセルし、Incusアダプターが信頼されたagentへ割り込みを転送します。
+作成に失敗した場合は復旧のための所有記録を保持します。[Gitの契約](git-and-github-capability.md)を参照してください。

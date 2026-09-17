@@ -48,7 +48,7 @@ func TestDailyHelpExplainsRequiredInputDefaultsAndAuthorityInBothLanguages(t *te
 	t.Setenv("HACO_CONTROL_SOCKET", "/missing/help-details.sock")
 	for _, language := range []string{"C", "ja_JP.UTF-8"} {
 		setCLITestLocale(t, language)
-		for _, path := range []string{"env create", "workspace prepare", "repo clone", "git approve", "reclaim", "setup", "config"} {
+		for _, path := range []string{"env create", "workspace prepare", "repo add", "git approve", "reclaim", "setup", "config"} {
 			code, stdout, stderr := captureRun(t, append(strings.Fields(path), "--help")...)
 			if code != 0 || stderr != "" {
 				t.Fatalf("%s: %d %s", path, code, stderr)
@@ -56,7 +56,7 @@ func TestDailyHelpExplainsRequiredInputDefaultsAndAuthorityInBothLanguages(t *te
 			for _, expected := range map[string][]string{
 				"env create":        {"--workspace", "--no-oci"},
 				"workspace prepare": {"--path", "--repo", "auto"},
-				"repo clone":        {"--branch", "main", "push"},
+				"repo add":          {"<id>", "<URL>", "push"},
 				"git approve":       {"ask-env", "ask-all", "main"},
 				"reclaim":           {"--status", "--review"},
 				"setup":             {"--script", "--clear-script"},
