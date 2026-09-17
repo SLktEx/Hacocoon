@@ -19,7 +19,8 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 		http.Error(w, "invalid CONNECT authority", http.StatusBadRequest)
 		return
 	}
-	addresses, ok := p.prepareUpstream(w, r, core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTPS})
+	target := core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTPS}
+	addresses, ok := p.prepareUpstream(w, r, target)
 	if !ok {
 		return
 	}
@@ -59,6 +60,7 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request, environmen
 
 	upstream, err := p.dialPinned(r.Context(), addresses, port)
 	if err != nil {
+		logUpstreamFailure(r.Context(), target, err)
 		return
 	}
 	if owner, ok := r.Context().Value(proxyConnectionsKey{}).(*proxyListener); ok {
