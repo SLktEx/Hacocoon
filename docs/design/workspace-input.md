@@ -8,8 +8,11 @@ separate from repository implementation.
 ## Use
 
 Register the intended upstream using `haco repo add`. Its current Host-owned
-routing supplies Git connectivity; the input cannot choose a Host path or import
-credentials. Then, from the client that can read the source directory:
+URL supplies Git connectivity; the input cannot choose a Host path or import
+credentials. Import resolves the upstream default branch through the trusted
+source before reserving the destination, so that upstream must be reachable.
+This sets broker discovery provenance without rewriting the imported HEAD/index.
+Then, from the client that can read the source directory:
 
 ```bash
 mkdir task

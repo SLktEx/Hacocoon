@@ -68,8 +68,12 @@ func (s *RepositoryService) restoreSources(ctx context.Context, backend savedWor
 		if err := s.Backend.InspectVolume(ctx, repo); err != nil {
 			return nil, err
 		}
+		branch, err := s.resolveBranch(ctx, repo, "")
+		if err != nil {
+			return nil, err
+		}
 		sources = append(sources, restoreSource{registered: &repo, SavedWorkspace: SavedWorkspace{
-			Repository: name, Remote: repo.Remote, Branch: repo.Branch,
+			Repository: name, Remote: repo.Remote, Branch: branch,
 		}})
 	}
 	return sources, nil
