@@ -19,7 +19,7 @@ help and version require no controller.
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
-| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); branch-independent registration |
+| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f|--force] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; confirmed delete attempts source cleanup despite references/incomplete state, and `-f` skips review/confirmation |
 | Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies; `--branch` for one source, otherwise remote defaults |
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
@@ -38,6 +38,8 @@ help and version require no controller.
 | Transfer | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux; defaults `<env>.haco` / `<source>-imported`; [transfer](../design/environment-transfer.md) |
 | Disk allocation | `haco reclaim [--yes \| --status \| --review [--yes]]` | Managed Windows/WSL only; [reclamation](../design/storage-reclamation.md) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.md); profile default `default`; guest forbids `--env` |
+
+`haco repo delete <id>` previews the selected source and asks for confirmation unless `--yes` is supplied. After confirmation it attempts removal even when a Workspace still records that Git route, the source is incomplete, or native snapshots/backups/schedules exist. `-f`/`--force` skips the list/review/confirmation round trip and removes the current retained source by its exact managed native reference. Missing native device/volume state is success; failure is reported when removal or final absence cannot be completed or confirmed. Existing Workspace copies remain, but their Git route can become unusable until the source is registered again.
 
 `haco env switch-base` is explicitly disabled. Product `haco` has no top-level
 `create/exec/shell/events/connections/forward`, no `plugin git` or `plugin oci seed/docker`,
