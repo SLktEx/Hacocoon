@@ -87,11 +87,15 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 			if failure == "create" {
 				wantCreate = 2
 			}
-			if backend.createCalls != wantCreate || backend.populateCalls != 1 {
+			wantPopulate := 1
+			if failure == "populate" {
+				wantPopulate = 2
+			}
+			if backend.createCalls != wantCreate || backend.populateCalls != wantPopulate {
 				t.Fatalf("retry repeated wrong stages: create=%d populate=%d", backend.createCalls, backend.populateCalls)
 			}
 			again, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
-			if err != nil || again.Owner != owner || again.NativeRef != native || backend.populateCalls != 1 {
+			if err != nil || again.Owner != owner || again.NativeRef != native || backend.populateCalls != wantPopulate {
 				t.Fatalf("ready add was not idempotent: object=%+v err=%v populate=%d", again, err, backend.populateCalls)
 			}
 			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/other.git"); !errors.Is(err, core.ErrAlreadyExists) {
