@@ -8,10 +8,12 @@ passes, failures and skips.
 
 ## Current scope and integration
 
-The active roadmap is M0–M5 on `main`, following the user's current instructions.
-Usable ordinary flows come first. Local checks are primary; independent development
-continues while hosted CI runs. Main merges are authorized only after all five
-required workflows succeed for the exact PR head. Tags and releases are separate.
+The overall roadmap remains M0–M5 on `main`. The current work unit is **M2 only**,
+authorized after the separate M1 PR #726. Reuse implemented multi-repository forks,
+linked-worktree input, all-head fetch, reviewed branch creation/push and result
+reconciliation. Finish local Git diagnosis/recovery (#617); do not automatically
+start M3–M5. Main merge still requires all five exact-head workflows. No tag or
+release is part of this unit.
 
 M2 and M3 real-use acceptance is assigned to the user: authenticated Git and
 GUI answers, plus VPN/DNS and other non-ordinary-network combinations. These
@@ -199,3 +201,16 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
+
+## M2 current implementation unit
+
+Based on main `68c539c1`, this checkout adds Git broker diagnosis to Environment
+doctor and explicit local repair through the existing connection API. User-facing
+`git connect` is removed. Reuse the earlier M2 implementations; #617 tracks this
+remaining daily-use recovery path. The [owning contract](../design/git-and-github-capability.md#local-git-diagnosis-and-repair)
+separates observed wiring, unknown state and repair limits. Authenticated Git and
+human Windows/VS Code responses remain user acceptance after release. Large-repo
+performance remains deferred. The prior local large-push approval timeout and
+milestone-wrapper timeout from M1 are unresolved evidence, not new M2 requirements
+or successful results. Next: validate this recovery path, integrate its PR after
+required CI, then perform the assigned human acceptance. M3–M5 are outside this unit.

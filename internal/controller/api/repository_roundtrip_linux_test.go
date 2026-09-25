@@ -68,6 +68,9 @@ func (b *repositoryAPIBackend) ConnectGit(_ context.Context, env core.Environmen
 	b.connected = append(b.connected, env)
 	return nil
 }
+func (b *repositoryAPIBackend) InspectGitConnection(context.Context, core.Environment, gitrepo.Object, string) (bool, error) {
+	return true, nil
+}
 
 type repositoryAPIEnvironments struct {
 	mu  sync.Mutex
@@ -136,8 +139,14 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 	environments.mu.Lock()
 	environments.env = core.Environment{Name: "dev", RuntimeRef: "incus:owned", Workspace: core.Workspace{ID: core.WorkspaceID("workspace:managed:" + single.Owner), Path: "managed:" + single.ID}}
 	environments.mu.Unlock()
+	if state, err := client.GitConnectionStatus(ctx, "dev"); err != nil || !state.Configured || state.Connected {
+		t.Fatal("inspection connected absent broker", state, err)
+	}
 	if err := client.ConnectGit(ctx, "dev"); err != nil {
 		t.Fatal(err)
+	}
+	if state, err := client.GitConnectionStatus(ctx, "dev"); err != nil || !state.Configured || !state.Connected {
+		t.Fatal("connected broker not diagnosed", state, err)
 	}
 	if pending, err := client.PendingGit(ctx); err != nil || len(pending) != 0 {
 		t.Fatal("connect created a guest Git approval", pending, err)
@@ -160,7 +169,7 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 			t.Fatal("ambiguous/missing workspace source accepted", request)
 		}
 	}
-	for _, method := range []string{MethodWorkspaceCopy, MethodGitConnect, MethodGitDecide} {
+	for _, method := range []string{MethodWorkspaceCopy, MethodGitConnect, MethodGitConnectionStatus, MethodGitDecide} {
 		var status *control.StatusError
 		if err := client.wire.Call(ctx, method, "invalid request", nil); !errors.As(err, &status) || status.Code != "invalid_argument" {
 			t.Fatal("malformed repository request accepted", method, err)

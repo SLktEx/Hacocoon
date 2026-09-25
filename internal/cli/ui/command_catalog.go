@@ -233,7 +233,6 @@ var commandCatalog = map[string]translation{
 	"command.workspace.list":           {"List retained working data", "保持中の作業データを一覧表示する"},
 	"command.workspace.delete":         {"Review and delete unreferenced working data", "参照されていない作業データを確認して削除する"},
 	"command.git":                      {"Connect ordinary Git and review push proposals", "通常のGitを接続しpushの変更内容を確認する"},
-	"command.git.connect":              {"Connect the environment to its registered Git source", "環境を登録済みのGit取得元へ接続する"},
 	"command.git.pending":              {"List pending push proposals", "確認待ちのpushを一覧表示する"},
 	"command.git.status":               {"Inspect the latest recorded push", "最後に記録したpushの結果を確認する"},
 	"command.git.reconcile":            {"Observe the remote ref without repeating a push", "pushを再送せずリモートの現在位置を確認する"},

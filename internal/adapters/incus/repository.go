@@ -220,37 +220,65 @@ func runGitAgentCommand(ctx context.Context, cancel context.CancelFunc, cmd *exe
 	return response, nil
 }
 
-func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Environment, workspace gitrepo.Object, socket string) error {
+func (b *RepositoryBackend) gitConnectionDevices(ctx context.Context, environment core.Environment, workspace gitrepo.Object) (map[string]map[string]string, error) {
 	ref := "haco-" + environment.Name
 	if err := validateManagedInstanceRef(ref); err != nil {
-		return err
+		return nil, err
 	}
 	if !environmentapp.MatchesRuntimeRef(environment.RuntimeRef, environmentapp.ProviderIncus, ref) {
-		return core.ErrInvalidArgument
+		return nil, core.ErrInvalidArgument
 	}
 	attachments, err := b.WorkspaceAttachments(ctx, workspace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	result, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/instances/"+ref+"?project="+b.Runtime.project)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var instance struct {
 		Config  map[string]string            `json:"config"`
 		Devices map[string]map[string]string `json:"devices"`
 	}
 	if json.Unmarshal([]byte(result.Stdout), &instance) != nil || instance.Config[managedEnvironmentMarkerKey] != managedEnvironmentMarkerValue {
-		return core.ErrIncompatibleState
+		return nil, core.ErrIncompatibleState
 	}
 	for _, mount := range attachments {
 		disk := instance.Devices[mount.Device]
 		if disk["type"] != "disk" || disk["pool"] != mount.Pool || disk["source"] != mount.Volume || disk["path"] != mount.Path {
-			return core.ErrIncompatibleState
+			return nil, core.ErrIncompatibleState
 		}
 	}
-	device := map[string]string{"type": "proxy", "bind": "instance", "listen": "unix:" + gitadapter.GuestSocket, "connect": "unix:" + socket, "mode": "0600", "uid": "0", "gid": "0"}
-	if old, exists := instance.Devices["git-broker"]; exists {
+	return instance.Devices, nil
+}
+
+func gitConnectionProxy(socket string) map[string]string {
+	return map[string]string{"type": "proxy", "bind": "instance", "listen": "unix:" + gitadapter.GuestSocket, "connect": "unix:" + socket, "mode": "0600", "uid": "0", "gid": "0"}
+}
+
+func (b *RepositoryBackend) InspectGitConnection(ctx context.Context, environment core.Environment, workspace gitrepo.Object, socket string) (bool, error) {
+	devices, err := b.gitConnectionDevices(ctx, environment, workspace)
+	if err != nil {
+		return false, err
+	}
+	existing, ok := devices["git-broker"]
+	if !ok {
+		return false, nil
+	}
+	if !reflect.DeepEqual(existing, gitConnectionProxy(socket)) {
+		return false, core.ErrIncompatibleState
+	}
+	return true, nil
+}
+
+func (b *RepositoryBackend) ConnectGit(ctx context.Context, environment core.Environment, workspace gitrepo.Object, socket string) error {
+	devices, err := b.gitConnectionDevices(ctx, environment, workspace)
+	if err != nil {
+		return err
+	}
+	ref := "haco-" + environment.Name
+	device := gitConnectionProxy(socket)
+	if old, exists := devices["git-broker"]; exists {
 		if !reflect.DeepEqual(old, device) {
 			return core.ErrIncompatibleState
 		}
