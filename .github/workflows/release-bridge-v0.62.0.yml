@@ -2,48 +2,54 @@ name: release-bridge-v0.62.0
 
 on:
   push:
-    branches: [main]
+    branches: [codex/release-v0.62.0-bridge]
     paths:
-      - ".github/release-requests/v0.62.0"
+      - ".github/workflows/release-bridge-v0.62.0.yml"
 
 permissions:
   contents: write
 
 jobs:
   dispatch:
-    if: github.repository == 'SLktEx/Hacocoon' && github.ref == 'refs/heads/main'
+    if: github.repository == 'SLktEx/Hacocoon' && github.ref == 'refs/heads/codex/release-v0.62.0-bridge'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - name: Validate one-time request and create immutable release tag
+      - name: Bind v0.62.0 to the selected trusted main HEAD
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v0.62.0
+          EXPECTED_MAIN_SHA: 68c539c1710791f62e826b534e0971efe22ab8d5
         run: |
           set -euo pipefail
 
-          request=".github/release-requests/v0.62.0"
-          request_json="$(gh api "repos/$GITHUB_REPOSITORY/contents/$request?ref=$GITHUB_SHA" --jq .content | tr -d '\n' | base64 -d)"
-          [[ "$request_json" == "v0.62.0"$'\n' ]] || [[ "$request_json" == "v0.62.0" ]] || {
-            echo "Refusing release bridge: unexpected request contents" >&2
+          current_main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)"
+          [[ "$current_main_sha" == "$EXPECTED_MAIN_SHA" ]] || {
+            echo "Refusing release bridge: main moved from selected release commit" >&2
+            echo "expected=$EXPECTED_MAIN_SHA actual=$current_main_sha" >&2
             exit 1
           }
 
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Refusing release bridge: $RELEASE_TAG already exists" >&2
-            exit 1
+          if ref_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" 2>/dev/null)"; then
+            object_type="$(jq -r '.object.type' <<<"$ref_json")"
+            object_sha="$(jq -r '.object.sha' <<<"$ref_json")"
+            [[ "$object_type" == "commit" && "$object_sha" == "$EXPECTED_MAIN_SHA" ]] || {
+              echo "Refusing release bridge: existing tag does not match selected main HEAD" >&2
+              exit 1
+            }
+            echo "$RELEASE_TAG already points to selected main HEAD; continuing"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$EXPECTED_MAIN_SHA"
+
+            created_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+            [[ "$created_sha" == "$EXPECTED_MAIN_SHA" ]] || {
+              echo "Refusing release bridge: created tag does not match selected main HEAD" >&2
+              exit 1
+            }
           fi
-
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$RELEASE_TAG" \
-            -f sha="$GITHUB_SHA"
-
-          created_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
-          [[ "$created_sha" == "$GITHUB_SHA" ]] || {
-            echo "Refusing release bridge: created tag does not match main HEAD" >&2
-            exit 1
-          }
 
       - name: Dispatch existing trusted release workflow
         shell: bash
