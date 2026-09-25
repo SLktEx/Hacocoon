@@ -56,7 +56,6 @@ func TestProductRepoAddRejectsOldRegistrationSyntax(t *testing.T) {
 	}
 }
 
-
 func TestRepositoryProgressWriterAnimatesRepeatedStageOnTerminal(t *testing.T) {
 	var out bytes.Buffer
 	progress := &repositoryProgressWriter{out: &out, terminal: true}
