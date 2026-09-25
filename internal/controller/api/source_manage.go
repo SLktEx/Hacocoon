@@ -18,6 +18,7 @@ type RepositoryManageRequest struct {
 	Operation string `json:"operation"`
 	ID        string `json:"id,omitempty"`
 	Owner     string `json:"owner,omitempty"`
+	Force     bool   `json:"force,omitempty"`
 }
 type RepositoryManageResponse struct {
 	Sources []gitrepo.SourceUse `json:"sources"`
@@ -35,13 +36,19 @@ func repositoryManageHandler(s *gitrepo.RepositoryService) control.Handler {
 		defer cancel()
 		switch req.Operation {
 		case "list":
-			if req.ID != "" || req.Owner != "" {
+			if req.ID != "" || req.Owner != "" || req.Force {
 				return nil, control.ErrInvalidArgument
 			}
 			all, err := s.ListSources(ctx)
 			return RepositoryManageResponse{Sources: all}, translateError(err)
 		case "delete":
-			if !gitadapter.ValidID(req.ID) || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:identity", Owner: req.Owner}) {
+			if !gitadapter.ValidID(req.ID) {
+				return nil, control.ErrInvalidArgument
+			}
+			if req.Force {
+				return RepositoryManageResponse{}, translateError(s.ForceDeleteSource(ctx, req.ID))
+			}
+			if !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:identity", Owner: req.Owner}) {
 				return nil, control.ErrInvalidArgument
 			}
 			return RepositoryManageResponse{}, translateError(s.DeleteSource(ctx, req.ID, req.Owner))
