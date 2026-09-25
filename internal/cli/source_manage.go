@@ -46,6 +46,17 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 		f.Usage()
 		return 2
 	}
+	if args[0] == "delete" && force {
+		_, err := c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: f.Arg(0), Force: true})
+		if err != nil {
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
+			return 1
+		}
+		if _, err := fmt.Fprintln(out, cliMessage("source.deleted")); err != nil {
+			return 1
+		}
+		return 0
+	}
 	all, err := c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "list"})
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
@@ -78,20 +89,10 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	if err := writeSources(out, []gitrepo.SourceUse{*selected}); err != nil {
 		return 1
 	}
-	if !force {
-		if len(selected.Workspaces) > 0 {
-			_, _ = fmt.Fprintln(diagnostic, cliMessage("source.busy"))
-			return 1
-		}
-		if selected.Source.State != "ready" && selected.Source.State != "deleting" {
-			_, _ = fmt.Fprintln(diagnostic, cliMessage("source.incomplete"))
-			return 1
-		}
-		if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
-			return code
-		}
+	if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
+		return code
 	}
-	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner, Force: force})
+	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner})
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
