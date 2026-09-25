@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -114,7 +115,7 @@ func (c *Client) AddRepository(ctx context.Context, req RepositoryAddRequest, pr
 				}
 				return *frame.Result, nil
 			case "repository_failed", "already_exists", "recovery_required":
-				return *frame.Result, control.NewStatusError(frame.Code, "Repository registration did not complete; inspect repo list for retained ownership before retrying")
+				return *frame.Result, control.NewStatusError(frame.Code, fmt.Sprintf("Repository registration did not complete; discard the retained registration with 'haco repo delete -f %s' before retrying", req.ID))
 			default:
 				return gitrepo.Object{}, control.ErrProtocol
 			}
