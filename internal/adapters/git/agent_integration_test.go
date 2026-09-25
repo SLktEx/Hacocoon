@@ -91,6 +91,57 @@ func TestAgentAndHelperTransferObjectsAndPinPushTarget(t *testing.T) {
 	}
 }
 
+func TestRepositoryCloneCanResumeAndRepeat(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/git"); err != nil {
+		t.Skip("Linux Git is required")
+	}
+	ctx := context.Background()
+	root := t.TempDir()
+	remote, seed, repos := filepath.Join(root, "remote.git"), filepath.Join(root, "seed"), filepath.Join(root, "repos")
+	for _, dir := range []string{remote, seed, repos} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	testGit(t, remote, "init", "--bare", "--initial-branch=main")
+	testGit(t, seed, "init", "--initial-branch=main")
+	first := testCommit(t, seed, "work.txt", "first")
+	testGit(t, seed, "push", "file://"+remote, "main")
+
+	partial := filepath.Join(repos, "source")
+	if err := os.Mkdir(partial, 0700); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, partial, "init", "--initial-branch=main")
+	testGit(t, partial, "remote", "add", "origin", "file://"+remote)
+	req := AgentRequest{Operation: "clone", Repository: "source", Remote: "file://" + remote}
+	if _, err := RunAgent(ctx, req, repos, ""); err != nil {
+		t.Fatal("partial clone did not resume", err)
+	}
+	if got := testGit(t, partial, "rev-parse", "refs/remotes/origin/main"); got != first {
+		t.Fatal("resumed clone missed remote head", got)
+	}
+
+	second := testCommit(t, seed, "work.txt", "second")
+	testGit(t, seed, "push", "file://"+remote, "main")
+	if _, err := RunAgent(ctx, req, repos, ""); err != nil {
+		t.Fatal("repeated clone did not converge", err)
+	}
+	if got := testGit(t, partial, "rev-parse", "refs/remotes/origin/main"); got != second {
+		t.Fatal("repeated clone did not refresh remote head", got)
+	}
+
+	other := filepath.Join(root, "other.git")
+	if err := os.Mkdir(other, 0700); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, other, "init", "--bare", "--initial-branch=main")
+	req.Remote = "file://" + other
+	if _, err := RunAgent(ctx, req, repos, ""); err == nil {
+		t.Fatal("retry adopted a different remote")
+	}
+}
+
 func TestTrustedWireRejectsUnknownFieldsAndInvalidRouting(t *testing.T) {
 	for _, body := range []string{"{", `{"metadata":{"command":"sh"},"has_pack":false}`} {
 		wire := make([]byte, 4+len(body)+4)
