@@ -69,6 +69,7 @@ var detailCatalog = map[string]translation{
 	"detail.runtime":            {"OCI runtime: nerdctl (default) or docker.", "OCIの実行基盤。既定はnerdctl。dockerも選択できます。"},
 	"detail.host_images":        {"Use the trusted Host OCI area instead of an Environment or Store argument.", "環境・Storeの指定に代えて、信頼済みHostのOCI領域を使います。"},
 	"detail.yes":                {"Confirm the reviewed deletion without prompting. Reference and ownership checks still apply.", "表示した対象の削除を、追加入力なしで確定します。参照・所有権の検査は省略しません。"},
+	"detail.force":              {"Force source repository cleanup without prompting or reference/state/saved-object preflight. The exact managed device and volume are removed if present.", "確認や参照・状態・保存データの事前検査を省略し、取得元リポジトリを強制削除します。管理対象のdeviceとvolumeが存在すれば削除します。"},
 	"detail.protocol":           {"Transport protocol: tcp (default) or udp.", "通信方式。既定はtcp。udpも選択できます。"},
 	"detail.target_port":        {"Required destination port, from 1 to 65535.", "必須。接続先のポート番号（1〜65535）。"},
 	"detail.target":             {"Required destination hostname/IP, registered Host service name or Environment name, according to --kind.", "必須。--kindに対応する接続先ホスト名／IP、登録Hostサービス名、または開発環境名。"},
