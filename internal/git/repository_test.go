@@ -16,8 +16,9 @@ type ownershipBackend struct {
 	localBackend
 	service   *RepositoryService
 	t         *testing.T
-	fail      string
-	populated bool
+	fail          string
+	createCalls   int
+	populateCalls int
 }
 
 func (b *ownershipBackend) record(object Object, state string) {
@@ -33,13 +34,17 @@ func (b *ownershipBackend) record(object Object, state string) {
 }
 func (b *ownershipBackend) CreateVolume(_ context.Context, object Object, _ *Object) error {
 	b.record(object, "creating")
+	b.createCalls++
 	if b.fail == "create" {
 		return errors.New("ambiguous provider result")
 	}
 	return nil
 }
 func (b *ownershipBackend) InspectVolume(_ context.Context, object Object) error {
-	b.record(object, "created")
+	if object.State != "created" && object.State != "ready" {
+		b.t.Fatalf("unexpected inspect state %q", object.State)
+	}
+	b.record(object, object.State)
 	if b.fail == "inspect" {
 		return errors.New("unknown owner")
 	}
@@ -47,30 +52,50 @@ func (b *ownershipBackend) InspectVolume(_ context.Context, object Object) error
 }
 func (b *ownershipBackend) Populate(_ context.Context, object Object) error {
 	b.record(object, "created")
-	b.populated = true
+	b.populateCalls++
+	if b.fail == "populate" {
+		return errors.New("clone interrupted")
+	}
 	return nil
 }
 func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
-	for _, failure := range []string{"", "create", "inspect"} {
+	for _, failure := range []string{"", "create", "inspect", "populate"} {
 		t.Run(failure, func(t *testing.T) {
 			backend := &ownershipBackend{t: t, fail: failure}
 			service := NewRepositoryService(t.TempDir(), backend)
 			backend.service = service
 			object, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
 			if failure == "" {
-				if err != nil || object.State != "ready" || !backend.populated {
-					t.Fatalf("object=%+v err=%v", object, err)
+				if err != nil || object.State != "ready" || backend.populateCalls != 1 {
+					t.Fatalf("object=%+v err=%v populate=%d", object, err, backend.populateCalls)
 				}
 			} else {
-				if !errors.Is(err, core.ErrRecoveryRequired) || backend.populated {
-					t.Fatalf("err=%v populated=%v", err, backend.populated)
+				if !errors.Is(err, core.ErrRecoveryRequired) {
+					t.Fatalf("err=%v", err)
 				}
 				if _, err := service.Get("repo", "demo"); !errors.Is(err, core.ErrRecoveryRequired) {
-					t.Fatalf("incomplete record reusable: %v", err)
+					t.Fatalf("incomplete record unexpectedly ready: %v", err)
 				}
 			}
-			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
-				t.Fatalf("replaced owned record: %v", err)
+			owner, native := object.Owner, object.NativeRef
+			backend.fail = ""
+			retried, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
+			if err != nil || retried.State != "ready" || retried.Owner != owner || retried.NativeRef != native {
+				t.Fatalf("retry did not converge: object=%+v err=%v", retried, err)
+			}
+			wantCreate := 1
+			if failure == "create" {
+				wantCreate = 2
+			}
+			if backend.createCalls != wantCreate || backend.populateCalls != 1 {
+				t.Fatalf("retry repeated wrong stages: create=%d populate=%d", backend.createCalls, backend.populateCalls)
+			}
+			again, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
+			if err != nil || again.Owner != owner || again.NativeRef != native || backend.populateCalls != 1 {
+				t.Fatalf("ready add was not idempotent: object=%+v err=%v populate=%d", again, err, backend.populateCalls)
+			}
+			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/other.git"); !errors.Is(err, core.ErrAlreadyExists) {
+				t.Fatalf("different remote adopted existing identity: %v", err)
 			}
 		})
 	}
@@ -92,13 +117,19 @@ func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 type canceledRegistrationBackend struct {
 	ownershipBackend
 	started chan struct{}
+	calls   int
 }
 
 func (b *canceledRegistrationBackend) Populate(ctx context.Context, object Object) error {
 	b.record(object, "created")
-	close(b.started)
-	<-ctx.Done()
-	return ctx.Err()
+	b.calls++
+	if b.calls == 1 {
+		close(b.started)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	b.populateCalls++
+	return nil
 }
 
 func TestCanceledRegistrationRetainsExactOwnership(t *testing.T) {
@@ -118,7 +149,8 @@ func TestCanceledRegistrationRetainsExactOwnership(t *testing.T) {
 	if !errors.Is(err, core.ErrRecoveryRequired) || retained.State != "created" || retained.Owner == "" || retained.NativeRef == "" || retained.Branch != "" {
 		t.Fatal("cancellation discarded source ownership", retained, err)
 	}
-	if _, err := s.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
-		t.Fatal("retry adopted or overwrote incomplete source", err)
+	retried, err := s.Add(context.Background(), "demo", "https://github.com/example/repo.git")
+	if err != nil || retried.State != "ready" || retried.Owner != retained.Owner || retried.NativeRef != retained.NativeRef {
+		t.Fatal("retry did not resume canceled registration", retried, err)
 	}
 }
