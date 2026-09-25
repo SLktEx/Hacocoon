@@ -1,0 +1,57 @@
+name: release-bridge-v0.62.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/v0.62.0"
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch:
+    if: github.repository == 'SLktEx/Hacocoon' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate one-time request and create immutable release tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v0.62.0
+        run: |
+          set -euo pipefail
+
+          request=".github/release-requests/v0.62.0"
+          request_json="$(gh api "repos/$GITHUB_REPOSITORY/contents/$request?ref=$GITHUB_SHA" --jq .content | tr -d '\n' | base64 -d)"
+          [[ "$request_json" == "v0.62.0"$'\n' ]] || [[ "$request_json" == "v0.62.0" ]] || {
+            echo "Refusing release bridge: unexpected request contents" >&2
+            exit 1
+          }
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Refusing release bridge: $RELEASE_TAG already exists" >&2
+            exit 1
+          fi
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" \
+            -f sha="$GITHUB_SHA"
+
+          created_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          [[ "$created_sha" == "$GITHUB_SHA" ]] || {
+            echo "Refusing release bridge: created tag does not match main HEAD" >&2
+            exit 1
+          }
+
+      - name: Dispatch existing trusted release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" \
+            -f event_type=release \
+            -F "client_payload[tag]=v0.62.0"
+          echo "Dispatched trusted release workflow for v0.62.0"
