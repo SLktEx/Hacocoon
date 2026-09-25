@@ -20,7 +20,7 @@ help・versionにコントローラーは不要です。
 | ポリシー | `haco config`, `--edit` or `--file <json>` | [設定](configuration.ja.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [サブツリー編集とEnvへの反映](experimental-vscode.ja.md) |
 | 承認 | `haco approve [--json] [request-id]`; `haco approve --list` | [承認確認](../design/pending-approval-review.ja.md)。対話選択・範囲保存 |
-| 元リポジトリ | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f|--force] <id>` | [Git](../guides/git-workflow.ja.md)。ブランチ非依存で登録。確認後の削除は参照・準備途中でも削除を試み、`-f` は一覧確認と対話確認を省略 |
+| 元リポジトリ | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f\|--force] <id>` | [Git](../guides/git-workflow.ja.md)。ブランチ非依存で登録。確認後の削除は参照・準備途中でも削除を試み、`-f` は一覧確認と対話確認を省略 |
 | Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Git・データの独立コピー。`--branch` は単一取得元のみ、省略時はリモートの既定値 |
 | Env作成 | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | 既定Base、任意に設定されたOCI初期化 |
 | 状態の参照 | `haco env list [--json]`; `haco env status [--json] <name>` | 既定はテキスト |
