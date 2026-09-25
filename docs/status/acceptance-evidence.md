@@ -2081,3 +2081,11 @@ This is a confirmed fixture defect, not proof that every earlier disk failure ha
 the same cause. No product disk identity, detach check, timeout or Policy changed.
 Installed acceptance of the correction remains pending. The native regression is
 part of both the Windows workflow and local release-config checks.
+
+M2 doctor correction `038a44c0` passed the installed doctor checks in Windows
+run36161613704/job108159280068, including `git_broker=not_applicable`. That run
+then failed public reclamation and skipped native notification acceptance; it did
+not yet include the editor cleanup correction. The combined local candidate
+`fcb7fadb` passed focused CLI/Git/API/provider tests, bilingual pending-approval
+and JSON preservation regressions, and the shipped-command E2E. This does not
+replace final-head installed acceptance.

@@ -1740,3 +1740,9 @@ M1 #726のhead `5b447f9c`はWindows run36152506002/job108128998385で、Linux容
 再現できた試験の不具合ですが、過去の全ディスク失敗が同一原因とは断定しません。製品の
 ディスク所有・切り離し確認・時間制限・Policyは変更していません。実機E2Eは確認待ちです。
 native回帰はWindows workflowとローカルrelease-config確認の両方に追加しました。
+
+M2のdoctor修正`038a44c0`はWindows run36161613704/job108159280068で、
+`git_broker=not_applicable`を含む実機doctor確認に成功しました。その後の容量回収は失敗し、
+通知確認はSKIPです。このrunにはエディターcleanup修正はまだ含まれていません。
+統合候補`fcb7fadb`ではCLI・Git・API・providerの集中試験、日英承認案内とJSON維持の回帰、
+通常コマンドE2Eに成功しました。最終headでの実機受入とは区別します。
