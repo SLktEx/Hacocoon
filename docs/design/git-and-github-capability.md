@@ -134,27 +134,48 @@ acceptance. See [ADR 0110](../adr/0110-branch-independent-repositories.md).
 
 ## Explicit source repository deletion
 
-Implemented: `haco repo list [--json]` and `haco repo delete [--yes] <id>` expose
-retained Host source checkouts and reviewed deletion. A source remains part of
-current brokered Git routing even though Workspace filesystem copies are
-independent. Every Workspace record with a configured Git source, including intermediate records,
-therefore blocks deletion. This preserves local Git data and the ability to use
-the existing approved transport. It is not an automatic unused-data collector.
+Implemented: `haco repo list [--json]` and
+`haco repo delete [--yes] [-f|--force] <id>` expose and remove retained Host
+source checkouts. Workspace filesystem copies are independent; their saved Git
+routing can still name a deleted source. Source deletion therefore does not delete
+Workspace data, but later brokered Git operations can require re-registering the
+same source ID and remote.
 
-The registry lock serializes clone, Workspace copy and source deletion. The service
-rechecks the reviewed owner, refuses incomplete preparation, preflights native
-storage, then uses the existing `deleting` record until positive native absence.
-Git execution rechecks the exact source under the same registry lock after approval; queued requests cannot use a same-name replacement. The Incus adapter takes the existing Host lifecycle lock. It respects pending Host OCI-copy records, checks exact native volume
-ownership and the specific current Host device, and detaches only that device.
-Native snapshots, backups, schedules, extra users and changed devices fail closed.
-A failed detach/delete keeps its receipt for explicit retry; no backup or rollback
-is created. Remote repositories, credentials, independent Workspace/OCI/snapshot
-data and Env permission generations are unchanged.
+Ordinary `repo delete` lists and displays the selected source, then confirms it
+unless `--yes` is supplied. The controller rechecks the reviewed source owner,
+takes the repository registry lock, and then attempts native cleanup regardless of
+Workspace references, source preparation state, native snapshots/backups/schedules,
+extra native users, or native ownership/configuration preflight results. These
+conditions no longer turn an explicit source delete into a refusal.
 
-Schema 13 and existing repository records are preserved. No data migration is
-required. Current snapshot Git provenance remains independent of a source checkout;
-a restored Workspace may require explicit Git reconnection under current policy.
-See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
+`-f` / `--force` is the recovery escape hatch for interrupted registration.
+The CLI skips the list/review/confirmation round trip and asks the controller to
+remove the source currently stored under that ID. Under the registry lock the
+service reads that current record and passes only its recorded managed
+`NativeRef` to the provider. Force does not accept a caller-supplied Host path,
+pool, volume name or owner token.
+
+The Incus provider takes the Host lifecycle lock and derives the canonical
+`haco-repo-<id>` device and volume from the retained record. If the direct Host
+device exists, it removes that device and observes it again. It then deletes the
+recorded custom volume when present and observes the complete native volume
+inventory again. A missing device or volume is already-successful cleanup. A
+nonzero native command result is not by itself failure if the subsequent
+observation proves the target absent. If detach/delete leaves the target present,
+or final absence cannot be observed, the operation fails and the source registry
+record remains for explicit retry.
+
+This destructive contract deliberately permits deletion that can discard native
+source-volume snapshots/backups and break an existing Workspace's brokered Git
+route. It does not delete the upstream repository, Host credentials, independent
+Workspace copies, OCI Stores or independent Environment snapshots. Exact managed
+native targeting, the registry/Host-operation locks, and positive final absence
+remain mandatory so the recovery path cannot become an arbitrary Host filesystem
+delete.
+
+Schema 13 and existing repository records are preserved. The management request
+adds an optional force bit; no stored-data migration is required. See the amended
+[ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
 
 ## Offline Workspace routing
 
