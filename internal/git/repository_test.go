@@ -19,6 +19,7 @@ type ownershipBackend struct {
 	fail          string
 	createCalls   int
 	populateCalls int
+	populated     bool
 }
 
 func (b *ownershipBackend) record(object Object, state string) {
@@ -56,6 +57,7 @@ func (b *ownershipBackend) Populate(_ context.Context, object Object) error {
 	if b.fail == "populate" {
 		return errors.New("clone interrupted")
 	}
+	b.populated = true
 	return nil
 }
 func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
