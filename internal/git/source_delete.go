@@ -94,6 +94,37 @@ func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) 
 	return syncDir(s.Root)
 }
 
+// ForceDeleteSource is the explicit recovery escape hatch. It keeps the
+// registry lock so Git/source operations cannot race the removal, but skips
+// source state, Workspace reference, native saved-object and ownership
+// preflights. The provider still receives the exact managed native reference
+// recorded for this source. A missing native source is treated as already
+// deleted; provider mutation failure retains the registry record for retry.
+func (s *RepositoryService) ForceDeleteSource(ctx context.Context, id string) error {
+	if !gitadapter.ValidID(id) {
+		return core.ErrInvalidArgument
+	}
+	backend, ok := s.Backend.(interface {
+		ForceDeleteSourceVolume(context.Context, Object) error
+	})
+	if !ok {
+		return core.ErrUnsupported
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	source, err := s.readObject("repo", id)
+	if err != nil {
+		return err
+	}
+	if err := backend.ForceDeleteSourceVolume(ctx, source); err != nil {
+		return errors.Join(core.ErrRecoveryRequired, err)
+	}
+	if err := os.Remove(s.path("repo", id)); err != nil {
+		return err
+	}
+	return syncDir(s.Root)
+}
+
 // RunGit rechecks the exact source under the same registry lock as deletion and
 // clone. A request that waited after approval cannot use a same-name replacement.
 func (s *RepositoryService) RunGit(ctx context.Context, expected Object, req gitadapter.AgentRequest) (gitadapter.Response, error) {
