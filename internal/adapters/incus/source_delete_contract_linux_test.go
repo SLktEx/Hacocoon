@@ -61,6 +61,9 @@ func (n *sourceDeleteNative) Run(_ context.Context, command string, args ...stri
 		if n.attached || !n.present {
 			n.t.Fatal("deleted an attached or already absent volume")
 		}
+		if n.mode == "foreign user" || n.mode == "user after detach" {
+			return host.Result{ExitCode: 1}, nil
+		}
 		if n.mode != "still present" {
 			n.present = false
 		}
@@ -147,7 +150,7 @@ func assertSourceDeletionRetainedData(t *testing.T, root string) {
 }
 
 func TestSourceDeletionBypassesPreflightBlockersAfterReview(t *testing.T) {
-	for _, mode := range []string{"foreign owner", "changed device", "foreign user", "snapshots", "backups", "schedule", "pending copy", "lost detach response", "lost delete response"} {
+	for _, mode := range []string{"foreign owner", "changed device", "snapshots", "backups", "schedule", "pending copy", "lost detach response", "lost delete response"} {
 		t.Run(mode, func(t *testing.T) {
 			service, _, native, object, _ := sourceDeleteCatalog(t, mode)
 			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); err != nil {
@@ -165,7 +168,7 @@ func TestSourceDeletionBypassesPreflightBlockersAfterReview(t *testing.T) {
 }
 
 func TestSourceDeletionFailsOnlyWhenNativeAbsenceCannotBeReachedOrConfirmed(t *testing.T) {
-	for _, mode := range []string{"still attached", "still present", "unconfirmed absence", "truncated inventory"} {
+	for _, mode := range []string{"foreign user", "user after detach", "still attached", "still present", "unconfirmed absence", "truncated inventory"} {
 		t.Run(mode, func(t *testing.T) {
 			service, _, native, object, original := sourceDeleteCatalog(t, mode)
 			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); !errors.Is(err, core.ErrRecoveryRequired) {
