@@ -51,7 +51,8 @@ data.
 
 - Assume an independent Workspace means its current Git transport no longer uses
   the Host source.
-- Detach a device by name without comparing its native configuration.
+- Accept a caller-supplied arbitrary device name, Host path, pool or volume as a
+  force-delete target.
 - Delete Host filesystem paths or shared images to remove a source checkout.
 - Remove ownership receipts after an attempted detach or delete.
 - Add automatic backup, rollback, source reconstruction or background GC.
@@ -68,10 +69,13 @@ path deletion mechanism; it must be repaired by a separate maintenance path.
 
 ## Compatibility and validation
 
-Existing repository JSON and schema 13 remain unchanged. New commands use the
-existing repo namespace. The controller requires reviewed owner identity. No stored
-fields are discarded and no data migration is needed. Unit/CLI tests cover source
-users, intermediate records, stale identities and ambiguous deletion. A small
-native Incus test covers Host mount and saved-child preservation, public CLI and
-positive absence with isolated resources. Exact execution results belong in
-implementation status and the implementation PR.
+Existing repository JSON and schema 13 remain unchanged. The existing repo
+namespace gains an optional force bit; no stored fields are discarded and no data
+migration is needed. Ordinary deletion rechecks the reviewed owner identity,
+whereas force intentionally resolves the current identity under the registry lock.
+Unit/CLI tests cover referenced and incomplete sources, stale reviewed identities,
+force dispatch, ambiguous native command results and retained retry records. The
+native Incus fixture covers deletion in the presence of a Workspace reference and
+saved child, exact Host-device removal and positive volume absence with isolated
+resources. Exact execution results belong in implementation status and the
+implementation PR.
