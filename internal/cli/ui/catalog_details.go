@@ -52,7 +52,7 @@ var detailCatalog = map[string]translation{
 	"detail.worktree_input":     {"Existing local Git checkout or linked worktree. Stop editing during capture. Host Git configuration and other worktree metadata are excluded.", "既存のGit checkout、またはlinked worktree。コピー中は編集を止めてください。HostのGit設定や他のworktree管理情報は引き継ぎません。"},
 	"detail.fork_base":          {"Optional Base for opening the copy; omission retains the source's Base selection.", "コピー先で使うひな形。省略時はコピー元の選択を引き継ぎます。"},
 	"detail.oci":                {"OCI data: auto for automatic preparation, none to omit, or oci:<store> for a retained Store. The default is auto.", "OCIデータ。autoは自動準備、noneは省略、oci:<store>は保持済みStoreを使用。既定はauto。"},
-	"detail.read_access":        {"Git reads and pushes are authorized separately. Repository registration never grants unconditional push.", "Gitの取得とpushは別々に許可します。リポジトリを登録してもpushを無条件には許可しません。"},
+	"detail.read_access":        {"Git reads and pushes are authorized separately. Choosing main for clone never grants unconditional main push.", "Gitの取得とpushは別々に許可します。mainをcloneしてもmainへのpushを無条件には許可しません。"},
 	"detail.saved":              {"Optional saved rule: env/all allow or deny this scope; ask-env/ask-all ask again. Omission decides only this request.", "保存するルール。env/allはこの範囲を許可または拒否、ask-env/ask-allは毎回確認。省略時は今回の要求だけを判断します。"},
 	"detail.request":            {"Required pending request identity from haco git pending. The decision remains bound to its exact ref and commits.", "必須。haco git pendingで確認した承認待ちの識別子。判断はそのrefとcommitにだけ対応します。"},
 	"detail.base_name":          {"Required Base name from haco base list.", "必須。haco base listで確認したひな形の名前。"},
