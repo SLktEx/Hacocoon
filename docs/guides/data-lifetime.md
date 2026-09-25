@@ -97,15 +97,25 @@ haco base list --all
 ```
 
 Each delete previews and confirms its exact managed target; `--yes` is for
-intentional automation. Delete a source repository only after no Workspace record
-needs its Git route. Never delete valuable work just to clear a dependency.
-Remote repositories, credentials and independent saves are not deleted by
-`haco repo delete <id>`.
+intentional automation. Source repository deletion is deliberately stronger than
+the other retained-data deletes: after confirmation, `haco repo delete <id>`
+attempts cleanup even if a Workspace still records that Git route, the source is
+partially created, or its native volume has snapshots, backups or a schedule.
+Independent Workspace data is not removed, but its brokered Git route can stop
+working until the same source is registered again.
 
-Native Incus child snapshots, backups and schedules block parent volume deletion.
-Unknown ownership, partial creation or unfinished copy also blocks unsafe removal.
-A retained `deleting` record can be retried through the same explicit command;
-incomplete creation has no general repair command.
+`haco repo delete -f <id>` (or `--force`) is the recovery escape hatch for an
+interrupted `repo add` or another retained source record. It skips source listing,
+review and confirmation and uses the current record's exact managed native
+reference. An already absent Host device or volume is success. Hacocoon removes
+the registry record only after native absence is observed; if detach/delete cannot
+reach or confirm absence, the command fails and retains the record for retry.
+Remote repositories, credentials, independent Workspace data and OCI data are not
+deleted by source cleanup.
+
+Other retained-resource deletes keep their normal reference, ownership and native
+child checks. [Base cleanup](../design/base-images-and-custom-environments.md#explicit-built-image-cleanup)
+and [individual OCI images](../design/oci-image-deletion.md) have their own reference checks.
 [Base cleanup](../design/base-images-and-custom-environments.md#explicit-built-image-cleanup)
 and [individual OCI images](../design/oci-image-deletion.md) have their own reference checks.
 
