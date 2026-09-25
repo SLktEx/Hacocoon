@@ -8,9 +8,10 @@ passes, failures and skips.
 
 ## Current scope and integration
 
-The active roadmap is M0–M5 on `main`, following the user's current instructions.
-Usable ordinary flows come first. Local checks are primary; independent development
-continues while hosted CI runs. Main merges are authorized only after all five
+The overall roadmap is M0–M5 on `main`. The current authorized work unit is **M1
+only**, narrowed by the user to control development cost. Reuse completed work;
+do not automatically start M2–M5 after this unit. Usable ordinary flows come first.
+Local checks are primary. Main merges are authorized only after all five
 required workflows succeed for the exact PR head. Tags and releases are separate.
 
 M2 and M3 real-use acceptance is assigned to the user: authenticated Git and
@@ -82,6 +83,18 @@ of the new large-pack path is separate from the successful ordinary Git CI paths
 Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
+
+The M1 follow-up starts from main `68c539c1` (#722), which already includes
+Windows private-review descendant cleanup (#721). It adds shared bilingual
+pending-approval, preview and experimental-editor guidance, and repairs successful
+help-only execution in `haco-vscode`. See the [language contract](../reference/cli-language.md).
+Installer completion and vertical help reuse #573/#575; no replacement installer
+or SSH ownership implementation is needed. Full localization remains partial
+(#577). Human notification/editor responses and packaged layout/language acceptance
+remain post-release checks; neither this implementation nor a local test pass
+marks them performed. Next M1 acceptance is the ordinary installed Japanese journey:
+install, help, Workspace/Environment, VS Code, stop and resume, including resize
+and a failed SSH connection. M2–M5 are outside this work unit.
 
 M1's ordinary SSH/editor selection and result guidance now use the shared Japanese/
 English catalog in this checkout. Invalid preview options explain the correction

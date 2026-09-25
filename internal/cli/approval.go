@@ -70,9 +70,9 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		}
 		return 0
 	}
-	fmt.Fprintf(diagnostic, "[waiting_approval] %d pending request(s); no decision has been submitted.\n", len(requests))
+	fmt.Fprint(diagnostic, cliMessage("approval.waiting", len(requests)))
 	if !interactiveInput(in) {
-		fmt.Fprintln(diagnostic, "Approval remains pending. Use a terminal to review, or haco approve --list --json for scripts.")
+		fmt.Fprintln(diagnostic, cliMessage("approval.terminal_required"))
 		return 2
 	}
 	reader := bufio.NewReader(io.LimitReader(in, 4096))

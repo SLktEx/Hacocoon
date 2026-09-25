@@ -5,8 +5,10 @@ package vscodecli
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/cli/ui"
 	"github.com/SLktEx/Hacocoon/internal/client/ssh"
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/pkg/clientadapter"
@@ -31,21 +34,37 @@ func Main() {
 }
 
 func runAdapter(ctx context.Context, args []string) error {
+	return runAdapterWithIO(ctx, args, os.Stdout, os.Stderr, cliui.Resolve(os.Getenv))
+}
+
+func runAdapterWithIO(ctx context.Context, args []string, out, diagnostic io.Writer, language cliui.Language) error {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		writeAdapterHelp(out, "", language)
+		return nil
+	}
 	if len(args) > 0 && args[0] != "open" && args[0] != "delete" {
-		return fmt.Errorf("usage: haco-vscode <open|delete> [options] <workspace>\nunknown command %q", args[0])
+		return fmt.Errorf("%s: %q", language.Text("vscode.usage"), args[0])
 	}
 	if len(args) == 0 || (args[0] != "open" && args[0] != "delete") {
-		return fmt.Errorf("usage: haco-vscode <open|delete> [--name name] [--read-only] [--no-launch] <workspace>")
+		writeAdapterHelp(diagnostic, "", language)
+		return errors.New(language.Text("vscode.usage"))
 	}
 	fs := flag.NewFlagSet("haco-vscode", flag.ContinueOnError)
-	name := fs.String("name", "", "Environment name")
-	readOnly := fs.Bool("read-only", false, "read-only Workspace")
-	noLaunch := fs.Bool("no-launch", false, "prepare SSH only")
+	fs.SetOutput(diagnostic)
+	fs.Usage = func() {} // Route requested help and invalid input to different streams below.
+	name := fs.String("name", "", language.Text("vscode.name"))
+	readOnly := fs.Bool("read-only", false, language.Text("vscode.read_only"))
+	noLaunch := fs.Bool("no-launch", false, language.Text("vscode.no_launch"))
 	if err := fs.Parse(args[1:]); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			writeAdapterHelp(out, args[0], language)
+			return nil
+		}
+		writeAdapterHelp(diagnostic, args[0], language)
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("exact Workspace path required")
+		return errors.New(language.Text("vscode.path_required"))
 	}
 	path, err := filepath.Abs(fs.Arg(0))
 	if err != nil {
@@ -74,7 +93,7 @@ func runAdapter(ctx context.Context, args []string) error {
 			return err
 		}
 		if filepath.Clean(status.Environment.Workspace.Path) != path {
-			return fmt.Errorf("workspace binding mismatch")
+			return errors.New(language.Text("vscode.binding_mismatch"))
 		}
 		if err = client.DeleteEnvironment(ctx, *name); err != nil {
 			return err
@@ -88,7 +107,7 @@ func runAdapter(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(os.Stdout, "SSH ready:", alias); err != nil {
+	if _, err := fmt.Fprintln(out, language.Text("vscode.ready"), alias); err != nil {
 		return err
 	}
 	if *noLaunch {

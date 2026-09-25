@@ -152,3 +152,7 @@ M2・M3の実利用確認はユーザー担当とし、報告されるまで未�
 ## 構成整理と旧CLIの廃止
 
 製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0107-responsibility-layout-and-cli-retirement.ja.md)も参照してください。
+
+## M1の日常利用の追加修正
+
+この作業ツリーでは、承認待ち・プレビュー・実験的VS Code設定の案内と、haco-vscodeの縦ヘルプ・接続準備結果を共通の日英表示に対応済みです。ヘルプは環境を準備せず正常終了し、不正なオプションはエラーになります。JSONと承認判断は維持します。Windows承認画面の終了処理#721を含むmain 68c539c1の成果を利用しています。CLI全体の翻訳と配布物での人による確認は一部未完了です。[表示言語](reference/cli-language.ja.md)と[M1の残件](status/architecture-and-roadmap.md)を参照してください。

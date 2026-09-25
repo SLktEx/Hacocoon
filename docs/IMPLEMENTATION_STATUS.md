@@ -166,3 +166,7 @@ acceptance is assigned to the user and remains unperformed until reported.
 ## Repository layout and retired CLI
 
 The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).
+
+## M1 daily-use follow-up
+
+Implemented in this checkout: shared Japanese/English pending-approval, preview and experimental VS Code notices, plus vertical help and readiness guidance in haco-vscode. Help succeeds without preparing an Environment; invalid flags remain errors. JSON and approval decisions are unchanged. This builds on main 68c539c1, including Windows review cleanup in #721. Full CLI localization and packaged human acceptance remain partial; see the [language contract](reference/cli-language.md) and [M1 roadmap](status/architecture-and-roadmap.md).

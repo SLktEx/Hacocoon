@@ -247,3 +247,5 @@ not complete actual inventory or person-dependent acceptance; no release is publ
 Optional named Base builders are a v0.68 usability correction: ordinary network
 settings can target one chosen build name while ownership remains fresh. This does
 not advance a checkpoint or establish actual Packer completion or publication.
+
+The current M1-only follow-up remains a v0.68 daily-use correction. Bilingual auxiliary-client guidance and successful help-only execution do not advance the checkpoint or publish a release. Human desktop acceptance and full CLI localization remain separate.
