@@ -43,7 +43,7 @@ func runAdapterWithIO(ctx context.Context, args []string, out, diagnostic io.Wri
 		return nil
 	}
 	if len(args) > 0 && args[0] != "open" && args[0] != "delete" {
-		return fmt.Errorf("%s: %q", language.Text("vscode.usage"), args[0])
+		return fmt.Errorf("%s\n%s", language.Text("vscode.usage"), language.Format("vscode.unknown", args[0]))
 	}
 	if len(args) == 0 || (args[0] != "open" && args[0] != "delete") {
 		writeAdapterHelp(diagnostic, "", language)

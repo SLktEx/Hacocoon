@@ -70,9 +70,9 @@ func approvalCommand(ctx context.Context, client approvalClient, args []string, 
 		}
 		return 0
 	}
-	fmt.Fprint(diagnostic, cliMessage("approval.waiting", len(requests)))
+	_, _ = fmt.Fprint(diagnostic, cliMessage("approval.waiting", len(requests)))
 	if !interactiveInput(in) {
-		fmt.Fprintln(diagnostic, cliMessage("approval.terminal_required"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("approval.terminal_required"))
 		return 2
 	}
 	reader := bufio.NewReader(io.LimitReader(in, 4096))

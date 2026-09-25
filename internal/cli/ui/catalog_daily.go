@@ -1,6 +1,7 @@
 package cliui
 
 var dailyCatalog = map[string]translation{
+	"vscode.unknown":               {"unknown command %q", "不明なコマンド %q"},
 	"approval.waiting":             {"[waiting_approval] %d pending request(s); no decision has been submitted.\n", "[waiting_approval] 承認待ちが%d件あります。回答は送信していません。\n"},
 	"approval.terminal_required":   {"Approval remains pending. Use a terminal to review, or haco approve --list --json for scripts.", "承認待ちのままです。端末でhaco approveを実行して確認してください。スクリプトからの確認にはhaco approve --list --jsonを使います。"},
 	"review.unconfirmed":           {"Local review ended without a confirmed result. Inspect current requests and Policy before retrying.", "承認の結果を確認できずに終了しました。再試行する前に、承認待ちの操作とPolicyを確認してください。"},

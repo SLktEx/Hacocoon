@@ -22,7 +22,7 @@ func TestPendingApprovalLanguageNeverSubmitsDecision(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer in.Close()
+			defer func() { _ = in.Close() }()
 			client := &fakeApprovalClient{requests: []core.ApprovalRequest{testApprovalRequest("pending")}}
 			var out, diagnostic bytes.Buffer
 			code := approvalCommand(context.Background(), client, nil, in, &out, &diagnostic)

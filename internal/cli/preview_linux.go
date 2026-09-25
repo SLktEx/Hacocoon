@@ -88,11 +88,11 @@ func openPreview(name string, port int, closeConnection, noBrowser bool, out, di
 	client := controlapi.NewDefaultClient()
 	url, err := preview(ctx, client, name, port, closeConnection)
 	if err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("preview.failed"), err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.failed"), err)
 		return 1
 	}
 	if closeConnection {
-		fmt.Fprintln(out, cliMessage("preview.closed"))
+		_, _ = fmt.Fprintln(out, cliMessage("preview.closed"))
 		return 0
 	}
 	if _, err = fmt.Fprintln(out, url); err != nil {
@@ -103,11 +103,11 @@ func openPreview(name string, port int, closeConnection, noBrowser bool, out, di
 	}
 	desktop, err := sshclient.ResolveDesktop(ctx)
 	if err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("preview.open_url"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.open_url"))
 		return 1
 	}
 	if err := launchPreviewBrowser(ctx, desktop.Windows, url); err != nil {
-		fmt.Fprintln(diagnostic, cliMessage("preview.browser_failed"))
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.browser_failed"))
 		return 1
 	}
 	return 0

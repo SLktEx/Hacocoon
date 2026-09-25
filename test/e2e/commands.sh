@@ -202,8 +202,25 @@ vscode_code=$?
 set -e
 [[ "$vscode_code" == "1" ]]
 [[ ! -s "$root/vscode.out" ]]
-grep -Fq 'usage: haco-vscode <open|delete>' "$root/vscode.err"
+grep -Fq 'Use haco-vscode --help' "$root/vscode.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/vscode.err"
+
+# Help succeeds without controller state in either presentation language.
+for language in en ja; do
+  for command in root open delete; do
+    args=(--help)
+    [[ "$command" == root ]] || args=("$command" --help)
+    HACO_UI_LANGUAGE="$language" HACO_CONTROL_SOCKET="$root/missing-product.sock" \
+      "$bin/haco-vscode" "${args[@]}" >"$root/vscode-help.out" 2>"$root/vscode-help.err"
+    [[ ! -s "$root/vscode-help.err" ]]
+    grep -Fq 'haco-vscode' "$root/vscode-help.out"
+    if [[ "$language" == ja ]]; then
+      grep -Fq '使い方:' "$root/vscode-help.out"
+    else
+      grep -Fq 'Usage:' "$root/vscode-help.out"
+    fi
+  done
+done
 
 # Browser notifier: prove the real server process can start and terminate
 # cleanly on SIGTERM without requiring a desktop session.
