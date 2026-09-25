@@ -3,7 +3,6 @@ package egressproxy
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/netip"
 	"strconv"
@@ -20,32 +19,32 @@ func (p *Proxy) resolvePinned(ctx context.Context, host string) ([]netip.Addr, e
 		return nil, err
 	}
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", host, err)
+		return nil, &upstreamFailure{reason: "dns_lookup_failed", err: err}
 	}
 	if len(resolved) == 0 {
-		return nil, fmt.Errorf("resolve %s returned no addresses: %w", host, core.ErrRuntimeUnavailable)
+		return nil, &upstreamFailure{reason: "dns_empty_result", err: core.ErrRuntimeUnavailable}
 	}
 	addresses := make([]netip.Addr, 0, len(resolved))
 	seen := map[netip.Addr]struct{}{}
 	for _, item := range resolved {
 		addr, ok := netip.AddrFromSlice(item.IP)
-		if !ok {
-			return nil, core.ErrPolicyDenied
+		if !ok || item.Zone != "" {
+			return nil, &upstreamFailure{reason: "address_disallowed", err: core.ErrPolicyDenied}
 		}
 		addr = addr.Unmap()
-		if !publicDialAddress(addr) {
-			// Reject the whole answer set. Silently dropping a private answer would
-			// make mixed/rebinding responses dependent on resolver ordering.
-			return nil, core.ErrPolicyDenied
+		if addr.IsLoopback() {
+			return nil, &upstreamFailure{reason: "address_loopback", err: core.ErrPolicyDenied}
+		}
+		if !allowedDialAddress(addr) {
+			// Reject the whole answer set, including when an allowed public/private
+			// address precedes an unsafe answer. Never dial a partial result.
+			return nil, &upstreamFailure{reason: "address_disallowed", err: core.ErrPolicyDenied}
 		}
 		if _, exists := seen[addr]; exists {
 			continue
 		}
 		seen[addr] = struct{}{}
 		addresses = append(addresses, addr)
-	}
-	if len(addresses) == 0 {
-		return nil, core.ErrPolicyDenied
 	}
 	return addresses, nil
 }
@@ -69,13 +68,14 @@ func (p *Proxy) dialPinned(ctx context.Context, addresses []netip.Addr, port int
 		errs = append(errs, err)
 	}
 	if len(errs) == 0 {
-		return nil, core.ErrRuntimeUnavailable
+		return nil, &upstreamFailure{reason: "dial_failed", err: core.ErrRuntimeUnavailable}
 	}
-	return nil, errors.Join(errs...)
+	return nil, &upstreamFailure{reason: "dial_failed", err: errors.Join(errs...)}
 }
 
-func publicDialAddress(addr netip.Addr) bool {
-	if !addr.IsValid() || !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsLinkLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
+func allowedDialAddress(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	if !addr.IsValid() || addr.Zone() != "" || !addr.IsGlobalUnicast() {
 		return false
 	}
 	for _, prefix := range forbiddenDialPrefixes {
@@ -87,9 +87,10 @@ func publicDialAddress(addr netip.Addr) bool {
 }
 
 var forbiddenDialPrefixes = mustPrefixes(
-	"0.0.0.0/8", "100.64.0.0/10", "192.0.0.0/24", "192.0.2.0/24",
-	"198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "240.0.0.0/4",
-	"2001:db8::/32",
+	// Go's global-unicast predicate includes these IPv4 reserved ranges.
+	// Neither is an ordinary unicast destination. Private/shared unicast
+	// networks are allowed after the separate hostname-scoped authorization.
+	"0.0.0.0/8", "240.0.0.0/4",
 )
 
 func mustPrefixes(values ...string) []netip.Prefix {

@@ -26,7 +26,7 @@ Environment; authenticated Git runs in the registered trusted repository.
 
 The development candidate reads all upstream heads under an explicit all-heads
 fetch scope. A push can create one absent branch or fast-forward one existing
-branch, under a separate exact-ref decision. Registration selects checkout
+branch, under a separate exact-ref decision. Workspace preparation selects checkout
 provenance, not the set of permitted push targets.
 Fetch revalidates each requested ref/OID against a fresh Host observation;
 unknown, moved, duplicate or excessive refs are refused. At most 1024 heads and
@@ -108,7 +108,10 @@ No Core database schema or owned volume is replaced.
 `workspace create --repo <id> [--branch <branch>] <workspace>` resolves and fetches
 an existing branch under the source lock before making the independent volume
 copy. Without `--branch`, resolve remote HEAD. Collections/path preparation use
-each remote default. The selected branch records initial checkout provenance;
+each remote default, as do new sources added during restore and local tree imports.
+Tree imports preserve the supplied HEAD/index while resolving the registered
+upstream default for broker discovery; saved members keep their saved routing.
+The selected branch records initial checkout provenance;
 it does not limit all-head discovery or replace independent exact-ref Policy.
 The broker still pins source owner/URL, Workspace and Environment identity,
 approval and old/new OIDs. An arbitrary guest ref grants no authority.
