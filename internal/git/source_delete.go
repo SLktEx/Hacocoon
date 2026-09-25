@@ -41,16 +41,17 @@ func (s *RepositoryService) ListSources(ctx context.Context) ([]SourceUse, error
 	return result, nil
 }
 
-// DeleteSource shares the registry lock with clone/copy. All Workspace records,
-// with Git routing, including interrupted creations/deletions, keep their source alive.
-// Offline data has no dependency on a coincidentally same-named Host repository.
+// DeleteSource removes the reviewed source after rechecking only the reviewed
+// registry identity. Once the user confirms deletion, Workspace references,
+// incomplete preparation, saved children and provider ownership/configuration
+// preflights do not block the attempt. The exact managed native reference from
+// the current source record remains the deletion target.
 func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) error {
 	if !gitadapter.ValidID(id) || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:identity", Owner: owner}) {
 		return core.ErrInvalidArgument
 	}
 	backend, ok := s.Backend.(interface {
-		CheckSourceDeletion(context.Context, Object) error
-		DeleteSourceVolume(context.Context, Object) error
+		ForceDeleteSourceVolume(context.Context, Object) error
 	})
 	if !ok {
 		return core.ErrUnsupported
@@ -64,28 +65,7 @@ func (s *RepositoryService) DeleteSource(ctx context.Context, id, owner string) 
 	if source.Owner != owner {
 		return core.ErrCapabilityStale
 	}
-	if source.State != "ready" && source.State != "deleting" {
-		return core.ErrRecoveryRequired
-	}
-	work, err := s.listObjects(ctx, "work")
-	if err != nil {
-		return err
-	}
-	for _, w := range work {
-		for _, member := range w.Copies() {
-			if member.Remote != "" && member.Repository == id {
-				return core.ErrStorageBusy
-			}
-		}
-	}
-	if err := backend.CheckSourceDeletion(ctx, source); err != nil {
-		return err
-	}
-	source.State = "deleting"
-	if err := s.save(source); err != nil {
-		return err
-	}
-	if err := backend.DeleteSourceVolume(ctx, source); err != nil {
+	if err := backend.ForceDeleteSourceVolume(ctx, source); err != nil {
 		return errors.Join(core.ErrRecoveryRequired, err)
 	}
 	if err := os.Remove(s.path("repo", id)); err != nil {
