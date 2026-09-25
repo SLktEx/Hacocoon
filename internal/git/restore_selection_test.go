@@ -14,6 +14,7 @@ type selectionBackend struct {
 	savedBackend
 	added, populated []string
 	addFailure       bool
+	sourceDeleted    bool
 }
 
 func (b *selectionBackend) InspectVolume(ctx context.Context, object Object) error {
@@ -46,7 +47,11 @@ func (b *selectionBackend) CheckSourceDeletion(context.Context, Object) error {
 	return nil
 }
 func (b *selectionBackend) DeleteSourceVolume(context.Context, Object) error {
-	b.t.Fatal("referenced source was deleted")
+	b.t.Fatal("legacy guarded source deletion path was used")
+	return nil
+}
+func (b *selectionBackend) ForceDeleteSourceVolume(context.Context, Object) error {
+	b.sourceDeleted = true
 	return nil
 }
 
@@ -89,11 +94,12 @@ func TestRestoreSelectedMembershipKeepsSavedDataAndPinsAdditions(t *testing.T) {
 				if !errors.Is(err, core.ErrRecoveryRequired) || prepared || len(b.added) != 1 {
 					t.Fatal(object, err)
 				}
-				// A fresh registry instance models restart. Its durable destination
-				// membership must still pin the newly selected source.
+				// A fresh registry instance models restart. Source cleanup is now
+				// explicitly allowed even when an incomplete Workspace still records
+				// the Git route; the independent Workspace record is retained.
 				restarted := NewRepositoryService(s.Root, b)
-				if err := restarted.DeleteSource(ctx, repo.ID, repo.Owner); !errors.Is(err, core.ErrStorageBusy) {
-					t.Fatal("lost source pin", err)
+				if err := restarted.DeleteSource(ctx, repo.ID, repo.Owner); err != nil || !b.sourceDeleted {
+					t.Fatal("referenced source cleanup was blocked", err)
 				}
 				if s.SnapshotCatalog.(*workspaceCopyCatalog).owner == "" {
 					t.Fatal("lost snapshot reservation")
