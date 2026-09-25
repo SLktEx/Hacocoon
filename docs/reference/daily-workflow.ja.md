@@ -12,8 +12,8 @@
 
 ```bash
 haco doctor
-haco repo clone --branch main sample https://github.com/OWNER/REPO.git
-haco workspace create --repo sample sample-work
+haco repo add sample https://github.com/OWNER/REPO.git
+haco workspace create --repo sample --branch main sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco open sample-dev
 ```

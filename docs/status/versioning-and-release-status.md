@@ -17,6 +17,10 @@ Hacocoon is pre-1.0. Checkpoints mark progress; they are separate from compatibi
 
 ## Checkpoint history
 
+The private Windows review descendant cleanup fix remains within v0.68; it repairs
+the existing startup-coordination contract. See [ADR 0110](../adr/0110-private-windows-process-ownership.md).
+No tag or release is created by this fix.
+
 The #708 integration with main's responsibility layout remains within v0.68.
 It retains the existing named-builder, inventory and Windows startup-coordination
 work and reuses main's stream close-completion fix. See the

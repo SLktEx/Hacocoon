@@ -104,7 +104,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 	if err != nil {
 		return err
 	}
-	defer peer.Close()
+	defer func() { resultErr = errors.Join(resultErr, peer.Close()) }()
 	stage = "activation"
 	events := make(chan nativeActivation, 32)
 	stop, err := startToastCOM(class, appID, events)
@@ -186,7 +186,7 @@ func nativeReview(c configuration, own, id string) (resultErr error) {
 				decisionPeer, err := startReadyReviewPeer(decisionCtx, decisionCtx, plan, own, c.Distribution)
 				if err == nil {
 					reply, err = job.Run(decisionCtx, decisionPeer)
-					decisionPeer.Close()
+					err = errors.Join(err, decisionPeer.Close())
 				}
 				completed <- completion{job, reply, err}
 			}(job)

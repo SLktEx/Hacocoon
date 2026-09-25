@@ -62,8 +62,8 @@ URLとブランチを利用権限のあるリポジトリの**既存ブランチ
 後で設定する権限のURL・名前も一致させてください。
 
 ```bash
-haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample sample-work
+haco repo add sample https://github.com/SLktEx/Hacocoon.git
+haco workspace create --repo sample --branch main sample-work
 haco env create --workspace managed:sample-work sample-dev
 haco env status sample-dev
 ```
@@ -95,7 +95,7 @@ Ubuntuの配布先はBaseやCPUの種類で異なります。無制限のワイ�
 
 通常のfetch／pullと承認付きpushには、
 [管理対象Gitの権限設定](git-workflow.ja.md#configure-git-policy)から
-登録したURL・ブランチに合うルールを追加します。
+登録したURLとWorkspaceで選んだブランチに合うルールを追加します。
 アプリが自分で名前解決する場合は、別途 `network.resolve/lookup` の権限が必要です。
 [名前解決](../design/name-resolution.ja.md)の許可は接続の許可を兼ねません。
 Hostが仲介するGit操作のために、EnvironmentへGitHub認証情報を渡す必要はありません。

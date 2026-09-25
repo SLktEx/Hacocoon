@@ -56,7 +56,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 			backend := &ownershipBackend{t: t, fail: failure}
 			service := NewRepositoryService(t.TempDir(), backend)
 			backend.service = service
-			object, err := service.Clone(context.Background(), "demo", "https://github.com/example/repo.git", "main")
+			object, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
 			if failure == "" {
 				if err != nil || object.State != "ready" || !backend.populated {
 					t.Fatalf("object=%+v err=%v", object, err)
@@ -69,7 +69,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 					t.Fatalf("incomplete record reusable: %v", err)
 				}
 			}
-			if _, err := service.Clone(context.Background(), "demo", "https://github.com/example/repo.git", "main"); !errors.Is(err, core.ErrAlreadyExists) {
+			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
 				t.Fatalf("replaced owned record: %v", err)
 			}
 		})
@@ -78,7 +78,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 	for _, id := range []string{"../escape", "/absolute", "--option", "", "a\nb", strings.Repeat("a", 49)} {
 		service := NewRepositoryService(t.TempDir(), nil)
-		if _, err := service.Clone(context.Background(), id, "https://github.com/example/repo.git", "main"); !errors.Is(err, core.ErrInvalidArgument) {
+		if _, err := service.Add(context.Background(), id, "https://github.com/example/repo.git"); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatalf("id=%q err=%v", id, err)
 		}
 	}
@@ -86,5 +86,39 @@ func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 		if gitadapter.ValidateRemote(remote) == nil {
 			t.Fatalf("accepted remote %q", remote)
 		}
+	}
+}
+
+type canceledRegistrationBackend struct {
+	ownershipBackend
+	started chan struct{}
+}
+
+func (b *canceledRegistrationBackend) Populate(ctx context.Context, object Object) error {
+	b.record(object, "created")
+	close(b.started)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestCanceledRegistrationRetainsExactOwnership(t *testing.T) {
+	b := &canceledRegistrationBackend{ownershipBackend: ownershipBackend{t: t}, started: make(chan struct{})}
+	s := NewRepositoryService(t.TempDir(), b)
+	b.service = s
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := s.Add(ctx, "demo", "https://github.com/example/repo.git"); done <- err }()
+	<-b.started
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) || !errors.Is(err, core.ErrRecoveryRequired) {
+		t.Fatal("cancellation lost recovery obligation", err)
+	}
+	retained, err := s.Get("repo", "demo")
+	if !errors.Is(err, core.ErrRecoveryRequired) || retained.State != "created" || retained.Owner == "" || retained.NativeRef == "" || retained.Branch != "" {
+		t.Fatal("cancellation discarded source ownership", retained, err)
+	}
+	if _, err := s.Add(context.Background(), "demo", "https://github.com/example/repo.git"); !errors.Is(err, core.ErrAlreadyExists) {
+		t.Fatal("retry adopted or overwrote incomplete source", err)
 	}
 }

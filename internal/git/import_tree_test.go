@@ -37,12 +37,12 @@ func TestTreeImportPinsRegisteredRoutingAndCommonCreationReceipt(t *testing.T) {
 		b := &treeImportBackend{ownershipBackend: ownershipBackend{t: t, fail: fail}}
 		s := NewRepositoryService(t.TempDir(), b)
 		b.service = s
-		repo := Object{ID: "source", Kind: "repo", Repository: "source", Remote: "https://github.com/example/source.git", Branch: "main", Owner: strings.Repeat("a", 32), NativeRef: "source-volume", State: "ready"}
+		repo := Object{ID: "source", Kind: "repo", Repository: "source", Remote: "https://github.com/example/source.git", Owner: strings.Repeat("a", 32), NativeRef: "source-volume", State: "ready"}
 		if err := s.reserve(repo); err != nil {
 			t.Fatal(err)
 		}
 		object, err := s.ImportWorkspaceTree(context.Background(), "input", "source", strings.NewReader("input"))
-		if (err != nil) != (fail != "") || object.Owner == "" || object.Remote != repo.Remote || object.Branch != repo.Branch || b.populated || b.imports != 1 {
+		if (err != nil) != (fail != "") || object.Owner == "" || object.Remote != repo.Remote || object.Branch != "main" || b.populated || b.imports != 1 {
 			t.Fatal(object, err)
 		}
 		_, err = s.ImportWorkspaceTree(context.Background(), "input", "source", strings.NewReader("input"))

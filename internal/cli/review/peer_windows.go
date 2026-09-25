@@ -3,61 +3,38 @@ package reviewcli
 import (
 	"context"
 	"errors"
-	"io"
-	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
-	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/client/review"
+	"github.com/SLktEx/Hacocoon/internal/platform/winprocess"
 	"github.com/SLktEx/Hacocoon/internal/platform/wsl/coord"
 )
 
 // The only channel carrying controller tokens or answers is these anonymous
 // child pipes. No inherited terminal, user environment or public endpoint.
 type processReviewPeer struct {
-	peer      *desktopreview.Peer
-	cancel    context.CancelFunc
-	input     io.WriteCloser
-	output    io.ReadCloser
-	done      chan error
-	closeOnce sync.Once
-	mu        sync.Mutex
+	peer    *desktopreview.Peer
+	process *winprocess.Private
+	stop    func() bool
+	mu      sync.Mutex
 }
 
 func startReviewPeer(ctx context.Context, plan desktopreview.Invocation, own string) (*processReviewPeer, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	cmd := exec.CommandContext(ctx, plan.File, plan.Args...)
-	cmd.Env = plan.Env
-	cmd.Dir = filepath.Dir(own)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
-	cmd.WaitDelay = 2 * time.Second
-	// Raw subprocess diagnostics may contain credentials; discard them.
-	cmd.Stderr = io.Discard
-	input, err := cmd.StdinPipe()
-	if err != nil {
-		cancel()
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	output, err := cmd.StdoutPipe()
+	process, err := winprocess.Start(plan.File, plan.Args, plan.Env, filepath.Dir(own))
 	if err != nil {
-		input.Close()
-		cancel()
-		return nil, err
-	}
-	if err = cmd.Start(); err != nil {
-		input.Close()
-		output.Close()
-		cancel()
 		return nil, errors.New("start private review")
 	}
-	p := &processReviewPeer{peer: desktopreview.NewPeer(output, input), cancel: cancel, input: input, output: output, done: make(chan error, 1)}
-	go func() { p.done <- cmd.Wait() }()
+	p := &processReviewPeer{peer: desktopreview.NewPeer(process.Output, process.Input), process: process}
+	p.stop = context.AfterFunc(ctx, func() { _ = process.Close() })
 	return p, nil
 }
-func (p *processReviewPeer) Close() {
-	p.closeOnce.Do(func() { p.cancel(); p.input.Close(); p.output.Close(); <-p.done })
+func (p *processReviewPeer) Close() error {
+	p.stop()
+	return p.process.Close()
 }
 
 // Ready never selects or answers a request. It shares the startup deadline and
@@ -78,7 +55,7 @@ func (p *processReviewPeer) Exchange(ctx context.Context, m desktopreview.Messag
 	if ctx.Err() != nil {
 		return desktopreview.Reply{}, ctx.Err()
 	}
-	stop := context.AfterFunc(ctx, p.Close)
+	stop := context.AfterFunc(ctx, func() { _ = p.Close() })
 	defer stop()
 	reply, err := p.peer.Exchange(m)
 	if ctx.Err() != nil {
@@ -98,8 +75,14 @@ func startReadyReviewPeer(lifetime, startup context.Context, plan desktopreview.
 	}
 	defer func() {
 		if err != nil && peer != nil {
-			peer.Close()
+			cleanupErr := peer.Close()
 			peer = nil
+			if cleanupErr != nil {
+				// Keep the launch reservation until this owner exits. An
+				// unconfirmed descendant must not race storage reclamation.
+				err = errors.Join(err, errors.New("private review cleanup not confirmed"))
+				return
+			}
 		}
 		err = errors.Join(err, guard.Close())
 		if err != nil && peer != nil {

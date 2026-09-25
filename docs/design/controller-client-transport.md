@@ -16,7 +16,7 @@ the Environment Git-only endpoint. `environment.create` can atomically reserve
 an optional persistent resource with its Workspace. See the
 [Persistent OCI Store contract](persistent-oci-store.md).
 
-Product `haco` calls the existing controller for the [managed repository workflow](../guides/git-workflow.md). Its typed management API provides `repository.clone`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI reference](../reference/cli.md) for commands and options.
+Product `haco` calls the existing controller for the [managed repository workflow](../guides/git-workflow.md). Its typed management API provides `repository.add`, `workspace.copy`, `environment.stop` and `git.connect/pending/decide`. These methods are available through the trusted management endpoint, not the Git-only Environment socket. See [implementation status](../IMPLEMENTATION_STATUS.md) for acceptance and [CLI reference](../reference/cli.md) for commands and options.
 
 WSL may open the login shell before the enabled controller service has bound its socket. The login alias waits up to two minutes using read-only ping calls, retrying only transport unavailability. Protocol/operation rejection is not retried; the client never starts another controller or changes service state. This startup timeout does not limit the interactive session's lifetime.
 
@@ -480,3 +480,12 @@ only after client-listener readiness (and native Windows ownership observation).
 A private fixture-input byte arms the application within a separate 180-second
 startup bound; missing input, EOF and incomplete exchanges fail. Product tunnel
 lifetimes, application exchange assertions and cancellation checks are unchanged.
+
+## Repository registration progress
+
+`repository.add` is a management-only stream with bounded progress frames and a
+required final receipt. It registers a remote without a branch. CLI diagnostics
+go to stderr, including with `--json`; stdout contains only the final result.
+Disconnect cancels the service request, including silent Git work. The Incus
+adapter forwards interruption to the trusted agent. Failed creation retains
+ownership for recovery. See [Git semantics](git-and-github-capability.md).
