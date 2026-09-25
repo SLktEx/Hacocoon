@@ -25,12 +25,14 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	f := flag.NewFlagSet("haco repo "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	f.Usage = func() { commandHelp(diagnostic, "repo "+args[0], cliLanguage()) }
-	var yes, machine bool
+	var yes, force, machine bool
 	switch args[0] {
 	case "list":
 		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
 		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
+		f.BoolVar(&force, "f", false, cliMessage("detail.force"))
+		f.BoolVar(&force, "force", false, cliMessage("detail.force"))
 	default:
 		return 2
 	}
@@ -76,18 +78,20 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	if err := writeSources(out, []gitrepo.SourceUse{*selected}); err != nil {
 		return 1
 	}
-	if len(selected.Workspaces) > 0 {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("source.busy"))
-		return 1
+	if !force {
+		if len(selected.Workspaces) > 0 {
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("source.busy"))
+			return 1
+		}
+		if selected.Source.State != "ready" && selected.Source.State != "deleting" {
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("source.incomplete"))
+			return 1
+		}
+		if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
+			return code
+		}
 	}
-	if selected.Source.State != "ready" && selected.Source.State != "deleting" {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("source.incomplete"))
-		return 1
-	}
-	if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
-		return code
-	}
-	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner})
+	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner, Force: force})
 	if err != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("operation.failed"), err)
 		return 1
