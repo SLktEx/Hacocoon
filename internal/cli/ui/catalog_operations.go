@@ -33,7 +33,7 @@ var operationCatalog = map[string]translation{
 	"source.missing":                     {"haco: source repository not found", "haco: 取得元リポジトリが見つかりません。haco repo listで名前を確認してください。"},
 	"source.busy":                        {"haco: referenced by Workspace Git routing; retained", "haco: WorkspaceのGit接続が使用しています。取得元リポジトリを保持しました。"},
 	"source.incomplete":                  {"haco: incomplete preparation requires inspection; retained", "haco: 準備が完了していません。状態を確認してください。データは保持しています。"},
-	"source.delete_warning":              {"This deletes the selected Host source repository and its local Git data. Remote repositories, Workspaces, OCI Stores and independent snapshots remain.", "選択したHost側の取得元リポジトリと、そのローカルGitデータを削除します。リモートリポジトリ、Workspace、OCI Store、独立したsnapshotは残ります。"},
+	"source.delete_warning":              {"This deletes the selected Host source repository and its local Git data even when Workspaces still reference it; native source snapshots/backups may also be removed. Remote repositories, independent Workspace data, OCI Stores and independent Environment snapshots remain.", "選択したHost側の取得元リポジトリとローカルGitデータを、Workspaceから参照中でも削除します。取得元volumeのnative snapshot・backupも削除される場合があります。リモートリポジトリ、独立したWorkspaceデータ、OCI Store、独立したEnvironment snapshotは残ります。"},
 	"source.delete_prompt":               {"Delete this source repository? [y/N] ", "この取得元リポジトリを削除しますか？ [y=削除 / N=保持（未入力は保持）] "},
 	"source.retained":                    {"Source retained.", "取得元リポジトリを保持しました。"},
 	"source.deleted":                     {"Source repository deleted; remote and independent data retained", "取得元リポジトリを削除しました。リモートと独立したデータは保持しています。"},
