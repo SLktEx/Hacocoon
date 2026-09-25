@@ -104,24 +104,12 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	work.NativeRef = pool + "/haco-work-reserved"
 	work.State = "creating"
 	write("work-reserved.json", work)
-	if output, err := cli("repo", "delete", "--yes", "source"); err == nil || !strings.Contains(string(output), "referenced") {
-		t.Fatalf("Workspace reference refusal: %v %s", err, output)
-	}
-	must(os.Remove(filepath.Join(dir, "work-reserved.json")))
 	command("storage", "volume", "snapshot", "create", pool, "haco-repo-source", "keep", "--project", project)
-	if err := service.DeleteSource(ctx, o.ID, o.Owner); !errors.Is(err, core.ErrStorageBusy) {
-		t.Fatal("saved child refusal", err)
+	if err := backend.CheckSourceDeletion(ctx, o); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatal("fixture did not establish the old preflight blocker", err)
 	}
-	if got, err := service.Get("repo", o.ID); err != nil || got.State != "ready" {
-		t.Fatal("refusal changed catalog", got, err)
-	}
-	if mounted, err := backend.sourceDevice(ctx, o); err != nil || !mounted {
-		t.Fatal("refusal detached Host", err)
-	}
-	command("storage", "volume", "snapshot", "show", pool, "haco-repo-source", "keep", "--project", project)
-	command("storage", "volume", "snapshot", "delete", pool, "haco-repo-source", "keep", "--project", project)
 	if err := service.DeleteSource(ctx, o.ID, strings.Repeat("f", 32)); !errors.Is(err, core.ErrCapabilityStale) {
-		t.Fatal("stale owner accepted", err)
+		t.Fatal("stale reviewed owner accepted", err)
 	}
 	output, err = cli("repo", "delete", "--yes", "source")
 	if err != nil {
@@ -139,5 +127,9 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	must(r.verifyTrustedHostOwnership(ctx))
 	command("delete", trustedHostName, "--project", project)
 	command("project", "delete", project)
-	t.Log("PASS public source list/delete, Workspace reservation refusal, native child and Host mount retention, stale owner refusal, exact mount removal/native absence; shared image/pool retained")
+	if _, err := os.Stat(filepath.Join(dir, "work-reserved.json")); err != nil {
+		t.Fatal("independent Workspace record was removed", err)
+	}
+	must(os.Remove(filepath.Join(dir, "work-reserved.json")))
+	t.Log("PASS public source list/delete bypassed Workspace/snapshot preflight after confirmation, retained independent Workspace data, rejected stale reviewed owner, and confirmed exact mount/volume absence")
 }
