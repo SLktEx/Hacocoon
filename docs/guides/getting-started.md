@@ -182,4 +182,4 @@ separate deletion of retained data.
 If creation, copying, start or cleanup reports uncertain ownership, stop and
 inspect `haco env list`, `haco workspace list` and the reported resource IDs.
 Do not edit the catalog, delete guessed Incus paths or disable isolation to continue.
-General interrupted-operation recovery remains incomplete.
+General interrupted-operation recovery remains incomplete; an interrupted source registration can be discarded explicitly with `haco repo delete -f <id>`.
