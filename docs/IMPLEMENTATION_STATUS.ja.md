@@ -155,4 +155,4 @@ M2・M3の実利用確認はユーザー担当とし、報告されるまで未�
 製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0107-responsibility-layout-and-cli-retirement.ja.md)も参照してください。
 
 `haco repo add`によるリポジトリ登録はブランチに依存しません。初期ブランチはWorkspace作成時に選びます。
-[Gitの設計](design/git-and-github-capability.md#branch-independent-registration)を参照してください。
+[Gitの設計](design/git-and-github-capability.md#branch-independent-repository-registration)を参照してください。
