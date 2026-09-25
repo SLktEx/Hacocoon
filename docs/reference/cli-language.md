@@ -152,5 +152,15 @@ Ordinary `haco ssh setup` and `haco open` use shared English/Japanese Environmen
 selection, preparation, editor-launch/retry and cleanup notices. Invalid preview
 port/client combinations explain the correction before Workspace preparation.
 SSH aliases, generated configuration, selection/cancellation, raw client errors,
-progress tokens and operation results are unchanged. The separate `haco-vscode`
-adapter and lower-level SSH errors retain their own presentation.
+progress tokens and operation results are unchanged. Lower-level SSH errors retain
+their original diagnostic details.
+
+The `haco-vscode` adapter shares the language selector and vertical help renderer.
+Root, `open` and `delete` help succeed without contacting the controller or preparing
+a Workspace. Requested help goes to stdout; invalid flags remain errors on stderr.
+Its readiness and Workspace-selection guidance use the shared catalog.
+
+Pending-approval guidance, unconfirmed local review, preview close/browser recovery,
+and experimental VS Code save/retained-edit notices also use the shared catalog.
+`[waiting_approval]`, JSON, exit status and approval decisions remain unchanged.
+This does not complete full CLI localization or installed desktop acceptance.

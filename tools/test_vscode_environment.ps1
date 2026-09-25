@@ -2,6 +2,12 @@
 param([Parameter(Mandatory)][string]$EnvironmentName, [string]$Distro = 'Hacocoon')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Called only for processes selected by the exact disposable editor path.
+function Stop-OwnedEditorProcess([Diagnostics.Process]$Process) {
+    if (-not $Process.HasExited) { $Process.Kill($true) }
+    if (-not $Process.WaitForExit(10000)) { throw 'Owned editor did not exit' }
+}
+
 if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) {
     throw 'Real editor acceptance is restricted to the disposable GHA profile.'
 }
@@ -83,7 +89,7 @@ try {
     # never terminate another VS Code installation or an operator's editor.
     foreach ($process in @(Get-Process -Name Code -ErrorAction SilentlyContinue)) {
         if ($process.Path -eq $codeExecutable) {
-            try { $process.Kill() } catch { if (-not $process.HasExited) { throw } }
+            Stop-OwnedEditorProcess $process
         }
     }
 }

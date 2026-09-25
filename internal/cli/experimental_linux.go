@@ -24,14 +24,14 @@ func runExperimental(args []string) int {
 	defer stop()
 	s, err := experimental.DefaultStore()
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "haco: cannot locate configuration")
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("experimental.locate"))
 		return 1
 	}
 	return experimentalCommand(ctx, s, args, os.Stdin, os.Stdout, os.Stderr, editVSCode)
 }
 
 func experimentalCommand(ctx context.Context, s experimental.Store, args []string, in io.Reader, out, diagnostic io.Writer, edit func(context.Context, []byte) ([]byte, string, error)) int {
-	usage := "Usage: haco experimental edit vscode [--file <subtree.yaml> | --json [ - ]]\nExperimental: configuration compatibility is not guaranteed."
+	usage := cliMessage("usage", "haco experimental edit vscode [--file <subtree.yaml> | --json [ - ]]") + "\n" + cliMessage("experimental.warning")
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		if _, err := fmt.Fprintln(out, usage); err != nil {
 			return 1
@@ -44,8 +44,8 @@ func experimentalCommand(ctx context.Context, s experimental.Store, args []strin
 	}
 	f := flag.NewFlagSet("haco experimental edit vscode", flag.ContinueOnError)
 	f.SetOutput(diagnostic)
-	file := f.String("file", "", "replace experimental.vscode with a YAML subtree file")
-	jsonMode := f.Bool("json", false, "print JSON; with -, replace from JSON stdin")
+	file := f.String("file", "", cliMessage("experimental.file"))
+	jsonMode := f.Bool("json", false, cliMessage("experimental.json"))
 	f.Usage = func() { _, _ = fmt.Fprintln(diagnostic, usage); f.PrintDefaults() }
 	if err := f.Parse(args[2:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -95,19 +95,19 @@ func experimentalCommand(ctx context.Context, s experimental.Store, args []strin
 		err = s.Replace(ctx, snap.Revision, object)
 	}
 	if err != nil {
-		_, _ = fmt.Fprintln(diagnostic, "haco: experimental configuration was not acknowledged; inspect YAML before retrying:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("experimental.unconfirmed"), err)
 		if retained != "" {
-			_, _ = fmt.Fprintln(diagnostic, "Edited subtree retained:", retained)
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("experimental.retained"), retained)
 		}
 		return 1
 	}
 	if retained != "" {
 		if removeConfigurationEdit(retained) != nil {
-			_, _ = fmt.Fprintln(diagnostic, "Editor files retained:", filepath.Dir(retained))
+			_, _ = fmt.Fprintln(diagnostic, cliMessage("experimental.editor_retained"), filepath.Dir(retained))
 		}
 	}
 	// JSON apply has no stdout, so pipelines carry subtree data only.
-	_, _ = fmt.Fprintln(diagnostic, "Saved experimental.vscode:", s.Path)
+	_, _ = fmt.Fprintln(diagnostic, cliMessage("experimental.saved"), s.Path)
 	return 0
 }
 

@@ -8,12 +8,12 @@ passes, failures and skips.
 
 ## Current scope and integration
 
-The overall roadmap remains M0–M5 on `main`. The current work unit is **M1/M2 integration**, explicitly authorized for
-PRs #726 and #727. M2 implementation remains the only new milestone scope. Reuse implemented multi-repository forks,
-linked-worktree input, all-head fetch, reviewed branch creation/push and result
-reconciliation. Finish local Git diagnosis/recovery (#617); do not automatically
-start M3–M5. Main merge still requires all five exact-head workflows. No tag or
-release is part of this unit.
+The overall roadmap remains M0–M5 on `main`. The current work unit is **M1/M2
+integration**. PR #727 includes both #726's daily-use improvements and M2 Git
+recovery, including their Windows E2E fixes. It is the combined main candidate;
+#726 remains a reviewable source branch until integration succeeds. Do not start
+M3–M5. Local checks are primary; main merge requires all five exact-head workflows.
+Tags/releases and person-dependent acceptance remain separate.
 
 M2 and M3 real-use acceptance is assigned to the user: authenticated Git and
 GUI answers, plus VPN/DNS and other non-ordinary-network combinations. These
@@ -84,6 +84,18 @@ of the new large-pack path is separate from the successful ordinary Git CI paths
 Do not expand a pending acceptance item into an unrelated compatibility project.
 
 ## Acceptance priorities and limits
+
+The M1 follow-up starts from main `68c539c1` (#722), which already includes
+Windows private-review descendant cleanup (#721). It adds shared bilingual
+pending-approval, preview and experimental-editor guidance, and repairs successful
+help-only execution in `haco-vscode`. See the [language contract](../reference/cli-language.md).
+Installer completion and vertical help reuse #573/#575; no replacement installer
+or SSH ownership implementation is needed. Full localization remains partial
+(#577). Human notification/editor responses and packaged layout/language acceptance
+remain post-release checks; neither this implementation nor a local test pass
+marks them performed. Next M1 acceptance is the ordinary installed Japanese journey:
+install, help, Workspace/Environment, VS Code, stop and resume, including resize
+and a failed SSH connection. M2–M5 are outside this work unit.
 
 M1's ordinary SSH/editor selection and result guidance now use the shared Japanese/
 English catalog in this checkout. Invalid preview options explain the correction
@@ -213,5 +225,14 @@ human Windows/VS Code responses remain user acceptance after release. Large-repo
 performance remains deferred. The prior local large-push approval timeout and
 milestone-wrapper timeout from M1 are unresolved evidence, not new M2 requirements
 or successful results. Next: resolve the M1 Windows attached-disk failure and validate the corrected M2
-Windows doctor observer, then merge M1 followed by M2 after required CI and perform
+Windows doctor observer, then merge the combined candidate after required CI and perform
 the assigned human acceptance. M3–M5 are outside this unit.
+
+## M1/M2 Windows integration blocker
+
+M1 #726 head `5b447f9c` failed installed reclamation with `compact_attached`;
+M2 #727 fixes the separate doctor-observer failure at `038a44c0`. The editor E2E
+cleanup defect described in [acceptance evidence](acceptance-evidence.md#editor-fixture-descendant-cleanup)
+is now corrected in M1. Next: verify the installed Windows route and merge combined PR #727 only
+after all five workflows pass on its final head. Previous disk failures remain unresolved evidence
+until their cause is established. No tag/release or next milestone is included.

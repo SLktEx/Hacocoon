@@ -167,6 +167,10 @@ acceptance is assigned to the user and remains unperformed until reported.
 
 The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).
 
+## M1 daily-use follow-up
+
+Implemented in this checkout: shared Japanese/English pending-approval, preview and experimental VS Code notices, plus vertical help and readiness guidance in haco-vscode. Help succeeds without preparing an Environment; invalid flags remain errors. JSON and approval decisions are unchanged. This builds on main 68c539c1, including Windows review cleanup in #721. Full CLI localization and packaged human acceptance remain partial; see the [language contract](reference/cli-language.md) and [M1 roadmap](status/architecture-and-roadmap.md).
+
 ## M2 local Git recovery
 
 Implemented in this checkout: Environment doctor reports local Git wiring and explicit `--fix` reuses the canonical connection operation without upstream access or Policy changes. `haco git connect` is retired from the product CLI. Git-less/offline, stopped and unknown state remain distinct. [Git contract](design/git-and-github-capability.md#local-git-diagnosis-and-repair) owns the scope and limitations. Human authenticated Git/GUI acceptance remains pending.
