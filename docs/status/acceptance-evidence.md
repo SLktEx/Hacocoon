@@ -2036,3 +2036,28 @@ The duplicate `--json` regression found in the same run was corrected; focused
 Git doctor, controller roundtrip, provider wiring and offline/stale routing checks
 and the shipped-command E2E subsequently passed. The earlier M1 milestone-wrapper
 timeout remains separate; the full suite was not repeatedly rerun.
+
+## M1/M2 integration gate
+
+M1 #726 head `5b447f9c` passed four workflows, but Windows run36152506002
+(job108128998385) failed public reclamation: Linux stages completed, 359 native
+open attempts ended with `compact_attached`, compaction was not attempted and
+resume succeeded. Notification acceptance was skipped. Its process observer saw
+WSL launches during the wait, including unavailable origins; this does not identify
+a proven owning process or justify stopping another distribution. The cause remains
+unresolved; earlier successful reclamation does not clear this failure.
+
+M2 #727 head `e5dfeaa8` passed four workflows; Windows run36156927382
+(job108143623213) failed the doctor acceptance observer. The SSH fixture creates
+an external-path Workspace, for which the new Git check correctly reports
+`not_applicable`; the old observer rejected every status other than `ok`. The
+observer now accepts that status only for `git_broker`, still requiring zero CLI
+exit and refusing failed, skipped or unknown checks. Thirty native PowerShell
+decision cases and fixture parsing passed. The broader diagnostic script failed
+its existing three-second child-timeout evidence assertion locally; that failure
+is retained separately and is not an installed E2E success. Both PRs remain
+unmerged pending the required exact-head workflows.
+
+A subsequent native diagnostic-script run outside the filesystem sandbox passed
+the child-timeout and nonzero-exit regressions. The earlier failed local assertion
+remains recorded; no installed Windows outcome is inferred from this pass.

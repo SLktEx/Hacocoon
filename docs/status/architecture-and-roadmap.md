@@ -8,8 +8,8 @@ passes, failures and skips.
 
 ## Current scope and integration
 
-The overall roadmap remains M0–M5 on `main`. The current work unit is **M2 only**,
-authorized after the separate M1 PR #726. Reuse implemented multi-repository forks,
+The overall roadmap remains M0–M5 on `main`. The current work unit is **M1/M2 integration**, explicitly authorized for
+PRs #726 and #727. M2 implementation remains the only new milestone scope. Reuse implemented multi-repository forks,
 linked-worktree input, all-head fetch, reviewed branch creation/push and result
 reconciliation. Finish local Git diagnosis/recovery (#617); do not automatically
 start M3–M5. Main merge still requires all five exact-head workflows. No tag or
@@ -212,5 +212,6 @@ separates observed wiring, unknown state and repair limits. Authenticated Git an
 human Windows/VS Code responses remain user acceptance after release. Large-repo
 performance remains deferred. The prior local large-push approval timeout and
 milestone-wrapper timeout from M1 are unresolved evidence, not new M2 requirements
-or successful results. Next: validate this recovery path, integrate its PR after
-required CI, then perform the assigned human acceptance. M3–M5 are outside this unit.
+or successful results. Next: resolve the M1 Windows attached-disk failure and validate the corrected M2
+Windows doctor observer, then merge M1 followed by M2 after required CI and perform
+the assigned human acceptance. M3–M5 are outside this unit.
