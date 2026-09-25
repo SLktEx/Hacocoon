@@ -272,16 +272,19 @@ func (s *RepositoryService) resumePrepared(ctx context.Context, object Object, c
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
 	switch object.State {
-	case "creating":
+	case "creating", "created":
+		// Incomplete registration always re-ensures the same provider identity.
+		// The backend must make this operation idempotent; the saved phase is a
+		// receipt, not an instruction to skip reconciliation.
 		if err := create(ctx, object); err != nil {
 			return object, errors.Join(err, core.ErrRecoveryRequired)
 		}
-		object.State = "created"
-		if err := s.save(object); err != nil {
-			return object, errors.Join(err, core.ErrRecoveryRequired)
+		if object.State != "created" {
+			object.State = "created"
+			if err := s.save(object); err != nil {
+				return object, errors.Join(err, core.ErrRecoveryRequired)
+			}
 		}
-	case "created":
-		// Provider creation already has a durable positive receipt.
 	default:
 		return object, core.ErrIncompatibleState
 	}
