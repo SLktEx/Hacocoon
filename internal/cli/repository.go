@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
 	"golang.org/x/term"
 )
