@@ -2016,3 +2016,23 @@ unavailable due to Windows access control. The prior `a0303de9` attached-disk
 failure remains unresolved; the new reproduced ownership defect is a concrete
 fix, not proof of identity with every intermittent failure. See
 [ADR 0110](../adr/0110-private-windows-process-ownership.md).
+
+## Editor fixture descendant cleanup
+
+M1 #726 head `5b447f9c` failed Windows run36152506002/job108128998385
+after successful Linux reclamation: 359 native open attempts, `compact_attached`,
+compaction not attempted, same-target resume succeeded, notification route SKIP.
+Process-start evidence includes unavailable origins and cannot identify a proven
+restart owner. It does not authorize stopping another distribution.
+
+Investigation found that `test_vscode_environment.ps1` killed only the exact
+portable editor processes, leaving their non-editor descendants outside cleanup.
+A native Windows parent/child regression reproduced a surviving child with the
+old parent-only kill. The fixture now kills the selected process tree and waits
+for its root to exit. The same regression passed, confirmed child exit, retained
+an unrelated process and accepted repeated cleanup. Only the exact disposable
+editor executable is selected; no installed user editor or WSL is killed.
+This is a confirmed fixture defect, not proof that every earlier disk failure had
+the same cause. No product disk identity, detach check, timeout or Policy changed.
+Installed acceptance of the correction remains pending. The native regression is
+part of both the Windows workflow and local release-config checks.

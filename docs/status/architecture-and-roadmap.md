@@ -8,9 +8,8 @@ passes, failures and skips.
 
 ## Current scope and integration
 
-The overall roadmap is M0–M5 on `main`. The current authorized work unit is **M1
-only**, narrowed by the user to control development cost. Reuse completed work;
-do not automatically start M2–M5 after this unit. Usable ordinary flows come first.
+The overall roadmap is M0–M5 on `main`. The current authorized work unit is **M1/M2 integration** through PRs #726 and
+#727. Reuse completed work; do not automatically start M3–M5 after this unit. Usable ordinary flows come first.
 Local checks are primary. Main merges are authorized only after all five
 required workflows succeed for the exact PR head. Tags and releases are separate.
 
@@ -212,3 +211,13 @@ local registry, live migration, simultaneous writable Store sharing, Packer AMI/
 and optional real AWS acceptance are future scope. They are not gates for M0–M5.
 Same-PC Windows/WSL remains first. Checkpoint numbering and history stay in
 [versioning and release status](versioning-and-release-status.md).
+
+## M1/M2 Windows integration blocker
+
+M1 #726 head `5b447f9c` failed installed reclamation with `compact_attached`;
+M2 #727 fixes the separate doctor-observer failure at `038a44c0`. The editor E2E
+cleanup defect described in [acceptance evidence](acceptance-evidence.md#editor-fixture-descendant-cleanup)
+is now corrected in M1. Next: verify the installed Windows route, merge M1 only
+after all five exact-head workflows pass, integrate that main into M2 and verify
+its final head before merging. Previous disk failures remain unresolved evidence
+until their cause is established. No tag/release or next milestone is included.
