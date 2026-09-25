@@ -12,6 +12,7 @@ func init() {
 	field := func(syntax, message string) cliui.HelpField { return cliui.HelpField{Syntax: syntax, Message: message} }
 	json := field("--json", "flag.json")
 	yes := field("--yes", "detail.yes")
+	force := field("-f, --force", "detail.force")
 	base := field("--base <base>", "detail.base")
 	noOCI := field("--no-oci", "flag.no_oci")
 	env := field("<name>", "detail.env")
@@ -66,7 +67,7 @@ func init() {
 	set([]string{"env export"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[file.haco]", "detail.archive_out")}, []cliui.HelpField{json})
 	set([]string{"env import"}, []cliui.HelpField{field("<file.haco>", "detail.archive_in"), field("[new-env]", "detail.import_name")}, []cliui.HelpField{json})
 	set([]string{"repo add"}, []cliui.HelpField{field("<id>", "detail.repo_new"), field("<URL>", "detail.remote")}, nil, "detail.read_access")
-	set([]string{"repo delete"}, []cliui.HelpField{field("<id>", "detail.repo")}, []cliui.HelpField{yes})
+	set([]string{"repo delete"}, []cliui.HelpField{field("<id>", "detail.repo")}, []cliui.HelpField{yes, force})
 	set([]string{"workspace create"}, []cliui.HelpField{field("<workspace>", "detail.workspace_new")}, []cliui.HelpField{repos, field("--branch <branch>", "detail.branch")})
 	set([]string{"workspace prepare"}, nil, []cliui.HelpField{path, repos, name, base, oci})
 	set([]string{"workspace import"}, []cliui.HelpField{field("<checkout>", "detail.worktree_input")}, []cliui.HelpField{path, name, field("--repo <name>", "detail.repo"), base, oci})
