@@ -55,3 +55,44 @@ func TestProductRepoAddRejectsOldRegistrationSyntax(t *testing.T) {
 		}
 	}
 }
+
+
+func TestRepositoryProgressWriterAnimatesRepeatedStageOnTerminal(t *testing.T) {
+	var out bytes.Buffer
+	progress := &repositoryProgressWriter{out: &out, terminal: true}
+	for _, chunk := range []string{
+		"Cloning into managed repository...\n",
+		"Receiving objects: 10% (1/10)\r\n",
+		"Receiving objects: 20% (2/10)\n",
+		"Resolving deltas: 100% (1/1), done.\n",
+	} {
+		if _, err := io.WriteString(progress, chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := progress.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	want := "\r\x1b[2KCloning into managed repository...\n" +
+		"\r\x1b[2KReceiving objects: 10% (1/10)" +
+		"\r\x1b[2KReceiving objects: 20% (2/10)\n" +
+		"\r\x1b[2KResolving deltas: 100% (1/1), done.\n"
+	if out.String() != want {
+		t.Fatalf("unexpected terminal progress:\nwant %q\n got %q", want, out.String())
+	}
+}
+
+func TestRepositoryProgressWriterKeepsNonTerminalOutputPlain(t *testing.T) {
+	var out bytes.Buffer
+	progress := &repositoryProgressWriter{out: &out, terminal: false}
+	input := "Receiving objects: 10% (1/10)\nReceiving objects: 20% (2/10)\n"
+	if _, err := io.WriteString(progress, input); err != nil {
+		t.Fatal(err)
+	}
+	if err := progress.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != input {
+		t.Fatalf("non-terminal progress changed: %q", out.String())
+	}
+}
