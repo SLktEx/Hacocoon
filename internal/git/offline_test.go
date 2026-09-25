@@ -166,7 +166,7 @@ func TestOfflineWorkspaceDoesNotRetainUnrelatedHostSource(t *testing.T) {
 	if err != nil || len(uses) != 1 || len(uses[0].Workspaces) != 0 {
 		t.Fatal(uses, err)
 	}
-	if err := s.DeleteSource(context.Background(), source.ID, source.Owner); err != nil || !b.deleted {
+	if err := s.DeleteSource(context.Background(), source.ID, source.Owner); err != nil || !b.forceDeleted {
 		t.Fatal(err)
 	}
 	got, err := s.Get("work", "work")
