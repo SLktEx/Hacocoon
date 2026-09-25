@@ -22,7 +22,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |
 | [TCP/UDP開発接続](design/network-connections.md) | 実装済み | ゲストの明示的なループバック待受、生成ID付きポリシー・承認、任意のルール期限、接続中の失効を実装。HTTP/SNI・送信元保護を維持。専用基盤の検証は限定範囲で、外部インターネット・VPN・Windows UI全体は未完了。 |
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。WindowsパッケージCIで通常入口・native interopの候補版別の証拠あり。広い導入構成は別途確認。 |
-| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
+| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集とWorkspace準備中断からの一般的な復旧は非対応・未完了。中断した取得元登録は `haco repo delete -f` で破棄可能。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
 | [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
@@ -36,7 +36,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [PackerによるBase作成](design/packer-base-builds.ja.md) | 部分実装 | 通常builder内で実Packer 1.16.0がHCL2と外部shellを評価し、公開・後始末を共通化。導入後の実ビルドは通常の依存取得権限で停止。独自plugin・arm64・再利用の実機確認は残る。 |
 | [キャッシュ世代管理](design/cache-generations.ja.md) | 部分実装 | Host設定による作成時の登録、停止中の領域単位収集、独立CoW再利用、履歴・完了証明による復旧・共通元削除・確認付きEnv内掃除を実装。snapshot/copy/transferで未収集データも保持。既存Envの追加登録、結果不明コピーの中止は未完了。巨大性能は後続。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCI、名前付き使い捨てデータと独立保存rootfsを対象に、新しいEnvと権限を作成。削除失敗時の構成要素・存在・参照・次の操作を表示。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
-| [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体、元リポジトリを確認して削除。参照とnative childが保持対象を保護。所有記録は不存在確認後のみ解放。 |
+| [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体を確認付きで削除。元リポジトリは確認後、Workspace参照・準備状態・native child等の事前拒否を行わず削除を試み、`-f/--force` では一覧確認と対話確認も省略する。正確な管理対象native参照と最終的な不存在確認は維持し、失敗時は取得元レコードを保持。 |
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
 | [ストレージ・容量回収](design/storage-reclamation.ja.md) | 実装済み | Incus所有のBtrfs プール（`compress=zstd:3`）、rootfs・データ配置、登録済みWindows/WSLの容量回収を実装。CIで実際の回収量を確認。現在の記録がなければ読み取りだけで結果なしと応答し、不正な記録はエラー。準備・起動段階とWindowsエラーを日英で案内。手元の開始失敗と実際の中断worker確認は別の残件。 |
 | [Envのexport/import](design/environment-transfer.ja.md) | 部分実装 | 停止した管理bundle、検証済みLinux配備、導入済みコントローラー・Windows投影ファイル経路を実装。管理データのWSL間移送を一構成で確認し、停止したcontainerdのイメージ・書込みデータの移送も確認済み。稼働中の移行や環境全体のバックアップではなく、import後の認証Gitと広い実行基盤整合性は未完了。 |
