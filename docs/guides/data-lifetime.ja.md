@@ -96,14 +96,20 @@ haco base list --all
 ```
 
 各削除は管理対象を表示し、確認を求めます。`--yes` は意図した自動操作向けです。
-取得元は、Git接続先として参照するWorkspaceの記録がなくなってから削除します。
-依存関係を消すためだけに必要な作業を削除しないでください。
-`haco repo delete <id>` は上流リポジトリ、認証情報、独立した保存データを削除しません。
+ただし取得元リポジトリの削除は、ほかの保持データ削除より強い後始末操作です。
+確認後の `haco repo delete <id>` は、WorkspaceにGit接続先として残っている場合、
+取得元の作成途中、native volumeにsnapshot・backup・scheduleがある場合でも削除を試みます。
+独立したWorkspaceデータ自体は削除しませんが、同じ取得元を再登録するまでGit仲介が
+使えなくなる場合があります。
 
-Incusの子スナップショット・バックアップ・保存スケジュールがあると親ボリュームの削除を拒否します。
-所有権が不明、作成途中、コピー未完了の場合も危険な削除を拒否します。
-`deleting` の記録が残った場合は同じ明示的なコマンドで再試行します。
-作成途中の記録を一般的に修復するコマンドはありません。
+`haco repo delete -f <id>`（または `--force`）は、中断した `repo add` などで残った
+取得元を片付ける復旧用の強制経路です。取得元一覧の取得・対象表示・対話確認を省略し、
+現在の取得元レコードに保存された正確な管理対象native参照を使います。Host deviceやvolumeが
+既に無ければ成功です。native実体の不存在を確認してから取得元レコードを削除し、
+detach・deleteで不存在まで到達または確認できなければ失敗としてレコードを残します。
+上流リポジトリ、認証情報、独立したWorkspaceデータ、OCIデータは削除しません。
+
+ほかの保持データ削除は、通常どおり参照・所有権・native childの検査を行います。
 [Baseの削除](../design/base-images-and-custom-environments.md#explicit-built-image-cleanup)と
 [OCIイメージ単体の削除](../design/oci-image-deletion.ja.md)にも参照の確認があります。
 
