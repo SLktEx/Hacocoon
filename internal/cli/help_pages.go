@@ -44,7 +44,7 @@ var helpPages = []helpPage{
 	{Path: "repo", Syntax: "<command>", Message: "command.repo", Example: "haco repo list"},
 	{Path: "repo add", Syntax: "[--json] <id> <URL>", Message: "command.repo.add", Example: "haco repo add source https://github.com/OWNER/REPO.git"},
 	{Path: "repo list", Syntax: "[--json]", Message: "command.repo.list", Example: "haco repo list"},
-	{Path: "repo delete", Syntax: "[--yes] <id>", Message: "command.repo.delete", Example: "haco repo delete source"},
+	{Path: "repo delete", Syntax: "[--yes] [-f|--force] <id>", Message: "command.repo.delete", Example: "haco repo delete source"},
 	{Path: "workspace", Syntax: "<command>", Message: "command.workspace", Example: "haco workspace list"},
 	{Path: "workspace create", Syntax: "--repo <id[,id...]> [--branch <branch>] [--json] <workspace>", Message: "command.workspace.create", Example: "haco workspace create --repo source work"},
 	{Path: "workspace prepare", Syntax: "[--json] --path <directory> --repo <id[,id...]> [--name <name>] [--base <base>] [--oci auto|none|oci:<store>]", Message: "command.workspace.prepare", Example: "haco workspace prepare --path . --repo source --name work"},
