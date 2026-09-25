@@ -142,6 +142,76 @@ func TestRepositoryCloneCanResumeAndRepeat(t *testing.T) {
 	}
 }
 
+func TestRepositoryCloneRetryHandlesOnlyOwnedGitShapes(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/git"); err != nil {
+		t.Skip("Linux Git is required")
+	}
+	ctx := context.Background()
+	root := t.TempDir()
+	remote, seed, repos := filepath.Join(root, "remote.git"), filepath.Join(root, "seed"), filepath.Join(root, "repos")
+	for _, dir := range []string{remote, seed, repos} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	testGit(t, remote, "init", "--bare", "--initial-branch=main")
+	testGit(t, seed, "init", "--initial-branch=main")
+	want := testCommit(t, seed, "work.txt", "content")
+	testGit(t, seed, "push", "file://"+remote, "main")
+
+	noOrigin := filepath.Join(repos, "no-origin")
+	if err := os.Mkdir(noOrigin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, noOrigin, "init", "--initial-branch=main")
+	req := AgentRequest{Operation: "clone", Repository: "no-origin", Remote: "file://" + remote}
+	if _, err := RunAgent(ctx, req, repos, ""); err != nil {
+		t.Fatal("retry did not repair missing origin", err)
+	}
+	if got := testGit(t, noOrigin, "remote", "get-url", "origin"); got != req.Remote {
+		t.Fatal("retry wrote wrong origin", got)
+	}
+	if got := testGit(t, noOrigin, "rev-parse", "refs/remotes/origin/main"); got != want {
+		t.Fatal("retry did not fetch remote", got)
+	}
+
+	multiple := filepath.Join(repos, "multiple")
+	if err := os.Mkdir(multiple, 0700); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, multiple, "init", "--initial-branch=main")
+	testGit(t, multiple, "remote", "add", "origin", "file://"+remote)
+	testGit(t, multiple, "remote", "add", "other", "file://"+remote)
+	req.Repository = "multiple"
+	if _, err := RunAgent(ctx, req, repos, ""); err == nil {
+		t.Fatal("retry accepted unexpected remotes")
+	}
+
+	brokenMeta := filepath.Join(repos, "broken-meta")
+	if err := os.Mkdir(brokenMeta, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(brokenMeta, ".git"), []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	req.Repository = "broken-meta"
+	if _, err := RunAgent(ctx, req, repos, ""); err == nil {
+		t.Fatal("retry accepted non-directory Git metadata")
+	}
+
+	nonGit := filepath.Join(repos, "non-git")
+	if err := os.Mkdir(nonGit, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nonGit, "partial"), []byte("unverified"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	req.Repository = "non-git"
+	if _, err := RunAgent(ctx, req, repos, ""); err == nil {
+		t.Fatal("retry adopted non-Git residue")
+	}
+}
+
 func TestTrustedWireRejectsUnknownFieldsAndInvalidRouting(t *testing.T) {
 	for _, body := range []string{"{", `{"metadata":{"command":"sh"},"has_pack":false}`} {
 		wire := make([]byte, 4+len(body)+4)
