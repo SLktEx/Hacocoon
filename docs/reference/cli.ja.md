@@ -20,7 +20,7 @@ help・versionにコントローラーは不要です。
 | ポリシー | `haco config`, `--edit` or `--file <json>` | [設定](configuration.ja.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [サブツリー編集とEnvへの反映](experimental-vscode.ja.md) |
 | 承認 | `haco approve [--json] [request-id]`; `haco approve --list` | [承認確認](../design/pending-approval-review.ja.md)。対話選択・範囲保存 |
-| 元リポジトリ | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.ja.md)。ブランチを指定せず登録 |
+| 元リポジトリ | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f|--force] <id>` | [Git](../guides/git-workflow.ja.md)。ブランチ非依存で登録。確認後の削除は参照・準備途中でも削除を試み、`-f` は一覧確認と対話確認を省略 |
 | Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Git・データの独立コピー。`--branch` は単一取得元のみ、省略時はリモートの既定値 |
 | Env作成 | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | 既定Base、任意に設定されたOCI初期化 |
 | 状態の参照 | `haco env list [--json]`; `haco env status [--json] <name>` | 既定はテキスト |
@@ -39,6 +39,8 @@ help・versionにコントローラーは不要です。
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.ja.md)。プロファイルの既定は`default`。ゲストでは`--env`禁止 |
+
+`haco repo delete <id>` は対象を表示し、`--yes` がなければ確認してから削除します。確認後は、WorkspaceにGit接続先として残っている、取得元の準備が途中、native snapshot・backup・scheduleがある、といった状態でも削除を試みます。`-f` / `--force` は一覧取得・対象表示・対話確認を省略し、現在保持している取得元レコードの正確な管理対象native参照を削除します。deviceやvolumeが既に無い場合は成功とし、削除または最終的な不存在を完了・確認できない場合だけ失敗します。独立したWorkspaceコピーは残りますが、取得元を再登録するまでGit接続が使えなくなる場合があります。
 
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の
 `create/exec/shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
