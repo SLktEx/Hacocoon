@@ -169,4 +169,4 @@ acceptance is assigned to the user and remains unperformed until reported.
 The product entry is `cmd/haco`; implementation locations are in the [repository map](../CONTRIBUTING.md#repository-map). `hacoq`, its direct GitHub capability and Docker status/prepare commands are removed. Current Git/OCI and client helpers remain. Native Ubuntu has controller-backed management commands but no product interactive trusted-Host shell command. Windows login entry remains. See [the decision](adr/0107-responsibility-layout-and-cli-retirement.md).
 
 Repository registration is branch-independent through `haco repo add`; initial
-branch selection belongs to Workspace creation. See [Git semantics](design/git-and-github-capability.md#branch-independent-registration).
+branch selection belongs to Workspace creation. See [Git semantics](design/git-and-github-capability.md#branch-independent-repository-registration).
