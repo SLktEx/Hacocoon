@@ -146,67 +146,46 @@ func assertSourceDeletionRetainedData(t *testing.T, root string) {
 	}
 }
 
-func TestSourceDeletionPreflightPreservesReadyCatalogAndAttachment(t *testing.T) {
-	for _, mode := range []string{"foreign owner", "changed device", "foreign user", "snapshots", "backups", "schedule", "truncated inventory"} {
+func TestSourceDeletionBypassesPreflightBlockersAfterReview(t *testing.T) {
+	for _, mode := range []string{"foreign owner", "changed device", "foreign user", "snapshots", "backups", "schedule", "pending copy", "lost detach response", "lost delete response"} {
 		t.Run(mode, func(t *testing.T) {
-			service, _, native, object, original := sourceDeleteCatalog(t, mode)
-			want := core.ErrStorageBusy
-			switch mode {
-			case "foreign owner", "changed device":
-				want = core.ErrCapabilityStale
-			case "truncated inventory":
-				want = core.ErrRuntimeUnavailable
+			service, _, native, object, _ := sourceDeleteCatalog(t, mode)
+			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); err != nil {
+				t.Fatalf("reviewed deletion was blocked by %q: %v", mode, err)
 			}
-			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); !errors.Is(err, want) {
-				t.Fatalf("source refusal = %v, want %v", err, want)
+			if native.present || native.attached {
+				t.Fatalf("reviewed deletion did not remove native source: attached=%t present=%t", native.attached, native.present)
 			}
-			data, err := os.ReadFile(filepath.Join(service.Root, "repo-source.json"))
-			if err != nil || !bytes.Equal(data, original) || !native.present || !native.attached || native.detachCalls != 0 || native.deleteCalls != 0 {
-				t.Fatal("preflight refusal changed source ownership or native data")
-			}
-			assertSourceDeletionRetainedData(t, service.Root)
-			native.mode = ""
-			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); err != nil || native.present || native.attached {
-				t.Fatalf("explicit retry after clearing blocker failed: %v", err)
+			if _, err := service.Get("repo", object.ID); !errors.Is(err, core.ErrNotFound) {
+				t.Fatalf("successful deletion retained source record: %v", err)
 			}
 			assertSourceDeletionRetainedData(t, service.Root)
 		})
 	}
 }
 
-func TestSourceDeletionRetainsExactRecoveryReceiptUntilConfirmedAbsence(t *testing.T) {
-	for _, mode := range []string{"pending copy", "lost detach response", "still attached", "user after detach", "lost delete response", "still present", "unconfirmed absence"} {
+func TestSourceDeletionFailsOnlyWhenNativeAbsenceCannotBeReachedOrConfirmed(t *testing.T) {
+	for _, mode := range []string{"still attached", "still present", "unconfirmed absence", "truncated inventory"} {
 		t.Run(mode, func(t *testing.T) {
-			service, backend, native, object, _ := sourceDeleteCatalog(t, mode)
+			service, _, native, object, original := sourceDeleteCatalog(t, mode)
 			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); !errors.Is(err, core.ErrRecoveryRequired) {
-				t.Fatalf("partial cleanup lost recovery status: %v", err)
+				t.Fatalf("unremoved/unconfirmed native source did not fail: %v", err)
 			}
-			// A fresh service instance must recover exactly the original owner
-			// and native target; no in-memory state is used for the retry.
-			reopened := gitrepo.NewRepositoryService(service.Root, backend)
-			retained, err := reopened.Get("repo", object.ID)
-			want := object
-			want.State = "deleting"
-			if !errors.Is(err, core.ErrRecoveryRequired) || !reflect.DeepEqual(retained, want) {
-				t.Fatalf("lost exact cleanup receipt: %+v, %v", retained, err)
-			}
-			if (mode == "pending copy" || mode == "still attached" || mode == "lost detach response" || mode == "user after detach") && (native.deleteCalls != 0 || !native.present) {
-				t.Fatal("volume was deleted before attachment/operation blockers cleared")
+			data, err := os.ReadFile(filepath.Join(service.Root, "repo-source.json"))
+			if err != nil || !bytes.Equal(data, original) {
+				t.Fatal("failed deletion did not retain its exact retry record")
 			}
 			assertSourceDeletionRetainedData(t, service.Root)
-			// The test operator clears the external failure, then explicitly
-			// retries the ordinary command. The implementation does not repair it.
+
+			// Once the provider can actually remove and confirm the native target,
+			// the same command succeeds without a separate recovery state.
 			native.mode = ""
-			if err := reopened.DeleteSource(context.Background(), object.ID, object.Owner); err != nil {
-				t.Fatal(err)
+			if err := service.DeleteSource(context.Background(), object.ID, object.Owner); err != nil {
+				t.Fatal("retry after native blocker cleared failed", err)
 			}
-			if native.present || native.attached || native.deleteCalls > 2 || native.detachCalls > 2 {
-				t.Fatal("retry failed to converge on owned native absence")
+			if native.present || native.attached {
+				t.Fatal("retry did not converge on native absence")
 			}
-			if _, err := reopened.Get("repo", object.ID); !errors.Is(err, core.ErrNotFound) {
-				t.Fatalf("confirmed deletion retained catalog: %v", err)
-			}
-			assertSourceDeletionRetainedData(t, service.Root)
 		})
 	}
 }
@@ -220,7 +199,7 @@ func TestSourceDeletionWaitsForHostLifecycleLockWithoutMutating(t *testing.T) {
 	defer unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
 	defer cancel()
-	err = backend.DeleteSourceVolume(ctx, object)
+	err = backend.ForceDeleteSourceVolume(ctx, object)
 	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, core.ErrStorageBusy) || native.detachCalls != 0 || native.deleteCalls != 0 || !native.attached || !native.present {
 		t.Fatalf("busy Host lifecycle allowed source mutation: %v", err)
 	}
