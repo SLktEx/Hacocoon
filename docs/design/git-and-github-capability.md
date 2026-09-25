@@ -173,8 +173,8 @@ native targeting, the registry/Host-operation locks, and positive final absence
 remain mandatory so the recovery path cannot become an arbitrary Host filesystem
 delete.
 
-Schema 13 and existing repository records are preserved. The management request
-adds an optional force bit; no stored-data migration is required. See the amended
+Existing repository records are preserved. The management request adds an optional
+force bit; no stored-data migration is required. See the amended
 [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
 
 ## Offline Workspace routing
