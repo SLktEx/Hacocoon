@@ -187,7 +187,7 @@ func TestRepositoryDeviceAddReconcilesExactExistingDevice(t *testing.T) {
 	for _, mode := range []string{"exact", "foreign", "unavailable"} {
 		t.Run(mode, func(t *testing.T) {
 			failure := errors.New("device add reply lost")
-			device := map[string]string{"type": "disk", "pool": "haco-local-default", "source": "haco-repo-demo", "path": "/var/lib/hacocoon/repositories/demo"}
+			device := map[string]string{"type": "disk", "pool": "haco-local-default", "source": "haco-repo-demo", "path": "/var/lib/hacocoon-repos/demo"}
 			if mode == "foreign" {
 				device["source"] = "haco-repo-other"
 			}
@@ -207,7 +207,7 @@ func TestRepositoryDeviceAddReconcilesExactExistingDevice(t *testing.T) {
 				t.Fatal("unexpected provider operation", args)
 				return host.Result{}, nil
 			}}
-			err := (&RepositoryBackend{Runtime: New(runner)}).ensureRepositoryDevice(context.Background(), "haco-repo-demo", "haco-local-default", "haco-repo-demo", "/var/lib/hacocoon/repositories/demo")
+			err := (&RepositoryBackend{Runtime: New(runner)}).ensureRepositoryDevice(context.Background(), "haco-repo-demo", "haco-local-default", "haco-repo-demo", "/var/lib/hacocoon-repos/demo")
 			if mode == "exact" {
 				if err != nil {
 					t.Fatal("exact existing device was not reused", err)
