@@ -48,6 +48,13 @@ import accepts SDK architecture aliases while retaining the two supported CPU
 families. See [lifecycle ownership](adr/0002-environment-lifecycle-ownership.md)
 and [transfer](design/environment-transfer.md#incus-architecture-names-in-rootfs-archives).
 
+Standard egress accepts Policy-authorized private/global-unicast destinations
+while retaining Physical Host loopback refusal, pinned DNS and Environment-local
+localhost bypass. Failure logs distinguish DNS lookup/empty answers, address
+refusal and dialing. Component tests cover the change; installed private-network
+and guest localhost acceptance remain separate. See
+[egress authorization](design/egress-authorization.md).
+
 ## Verification boundary
 
 Implemented: Windows private notification launches own their descendants from

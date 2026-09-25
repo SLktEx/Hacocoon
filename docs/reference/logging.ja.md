@@ -24,6 +24,18 @@ HacocoonはCore、プロバイダー、ネットワーク、ストレージ、�
 失敗は通常、その操作を報告する境界でERRORを一度記録します。
 下位層はエラーを返すか付加情報で包み、必要な詳細をDEBUGへ出します。
 
+## プロキシ上流の診断
+
+HTTP／CONNECT の境界が、上流失敗の `component=proxy`、`operation=egress_connect`
+の ERROR を一度だけ記録します。フィールドは `environment_id`、`target_host`
+（認可済みの正規化したホスト名）、`target_port`、`protocol`、`reason` です。
+理由は `dns_lookup_failed`、`dns_empty_result`、`address_loopback`、
+`address_disallowed`、`dial_failed`、`upstream_request_failed`、`canceled`、
+`timeout` に限定します。包まれた失敗理由よりキャンセル・期限超過を優先します。
+固定した集合内で次のアドレスへの接続に成功した場合、途中の失敗を操作の ERROR として
+記録しません。DNS・接続処理の生のエラー、解決した IP、完全な URL、ヘッダー、本文は
+どのログレベルにも含めません。
+
 ## 実行ファイルの設定
 
 ```bash
