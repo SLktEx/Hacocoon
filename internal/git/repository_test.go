@@ -106,6 +106,44 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 		})
 	}
 }
+func TestRepeatedReadyAddStillVerifiesOwnedVolume(t *testing.T) {
+	backend := &ownershipBackend{t: t}
+	service := NewRepositoryService(t.TempDir(), backend)
+	backend.service = service
+	object, err := service.Add(context.Background(), "demo", "https://github.com/example/repo.git")
+	if err != nil || object.State != "ready" {
+		t.Fatal(object, err)
+	}
+	backend.fail = "inspect"
+	repeated, err := service.Add(context.Background(), "demo", object.Remote)
+	if !errors.Is(err, core.ErrRecoveryRequired) || repeated.Owner != object.Owner || backend.createCalls != 1 || backend.populateCalls != 1 {
+		t.Fatal("ready retry skipped or mutated ownership verification", repeated, err)
+	}
+}
+
+func TestResumePreparedFailsClosedBeforeProviderWork(t *testing.T) {
+	service := NewRepositoryService(t.TempDir(), nil)
+	object := Object{Kind: "repo", ID: "demo", Repository: "demo", Remote: "https://github.com/example/repo.git", NativeRef: "pool/haco-repo-demo", Owner: strings.Repeat("a", 32), State: "created"}
+	called := false
+	create := func(context.Context, Object) error {
+		called = true
+		return nil
+	}
+	populate := func(context.Context, Object) error {
+		called = true
+		return nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := service.resumePrepared(ctx, object, create, populate); !errors.Is(err, context.Canceled) || !errors.Is(err, core.ErrRecoveryRequired) || called {
+		t.Fatal("canceled retry reached provider", err, called)
+	}
+	object.State = "deleting"
+	if _, err := service.resumePrepared(context.Background(), object, create, populate); !errors.Is(err, core.ErrIncompatibleState) || called {
+		t.Fatal("unknown retry state reached provider", err, called)
+	}
+}
+
 func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
 	for _, id := range []string{"../escape", "/absolute", "--option", "", "a\nb", strings.Repeat("a", 49)} {
 		service := NewRepositoryService(t.TempDir(), nil)
