@@ -100,3 +100,102 @@ func (b *RepositoryBackend) DeleteSourceVolume(ctx context.Context, o gitrepo.Ob
 	}
 	return b.deleteManagedVolume(ctx, o)
 }
+
+// forceSourceDevicePresent intentionally checks only whether the Hacocoon-managed
+// device name exists. The force-delete path is an operator recovery escape hatch;
+// it does not require the normal ownership/configuration preflight to succeed.
+func (b *RepositoryBackend) forceSourceDevicePresent(ctx context.Context, o gitrepo.Object) (bool, error) {
+	if _, _, err := volumeRef(o); err != nil || o.Kind != "repo" {
+		return false, core.ErrInvalidArgument
+	}
+	out, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/instances/"+trustedHostName+"?project="+b.Runtime.project)
+	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
+		return false, core.ErrRuntimeUnavailable
+	}
+	var host struct {
+		Name    string
+		Devices map[string]map[string]string
+	}
+	if json.Unmarshal([]byte(out.Stdout), &host) != nil || host.Name != trustedHostName || host.Devices == nil {
+		return false, core.ErrIncompatibleState
+	}
+	_, present := host.Devices["haco-repo-"+o.ID]
+	return present, nil
+}
+
+func (b *RepositoryBackend) forceSourceVolumePresent(ctx context.Context, o gitrepo.Object) (bool, error) {
+	pool, name, err := volumeRef(o)
+	if err != nil || o.Kind != "repo" {
+		return false, core.ErrInvalidArgument
+	}
+	out, err := b.Runtime.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project+"&recursion=1")
+	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
+		return false, core.ErrRuntimeUnavailable
+	}
+	var volumes []struct {
+		Name string `json:"name"`
+	}
+	if json.Unmarshal([]byte(out.Stdout), &volumes) != nil || volumes == nil {
+		return false, core.ErrIncompatibleState
+	}
+	for _, volume := range volumes {
+		if volume.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// ForceDeleteSourceVolume bypasses the normal source deletion preflight and
+// attempts removal of the exact Hacocoon-managed device/volume named by the
+// retained source record. Missing native state is success. A detach or volume
+// deletion that does not actually remove the target is reported for retry.
+func (b *RepositoryBackend) ForceDeleteSourceVolume(ctx context.Context, o gitrepo.Object) error {
+	unlock, err := lockHostOperation(ctx, b.Runtime.project)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	pool, name, err := volumeRef(o)
+	if err != nil || o.Kind != "repo" {
+		return core.ErrInvalidArgument
+	}
+	present, err := b.forceSourceDevicePresent(ctx, o)
+	if err != nil {
+		return err
+	}
+	if present {
+		out, err := b.Runtime.runner.Run(ctx, "incus", "config", "device", "remove", trustedHostName, "haco-repo-"+o.ID, "--project", b.Runtime.project)
+		if err != nil || out.ExitCode != 0 {
+			return core.ErrRecoveryRequired
+		}
+		present, err = b.forceSourceDevicePresent(ctx, o)
+		if err != nil {
+			return err
+		}
+		if present {
+			return core.ErrRecoveryRequired
+		}
+	}
+
+	present, err = b.forceSourceVolumePresent(ctx, o)
+	if err != nil {
+		return err
+	}
+	if !present {
+		return nil
+	}
+	out, err := b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "delete", pool, name, "--project", b.Runtime.project)
+	if err != nil || out.ExitCode != 0 {
+		return core.ErrRecoveryRequired
+	}
+	present, err = b.forceSourceVolumePresent(ctx, o)
+	if err != nil {
+		return err
+	}
+	if present {
+		return core.ErrRecoveryRequired
+	}
+	return nil
+}
