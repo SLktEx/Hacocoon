@@ -1,4 +1,4 @@
-# ADR 0045: Explicit deletion of unused source repositories
+# ADR 0045: Explicit deletion of source repositories
 
 Status: accepted; amended 2026-09-25 for unconditional and forced source cleanup
 
@@ -69,9 +69,8 @@ path deletion mechanism; it must be repaired by a separate maintenance path.
 
 ## Compatibility and validation
 
-Existing repository JSON and schema 13 remain unchanged. The existing repo
-namespace gains an optional force bit; no stored fields are discarded and no data
-migration is needed. Ordinary deletion rechecks the reviewed owner identity,
+Existing repository JSON remains unchanged. The existing repo namespace gains an
+optional force bit; no stored fields are discarded and no data migration is needed. Ordinary deletion rechecks the reviewed owner identity,
 whereas force intentionally resolves the current identity under the registry lock.
 Unit/CLI tests cover referenced and incomplete sources, stale reviewed identities,
 force dispatch, ambiguous native command results and retained retry records. The
