@@ -208,7 +208,7 @@ Environment-only. Membership editing and interrupted collection recovery are def
 Stop retains work and leases. Environment deletion retains the Workspace;
 explicit Workspace deletion destroys its Git data too.
 [Data lifetime](data-lifetime.md) explains source/Workspace/Store cleanup.
-A source repository cannot be deleted while any Workspace record uses its route.
+Source deletion is explicit and may proceed even while Workspace records still use its route. Their independent files remain, but brokered Git reconnect can require re-registering the same source. Use `haco repo delete -f <id>` to discard an interrupted source registration without the review/confirmation round trip.
 
 Imported GitHub routes can reconnect only to an explicitly registered source with
 the same ID and URL; the saved Workspace branch remains authoritative. File-route and legacy imports remain offline;
