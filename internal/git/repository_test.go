@@ -14,8 +14,8 @@ import (
 
 type ownershipBackend struct {
 	localBackend
-	service   *RepositoryService
-	t         *testing.T
+	service       *RepositoryService
+	t             *testing.T
 	fail          string
 	createCalls   int
 	populateCalls int
