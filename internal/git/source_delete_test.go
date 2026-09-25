@@ -107,6 +107,9 @@ func TestSourceDeletionAttemptsReferencedAndIncompleteCleanup(t *testing.T) {
 	if err := s.ForceDeleteSource(ctx, replacement.ID); err != nil {
 		t.Fatal("force delete did not use current source identity", err)
 	}
+	if err := s.ForceDeleteSource(ctx, replacement.ID); err != nil {
+		t.Fatal("force delete was not idempotent after confirmed removal", err)
+	}
 }
 
 func (b *sourceDeleteBackend) RunGit(context.Context, gitadapter.AgentRequest) (gitadapter.Response, error) {
