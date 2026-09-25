@@ -166,10 +166,7 @@ func (b *RepositoryBackend) ForceDeleteSourceVolume(ctx context.Context, o gitre
 		return err
 	}
 	if present {
-		out, err := b.Runtime.runner.Run(ctx, "incus", "config", "device", "remove", trustedHostName, "haco-repo-"+o.ID, "--project", b.Runtime.project)
-		if err != nil || out.ExitCode != 0 {
-			return core.ErrRecoveryRequired
-		}
+		_, _ = b.Runtime.runner.Run(ctx, "incus", "config", "device", "remove", trustedHostName, "haco-repo-"+o.ID, "--project", b.Runtime.project)
 		present, err = b.forceSourceDevicePresent(ctx, o)
 		if err != nil {
 			return err
@@ -186,10 +183,7 @@ func (b *RepositoryBackend) ForceDeleteSourceVolume(ctx context.Context, o gitre
 	if !present {
 		return nil
 	}
-	out, err := b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "delete", pool, name, "--project", b.Runtime.project)
-	if err != nil || out.ExitCode != 0 {
-		return core.ErrRecoveryRequired
-	}
+	_, _ = b.Runtime.runner.Run(ctx, "incus", "storage", "volume", "delete", pool, name, "--project", b.Runtime.project)
 	present, err = b.forceSourceVolumePresent(ctx, o)
 	if err != nil {
 		return err
