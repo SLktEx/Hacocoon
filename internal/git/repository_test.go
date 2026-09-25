@@ -34,7 +34,7 @@ func (b *ownershipBackend) record(object Object, state string) {
 	}
 }
 func (b *ownershipBackend) CreateVolume(_ context.Context, object Object, _ *Object) error {
-	b.record(object, "creating")
+	b.record(object, object.State)
 	b.createCalls++
 	if b.fail == "create" {
 		return errors.New("ambiguous provider result")
@@ -86,7 +86,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 				t.Fatalf("retry did not converge: object=%+v err=%v", retried, err)
 			}
 			wantCreate := 1
-			if failure == "create" {
+			if failure != "" {
 				wantCreate = 2
 			}
 			wantPopulate := 1
