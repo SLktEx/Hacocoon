@@ -19,7 +19,7 @@ help and version require no controller.
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
-| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f|--force] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; confirmed delete attempts source cleanup despite references/incomplete state, and `-f` skips review/confirmation |
+| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] [-f\|--force] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; confirmed delete attempts source cleanup despite references/incomplete state, and `-f` skips review/confirmation |
 | Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies; `--branch` for one source, otherwise remote defaults |
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
