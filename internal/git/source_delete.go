@@ -93,6 +93,9 @@ func (s *RepositoryService) ForceDeleteSource(ctx context.Context, id string) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	source, err := s.readObject("repo", id)
+	if errors.Is(err, core.ErrNotFound) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
