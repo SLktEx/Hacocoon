@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,15 +30,30 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [--fix] [environment]"))
 		return 0
 	}
-	flags := flag.NewFlagSet("haco doctor", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	jsonOutput := flags.Bool("json", false, cliMessage("flag.json"))
-	fix := flags.Bool("fix", false, cliMessage("env.doctor.fix"))
-	if flags.Parse(args) != nil {
+	usage := func() int {
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [--fix] [environment]"))
 		return 2
 	}
-	args = flags.Args()
-	if len(args) > 1 || (*fix && len(args) != 1) || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
+	jsonOutput, fix := false, false
+parseOptions:
+	for len(args) > 0 {
+		switch args[0] {
+		case "--json":
+			if jsonOutput {
+				return usage()
+			}
+			jsonOutput = true
+		case "--fix":
+			if fix {
+				return usage()
+			}
+			fix = true
+		default:
+			break parseOptions
+		}
+		args = args[1:]
+	}
+	if len(args) > 1 || (fix && len(args) != 1) || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
 		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [--fix] [environment]"))
 		return 2
 	}
@@ -59,11 +73,11 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	client := controlapi.NewDefaultClient()
 	if target != "" {
-		report, err := diagnoseAndRepairEnvironment(ctx, client, target, *fix)
+		report, err := diagnoseAndRepairEnvironment(ctx, client, target, fix)
 		if err != nil {
 			return fail("Could not inspect Environment; check haco env list and controller availability")
 		}
-		return writeEnvironmentDoctor(stdout, report, *jsonOutput)
+		return writeEnvironmentDoctor(stdout, report, jsonOutput)
 	}
 	response, err := collectDoctor(ctx, client)
 	if err != nil {
@@ -78,7 +92,7 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return fail("Physical Host controller could not provide diagnostics; check the current installation")
 		}
 	}
-	if *jsonOutput {
+	if jsonOutput {
 		err = json.NewEncoder(stdout).Encode(response)
 	} else {
 		_, err = fmt.Fprint(stdout, cliMessage("doctor.header", response.Controller.Version, response.Controller.Commit, response.ProtocolVersion))

@@ -12,6 +12,7 @@ import (
 )
 
 type gitDoctorFixture struct {
+	unknownAfterRepair bool
 	doctorEnvironmentFixture
 	configured, connected, helper bool
 	repaired                      int
@@ -22,6 +23,9 @@ func (f *gitDoctorFixture) EnvironmentStatus(context.Context, string) (core.Envi
 	return core.EnvironmentStatus{Environment: core.Environment{Name: "dev", Workspace: core.Workspace{ID: "work", Path: "managed:work"}}, State: f.state}, nil
 }
 func (f *gitDoctorFixture) GitConnectionStatus(context.Context, string) (gitrepo.ConnectionStatus, error) {
+	if f.unknownAfterRepair && f.repaired > 0 {
+		return gitrepo.ConnectionStatus{}, core.ErrRuntimeUnavailable
+	}
 	return gitrepo.ConnectionStatus{Configured: f.configured, Connected: f.connected}, f.statusErr
 }
 func (f *gitDoctorFixture) ConnectGit(context.Context, string) error {
@@ -105,7 +109,7 @@ func TestGitDoctorRepairFailureDoesNotRetry(t *testing.T) {
 }
 func TestGitDoctorRequiresTargetAndRetiresConnect(t *testing.T) {
 	t.Setenv("HACO_CONTROL_SOCKET", "/missing-m2-controller.sock")
-	for _, args := range [][]string{{"--fix"}, {"--json", "--fix"}, {"--fix", "dev", "other"}} {
+	for _, args := range [][]string{{"--fix"}, {"--json", "--fix"}, {"--fix", "dev", "other"}, {"--fix", "--fix", "dev"}} {
 		var out, diag bytes.Buffer
 		if code := doctor(context.Background(), args, &out, &diag); code != 2 || out.Len() != 0 {
 			t.Fatal(args, code, out.String(), diag.String())
@@ -114,5 +118,17 @@ func TestGitDoctorRequiresTargetAndRetiresConnect(t *testing.T) {
 	var out, diag bytes.Buffer
 	if code := repositoryCommand(context.Background(), "git", []string{"connect", "dev"}, &out, &diag); code != 2 {
 		t.Fatal(code)
+	}
+}
+
+func TestGitDoctorUnconfirmedRepairIsNotRetried(t *testing.T) {
+	f := &gitDoctorFixture{doctorEnvironmentFixture: doctorEnvironmentFixture{state: core.EnvironmentRunning}, configured: true, unknownAfterRepair: true}
+	report, err := diagnoseAndRepairEnvironment(context.Background(), f, "dev", true)
+	if err != nil || f.repaired != 1 {
+		t.Fatal(err, f.repaired)
+	}
+	var out bytes.Buffer
+	if code := writeEnvironmentDoctor(&out, report, true); code != 1 || !strings.Contains(out.String(), `"status":"unknown"`) || strings.Contains(out.String(), "no repair was attempted") {
+		t.Fatal(code, out.String())
 	}
 }

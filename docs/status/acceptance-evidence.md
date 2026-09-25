@@ -2016,3 +2016,23 @@ unavailable due to Windows access control. The prior `a0303de9` attached-disk
 failure remains unresolved; the new reproduced ownership defect is a concrete
 fix, not proof of identity with every intermittent failure. See
 [ADR 0110](../adr/0110-private-windows-process-ownership.md).
+
+## M2 local Git diagnosis
+
+At implementation commit `9635e2b0` (the provider inspection code), a read-only
+probe in the `Hacocoon` WSL invoked production `InspectGitConnection` against the
+existing stopped `roadmap-save` Environment, using its controller identity and
+recorded managed Workspace. The owned proxy was recognized; a different expected
+broker socket and a different Workspace owner were both refused. No native
+resource, connection, repository or Policy was changed. Direct normal-user Incus
+inspection was unavailable (permission denied); the provider probe ran as the
+Incus administrator. This is not ordinary-user desktop or running-Env repair
+acceptance. Human authenticated Git/GUI answers and actual repair remain pending.
+
+The first M2 package run retained `TestOrdinaryLargeGitFetchAndApprovedPush`'s
+10-second proposal-wait failure (88-second test) and a five-second PTY bootstrap
+wait timeout. Neither establishes its cause or is erased by focused success.
+The duplicate `--json` regression found in the same run was corrected; focused
+Git doctor, controller roundtrip, provider wiring and offline/stale routing checks
+and the shipped-command E2E subsequently passed. The earlier M1 milestone-wrapper
+timeout remains separate; the full suite was not repeatedly rerun.

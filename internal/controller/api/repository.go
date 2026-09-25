@@ -176,10 +176,15 @@ func (c *Client) DecideGitWithSavedChoice(ctx context.Context, id string, approv
 }
 
 func (c *Client) GitConnectionStatus(ctx context.Context, environment string) (gitrepo.ConnectionStatus, error) {
-	var response gitrepo.ConnectionStatus
-	err := c.wire.Call(ctx, MethodGitConnectionStatus, EnvironmentNameRequest{Environment: environment}, &response)
-	if err == nil && response.Connected && !response.Configured {
+	var wire struct {
+		Configured *bool `json:"configured"`
+		Connected  *bool `json:"connected"`
+	}
+	if err := c.wire.Call(ctx, MethodGitConnectionStatus, EnvironmentNameRequest{Environment: environment}, &wire); err != nil {
+		return gitrepo.ConnectionStatus{}, err
+	}
+	if wire.Configured == nil || wire.Connected == nil || (*wire.Connected && !*wire.Configured) {
 		return gitrepo.ConnectionStatus{}, control.ErrProtocol
 	}
-	return response, err
+	return gitrepo.ConnectionStatus{Configured: *wire.Configured, Connected: *wire.Connected}, nil
 }

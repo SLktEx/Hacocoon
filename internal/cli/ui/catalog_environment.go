@@ -5,7 +5,7 @@ package cliui
 var environmentCatalog = map[string]translation{
 	"env.doctor.fix":         {"Repair local Git wiring only; requires an Environment. No fetch, push or Policy change.", "指定した環境のGit接続だけを修復する。fetch・push・承認ルールの変更は行わない。"},
 	"env.doctor.git_fix":     {"Repair local Git wiring with haco doctor --fix %s", "haco doctor --fix %s でGit接続を修復してください。"},
-	"env.doctor.git_unknown": {"Inspect controller availability and Workspace ownership; no repair was attempted", "コントローラーの状態とWorkspaceの所有関係を確認してください。修復は実行していません。"},
+	"env.doctor.git_unknown": {"Inspect controller availability and Workspace ownership before retrying", "再試行する前に、コントローラーの状態とWorkspaceの所有関係を確認してください。"},
 
 	"forward.distribution":           {"Installed Hacocoon WSL distribution on this PC", "このPCに導入済みのHacocoon WSL名"},
 	"forward.windows_next":           {"Next: open WSL %s and run haco doctor; check that the Environment and its application service are running.", "次にWSL %s を開いて haco doctor を実行し、開発環境と接続先アプリが起動しているか確認してください。"},

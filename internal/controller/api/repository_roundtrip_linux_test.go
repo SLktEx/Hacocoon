@@ -4,6 +4,7 @@ package controlapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"reflect"
@@ -182,5 +183,22 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 	defer backend.mu.Unlock()
 	if len(backend.volumes) != 5 || len(backend.connected) != 1 || backend.connected[0].Name != "dev" {
 		t.Fatal("invalid request allocated native volume or Git connection", backend.volumes, backend.connected)
+	}
+}
+
+func TestGitConnectionStatusRejectsIncompleteResponse(t *testing.T) {
+	for _, payload := range []any{nil, map[string]bool{}, map[string]bool{"configured": true}, map[string]bool{"configured": false, "connected": true}} {
+		path := doctorTestSocket(t, func(server *control.Server) {
+			if err := server.Register(MethodGitConnectionStatus, func(context.Context, json.RawMessage) (any, error) { return payload, nil }); err != nil {
+				t.Fatal(err)
+			}
+		})
+		client, err := NewClient(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = client.GitConnectionStatus(context.Background(), "dev"); !errors.Is(err, control.ErrProtocol) {
+			t.Fatal("incomplete diagnostic looked healthy", payload, err)
+		}
 	}
 }

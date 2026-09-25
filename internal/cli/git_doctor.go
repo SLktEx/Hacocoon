@@ -26,7 +26,7 @@ func diagnoseGitConnection(ctx context.Context, c environmentDoctorClient, repor
 	state, err := git.GitConnectionStatus(ctx, report.Environment)
 	if err != nil {
 		check.Status = "unknown"
-		check.Action = "Inspect controller availability and Workspace ownership; no repair was attempted"
+		check.Action = "Inspect controller availability and Workspace ownership before retrying"
 		check.actionMessage = "env.doctor.git_unknown"
 		return check
 	}
@@ -52,7 +52,7 @@ func diagnoseGitConnection(ctx context.Context, c environmentDoctorClient, repor
 		check.Status, check.Action, check.actionMessage = "ok", "", ""
 	} else if err != nil {
 		check.Status = "unknown"
-		check.Action = "Inspect controller availability and Workspace ownership; no repair was attempted"
+		check.Action = "Inspect controller availability and Workspace ownership before retrying"
 		check.actionMessage = "env.doctor.git_unknown"
 	}
 	return check
