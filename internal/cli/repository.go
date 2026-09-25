@@ -152,7 +152,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	return 0
 }
 
-
 type repositoryProgressWriter struct {
 	out      io.Writer
 	terminal bool
