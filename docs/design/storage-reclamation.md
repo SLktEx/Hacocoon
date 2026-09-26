@@ -123,20 +123,19 @@ and holds rename exclusions. It accepts local drive paths, not UNC/device paths,
 alternate streams or ambiguous Win32 normalization. Native handle allocation and
 file length are distinct from virtual disk capacity.
 
-Windows-side stop, offline trim and VHDX compaction are delegated to System32
-`wsl.exe --manage <enrolled-distribution-name> --compact`. WSL resolves the name
-to a GUID, locks that distribution in its compacting state, terminates only that
-distribution, performs its offline trim/eject sequence and compacts the VHDX.
-Hacocoon does not treat the public CLI name as mutation authority: the existing
-enrolled GUID, Windows owner, pinned VHDX identity and Linux installation binding
-are revalidated before and after invocation. No global WSL shutdown or idle-policy
+Windows-side stop uses System32
+`wsl.exe --terminate <enrolled-distribution-name>`. The public WSL client
+resolves that name to the registered GUID and invokes `TerminateInstance` for
+only that distribution. Hacocoon does not treat the name as mutation authority:
+the enrolled GUID, Windows owner, pinned VHDX identity and Linux installation
+binding are revalidated around the call. No global WSL shutdown or idle-policy
 change is used.
 
-After WSL reports successful compaction, Hacocoon observes the pinned VHDX once
-with the native virtual-disk API to retain dynamic-disk, virtual-capacity and disk
-identifier evidence alongside Windows allocation measurements. Production no
-longer uses the 90-second detach polling loop or its own `CompactVirtualDisk`
-call. The low-level native primitive remains only for isolated component tests.
+After termination, Hacocoon keeps the existing bounded native observation of the
+pinned VHDX for up to 90 seconds. Only a confirmed detached dynamic VHDX is
+compacted once with `CompactVirtualDisk`; virtual capacity, disk identifier and
+Windows allocation are rechecked afterward. Production no longer asks systemd
+inside the distro to power off and then relies on shared-VM idle shutdown.
 
 ## Durable worker sequence
 
@@ -165,11 +164,11 @@ only its pipe, never kills/retries the worker. An outer Windows Job can still en
 the worker; durable pending evidence remains necessary.
 
 After Linux discard completes, the Windows worker revalidates the enrolled
-installation and invokes `wsl.exe --manage <enrolled-distribution-name> --compact`
-once. WSL owns termination and its compacting lock, so Hacocoon no longer inserts
-a separate `systemctl poweroff` or detach wait. Once the WSL operation is attempted,
-bounded same-GUID resumption is attempted even on failure. Resuming
-`/usr/bin/true` alone is not controller readiness.
+installation and invokes `wsl.exe --terminate <enrolled-distribution-name>` once.
+This uses WSL Service distribution termination instead of an in-guest
+`systemctl poweroff`, then waits for the exact VHDX to detach before native
+compaction. After any termination attempt, bounded same-GUID resumption is
+attempted even on failure. Resuming `/usr/bin/true` alone is not controller readiness.
 
 Final complete/failed results retain each stage. Native API success, process ID,
 readiness, and resumed WSL are not substitutes for measured complete reclamation.
@@ -221,10 +220,10 @@ It retains a nonzero exit and is never proof that a worker did not start. Unknow
 malformed diagnostics keep the existing uncertain-result response. No automatic
 retry, record clearing, relaxed enrollment or change to disk ownership is introduced.
 
-Existing saved `compact_attached` results remain readable as history from the
-former native path. New production failures from WSL-managed compaction are saved
-as `compact`, retain data, and require explicit review before another attempt.
-No unrelated WSL distribution is stopped to force readiness.
+A saved `compact_attached` result means the exact target distribution was
+terminated but its VHDX did not detach within the bounded observation window.
+Native compaction is not started, data remains retained, and explicit review is
+required before another attempt. No unrelated WSL distribution is stopped.
 
 ## Background notification starts
 
@@ -232,7 +231,7 @@ Reclamation also holds the shared per-user/distribution launch reservation throu
 its whole protected operation. Native notification peer startup holds the same
 reservation until a bounded read-only handshake finishes, then releases it.
 A busy reservation refuses a new peer without launching WSL or replaying an
-answer. The ownership checks and fail-closed saved-operation contract remain. See [ADR 0108](../adr/0108-background-wsl-start-coordination.md).
+answer. The ownership checks, 90-second detach bound and fail-closed saved-operation contract remain. See [ADR 0108](../adr/0108-background-wsl-start-coordination.md).
 
 Private notification launches belong to a Windows job from process creation.
 Cancellation terminates the owned descendants, including children of an exited
