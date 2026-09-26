@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func TestWSLOperationsUseGUIDAndManagedCompactName(t *testing.T) {
+func TestWSLOperationsUseGUIDAndTerminateName(t *testing.T) {
 	id, err := windows.GenerateGUID()
 	if err != nil {
 		t.Fatal(err)
@@ -29,9 +29,9 @@ func TestWSLOperationsUseGUIDAndManagedCompactName(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(read, append(prefix, "/usr/bin/python3", "-I", "/usr/local/libexec/hacocoon-wsl-interop", "--read-registration")) {
 		t.Fatal("registration read must use the fixed isolated helper", read, err)
 	}
-	managed, err := r.managedCompactArguments()
-	if err != nil || !reflect.DeepEqual(managed, []string{"--manage", "Hacocoon-Test", "--compact"}) {
-		t.Fatal("managed compact must select only the enrolled distribution", managed, err)
+	terminate, err := r.terminateArguments()
+	if err != nil || !reflect.DeepEqual(terminate, []string{"--terminate", "Hacocoon-Test"}) {
+		t.Fatal("terminate must select only the enrolled distribution", terminate, err)
 	}
 	if _, err := r.wslArguments(0); err == nil {
 		t.Fatal("unknown operation accepted")
@@ -50,7 +50,7 @@ func TestWSLOperationsUseGUIDAndManagedCompactName(t *testing.T) {
 
 func TestDedicatedWSLContinuation(t *testing.T) {
 	if os.Getenv("HACO_E2E_RECLAIM_CONTINUATION") != "1" {
-		t.Skip("requires separate exact managed WSL compact/resume authorization")
+		t.Skip("requires separate exact managed WSL terminate/compact/resume authorization")
 	}
 	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
 	if err != nil {
@@ -70,50 +70,6 @@ func TestDedicatedWSLContinuation(t *testing.T) {
 		t.Fatal(result)
 	}
 	t.Logf("PASS native continuation: %+v; controller/data acceptance checked separately", result)
-}
-
-func TestManagedContinuationResumesOnlyAfterWSLCompactAttempt(t *testing.T) {
-	preflight := errors.New("preflight failed")
-	result, err := executeManagedContinuation(context.Background(),
-		func(context.Context) (compactObservation, error) {
-			return compactObservation{}, preflight
-		},
-		func(context.Context) error {
-			t.Fatal("resume after preflight-only failure")
-			return nil
-		})
-	if !errors.Is(err, preflight) || result.StopAttempted || result.ResumeAttempted || result.Failure != "compact" {
-		t.Fatal(result, err)
-	}
-
-	compactFailed := errors.New("managed compact failed")
-	resumeFailed := errors.New("resume failed")
-	var resumed bool
-	result, err = executeManagedContinuation(context.Background(),
-		func(context.Context) (compactObservation, error) {
-			return compactObservation{Attempted: true}, compactFailed
-		},
-		func(resumeCtx context.Context) error {
-			resumed = true
-			deadline, ok := resumeCtx.Deadline()
-			if !ok || time.Until(deadline) > 2*time.Minute {
-				t.Fatal("resume context is not bounded")
-			}
-			return resumeFailed
-		})
-	if !resumed || !result.StopAttempted || !result.StopRequested || !result.ResumeAttempted || result.Resumed ||
-		result.Failure != "compact" || !errors.Is(err, compactFailed) || !errors.Is(err, resumeFailed) {
-		t.Fatal(result, err)
-	}
-
-	result, err = executeManagedContinuation(context.Background(),
-		func(context.Context) (compactObservation, error) {
-			return compactObservation{Attempted: true, Completed: true}, nil
-		},
-		func(context.Context) error { return nil })
-	if err != nil || !result.StopAttempted || !result.StopRequested || !result.Compaction.Completed || !result.Resumed {
-		t.Fatal(result, err)
-	}
 }
 
 func TestContinuationPreservesFailureAndAlwaysAttemptsBoundedResume(t *testing.T) {
@@ -205,7 +161,7 @@ func TestPreparedContinuationRejectsBeforeAccess(t *testing.T) {
 
 func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 	if os.Getenv("HACO_E2E_RECLAIM_HANDOFF") != "1" {
-		t.Skip("requires exact dedicated prepared managed-compact/resume authorization")
+		t.Skip("requires exact dedicated prepared terminate/compact/resume authorization")
 	}
 	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
 	if err != nil {
