@@ -225,6 +225,8 @@ terminated but its VHDX did not detach within the bounded observation window.
 Native compaction is not started, data remains retained, and explicit review is
 required before another attempt. No unrelated WSL distribution is stopped.
 
+Resume failures are saved separately as `ResumeFailure` with a fixed `Kind` and numeric `Code`: timeout, canceled, exit, native or other. Exit codes are unsigned Windows process codes; native codes are Win32 errors. The original stop/compact failure is retained. The normal bilingual status and CI observer expose this diagnostic without raw child output. Missing historical details remain unknown. This changes no timeout, stop target, retry or ownership decision.
+
 ## Background notification starts
 
 Reclamation also holds the shared per-user/distribution launch reservation through

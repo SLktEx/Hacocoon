@@ -248,3 +248,7 @@ not complete actual inventory or person-dependent acceptance; no release is publ
 Optional named Base builders are a v0.68 usability correction: ordinary network
 settings can target one chosen build name while ownership remains fresh. This does
 not advance a checkpoint or establish actual Packer completion or publication.
+
+M2 local Git diagnosis/explicit repair is a v0.68 usability correction. It reuses existing broker ownership and does not advance the checkpoint, grant push permission or publish a release.
+
+The M1 follow-up remains a v0.68 daily-use correction. Bilingual auxiliary-client guidance and successful help-only execution do not advance the checkpoint or publish a release. Human desktop acceptance and full CLI localization remain separate.

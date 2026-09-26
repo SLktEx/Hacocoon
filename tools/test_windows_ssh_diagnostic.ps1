@@ -1,6 +1,20 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'windows_ssh_diagnostic.ps1')
+# The native SSH fixture has a path Workspace: its four prerequisites are
+# required, while a Git route is absent by contract.
+foreach ($case in @(
+    @{Name='runtime'; Expected=@($true,$false,$false,$false,$false,$false)},
+    @{Name='workspace'; Expected=@($true,$false,$false,$false,$false,$false)},
+    @{Name='dns_service'; Expected=@($true,$false,$false,$false,$false,$false)},
+    @{Name='ssh_service'; Expected=@($true,$false,$false,$false,$false,$false)},
+    @{Name='git_broker'; Expected=@($true,$true,$false,$false,$false,$false)}
+)) {
+    $statuses = @('ok','not_applicable','failed','skipped','unknown','INVALID')
+    for ($i=0; $i -lt $statuses.Count; $i++) {
+        if ((Test-EnvironmentDoctorCheck ([pscustomobject]@{name=$case.Name; status=$statuses[$i]})) -ne $case.Expected[$i]) { throw 'Doctor prerequisite decision changed' }
+    }
+}
 $sample = "debug1: Connection established.`nAuthenticated to SECRET-PEER using `"publickey`".`ndebug1: Entering interactive session.`ndebug1: Exit status 0`nidentity file SECRET-KEY"
 $expected = 'connected,authenticated,session,exit_received,windows-workspace-ok'
 if ((Get-SSHProgressEvidence "windows-workspace-ok`nSECRET-CONTENT" $sample) -cne $expected) { throw 'Progress selection failed' }

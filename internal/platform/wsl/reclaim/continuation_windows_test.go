@@ -4,9 +4,13 @@ package wslreclaim
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 	"os"
+	"os/exec"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -218,6 +222,44 @@ func TestContinuationFailureDiagnosticsAreFixedAndPreservePrimaryFailure(t *test
 		result, err := executeContinuation(context.Background(), func(context.Context) error { return tc.stop }, func(context.Context) (compactObservation, error) { return compactObservation{}, tc.compact }, func(context.Context) error { return tc.resume })
 		if err == nil || result.Failure != tc.stage || result.NativeError != tc.code {
 			t.Fatal(result, err)
+		}
+	}
+}
+
+func TestResumeDiagnosticChild(t *testing.T) {
+	if os.Getenv("HACO_TEST_RESUME_EXIT") == "1" {
+		os.Exit(0x8000ffff)
+	}
+}
+
+func TestResumeFailureSurvivesPrimaryFailureAndSerialization(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestResumeDiagnosticChild$")
+	cmd.Env = append(os.Environ(), "HACO_TEST_RESUME_EXIT=1")
+	childErr := cmd.Run()
+	if childErr == nil {
+		t.Fatal("child unexpectedly succeeded")
+	}
+	for _, tc := range []struct {
+		err  error
+		want reclamation.WindowsResumeFailure
+	}{
+		{childErr, reclamation.WindowsResumeFailure{Kind: "exit", Code: 0x8000ffff}},
+		{errors.Join(childErr, context.DeadlineExceeded), reclamation.WindowsResumeFailure{Kind: "timeout"}},
+		{context.Canceled, reclamation.WindowsResumeFailure{Kind: "canceled"}},
+		{syscall.Errno(5), reclamation.WindowsResumeFailure{Kind: "native", Code: 5}},
+		{errors.New("token=private"), reclamation.WindowsResumeFailure{Kind: "other"}},
+	} {
+		got, err := executeContinuation(context.Background(), func(context.Context) error { return nil }, func(context.Context) (compactObservation, error) { return compactObservation{}, errVirtualDiskAttached }, func(context.Context) error { return tc.err })
+		if err == nil || got.Failure != "compact_attached" || got.NativeError != 0 || got.ResumeFailure != tc.want || got.Resumed {
+			t.Fatal(got, err)
+		}
+		raw, err := json.Marshal(got)
+		if err != nil || strings.Contains(string(raw), "private") {
+			t.Fatal("unsafe diagnostic")
+		}
+		var decoded continuationObservation
+		if err := json.Unmarshal(raw, &decoded); err != nil || decoded != got {
+			t.Fatal("diagnostic lost in serialization", err)
 		}
 	}
 }

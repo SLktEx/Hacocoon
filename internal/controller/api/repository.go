@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	MethodRepositoryAdd = "repository.add"
-	MethodWorkspaceCopy = "workspace.copy"
-	MethodGitConnect    = "git.connect"
-	MethodGitPending    = "git.pending"
-	MethodGitDecide     = "git.decide"
-	MethodGitStatus     = "git.status"
-	MethodGitReconcile  = "git.reconcile"
+	MethodRepositoryAdd       = "repository.add"
+	MethodWorkspaceCopy       = "workspace.copy"
+	MethodGitConnect          = "git.connect"
+	MethodGitConnectionStatus = "git.connection-status"
+	MethodGitPending          = "git.pending"
+	MethodGitDecide           = "git.decide"
+	MethodGitStatus           = "git.status"
+	MethodGitReconcile        = "git.reconcile"
 )
 
 type RepositoryAddRequest struct {
@@ -82,6 +83,14 @@ func RegisterRepositories(server *control.Server, repositories *gitrepo.Reposito
 				return result, translateError(err)
 			}
 			result, err := repositories.CopyWorkspaceBranch(ctx, req.ID, req.Repository, req.Branch)
+			return result, translateError(err)
+		}},
+		{MethodGitConnectionStatus, func(ctx context.Context, payload json.RawMessage) (any, error) {
+			req, err := decodeEnvironmentName(payload)
+			if err != nil {
+				return nil, err
+			}
+			result, err := broker.ConnectionStatus(ctx, req.Environment)
 			return result, translateError(err)
 		}},
 		{MethodGitConnect, func(ctx context.Context, payload json.RawMessage) (any, error) {
@@ -164,4 +173,18 @@ func (c *Client) DecideGitWithSavedChoice(ctx context.Context, id string, approv
 		return result, core.ErrIncompatibleState
 	}
 	return result, err
+}
+
+func (c *Client) GitConnectionStatus(ctx context.Context, environment string) (gitrepo.ConnectionStatus, error) {
+	var wire struct {
+		Configured *bool `json:"configured"`
+		Connected  *bool `json:"connected"`
+	}
+	if err := c.wire.Call(ctx, MethodGitConnectionStatus, EnvironmentNameRequest{Environment: environment}, &wire); err != nil {
+		return gitrepo.ConnectionStatus{}, err
+	}
+	if wire.Configured == nil || wire.Connected == nil || (*wire.Connected && !*wire.Configured) {
+		return gitrepo.ConnectionStatus{}, control.ErrProtocol
+	}
+	return gitrepo.ConnectionStatus{Configured: *wire.Configured, Connected: *wire.Connected}, nil
 }

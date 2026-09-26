@@ -73,7 +73,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	case "workspace create":
 		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
 		flags.StringVar(&repo, "repo", "", cliMessage("detail.repos"))
-	case "git connect":
 	case "git approve", "git deny":
 		flags.StringVar(&save, "save", "", cliMessage("detail.saved"))
 	case "git pending":
@@ -126,9 +125,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 			request.Repositories = strings.Split(repo, ",")
 		}
 		result, err = client.CopyWorkspace(ctx, request)
-	case "git connect":
-		err = client.ConnectGit(ctx, pos[0])
-		result = "Environment Git helper connected"
 	case "git pending":
 		result, err = client.PendingGit(ctx)
 	case "git approve", "git deny":

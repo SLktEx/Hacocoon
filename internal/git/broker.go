@@ -152,17 +152,17 @@ func (b *Broker) Close() {
 	}
 }
 
-func (b *Broker) Connect(ctx context.Context, name string) error {
+func (b *Broker) connectionBinding(ctx context.Context, name string) (binding, error) {
 	environment, err := b.Environments.GetEnvironment(ctx, name)
 	if err != nil {
-		return err
+		return binding{}, err
 	}
 	if !gitadapter.ValidID(name) || !strings.HasPrefix(environment.Workspace.Path, "managed:") {
-		return core.ErrInvalidArgument
+		return binding{}, core.ErrInvalidArgument
 	}
 	workspace, err := b.Repositories.Get("work", strings.TrimPrefix(environment.Workspace.Path, "managed:"))
 	if err != nil {
-		return err
+		return binding{}, err
 	}
 	bound := binding{Environment: environment, Workspace: workspace}
 	for _, member := range workspace.Copies() {
@@ -171,10 +171,10 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 		}
 		repo, err := b.Repositories.Get("repo", member.Repository)
 		if err != nil {
-			return err
+			return binding{}, err
 		}
 		if repo.Remote != member.Remote {
-			return core.ErrCapabilityStale
+			return binding{}, core.ErrCapabilityStale
 		}
 		if len(workspace.Members) == 0 {
 			bound.Repository = repo
@@ -183,11 +183,20 @@ func (b *Broker) Connect(ctx context.Context, name string) error {
 		}
 	}
 	if bound.Repository.ID == "" && len(bound.Repositories) == 0 {
-		return core.ErrUnsupported // No Git route, endpoint or credential grant.
+		return binding{}, core.ErrUnsupported // No Git route, endpoint or credential grant.
 	}
 	if err := b.validateBinding(ctx, bound); err != nil {
+		return binding{}, err
+	}
+	return bound, nil
+}
+
+func (b *Broker) Connect(ctx context.Context, name string) error {
+	bound, err := b.connectionBinding(ctx, name)
+	if err != nil {
 		return err
 	}
+	environment, workspace := bound.Environment, bound.Workspace
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.ctx == nil {

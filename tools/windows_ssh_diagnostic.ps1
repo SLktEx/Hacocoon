@@ -1,4 +1,10 @@
 # Fixture diagnostics only. Never return raw SSH output, key paths or peer data.
+function Test-EnvironmentDoctorCheck($Check) {
+    # A path Workspace has no Git broker. Absence is applicable only to this
+    # check; failed, skipped or unknown prerequisites still refuse acceptance.
+    return $Check.status -ceq 'ok' -or ($Check.name -ceq 'git_broker' -and $Check.status -ceq 'not_applicable')
+}
+
 # Observed markers diagnose progress; they do not establish trusted identity or PASS.
 function Get-SSHProgressEvidence([string]$Stdout, [string]$Stderr) {
     $observations = [Collections.Generic.List[string]]::new()

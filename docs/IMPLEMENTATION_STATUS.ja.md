@@ -162,3 +162,13 @@ M2・M3の実利用確認はユーザー担当とし、報告されるまで未�
 
 `haco repo add`によるリポジトリ登録はブランチに依存しません。初期ブランチはWorkspace作成時に選びます。
 [Gitの設計](design/git-and-github-capability.md#branch-independent-repository-registration)を参照してください。
+
+## M1の日常利用の追加修正
+
+この作業ツリーでは、承認待ち・プレビュー・実験的VS Code設定の案内と、haco-vscodeの縦ヘルプ・接続準備結果を共通の日英表示に対応済みです。ヘルプは環境を準備せず正常終了し、不正なオプションはエラーになります。JSONと承認判断は維持します。Windows承認画面の終了処理#721を含むmain 68c539c1の成果を利用しています。CLI全体の翻訳と配布物での人による確認は一部未完了です。[表示言語](reference/cli-language.ja.md)と[M1の残件](status/architecture-and-roadmap.md)を参照してください。
+
+## M2のGit接続復旧
+
+この作業ツリーでは、環境のdoctorでGit接続を診断し、明示した`--fix`で既存の接続処理を再利用します。リモートへのアクセスや承認ルールの変更は行いません。利用者向け`haco git connect`は削除しました。Gitなし・オフライン、停止中、状態不明を区別します。[Gitの契約](design/git-and-github-capability.md#local-git-diagnosis-and-repair)に範囲と制限を記載しています。本人認証付きGit・GUI回答の確認は未完了です。
+
+容量回収では、圧縮失敗後のWindows再開失敗も固定分類と数値コードで別途保存し、通常の状態表示とCIから両方を確認できます。診断の改善であり、既存の実機`compact_attached`失敗の解決を意味しません。

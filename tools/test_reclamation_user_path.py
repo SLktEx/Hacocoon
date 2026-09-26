@@ -255,6 +255,13 @@ function Get-CimInstance {
         self.assertIsNone(summary["windows_resumed"])
         self.assertEqual(gate.failure_summary(None), {"worker_result": "unrecognized"})
 
+    def test_resume_failure_projection_is_bounded_and_private(self):
+        self.assertEqual(gate.resume_failure_summary({"Kind": "exit", "Code": 0x8000ffff}), {"kind": "exit", "code": 0x8000ffff})
+        for value in ({"Kind": "private-token"}, {"Kind": "exit", "Code": True}, {"Kind": "exit", "Code": -1}, {"Kind": "exit", "Code": 2**32}, {"Kind": "timeout", "Code": 5}, {"Kind": "exit", "Code": 0}):
+            self.assertEqual(gate.resume_failure_summary(value), {"kind": "unrecognized"})
+        self.assertEqual(gate.resume_failure_summary({"Kind": "timeout", "secret": "private-token"}), {"kind": "timeout"})
+        self.assertEqual(gate.resume_failure_summary(None), {"kind": "unrecorded"})
+
     def test_all_stages_are_required(self):
         result = {"operation": OP, "state": "complete", "linux_started": True,
                   "linux": {"incus_btrfs_loop": {"status": "complete"}, "wsl_ext4": {"status": "complete"}},
