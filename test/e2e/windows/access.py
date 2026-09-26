@@ -122,6 +122,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--interop-only', action='store_true')
     mode.add_argument('--skip-interop', action='store_true')
+    parser.add_argument('--skip-host-customization', action='store_true')
     parser.add_argument('--require-non-c', action='store_true')
     parser.add_argument('--persistence-manifest')
     parser.add_argument('--reclamation-manifest')
@@ -154,7 +155,8 @@ def main():
         verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
 
     run_native_checks(driver, run_check, args.interop_only,
-                      os.environ.get('GITHUB_ACTIONS') == 'true', args.skip_interop)
+                      os.environ.get('GITHUB_ACTIONS') == 'true' and not args.skip_host_customization,
+                      args.skip_interop)
     print('WINDOWS NATIVE ACCESS THROUGH ORDINARY HOST ENTRY: PASS')
 
 
