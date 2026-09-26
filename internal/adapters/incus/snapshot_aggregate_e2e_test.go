@@ -654,7 +654,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			<-done
 			t.Fatal("save disappeared with source", listed)
 		}
-		restoreOutput, restoreErr := exec.CommandContext(ctx, binary, "open", "--new", "--snapshot", cliSavedID, "--name", resumedName, "--client", "none", "--json").CombinedOutput()
+		restoreOutput, restoreErr := aggregateCLIOutput(ctx, binary, "open", "--new", "--snapshot", cliSavedID, "--name", resumedName, "--client", "none", "--json")
 		var opened core.Environment
 		if restoreErr != nil || json.Unmarshal(restoreOutput, &opened) != nil {
 			stop()
@@ -954,6 +954,30 @@ func cleanupAggregateRecoveryFiles(dir string) (bool, error) {
 		return false, os.Remove(dir)
 	}
 	return true, nil
+}
+
+// JSON is a stdout contract; progress and other diagnostics belong on stderr.
+func aggregateCLIOutput(ctx context.Context, binary string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
+	var diagnostic strings.Builder
+	cmd.Stderr = &diagnostic
+	output, err := cmd.Output()
+	if err != nil {
+		return output, fmt.Errorf("%w: %s", err, diagnostic.String())
+	}
+	return output, nil
+}
+
+func TestAggregateCLIOutputSeparatesProgress(t *testing.T) {
+	output, err := aggregateCLIOutput(context.Background(), "sh", "-c", `printf 'Preparing environment...\n' >&2; printf '{"name":"fixture"}\n'`)
+	var environment core.Environment
+	if err != nil || json.Unmarshal(output, &environment) != nil || environment.Name != "fixture" {
+		t.Fatalf("progress contaminated JSON: %v: %s", err, output)
+	}
+	_, err = aggregateCLIOutput(context.Background(), "sh", "-c", `printf 'fixture failure\n' >&2; exit 7`)
+	if err == nil || !strings.Contains(err.Error(), "fixture failure") {
+		t.Fatalf("failed command lost diagnostic: %v", err)
+	}
 }
 
 // The fixture uses the same trusted registry lookup as application composition.
