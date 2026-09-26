@@ -27,7 +27,8 @@ local CI から実行する。権限境界は [CI trust boundary](../../.github/
 | Windows/WSL install・restart・reinstall | `windows-installer-e2e`: windows-installer-lifecycle | BAT、ConPTY、通常 WSL/Host entry、reinstall 前の terminate、Host データ保持、cold doctor を同一 runner 状態で検証する。 |
 | installed Environment egress | `windows-installer-e2e`: windows-egress | 独立した fresh packaged install で Environment HTTPS と direct-egress 拒否を検証する。 |
 | Windows/WSL native interop | `windows-installer-e2e`: windows-interop | 独立した fresh packaged install で通常 Host entry と Windows executable/PATH/stdout/stderr interop を検証する。 |
-| SSH・IDE・preview・customization・transfer | `windows-installer-e2e`: windows-access | 独立した fresh packaged install で strict OpenSSH、VS Code、preview、Host customization、transfer を検証し、専用 interop probe は重複させない。 |
+| SSH・IDE・preview・transfer | `windows-installer-e2e`: windows-access | 独立した fresh packaged install で strict OpenSSH、VS Code、preview、transfer を検証し、専用 interop probe は重複させない。 |
+| Host customization | `windows-installer-e2e`: windows-host-customization | 独立した fresh packaged install で Host setup の保存、replay、更新、失敗表示、clear を検証する。 |
 | reclamation・保持データ | `windows-installer-e2e`: windows-reclamation | 独立した fresh packaged install で transfer fixture を保持し、Linux stage、Windows/public reclamation、回収後データを検証する。 |
 | native notification review | `windows-installer-e2e`: windows-notification | 独立した fresh packaged install で native review registration と notification route を検証する。 |
 
