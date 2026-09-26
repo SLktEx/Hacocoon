@@ -49,7 +49,49 @@ jobs:
           only-new-issues: ${{ github.event_name != 'pull_request' }}
           skip-cache: true
 
+  windows-coverage:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.x
+          check-latest: true
+          cache: false
+      - name: Test Windows code with coverage
+        shell: pwsh
+        run: |
+          $testArgs = @(
+            'test',
+            '-count=1',
+            '-shuffle=on',
+            '-covermode=atomic',
+            '-coverprofile=coverage_windows.out',
+            './internal/platform/wsl/reclaim',
+            './internal/client/reclaim',
+            './internal/cli/wsl',
+            './internal/cli/review',
+            './internal/client/review',
+            './internal/cli/tunnel',
+            './internal/client/forward',
+            './internal/platform/wsl/launch',
+            './internal/streamio'
+          )
+          & go @testArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish Windows coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-coverage-windows
+          path: coverage_windows.out
+          if-no-files-found: error
+          retention-days: 1
+
   coverage:
+    needs: [windows-coverage]
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -62,6 +104,11 @@ jobs:
           go-version: 1.27.x
           check-latest: true
           cache: false
+      - name: Download Windows coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: go-coverage-windows
+          path: .
       - name: Test with coverage
         run: go test -count=1 -shuffle=on -covermode=atomic -coverprofile=coverage.out ./...
       - name: Summarize coverage
@@ -70,11 +117,13 @@ jobs:
           set -euo pipefail
           go tool cover -func=coverage.out | tee coverage.txt
           total="$(tail -n 1 coverage.txt)"
+          windows_total="$(go tool cover -func=coverage_windows.out | tail -n 1)"
           {
             echo '## Go coverage'
             echo
             echo '```text'
-            echo "$total"
+            echo "Linux:   $total"
+            echo "Windows: $windows_total"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: SonarQube Cloud scan
@@ -84,6 +133,28 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scannerVersion: 8.1.0.6389
+      - name: Diagnose failing main Sonar issues
+        if: vars.SONAR_ENABLED == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --user "$SONAR_TOKEN:"             'https://sonarcloud.io/api/issues/search?componentKeys=SLktEx_Hacocoon&branch=main&issueStatuses=OPEN%2CCONFIRMED&sinceLeakPeriod=true&types=BUG%2CVULNERABILITY&ps=100'             -o "$RUNNER_TEMP/sonar-main-issues.json"
+          python3 - "$RUNNER_TEMP/sonar-main-issues.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding='utf-8'))
+          print("SONAR_MAIN_ISSUE_TOTAL=" + str(data.get("total", 0)))
+          for issue in data.get("issues", []):
+              print("SONAR_MAIN_ISSUE " + json.dumps({
+                  "type": issue.get("type"),
+                  "severity": issue.get("severity"),
+                  "rule": issue.get("rule"),
+                  "component": issue.get("component"),
+                  "line": issue.get("line"),
+                  "message": issue.get("message"),
+              }, ensure_ascii=False, sort_keys=True))
+          PY
       - name: Explain disabled SonarQube Cloud scan
         if: vars.SONAR_ENABLED != 'true'
         run: echo 'SonarQube Cloud scan is disabled until SONAR_TOKEN is configured and SONAR_ENABLED=true; Go coverage above still runs normally.'
