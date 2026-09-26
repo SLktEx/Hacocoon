@@ -195,7 +195,7 @@ and expiry remain failures even when a terminated child emitted a success marker
 Failures expose only fixed stages/reasons, bounded HRESULT, exit code and elapsed
 time through the shared logger. They never log raw child output or replay a decision.
 
-The native PowerShell process has a30-second ceiling for cold startup, including the initial owned-history clear. Individual review/read and final cleanup callers retain their shorter10/8-second bounds. Cancellation still owns the outcome and stops the exact child even if it printed success. Slow startup never bypasses clearing, retries an approval, or reports a failed operation as success.
+The native PowerShell process has a 40-second ceiling for cold startup, including the initial owned-history clear. Individual review/read and final cleanup callers retain their shorter10/8-second bounds. Cancellation still owns the outcome and stops the exact child even if it printed success. Slow startup never bypasses clearing, retries an approval, or reports a failed operation as success.
 
 
 Private WSL readiness is checked by a read-only round trip before COM presentation

@@ -23,8 +23,16 @@ owned by [the CI trust boundary](../../.github/security/CI_TRUST_BOUNDARY.md).
 | Incus lifecycle, network, egress | `incus-core-e2e`: incus-standalone, incus-core-e2e | Independent fresh runners; native substrate, provider contract and shipped controller/CLI lifecycle. Standalone's scoped Docker coexistence rules are not applied to Hacocoon Environment egress. |
 | Incus-owned Btrfs, Base, snapshots, transfer, retained OCI | `incus-core-e2e`: incus-owned-btrfs | Native adapter tests plus CLI/controller scenarios; the fixture creates retained data and tests lazy pool creation. Adapter tests are not complete packaged acceptance. |
 | Native Ubuntu installer and installed network isolation | `ubuntu-installer-e2e`: ubuntu-user-path | Unchanged packaged installer, ordinary user, installed product CLI run/create/status/stop/start/delete with retained Workspace, the migration CLI journey, and kernel network assertions. |
-| Windows/WSL installer, restart, reinstall | `windows-installer-e2e`: windows-user-path | Packaged BAT, ConPTY ordinary WSL/Host entry, terminate before reinstall, retained Host data. Phase timing is recorded; the initial driver alone does not establish Environment data retention. |
-| SSH, IDE, Windows network, transfer, reclamation, notification | `windows-installer-e2e`: windows-user-path | Follow-on installed egress and native Windows/OpenSSH/VS Code acceptance; require their actual steps, not just the initial BAT result. |
+| Shared Windows release candidate | `windows-installer-e2e`: windows-package | Build the release-equivalent amd64 package once and pass the exact archive to independent native Windows jobs in the same workflow run. |
+| Native Windows client boundaries | `windows-installer-e2e`: windows-native-client-tests | Focused native client/WSL boundary tests run independently of packaged installation. |
+| Windows installer component regressions | `windows-installer-e2e`: windows-installer-component-tests | ConPTY driver assertions plus PowerShell 5.1 installer, stop-readiness, exit, DNS and SSH diagnostic regressions. |
+| Windows/WSL installer, restart, reinstall | `windows-installer-e2e`: windows-installer-lifecycle | Packaged BAT, ConPTY ordinary WSL/Host entry, terminate before reinstall, retained Host data, and cold doctor. |
+| Installed Environment egress | `windows-installer-e2e`: windows-egress | A separate fresh packaged install verifies Environment HTTPS and direct-egress refusal. |
+| Native Windows/WSL interop | `windows-installer-e2e`: windows-interop | A separate fresh packaged install verifies ordinary Host entry and native Windows executable/path/stdout/stderr interop. |
+| SSH, IDE, preview, transfer | `windows-installer-e2e`: windows-access | A separate fresh packaged install runs strict OpenSSH, VS Code, preview and transfer acceptance without repeating the dedicated interop probes. |
+| Host customization | `windows-installer-e2e`: windows-host-customization | A separate fresh packaged install verifies saved Host setup, replay, update, failure reporting and clear behavior. |
+| Reclamation and retained data | `windows-installer-e2e`: windows-reclamation | A separate fresh packaged install retains the transfer fixture and verifies Linux stages, Windows/public reclamation and post-reclamation data. |
+| Native notification review | `windows-installer-e2e`: windows-notification | A separate fresh packaged install verifies the installed native review registration and notification route. |
 
 Configure branch protection to require `test-evidence`, `incus-core-e2e-evidence`,
 `ubuntu-installer-e2e-evidence` and `windows-installer-e2e-evidence`, in addition to

@@ -63,6 +63,20 @@ class NativeRunnerTests(unittest.TestCase):
         self.assertEqual(len(terminals), 2)
         self.assertFalse(any(terminal.alive for terminal in terminals))
 
+    def test_skip_interop_runs_only_access_checks(self):
+        checks = []
+        driver = SimpleNamespace(TerminalProcess=lambda: (_ for _ in ()).throw(AssertionError('interop terminal must not open')),
+                                 cmd_prompt_count=lambda output: 0,
+                                 reject_failed_host_entry=entry_driver.reject_failed_host_entry)
+        runner.run_native_checks(driver, checks.append, host_customization=True, skip_interop=True)
+        self.assertEqual(checks, ['test_windows_environment_ssh.ps1', 'test_host_customization.ps1'])
+
+    def test_access_can_skip_host_customization(self):
+        checks = []
+        runner.run_native_checks(SimpleNamespace(), checks.append, interop_only=False,
+                                 host_customization=False, skip_interop=True)
+        self.assertEqual(checks, ['test_windows_environment_ssh.ps1'])
+
     def test_failed_entry_stops_before_checks_or_session_timeout(self):
         class Terminal:
             def __init__(self):
