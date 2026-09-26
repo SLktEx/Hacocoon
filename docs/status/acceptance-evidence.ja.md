@@ -29,6 +29,50 @@ VS Code・SSH GUI、認証付きGit通信、稼働中OCIの整合性は今回再
 native aggregateでは既存cache Imageの削除、live containerd転送、別gateの導入済みcontroller
 によるimportを明示的にskipしました。
 
+### 更新された main との統合
+
+2026-09-27、候補 `f2a2b78f` に main `4cbe853f` を統合し、Repository の再試行・進捗表示と
+Windows の再開処理を維持しました。文書、workflow policy、通常コマンド・orchestrator の
+E2E、隔離した kernel forwarding の試験に成功しました。実 Incus と試験専用の設定 catalog で
+通常 bootstrap の Image 取得経路も成功し、取得済み標準 Image が initial default として永続化され、
+再 setup も成功しました。既存 Image cache を利用した確認で、新規 Host 導入ではありません。
+Windows native component 試験では GUID・名前による停止対象の選択と、元の失敗・再開失敗の
+保持を確認しました。実 VHD の容量回収は実行していません。
+
+Go の全 package の通常・race 試験、vet、通知クライアントの JavaScript 32 件、VS Code
+packaging 2 件に成功しました。maintained `test`・`race` の初回実行では、Windows マウント上の
+ソースを使う既存 checkpoint black-box package が10分上限に達しました。その package だけ
+`go test [-race] -v -count=1 -timeout=30m ./tools/milestone` で再実行し、それぞれ1,060秒・
+1,032秒で成功しました。製品の時間制限は変更していません。
+
+同じ製品コードで maintained `release-config` もローカル Ubuntu 26.04 container 上で成功し、
+Linux/Windows の amd64・arm64 snapshot 配布物、installer bundle、全 checksum を検証しました。
+最初の最小 container には fixture が使う `/usr/bin/python3` が不足していましたが、試験の前提を
+追加して解消しました。installer コードは変更していません。
+
+最初の実 containerd aggregate 試験は書き込みデータの保存と export に成功した後、Host 側の
+Git 確認が Incus による UID 変換を拒否しました。既存の import・copy 確認と同様、provider が
+所有確認したパスだけをその Git 呼び出しで許可するよう試験を修正しました。製品の所有確認と
+global Git 設定は変更していません。失敗 fixture の保存・コピー資源は canonical cleanup で削除し、
+元・復元 Volume の不在を独立した一覧確認でも検証しました。
+これに先立つ旧 cache fingerprint 指定の実行は、Image の自動更新による不在を検出し、
+fixture 資源を作る前に拒否しました。
+
+次の実機試験では、実 CLI の export/import 後に containerd Image の同一性と停止済み container の
+書き込みデータを確認し、起動中の元 Environment から保存した Snapshot で新 Environment の作成にも
+成功しました。ただし JSON 判定が stderr の進捗を stdout に混ぜていました。修正 `5b5336cd` で
+出力を分離し、追加した回帰は race 付きでも成功しました。保全した専用 catalog だけを使う一時的な
+継続テストで元の残りの判定を繰り返し、619秒で成功しました。Snapshot open、独立コピー、
+Git・rootfs・OCI の保持、元 Environment の不変、使用中データの削除拒否、canonical cleanup を
+確認しています。一時ソースはコンパイル後に削除しました。独立した Incus inventory でも既存ユーザーの
+全 instance・Volume の保持と両 fixture 名の不在を確認し、完了した catalog には lifecycle lock の
+識別情報だけが残っています。
+
+これは分割したローカル実機検証で、修正後の aggregate 全体を一度に通した結果ではありません。
+既存 cache Image の削除と別 gate の導入済み controller による import は引き続き skip しました。
+保存した containerd 作業の明示 start は成功しましたが、稼働 task の移送、任意アプリケーションの
+整合性、復元後の SSH・VS Code GUI、認証付き Git の受入はこの試験では証明していません。
+
 <a id="portless-ssh"></a>
 
 ## ポート不要 SSH とエディターの cold reconnect

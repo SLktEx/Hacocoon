@@ -31,6 +31,58 @@ acceptance, authenticated Git network operations and live OCI consistency were
 not rerun. The native aggregate deliberately skipped cached-source-image deletion,
 live containerd transfer and the separately gated installed-controller import.
 
+### Integration with updated main
+
+On 2026-09-27, candidate `f2a2b78f` integrated main `4cbe853f`, including
+Repository retry/progress and Windows restart changes. Documentation, workflow
+policy, shipped-command/orchestrator E2E and isolated kernel forwarding passed.
+The normal bootstrap Image acquisition path also passed against real Incus with a
+private preferences catalog: the downloaded standard Image became the persisted
+initial default and repeated setup succeeded. This used the existing image cache,
+not a fresh Host installation. Native Windows component tests passed GUID/name
+termination routing and preservation of primary/resume failures; they did not run
+an actual VHD reclamation cycle.
+
+All Go packages passed normal and race tests, followed by vet, 32 notification
+client JavaScript tests and two VS Code packaging tests. The maintained `test`
+and `race` invocations first hit the existing checkpoint black-box package's
+10-minute limit on the Windows-mounted source. Only that package was rerun with
+`go test [-race] -v -count=1 -timeout=30m ./tools/milestone`; it passed in 1,060
+and 1,032 seconds respectively. Product deadlines were not changed.
+
+The maintained `release-config` entry point passed in a local Ubuntu 26.04
+container for the same production tree: Linux/Windows amd64/arm64 snapshot
+artifacts, installer bundles and every generated checksum validated. The initial
+minimal-container attempt lacked the fixture's `/usr/bin/python3`; installing
+that test prerequisite fixed the preparation without changing installer code.
+
+The first live-containerd aggregate saved writable data and exported successfully,
+then its Host-side Git observer refused an Incus-shifted UID. The fixture now trusts
+only each provider-verified path for that Git invocation, matching its existing
+import/copy checks; product ownership checks and global Git configuration are
+unchanged. Canonical cleanup removed the failed fixture's saved/copy resources,
+and an independent inventory confirmed its original/restored volumes absent.
+An earlier attempt with an auto-expired cached source fingerprint was refused
+before creating any fixture resources.
+
+The next native run verified containerd Image identity and stopped-container
+writable data after shipped CLI export/import, then successfully created a new
+Environment from a running-source Snapshot. Its JSON observer incorrectly mixed
+stderr progress with stdout. Correction `5b5336cd` separates those streams and
+adds a focused regression, which also passed with race detection. A temporary,
+exact-fixture continuation repeated the original remaining assertions against the
+retained catalog and passed in 619 seconds: Snapshot open, independent copy,
+Git/rootfs/OCI contents, unchanged source, attached-data deletion refusal and
+canonical cleanup. It was removed after compilation. An independent Incus
+inventory retained all pre-existing user instances/volumes and found both fixture
+names absent; the completed catalog retained only lifecycle lock identities.
+
+This is segmented local native evidence, not an uninterrupted corrected aggregate
+run. Cached-source-image deletion and the separately gated installed-controller
+import remained skipped. Explicitly starting saved containerd work passed; running
+task migration, arbitrary application consistency, restored SSH/VS Code GUI and
+authenticated Git acceptance are not established by these tests.
+
 <a id="portless-ssh"></a>
 
 ## Portless SSH and cold editor reconnect
