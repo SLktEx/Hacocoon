@@ -133,6 +133,28 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scannerVersion: 8.1.0.6389
+      - name: Diagnose failing main Sonar issues
+        if: vars.SONAR_ENABLED == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --user "$SONAR_TOKEN:"             'https://sonarcloud.io/api/issues/search?componentKeys=SLktEx_Hacocoon&branch=main&issueStatuses=OPEN%2CCONFIRMED&sinceLeakPeriod=true&types=BUG%2CVULNERABILITY&ps=100'             -o "$RUNNER_TEMP/sonar-main-issues.json"
+          python3 - "$RUNNER_TEMP/sonar-main-issues.json" <<'PY'
+          import json
+          import sys
+          data = json.load(open(sys.argv[1], encoding='utf-8'))
+          print("SONAR_MAIN_ISSUE_TOTAL=" + str(data.get("total", 0)))
+          for issue in data.get("issues", []):
+              print("SONAR_MAIN_ISSUE " + json.dumps({
+                  "type": issue.get("type"),
+                  "severity": issue.get("severity"),
+                  "rule": issue.get("rule"),
+                  "component": issue.get("component"),
+                  "line": issue.get("line"),
+                  "message": issue.get("message"),
+              }, ensure_ascii=False, sort_keys=True))
+          PY
       - name: Explain disabled SonarQube Cloud scan
         if: vars.SONAR_ENABLED != 'true'
         run: echo 'SonarQube Cloud scan is disabled until SONAR_TOKEN is configured and SONAR_ENABLED=true; Go coverage above still runs normally.'
