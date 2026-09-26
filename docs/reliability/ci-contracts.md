@@ -29,7 +29,8 @@ owned by [the CI trust boundary](../../.github/security/CI_TRUST_BOUNDARY.md).
 | Windows/WSL installer, restart, reinstall | `windows-installer-e2e`: windows-installer-lifecycle | Packaged BAT, ConPTY ordinary WSL/Host entry, terminate before reinstall, retained Host data, and cold doctor. |
 | Installed Environment egress | `windows-installer-e2e`: windows-egress | A separate fresh packaged install verifies Environment HTTPS and direct-egress refusal. |
 | Native Windows/WSL interop | `windows-installer-e2e`: windows-interop | A separate fresh packaged install verifies ordinary Host entry and native Windows executable/path/stdout/stderr interop. |
-| SSH, IDE, preview, customization, transfer | `windows-installer-e2e`: windows-access | A separate fresh packaged install runs strict OpenSSH, VS Code, preview, Host customization and transfer acceptance without repeating the dedicated interop probes. |
+| SSH, IDE, preview, transfer | `windows-installer-e2e`: windows-access | A separate fresh packaged install runs strict OpenSSH, VS Code, preview and transfer acceptance without repeating the dedicated interop probes. |
+| Host customization | `windows-installer-e2e`: windows-host-customization | A separate fresh packaged install verifies saved Host setup, replay, update, failure reporting and clear behavior. |
 | Reclamation and retained data | `windows-installer-e2e`: windows-reclamation | A separate fresh packaged install retains the transfer fixture and verifies Linux stages, Windows/public reclamation and post-reclamation data. |
 | Native notification review | `windows-installer-e2e`: windows-notification | A separate fresh packaged install verifies the installed native review registration and notification route. |
 
