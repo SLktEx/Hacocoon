@@ -111,6 +111,10 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 		if err != nil || object.ID != id || object.Repository != id || object.Remote != request.Remote || object.Branch != "" || object.Kind != "repo" || object.State != "ready" || len(object.Owner) != 32 {
 			t.Fatal("clone receipt lost ownership/routing", object, err)
 		}
+		again, err := client.AddRepository(ctx, request, nil)
+		if err != nil || !reflect.DeepEqual(again, object) {
+			t.Fatal("repeated repository.add changed a ready registration", again, err)
+		}
 		sources[id] = object
 	}
 	single, err := client.CopyWorkspace(ctx, WorkspaceCopyRequest{ID: "single", Repository: "api"})
