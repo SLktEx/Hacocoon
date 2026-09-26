@@ -1,0 +1,31 @@
+name: windows-notification-ui-probe-pr-test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-notification-ui-probe-pr-test:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - name: "[fixture] Checkout candidate"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "[probe] Open Notification Center and detect Toast actions through UI Automation"
+        shell: powershell
+        run: ./tools/test_windows_notification_ui_probe.ps1 -OutputPath "$env:RUNNER_TEMP\notification-ui-probe.json"
+
+      - name: "[infrastructure] Retain notification UI probe evidence"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-notification-ui-probe-pr-test-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/notification-ui-probe.json
+          if-no-files-found: error
+          retention-days: 1
