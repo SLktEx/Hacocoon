@@ -71,6 +71,12 @@ class NativeRunnerTests(unittest.TestCase):
         runner.run_native_checks(driver, checks.append, host_customization=True, skip_interop=True)
         self.assertEqual(checks, ['test_windows_environment_ssh.ps1', 'test_host_customization.ps1'])
 
+    def test_access_can_skip_host_customization(self):
+        checks = []
+        runner.run_native_checks(SimpleNamespace(), checks.append, interop_only=False,
+                                 host_customization=False, skip_interop=True)
+        self.assertEqual(checks, ['test_windows_environment_ssh.ps1'])
+
     def test_failed_entry_stops_before_checks_or_session_timeout(self):
         class Terminal:
             def __init__(self):
