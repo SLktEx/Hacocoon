@@ -12,10 +12,28 @@ Add-Type -AssemblyName UIAutomationTypes
 
 Add-Type @'
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class HacocoonNotificationUIProbeInput {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
 
     public static void OpenNotificationCenter() {
         const byte VK_LWIN = 0x5B;
@@ -25,6 +43,33 @@ public static class HacocoonNotificationUIProbeInput {
         keybd_event(VK_N, 0, 0, UIntPtr.Zero);
         keybd_event(VK_N, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
+    public static string[] VisibleShellWindows() {
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            "explorer", "ShellExperienceHost", "StartMenuExperienceHost",
+            "SearchHost", "ShellHost", "TextInputHost"
+        };
+        var values = new List<string>();
+        EnumWindows((hWnd, lParam) => {
+            if (!IsWindowVisible(hWnd)) return true;
+            uint pid;
+            GetWindowThreadProcessId(hWnd, out pid);
+            if (pid == 0) return true;
+            try {
+                using (var process = Process.GetProcessById((int)pid)) {
+                    if (!allowed.Contains(process.ProcessName)) return true;
+                    var className = new StringBuilder(256);
+                    GetClassName(hWnd, className, className.Capacity);
+                    values.Add(process.ProcessName + ":" + className.ToString());
+                }
+            } catch {
+            }
+            return true;
+        }, IntPtr.Zero);
+        return values.Distinct(StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                     .ToArray();
     }
 }
 '@
@@ -48,8 +93,13 @@ $result = [ordered]@{
     explorer_in_session = $false
     notifier_setting = $null
     history_visible = $false
-    notification_center_open_attempted = $false
+    notification_center_uri_attempted = $false
+    notification_center_uri_started = $false
+    notification_center_hotkey_attempted = $false
     notification_center_surface_visible = $false
+    shell_windows_before = @()
+    shell_windows_after_uri = @()
+    shell_windows_after_hotkey = @()
     title_visible = $false
     allow_visible = $false
     deny_visible = $false
@@ -153,12 +203,29 @@ try {
     }
     if (-not $result.history_visible) { throw 'toast history unavailable' }
 
-    $result.stage = 'notification-center'
-    $result.notification_center_open_attempted = $true
-    [HacocoonNotificationUIProbeInput]::OpenNotificationCenter()
+    $result.stage = 'notification-center-uri'
+    $result.shell_windows_before = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
+    $result.notification_center_uri_attempted = $true
+    try {
+        Start-Process -FilePath 'ms-actioncenter:'
+        $result.notification_center_uri_started = $true
+    } catch {
+        Write-Host ('Notification Center URI launch unavailable: ' + $_.Exception.GetType().FullName)
+    }
     Start-Sleep -Seconds 2
+    $result.shell_windows_after_uri = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
     $notificationCenter = Find-NotificationCenterSurface
     $result.notification_center_surface_visible = $null -ne $notificationCenter
+
+    if (-not $result.notification_center_surface_visible) {
+        $result.stage = 'notification-center-hotkey'
+        $result.notification_center_hotkey_attempted = $true
+        [HacocoonNotificationUIProbeInput]::OpenNotificationCenter()
+        Start-Sleep -Seconds 2
+        $result.shell_windows_after_hotkey = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
+        $notificationCenter = Find-NotificationCenterSurface
+        $result.notification_center_surface_visible = $null -ne $notificationCenter
+    }
 
     $result.stage = 'uia'
     $uiaDeadline = [DateTime]::UtcNow.AddSeconds(15)
