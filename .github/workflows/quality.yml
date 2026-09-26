@@ -64,7 +64,23 @@ jobs:
       - name: Test Windows code with coverage
         shell: pwsh
         run: |
-          go test -count=1 -shuffle=on -covermode=atomic -coverprofile=coverage_windows.out ./internal/platform/wsl/reclaim ./internal/client/reclaim ./internal/cli/wsl ./internal/cli/review ./internal/client/review ./internal/cli/tunnel ./internal/client/forward ./internal/platform/wsl/launch ./internal/streamio
+          $testArgs = @(
+            'test',
+            '-count=1',
+            '-shuffle=on',
+            '-covermode=atomic',
+            '-coverprofile=coverage_windows.out',
+            './internal/platform/wsl/reclaim',
+            './internal/client/reclaim',
+            './internal/cli/wsl',
+            './internal/cli/review',
+            './internal/client/review',
+            './internal/cli/tunnel',
+            './internal/client/forward',
+            './internal/platform/wsl/launch',
+            './internal/streamio'
+          )
+          & go @testArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish Windows coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
