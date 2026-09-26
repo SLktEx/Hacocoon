@@ -112,10 +112,79 @@ func inspectDetachedDynamic(h windows.Handle) (virtualDiskIdentity, error) {
 	return result, nil
 }
 
-// compact is an internal native operation, not WSL authorization/orchestration.
-// Caller must have selected the exact managed distribution and stopped it. No
-// parent chain is opened, no disk is attached, resized or replaced. Keep file and
-// parent handles throughout; sharing failures are returned, never bypassed.
+// compactManaged delegates the supported WSL distribution lifecycle to
+// `wsl --manage <name> --compact`. WSL resolves the enrolled name to a GUID,
+// locks that distribution in Compacting state, terminates it, performs its
+// offline trim/eject sequence, and compacts the VHDX. Hacocoon keeps its own
+// file/ancestor pins and enrollment checks as independent mutation authority.
+func (p *pinnedDisk) compactManaged(ctx context.Context, r registration) (result compactObservation, err error) {
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	result.Before, err = p.Allocation()
+	if err != nil {
+		return result, err
+	}
+	if err := r.revalidate(); err != nil {
+		return result, err
+	}
+
+	// Attempted means the WSL service was actually asked to perform the operation.
+	// From this point the target may already have been terminated even when the
+	// command later returns an error, so the caller must attempt bounded resume.
+	result.Attempted = true
+	runErr := r.runWSLManagedCompact(ctx)
+
+	result.After, err = p.Allocation()
+	if err != nil {
+		return result, errors.Join(runErr, err, ctx.Err())
+	}
+	if runErr != nil {
+		return result, errors.Join(runErr, ctx.Err())
+	}
+
+	// The supported WSL command returns only after its compact operation has
+	// finished. Observe the resulting detached VHDX once to retain the existing
+	// capacity/identifier evidence without reintroducing a detach polling loop.
+	path, err := p.volumePath()
+	if err != nil {
+		return result, err
+	}
+	name, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return result, err
+	}
+	var storage struct {
+		Device uint32
+		Vendor windows.GUID
+	}
+	storage.Device = 3
+	storage.Vendor = windows.GUID{Data1: 0xec984aec, Data2: 0xa0f9, Data3: 0x47e9, Data4: [8]byte{0x90, 0x1f, 0x71, 0x41, 0x5a, 0x66, 0x34, 0x5b}}
+	parameters := struct {
+		Version, InfoOnly, ReadOnly uint32
+		Resiliency                  windows.GUID
+	}{Version: 2}
+	var handle windows.Handle
+	code, _, _ := openVirtualDisk.Call(uintptr(unsafe.Pointer(&storage)), uintptr(unsafe.Pointer(name)), 0, 1, uintptr(unsafe.Pointer(&parameters)), uintptr(unsafe.Pointer(&handle)))
+	result.OpenAttempts = 1
+	if code != 0 {
+		return result, fmt.Errorf("observe compacted virtual disk: %w", syscall.Errno(code))
+	}
+	defer func() { err = errors.Join(err, windows.CloseHandle(handle)) }()
+	result.Virtual, err = inspectDetachedDynamic(handle)
+	if err != nil {
+		return result, err
+	}
+	if err := r.revalidate(); err != nil {
+		return result, err
+	}
+	result.Completed = true
+	return result, ctx.Err()
+}
+
+// compact is retained as the low-level native primitive for isolated component
+// tests. Production reclamation uses compactManaged so WSL owns termination,
+// offline trim, VHDX detach/eject and compaction as one distribution operation.
 func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err
