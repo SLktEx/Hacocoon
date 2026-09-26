@@ -97,6 +97,7 @@ type continuationObservation struct {
 	StopAttempted, StopRequested bool
 	Compaction                   compactObservation
 	ResumeAttempted, Resumed     bool
+	ResumeFailure                reclamation.WindowsResumeFailure `json:",omitempty"`
 }
 
 // withReclamationTarget holds exclusion and native pins through the entire
@@ -270,6 +271,9 @@ func executeContinuation(ctx context.Context, stop func(context.Context) error,
 		result.ResumeAttempted = true
 		resumeErr := resume(resumeCtx)
 		result.Resumed = resumeErr == nil
+		if resumeErr != nil {
+			result.ResumeFailure = resumeFailure(errors.Join(resumeErr, resumeCtx.Err()))
+		}
 		if resumeErr != nil && result.Failure == "" {
 			result.recordFailure("resume", resumeErr)
 		}
@@ -299,4 +303,23 @@ func (o *continuationObservation) recordFailure(stage string, err error) {
 	if errors.As(err, &native) {
 		o.NativeError = uint32(native)
 	}
+}
+
+// Preserve the independent resume failure without replacing the original stage.
+func resumeFailure(err error) reclamation.WindowsResumeFailure {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return reclamation.WindowsResumeFailure{Kind: "timeout"}
+	case errors.Is(err, context.Canceled):
+		return reclamation.WindowsResumeFailure{Kind: "canceled"}
+	}
+	var native syscall.Errno
+	if errors.As(err, &native) && native != 0 {
+		return reclamation.WindowsResumeFailure{Kind: "native", Code: uint32(native)}
+	}
+	var child *exec.ExitError
+	if errors.As(err, &child) && child.ExitCode() != 0 && child.ExitCode() != -1 {
+		return reclamation.WindowsResumeFailure{Kind: "exit", Code: uint32(child.ExitCode())}
+	}
+	return reclamation.WindowsResumeFailure{Kind: "other"}
 }

@@ -2089,3 +2089,9 @@ not yet include the editor cleanup correction. The combined local candidate
 `fcb7fadb` passed focused CLI/Git/API/provider tests, bilingual pending-approval
 and JSON preservation regressions, and the shipped-command E2E. This does not
 replace final-head installed acceptance.
+
+## Independent restart diagnostics
+
+Combined PR #727 head `4459418c` passed four workflows but Windows run36164722897 failed with `compact_attached` after 359 opens, no compaction and unsuccessful resume; notification acceptance was skipped. The saved record lacked the resume error detail. This checkout preserves a separate fixed category and numeric code without changing the first failure. Earlier failures remain unresolved; new installed evidence is pending.
+
+Local focused CLI/status and language regressions passed. Native Windows tests passed for a real child exit `0x8000FFFF`, independent resume categories, serialized preservation of the primary failure, existing operation retention and review. The CI projection suite passed 21 tests. No installed WSL stop/compact cycle was run for this change. Initial verification preparation failed due to script quoting and a missing temporary source directory after WSL restart; corrected preparation and the focused tests then passed.

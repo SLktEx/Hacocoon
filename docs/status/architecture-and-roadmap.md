@@ -236,3 +236,5 @@ cleanup defect described in [acceptance evidence](acceptance-evidence.md#editor-
 is now corrected in M1. Next: verify the installed Windows route and merge combined PR #727 only
 after all five workflows pass on its final head. Previous disk failures remain unresolved evidence
 until their cause is established. No tag/release or next milestone is included.
+
+The next Windows candidate preserves independent resume diagnostics after compaction failure. Use the resulting category/code to distinguish timeout from immediate WSL failure; do not infer an upstream WSL bug from `Resumed=false` alone. Final-head Windows acceptance remains required before the M1/M2 merge.

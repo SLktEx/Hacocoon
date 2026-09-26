@@ -174,3 +174,5 @@ Implemented in this checkout: shared Japanese/English pending-approval, preview 
 ## M2 local Git recovery
 
 Implemented in this checkout: Environment doctor reports local Git wiring and explicit `--fix` reuses the canonical connection operation without upstream access or Policy changes. `haco git connect` is retired from the product CLI. Git-less/offline, stopped and unknown state remain distinct. [Git contract](design/git-and-github-capability.md#local-git-diagnosis-and-repair) owns the scope and limitations. Human authenticated Git/GUI acceptance remains pending.
+
+Reclamation now retains a separate fixed-category Windows resume failure and numeric code after a primary compaction failure. Ordinary status and CI can report both; this diagnostic improvement does not resolve the existing installed `compact_attached` failure.

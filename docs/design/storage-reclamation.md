@@ -220,6 +220,8 @@ A saved `compact_attached` result explains that Windows compaction did not start
 because the disk remained in use, data remains retained, and another attempt requires
 explicit review. It does not stop other WSL distributions to force disk readiness.
 
+Resume failures are saved separately as `ResumeFailure` with a fixed `Kind` and numeric `Code`: timeout, canceled, exit, native or other. Exit codes are unsigned Windows process codes; native codes are Win32 errors. The original stop/compact failure is retained. The normal bilingual status and CI observer expose this diagnostic without raw child output. Missing historical details remain unknown. This changes no timeout, stop target, retry or ownership decision.
+
 ## Background notification starts
 
 Reclamation also holds the shared per-user/distribution launch reservation through
