@@ -3,6 +3,10 @@
 状態: accepted  
 日付: 2026-09-06
 
+公開 DNS アドレスだけを許可する要件は、
+[ADR 0110](0110-private-egress-and-loopback-isolation.ja.md)で置き換えました。
+コントローラーの所有責任、ホスト名認可、DNS の固定、終了時の保証は維持します。
+
 ## 背景
 
 正規の Environment プロバイダーは直接通信を禁止するが、install済みコントローラーは

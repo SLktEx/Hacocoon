@@ -21,21 +21,18 @@ import (
 type wslOperation uint8
 
 const (
-	wslStop wslOperation = iota + 1
-	wslResume
+	wslResume wslOperation = iota + 1
 	wslReadRegistration
 )
 
 // wslArguments deliberately has no caller command, shell, name lookup or
-// default-distribution branch. systemd owns shutdown within the selected WSL.
+// default-distribution branch. Operations here address the enrolled GUID.
 func (r registration) wslArguments(operation wslOperation) ([]string, error) {
 	if _, err := r.diskPath(); err != nil {
 		return nil, err
 	}
 	args := []string{"--distribution-id", r.ID.String(), "--user", "root", "--cd", "/", "--exec"}
 	switch operation {
-	case wslStop:
-		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/systemctl", "--no-block", "poweroff"), nil
 	case wslResume:
 		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/true"), nil
 	case wslReadRegistration:
@@ -55,6 +52,25 @@ func (r registration) runWSLTo(ctx context.Context, operation wslOperation, outp
 		return err
 	}
 	return r.runWSLArguments(ctx, args, output)
+}
+
+// terminateArguments uses WSL's supported per-distribution termination entry.
+// The public CLI accepts a distribution name. Hacocoon separately pins and
+// revalidates the enrolled GUID, disk identity and Windows owner around the call;
+// WSL resolves the name to a GUID and invokes TerminateInstance for that target.
+func (r registration) terminateArguments() ([]string, error) {
+	if _, err := r.diskPath(); err != nil {
+		return nil, err
+	}
+	return []string{"--terminate", r.Name}, nil
+}
+
+func (r registration) runWSLTerminate(ctx context.Context) error {
+	args, err := r.terminateArguments()
+	if err != nil {
+		return err
+	}
+	return r.runWSLArguments(ctx, args, io.Discard)
 }
 
 // Only fixed operation builders in this package supply arguments.
@@ -88,15 +104,17 @@ func (r registration) runWSLArguments(ctx context.Context, args []string, output
 	return r.revalidate()
 }
 
-// continuationObservation distinguishes requesting systemd shutdown from proving
-// native compaction completion. Resume only proves that the exact WSL can launch;
-// controller/Host readiness must be checked separately by the public workflow.
+// continuationObservation distinguishes requesting per-distribution WSL
+// termination from proving native compaction completion. Resume only proves that
+// the exact WSL can launch; controller/Host readiness is checked by the public
+// workflow.
 type continuationObservation struct {
 	Failure                      string `json:",omitempty"`
 	NativeError                  uint32 `json:",omitempty"`
 	StopAttempted, StopRequested bool
 	Compaction                   compactObservation
 	ResumeAttempted, Resumed     bool
+	ResumeFailure                reclamation.WindowsResumeFailure `json:",omitempty"`
 }
 
 // withReclamationTarget holds exclusion and native pins through the entire
@@ -223,16 +241,16 @@ func (r registration) executeRecorded(ctx context.Context, records *operationSto
 				if err := records.requireBinding(target); err != nil {
 					return err
 				}
-				// Linux discard may take minutes. Recheck the installed identity before
-				// poweroff rather than trusting the earlier observation indefinitely.
+				// Linux discard may take minutes. Recheck the installed identity immediately
+				// before asking the WSL service to terminate only this distribution.
 				identity, err := r.readInstallation(ctx)
 				if err != nil {
 					return err
 				}
 				if identity != target.Installation {
-					return errors.New("managed installation changed before WSL stop")
+					return errors.New("managed installation changed before WSL termination")
 				}
-				return r.runWSL(ctx, wslStop)
+				return r.runWSLTerminate(ctx)
 			},
 			func(ctx context.Context) (compactObservation, error) {
 				if err := records.requireBinding(target); err != nil {
@@ -253,8 +271,7 @@ func (r registration) executeRecorded(ctx context.Context, records *operationSto
 	})
 }
 
-// Only the native binding above supplies these actions in production. This small
-// seam tests failure/cancellation order without shutting down a WSL distribution.
+// The native sequencing seam is also the production stop/compact/resume order.
 func executeContinuation(ctx context.Context, stop func(context.Context) error,
 	compact func(context.Context) (compactObservation, error), resume func(context.Context) error,
 ) (result continuationObservation, err error) {
@@ -270,6 +287,9 @@ func executeContinuation(ctx context.Context, stop func(context.Context) error,
 		result.ResumeAttempted = true
 		resumeErr := resume(resumeCtx)
 		result.Resumed = resumeErr == nil
+		if resumeErr != nil {
+			result.ResumeFailure = resumeFailure(errors.Join(resumeErr, resumeCtx.Err()))
+		}
 		if resumeErr != nil && result.Failure == "" {
 			result.recordFailure("resume", resumeErr)
 		}
@@ -299,4 +319,23 @@ func (o *continuationObservation) recordFailure(stage string, err error) {
 	if errors.As(err, &native) {
 		o.NativeError = uint32(native)
 	}
+}
+
+// Preserve the independent resume failure without replacing the original stage.
+func resumeFailure(err error) reclamation.WindowsResumeFailure {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return reclamation.WindowsResumeFailure{Kind: "timeout"}
+	case errors.Is(err, context.Canceled):
+		return reclamation.WindowsResumeFailure{Kind: "canceled"}
+	}
+	var native syscall.Errno
+	if errors.As(err, &native) && native != 0 {
+		return reclamation.WindowsResumeFailure{Kind: "native", Code: uint32(native)}
+	}
+	var child *exec.ExitError
+	if errors.As(err, &child) && child.ExitCode() != 0 && child.ExitCode() != -1 {
+		return reclamation.WindowsResumeFailure{Kind: "exit", Code: uint32(child.ExitCode())}
+	}
+	return reclamation.WindowsResumeFailure{Kind: "other"}
 }

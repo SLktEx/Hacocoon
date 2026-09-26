@@ -3,6 +3,10 @@ package cliui
 // These templates are only for human-facing rendering. Structured results,
 // diagnostic report fields and generated SSH configuration remain unchanged.
 var environmentCatalog = map[string]translation{
+	"env.doctor.fix":         {"Repair local Git wiring only; requires an Environment. No fetch, push or Policy change.", "指定した環境のGit接続だけを修復する。fetch・push・承認ルールの変更は行わない。"},
+	"env.doctor.git_fix":     {"Repair local Git wiring with haco doctor --fix %s", "haco doctor --fix %s でGit接続を修復してください。"},
+	"env.doctor.git_unknown": {"Inspect controller availability and Workspace ownership before retrying", "再試行する前に、コントローラーの状態とWorkspaceの所有関係を確認してください。"},
+
 	"forward.distribution":           {"Installed Hacocoon WSL distribution on this PC", "このPCに導入済みのHacocoon WSL名"},
 	"forward.windows_next":           {"Next: open WSL %s and run haco doctor; check that the Environment and its application service are running.", "次にWSL %s を開いて haco doctor を実行し、開発環境と接続先アプリが起動しているか確認してください。"},
 	"forward.windows_unavailable":    {"The Windows connection could not be opened for this installation. Run haco doctor and check Windows integration and the installed tunnel client, then retry. No local fallback listener was opened.", "このインストール先のWindows接続を開始できませんでした。haco doctor でWindows連携と導入済みの転送クライアントを確認してから再実行してください。代わりのローカル待受は開始していません。"},

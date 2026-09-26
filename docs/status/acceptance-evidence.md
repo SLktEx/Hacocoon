@@ -2016,3 +2016,82 @@ unavailable due to Windows access control. The prior `a0303de9` attached-disk
 failure remains unresolved; the new reproduced ownership defect is a concrete
 fix, not proof of identity with every intermittent failure. See
 [ADR 0110](../adr/0110-private-windows-process-ownership.md).
+
+## M2 local Git diagnosis
+
+At implementation commit `9635e2b0` (the provider inspection code), a read-only
+probe in the `Hacocoon` WSL invoked production `InspectGitConnection` against the
+existing stopped `roadmap-save` Environment, using its controller identity and
+recorded managed Workspace. The owned proxy was recognized; a different expected
+broker socket and a different Workspace owner were both refused. No native
+resource, connection, repository or Policy was changed. Direct normal-user Incus
+inspection was unavailable (permission denied); the provider probe ran as the
+Incus administrator. This is not ordinary-user desktop or running-Env repair
+acceptance. Human authenticated Git/GUI answers and actual repair remain pending.
+
+The first M2 package run retained `TestOrdinaryLargeGitFetchAndApprovedPush`'s
+10-second proposal-wait failure (88-second test) and a five-second PTY bootstrap
+wait timeout. Neither establishes its cause or is erased by focused success.
+The duplicate `--json` regression found in the same run was corrected; focused
+Git doctor, controller roundtrip, provider wiring and offline/stale routing checks
+and the shipped-command E2E subsequently passed. The earlier M1 milestone-wrapper
+timeout remains separate; the full suite was not repeatedly rerun.
+
+## M1/M2 integration gate
+
+M1 #726 head `5b447f9c` passed four workflows, but Windows run36152506002
+(job108128998385) failed public reclamation: Linux stages completed, 359 native
+open attempts ended with `compact_attached`, compaction was not attempted and
+resume succeeded. Notification acceptance was skipped. Its process observer saw
+WSL launches during the wait, including unavailable origins; this does not identify
+a proven owning process or justify stopping another distribution. The cause remains
+unresolved; earlier successful reclamation does not clear this failure.
+
+M2 #727 head `e5dfeaa8` passed four workflows; Windows run36156927382
+(job108143623213) failed the doctor acceptance observer. The SSH fixture creates
+an external-path Workspace, for which the new Git check correctly reports
+`not_applicable`; the old observer rejected every status other than `ok`. The
+observer now accepts that status only for `git_broker`, still requiring zero CLI
+exit and refusing failed, skipped or unknown checks. Thirty native PowerShell
+decision cases and fixture parsing passed. The broader diagnostic script failed
+its existing three-second child-timeout evidence assertion locally; that failure
+is retained separately and is not an installed E2E success. Both PRs remain
+unmerged pending the required exact-head workflows.
+
+A subsequent native diagnostic-script run outside the filesystem sandbox passed
+the child-timeout and nonzero-exit regressions. The earlier failed local assertion
+remains recorded; no installed Windows outcome is inferred from this pass.
+
+## Editor fixture descendant cleanup
+
+M1 #726 head `5b447f9c` failed Windows run36152506002/job108128998385
+after successful Linux reclamation: 359 native open attempts, `compact_attached`,
+compaction not attempted, same-target resume succeeded, notification route SKIP.
+Process-start evidence includes unavailable origins and cannot identify a proven
+restart owner. It does not authorize stopping another distribution.
+
+Investigation found that `test_vscode_environment.ps1` killed only the exact
+portable editor processes, leaving their non-editor descendants outside cleanup.
+A native Windows parent/child regression reproduced a surviving child with the
+old parent-only kill. The fixture now kills the selected process tree and waits
+for its root to exit. The same regression passed, confirmed child exit, retained
+an unrelated process and accepted repeated cleanup. Only the exact disposable
+editor executable is selected; no installed user editor or WSL is killed.
+This is a confirmed fixture defect, not proof that every earlier disk failure had
+the same cause. No product disk identity, detach check, timeout or Policy changed.
+Installed acceptance of the correction remains pending. The native regression is
+part of both the Windows workflow and local release-config checks.
+
+M2 doctor correction `038a44c0` passed the installed doctor checks in Windows
+run36161613704/job108159280068, including `git_broker=not_applicable`. That run
+then failed public reclamation and skipped native notification acceptance; it did
+not yet include the editor cleanup correction. The combined local candidate
+`fcb7fadb` passed focused CLI/Git/API/provider tests, bilingual pending-approval
+and JSON preservation regressions, and the shipped-command E2E. This does not
+replace final-head installed acceptance.
+
+## Independent restart diagnostics
+
+Combined PR #727 head `4459418c` passed four workflows but Windows run36164722897 failed with `compact_attached` after 359 opens, no compaction and unsuccessful resume; notification acceptance was skipped. The saved record lacked the resume error detail. This checkout preserves a separate fixed category and numeric code without changing the first failure. Earlier failures remain unresolved; new installed evidence is pending.
+
+Local focused CLI/status and language regressions passed. Native Windows tests passed for a real child exit `0x8000FFFF`, independent resume categories, serialized preservation of the primary failure, existing operation retention and review. The CI projection suite passed 21 tests. No installed WSL stop/compact cycle was run for this change. Initial verification preparation failed due to script quoting and a missing temporary source directory after WSL restart; corrected preparation and the focused tests then passed.

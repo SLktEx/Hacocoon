@@ -53,6 +53,9 @@ func (b *offlineBrokerBackend) ConnectGit(context.Context, core.Environment, Obj
 	b.connected = true
 	return nil
 }
+func (b *offlineBrokerBackend) InspectGitConnection(context.Context, core.Environment, Object, string) (bool, error) {
+	return b.connected, nil
+}
 func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T) {
 	for _, mode := range []string{"offline", "mixed", "remote-drift", "other-workspace-branch"} {
 		t.Run(mode, func(t *testing.T) {
@@ -107,6 +110,17 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 				t.Fatal(err)
 			}
 			defer b.Close()
+			before, statusErr := b.ConnectionStatus(ctx, "dev")
+			if mode == "remote-drift" {
+				if !errors.Is(statusErr, core.ErrCapabilityStale) {
+					t.Fatal(before, statusErr)
+				}
+			} else if statusErr != nil || before.Configured != (mode != "offline") || before.Connected {
+				t.Fatal("read-only connection diagnosis", before, statusErr)
+			}
+			if backend.connected || len(b.servers) != 0 {
+				t.Fatal("diagnosis connected Git")
+			}
 			err = b.Connect(ctx, "dev")
 			if mode != "mixed" && mode != "other-workspace-branch" {
 				want := core.ErrCapabilityStale
@@ -124,6 +138,9 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			if err != nil || !backend.connected {
 				t.Fatal(err)
 			}
+			if state, err := b.ConnectionStatus(ctx, "dev"); err != nil || !state.Configured || !state.Connected {
+				t.Fatal(state, err)
+			}
 			bound := b.servers["dev"].binding
 			if len(bound.Repositories) != 1 || bound.Repositories[0].ID != "online" {
 				t.Fatal("offline source adopted", bound.Repositories)
@@ -137,6 +154,9 @@ func TestOfflineBrokerExcludesSameNameSourceAndChecksOnlineRouting(t *testing.T)
 			onlineRepo.Remote = "https://github.com/example/replaced.git"
 			if err := s.save(onlineRepo); err != nil {
 				t.Fatal(err)
+			}
+			if _, err := b.ConnectionStatus(ctx, "dev"); !errors.Is(err, core.ErrCapabilityStale) {
+				t.Fatal("diagnosis accepted changed route", err)
 			}
 			if err := b.validateBinding(ctx, bound); !errors.Is(err, core.ErrCapabilityStale) {
 				t.Fatal("changed source reused", err)

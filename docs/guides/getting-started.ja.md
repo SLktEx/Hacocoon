@@ -43,137 +43,92 @@ haco doctor
 問題を報告するときはビルド情報を添えます。doctorの全項目が成功してから先へ進んでください。
 保留・失敗・確認不能は準備完了ではありません。表示された診断に従って解消します。
 
-## 独立したプロジェクトデータを作る
+## リポジトリを登録してHacoを開く
 
-次の操作はEnvironmentではなく、**信頼されたhaco-host内**で行います。
-`haco setup` は標準Hostツールとして `git` とGitHub CLI (`gh`) を保証するため、
-手動でパッケージを導入する必要はありません。非公開リポジトリの利用やpushが必要な場合だけ
-GitHub CLIで認証します。
+インストール後、**信頼された管理ターミナル**で実行します。
+OWNER/API・OWNER/WEBは利用できるリポジトリに置き換えてください。1個だけでも使えます。
+非公開リポジトリの認証は信頼されたhaco-host内で
+`gh auth login --hostname github.com --git-protocol https`を実行します。
+GitとGitHub CLIはインストール時に標準Hostツールとして準備されます。
 
 ```bash
-# 非公開リポジトリの利用、または書き込み権限があるリポジトリへのpush用:
-gh auth login --hostname github.com --git-protocol https
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-認証情報、dotfiles、個人・組織固有の追加ツールは標準Hostツールには含めません。
+既定の接続先はデスクトップのVS Codeです。Remote-SSHも導入してください。
+シェルを使う場合は代わりに`haco open --client ssh`を実行します。
+独立した作業ファイル、既定イメージ、設定済みストレージ、開発環境を準備し、
+SSH接続を設定してクライアントを起動します。端末の進捗を確認してください。
+Workspace・Envの作成やBaseのbuildを手動で行う必要はありません。
 
-以下の公開リポジトリは読み取りとローカル編集に使えます。自分の開発では、
-URLとブランチを利用権限のあるリポジトリの**既存ブランチ**に置き換えます。
-後で設定する権限のURL・名前も一致させてください。
+2個なら`/workspace/api`と`/workspace/web`で編集します。1個なら`/workspace`です。
+Git情報も独立しており、remoteは`haco://<id>`を使います。Git brokerは自動接続し、
+Hostの認証情報はコピーしません。
 
-```bash
-haco repo add sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample --branch main sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco env status sample-dev
-```
+## 必要な権限を確認する
 
-取得元のチェックアウトは信頼されたHostに残ります。Workspaceにはファイルと `.git` の
-独立したコピーが作られ、Environmentの `/workspace` に接続されます。
-Gitのremoteは `haco://sample` となり、Environment作成時にmanaged Git brokerが自動で
-配線されます。この配線だけでは上流remoteへ通信せず、実際のネットワーク通信は後で
-`git fetch` や `git push` などを実行した時点で始まります。
+openは通信やGitの権限を与えません。承認待ちは別の**信頼された管理端末**で
+`haco approve`を実行し、具体的な要求を確認します。正規の回答後は処理を続行します。
+Policyで拒否している場合は承認promptを作らないため、`haco config --edit`で
+必要な範囲を確認し、`haco open`を再実行します。作業データは保持します。
 
-作成時は既定のBaseを使い、設定されていればWorkspace専用のOCI Storeをコピーまたは再利用します。
-コンテナを使わない場合の明示的な選択肢は
-`haco env create --no-oci --workspace managed:sample-work sample-dev` です。
-二つの作成を両方実行しないでください。設定済みのコピーが失敗したときに、
-空のStoreへ黙って置き換えることはありません。[OCI Storeの制約](../design/persistent-oci-store.md)を参照してください。
+初回のSSH準備では`openssh-server`の取得が必要な場合があります。
+`haco env list`に表示された環境について、実際のパッケージ取得先hostname・protocol・port
+だけを[egressのPolicy例](../design/egress-authorization.md#policy-example)に従って許可します。
+無制限のワイルドカードを追加しないでください。sshdを含むBaseならこの取得は不要です。
+接続失敗だけで原因を決めず、`haco doctor`と表示された処理段階を確認してください。
 
-## 必要な通信だけを許可する
+fetch/pullや承認付きpushは[Git権限](git-workflow.ja.md#gitの権限設定)に従います。
+名前解決と接続は別々に制御します。ローカルで編集・buildできてもremoteへの書込み権限は得ません。
 
-**信頼された管理ターミナル**で `haco config --edit` を実行します。
-revisionと既存のPolicyルールを保持してください。編集方法と承認保存との関係は
-[設定の参照](../reference/configuration.ja.md)にあります。
+## 開発して、後から再開する
 
-SSHの準備ではsshdの導入が必要になるため、先にEnvironmentが利用するパッケージ配布先を許可します。
-[外向き通信の例](../design/egress-authorization.ja.md#policy例)に従い、
-`network.egress/connect` の対象Environmentを `sample-dev`、
-resourceを実際の配布先ホスト名、プロトコルとポートを対応するHTTP／HTTPSの値にします。
-Ubuntuの配布先はBaseやCPUの種類で異なります。無制限のワイルドカードで代用しないでください。
-必要なパッケージを含むBaseを用意する方法もあります。
-
-通常のfetch／pullと承認付きpushには、
-[管理対象Gitの権限設定](git-workflow.ja.md#configure-git-policy)から
-登録したURLとWorkspaceで選んだブランチに合うルールを追加します。
-アプリが自分で名前解決する場合は、別途 `network.resolve/lookup` の権限が必要です。
-[名前解決](../design/name-resolution.ja.md)の許可は接続の許可を兼ねません。
-Hostが仲介するGit操作のために、EnvironmentへGitHub認証情報を渡す必要はありません。
-
-## 接続して開発する
-
-**信頼された管理ターミナル**で実行します。
+**Environment内**で対象リポジトリへ移動します。
 
 ```bash
-haco open --client ssh sample-dev
-```
-
-デスクトップ側が所有するSSH鍵と、プロバイダー経由で取得したサーバー公開鍵の照合設定が作られ、
-`/workspace` のシェルを開きます。WindowsではWSL連携経由でWindows OpenSSHを使います。
-通常のHostターミナルを開いたままにしてください。
-VS CodeとRemote-SSHをデスクトップに導入済みなら `haco open sample-dev` で開けます。
-手動接続や失敗時の確認は[SSHの詳細](../reference/windows-environment-ssh.md)を参照してください。
-
-**EnvironmentのSSHセッション内**で作業します。
-
-```bash
-cd /workspace
-apt-get update
-apt-get install -y git
+cd /workspace/api
 git status
-git fetch origin
-git pull --ff-only
-# ファイルを編集し、プロジェクトのビルドやテストを実行する。
-git config user.name 'Your Name'
-git config user.email 'your-address@example.com'
-git add <files>
-git commit -m 'Describe the change'
+# 編集し、このリポジトリのbuild/testを実行します。
 ```
 
-`<files>` は追加するファイルに置き換えます。
-管理対象のSSH設定が認証情報を含まないプロキシ設定を渡しますが、通信にはPolicyの許可が必要です。
-開発ツールはEnvironmentに導入するかBaseに含めます。
-依存関係を繰り返し導入するには[セットアップ手順の保存](../design/project-setup.ja.md)を使えます。
+プロジェクト固有のツールは、許可済みのパッケージ取得や
+[セットアップ手順](../design/project-setup.ja.md)で導入します。BaseにGitがない場合も
+同じ許可経路で導入します。commit用の名前・メールはEnvironment内で設定します。
+通常の`git fetch`、`git pull --ff-only`、`git push`はbrokerを使い、pushには
+具体的な要求の承認が必要です。Host認証情報は渡しません。[Git手順](git-workflow.ja.md)を参照してください。
 
-書き込み権限のある接続先だけにpushしてください。Environmentで `git push` を実行し、
-待機中に別の**信頼されたHostターミナル**で `haco git pending` を開きます。
-接続先・ref・変更前後のコミットを確認して、
-`haco git approve <id>` または `haco git deny <id>` を実行します。
-この例の公開Hacocoonリポジトリを使っても、上流への書き込み権限は得られません。
-詳細は[Gitの承認と結果不明時の確認](git-workflow.ja.md)にあります。
-
-## 終了して、後で再開する
-
-SSHシェルを終了し、**Host**で実行します。
+終わったらシェルを抜けるかエディタを閉じます。これだけでは環境を停止・削除しません。
+次回は信頼された管理端末で実行します。
 
 ```bash
-haco env stop sample-dev
-haco env status sample-dev
+haco open
 ```
 
-停止状態とWorkspaceの保持を確認します。停止では利用権の予約、ルートファイルシステム、
-Gitの変更、任意のStoreが残ります。ただし `/tmp` はゲストOSの起動時に消去される場合があります。
-シェルを閉じるだけではEnvironmentは停止しません。接続を明示的に取り消す場合は
-`haco env disconnect sample-dev <connection-id>` を使います。
+正常な作業環境を再利用し、停止していれば再開します。エディタの未保存内容は保存が必要です。
+openはバックアップ作成やpushを行いません。
 
-次回Hostに入り直したら、次の操作で再開します。
+## 明示的な制御と復旧
+
+通常は登録とopenだけです。意図的な停止や独自設定には、既存の
+[詳細CLI操作](../reference/cli.ja.md)を使えます。
 
 ```bash
-haco open --client ssh sample-dev
+haco env list
+haco env stop <environment>
+haco open
 ```
 
-所有権とネットワークを確認してから停止中のEnvironmentを再開します。
-`haco env start sample-dev` も使えます。
-古いインスタンスを更新した場合はHostを再起動する前に通常の停止／起動を行います。
-理由と手順は[ライフサイクル仕様](../design/workspace-abstraction-and-lease.md#explicit-start-after-a-physical-host-boot)を参照してください。
+一覧の実際の名前を指定します。停止なら導入したパッケージ、編集内容、設定済みの保存領域が
+残ります。`haco env delete <environment>`はrootfsを削除し、作業ファイルとOCIデータは
+保持します。削除前に[データの寿命](data-lifetime.ja.md)を確認してください。
+明示的なディレクトリopen、Baseの選択、独立forkは[Workspace手順](../design/workspace-workflow.md)に記載しています。
 
-## 削除は目的を確認して行う
+通常の環境にまとめるリポジトリは1〜8個です。最初のopen前に作業対象を登録してください。
+後から登録を変更しても既存構成を上書きしません。編集内容を保持して構成を変えるには
+明示的なforkを使います。所有権が未確定なら状態を確認し、カタログを編集したり推測で
+providerのリソースを削除したりしないでください。[通常の開発環境の制限](../design/default-development-session.ja.md)を参照してください。
 
-`haco env delete sample-dev` はEnvironment内だけのファイルとパッケージを削除します。
-WorkspaceとOCI Storeは残ります。pushやバックアップを行う操作ではありません。
-再作成、スナップショット、残ったデータの個別削除は[データの寿命と整理](data-lifetime.ja.md)を参照してください。
-
-作成・コピー・再開・削除で所有権が確認できないと表示されたら、
-`haco env list`、`haco workspace list` と報告されたIDを確認します。
-カタログの編集、推測したIncusパスの削除、隔離の無効化で続行しないでください。
-中断した操作を一般的に復旧する機能は未完成です。
+リポジトリテストと実機確認は別です。この一連の操作の新規インストール済みIncus・
+Windows/WSL・デスクトップでの確認は未実施です。

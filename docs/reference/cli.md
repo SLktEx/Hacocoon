@@ -11,25 +11,26 @@ help and version require no controller.
 
 | Purpose | Syntax and defaults | Details |
 |---|---|---|
+| Normal development | `haco repo add <id> <URL>`, then `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [Automatic default session](../design/default-development-session.md); JSON requires `--client none` |
 | Workspace path | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [Owner-pinned entry and independent data forks](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [Exact options, guest listeners and management authority](../design/network-connections.md) |
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
 | Host/project setup | `haco setup [--script <path> \| --clear-script] [environment]` | [Host](../design/trusted-host.md), [project](../design/project-setup.md); omitted target means trusted Host; Host-only `haco setup --reapply-script` and `haco setup --script-result` reapply or inspect user customization |
-| Diagnostics | `haco doctor [--json] [environment]` | Host by default; failed/skipped checks return nonzero |
+| Diagnostics | `haco doctor [--json] [--fix] [environment]` | Host by default; failed/skipped checks return nonzero |
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
-| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); branch-independent registration |
-| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies; `--branch` for one source, otherwise remote defaults |
+| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; optional `--branch` belongs to single-source `workspace create` |
+| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies |
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
 | Lifecycle | `haco env start <name>`, `stop <name>`, `delete <name>` | [Data lifetime](../guides/data-lifetime.md) |
-| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; interactive choice if ambiguous |
+| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; `open --select` or `ssh setup` offers existing-Env selection |
 | Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; `-i` streams input, `-it` uses a terminal; JSON is captured-output only |
 | Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
-| Git broker | `haco git connect <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
+| Git broker | `haco git pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
 | OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
 | Image removal | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused` replaces image selector; reviewed candidates may include tagged images |

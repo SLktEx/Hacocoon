@@ -16,7 +16,7 @@ sandbox
   -> trusted source-IP -> Environment resolution
   -> network.egress/connect Capability
   -> Policy: allow / require-approval / deny
-  -> Host DNS resolution + pinned public address
+  -> Host DNS resolution + pinned allowed unicast address
   -> upstream
 ```
 
@@ -38,7 +38,10 @@ and a late upstream registration. This changes no policy grants or CLI steps.
 - HTTP absolute-target and `Host` authorities must identify the same hostname and port.
 - DNS is resolved on the trusted Host only after hostname authorization.
 - The resolved address set is pinned for that connection; dialing does not resolve the hostname again.
-- Private, loopback, link-local, CGNAT, benchmark, documentation, multicast and other unsafe addresses are rejected. A mixed public/private answer fails as a whole rather than depending on resolver order.
+- Authorized hostnames may resolve to public or private global-unicast addresses, including RFC1918 IPv4, IPv6 ULA and shared/benchmark networks. Address classification is transport admission, not another Policy decision. Go's `netip.Addr.IsGlobalUnicast` supplies the address-class observation; it does not promise Internet reachability.
+- Loopback, link-local, multicast, unspecified, malformed/scoped answers and reserved IPv4 `0.0.0.0/8` / `240.0.0.0/4` are rejected. The Standard proxy dials from the Physical Host controller, so `127.0.0.0/8` and `::1` would reach that Host's loopback. Link-local destinations require interface scope and may expose Host-local infrastructure. Reserved/non-unicast destinations do not represent ordinary unicast peers. IPv4-mapped IPv6 is unwrapped before classification.
+- A mixed public/private answer is allowed. Any disallowed answer rejects the entire set before dialing, independent of ordering. Duplicate addresses are removed; a failed dial may try the next pinned address without another DNS lookup.
+- Environment-local clients retain `NO_PROXY=localhost,127.0.0.1,::1` (and lowercase `no_proxy`) in both runtime and SSH configuration. Their localhost requests stay in the Environment. This does not authorize a proxied hostname to reach Physical Host loopback. See [ADR 0110](../adr/0110-private-egress-and-loopback-isolation.md).
 - HTTPS `CONNECT` is not trusted by itself. Before any TLS bytes are forwarded upstream, the proxy parses a bounded TLS ClientHello and requires SNI to canonicalize to the same hostname as the authorized CONNECT target.
 - Provider/audit failures remain fail-closed through the existing Capability service.
 
@@ -83,6 +86,13 @@ The installed unit runs `haco-controller --standard-egress`. This serves the exi
 
 Controller and proxy shutdown are coupled. Every accepted proxy connection, including a hijacked CONNECT tunnel, closes on shutdown. Requests are canceled during ClientHello, upstream writes and established forwarding. Headers are limited to 16 KiB, header reads to 10 seconds and retained connections to 256. HTTP transport failures use a fixed structured log message without raw panic output.
 
+Upstream failures emit one ERROR at the HTTP/CONNECT boundary with the authorized
+hostname, port, Environment and a fixed reason. DNS lookup failure, empty result,
+loopback rejection, other address rejection and dial failure are distinct;
+cancellation/deadline take precedence. HTTP responses remain generic. Logs omit
+raw resolver/dialer text, addresses, URLs, headers and bodies; see the
+[logging contract](../reference/logging.md#proxy-upstream-diagnostics).
+
 The daemon never consumes ambient stdin. Missing Policy denies traffic. Controller require-approval waits in a bounded Standard queue for haco approve on the trusted Host. Persistence and execution still pass through the existing Policy, audit and identity checks. Use haco config for ordinary Policy editing; no automatic allow is added. See [pending review](pending-approval-review.md) and [ADR 0028](../adr/0028-pending-approval-sessions.md). Installed acceptance of the new review path remains separate.
 
 Git push remains a separate privileged operation through the Git boundary and must not be enabled by handing reusable Host Git credentials to an Environment.
@@ -93,7 +103,7 @@ The Windows workflow adds a separate installed-controller packet check after the
 
 The probe requires certificate-verified HTTPS through the installed proxy, proxy 403 for an unapproved hostname, and refusal of a direct TCP connection to a public endpoint first proved reachable from the Physical Host. It also checks that management socket paths are absent. Guest route startup is only observed; no packages, NAT exceptions, firewall changes, service overrides or mount repairs are injected. This is controller/provider packet acceptance, not a claim that the planned product Environment CLI or ordinary policy UI is implemented. Commit-bound results belong in implementation status.
 
-Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, mixed/private DNS answers, SNI mismatch, dedicated bridge and source-guard drift, and trusted source-IP mapping. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
+Repository tests cover allow/deny/require-approval integration, direct-IP rejection, shared-IP/alternate-hostname resistance, private and mixed unicast acceptance, whole-set rejection when an unsafe answer is present, SNI mismatch, dedicated bridge and source-guard drift, and trusted source-IP mapping. Private HTTP/CONNECT component tests and runtime/SSH localhost bypass contracts do not establish installed private-network or guest `curl localhost` acceptance. Real supported-Incus bridge/nftables/dnsmasq behavior remains a host acceptance concern and must not be inferred solely from unit/static tests.
 
 ## Source observation ownership
 

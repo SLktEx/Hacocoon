@@ -28,8 +28,11 @@ receipt. Git transfer counters go to stderr through a bounded line filter; only
 numeric native progress and fixed credential-free failure diagnostics are exposed.
 Raw remote messages, paths and URLs are not forwarded or logged. A silent Git
 process is canceled by request lifetime, with controller disconnect propagated through the Incus exec signal channel
-to the signal-aware agent, rather than a blanket five-minute timeout. Incomplete provider creation
-retains ownership and recovery-required state.
+to the signal-aware agent, rather than a blanket five-minute timeout. Repository registration is
+idempotent for the same repository ID and remote: retries reuse the durable owner, reconcile an
+ambiguous Incus volume create against that exact owner, resume population from a created volume,
+and accept an already-ready registration without replacing it. A different remote is never adopted
+under an existing ID. Recovery-required remains only when the provider state cannot be verified.
 
 ## Rejected alternatives
 

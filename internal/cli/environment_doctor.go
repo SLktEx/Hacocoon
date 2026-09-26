@@ -95,14 +95,15 @@ func diagnoseEnvironment(ctx context.Context, c environmentDoctorClient, name st
 		}
 		report.Checks = append(report.Checks, check)
 	}
+	report.Checks = append(report.Checks, diagnoseGitConnection(ctx, c, report))
 	return report, nil
 }
 
 func environmentDoctorAction(language cliui.Language, report environmentDoctorReport, check environmentDoctorCheck) string {
 	switch check.actionMessage {
-	case "env.doctor.start", "env.doctor.ssh":
+	case "env.doctor.start", "env.doctor.ssh", "env.doctor.git_fix":
 		return language.Format(check.actionMessage, displayCell(report.Environment))
-	case "env.doctor.start_before_checks", "env.doctor.workspace", "env.doctor.dns":
+	case "env.doctor.start_before_checks", "env.doctor.workspace", "env.doctor.dns", "env.doctor.git_unknown":
 		return language.Text(check.actionMessage)
 	default:
 		// Unknown reports keep their original details, not a guessed translation.
@@ -117,7 +118,7 @@ func writeEnvironmentDoctor(out io.Writer, report environmentDoctorReport, asJSO
 func writeEnvironmentDoctorLanguage(out io.Writer, report environmentDoctorReport, asJSON bool, language cliui.Language) int {
 	healthy := true
 	for _, check := range report.Checks {
-		if check.Status != "ok" {
+		if check.Status != "ok" && check.Status != "not_applicable" {
 			healthy = false
 		}
 	}

@@ -181,6 +181,18 @@ numeric `exit_code`. Stages distinguish lookup/recipe/start/execute/script;
 unknown response values become `unknown`/`internal`. Raw backend errors, recipe
 contents and process output are not copied into diagnostic fields.
 
+## Proxy upstream diagnostics
+
+The HTTP/CONNECT boundary owns the single `component=proxy`,
+`operation=egress_connect` ERROR for upstream failure. Fields are `environment_id`,
+`target_host` (authorized canonical hostname), `target_port`, `protocol` and
+`reason`. Fixed reasons are `dns_lookup_failed`, `dns_empty_result`,
+`address_loopback`, `address_disallowed`, `dial_failed`, `upstream_request_failed`,
+`canceled` and `timeout`. Context cancellation/deadline takes precedence over
+wrapped failure reasons. An intermediate failed address followed by a successful
+pinned dial is not logged as a failed operation. Raw resolver/dialer errors,
+resolved IPs, full URLs, headers and bodies are excluded at every log level.
+
 ## Daily operation diagnostics
 
 Host setup uses fixed `stage`, `state` and `reason` fields, plus `request_id` and

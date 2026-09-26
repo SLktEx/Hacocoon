@@ -57,7 +57,31 @@ func (s *RepositoryService) Add(ctx context.Context, id, remote string) (Object,
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote}, nil)
+
+	existing, err := s.readObject("repo", id)
+	switch {
+	case err == nil:
+		if existing.Repository != id || existing.Remote != remote || existing.Branch != "" {
+			return Object{}, core.ErrAlreadyExists
+		}
+		switch existing.State {
+		case "ready":
+			if err := s.Backend.InspectVolume(ctx, existing); err != nil {
+				return existing, errors.Join(err, core.ErrRecoveryRequired)
+			}
+			return existing, nil
+		case "creating", "created":
+			return s.resumePrepared(ctx, existing, func(ctx context.Context, object Object) error {
+				return s.Backend.CreateVolume(ctx, object, nil)
+			}, s.Backend.Populate)
+		default:
+			return existing, core.ErrIncompatibleState
+		}
+	case errors.Is(err, core.ErrNotFound):
+		return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote}, nil)
+	default:
+		return Object{}, err
+	}
 }
 
 func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository string) (Object, error) {
@@ -232,17 +256,37 @@ func (s *RepositoryService) createPrepared(ctx context.Context, object Object, c
 	object.NativeRef = ref
 	object.Owner = randomID()
 	object.State = "creating"
-	// Reserve exact ownership before touching the provider. An ambiguous
-	// create never becomes assumed absence, nor permission to adopt/delete.
+	// Reserve exact ownership before touching the provider. Retries keep this
+	// identity and continue the same transition instead of creating a new one.
 	if err := s.reserve(object); err != nil {
 		return Object{}, err
 	}
-	if err := create(ctx, object); err != nil {
+	return s.resumePrepared(ctx, object, create, populate)
+}
+
+// resumePrepared makes the single-volume transition idempotent. A retry starts
+// from the durable state already recorded and repeats only operations that are
+// safe to repeat with the same provider identity.
+func (s *RepositoryService) resumePrepared(ctx context.Context, object Object, create func(context.Context, Object) error, populate func(context.Context, Object) error) (Object, error) {
+	if err := ctx.Err(); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)
 	}
-	object.State = "created"
-	if err := s.save(object); err != nil {
-		return object, errors.Join(err, core.ErrRecoveryRequired)
+	switch object.State {
+	case "creating", "created":
+		// Incomplete registration always re-ensures the same provider identity.
+		// The backend must make this operation idempotent; the saved phase is a
+		// receipt, not an instruction to skip reconciliation.
+		if err := create(ctx, object); err != nil {
+			return object, errors.Join(err, core.ErrRecoveryRequired)
+		}
+		if object.State != "created" {
+			object.State = "created"
+			if err := s.save(object); err != nil {
+				return object, errors.Join(err, core.ErrRecoveryRequired)
+			}
+		}
+	default:
+		return object, core.ErrIncompatibleState
 	}
 	if err := s.Backend.InspectVolume(ctx, object); err != nil {
 		return object, errors.Join(err, core.ErrRecoveryRequired)

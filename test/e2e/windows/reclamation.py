@@ -86,7 +86,21 @@ def failure_summary(result):
             "windows_native_error": windows.get("NativeError") if type(windows.get("NativeError")) is int and 0 < windows["NativeError"] <= 0xffffffff else None,
             "windows_open_attempts": compact.get("OpenAttempts") if type(compact.get("OpenAttempts")) is int and 0 <= compact["OpenAttempts"] <= 10000 else None,
             "windows_compaction_attempted": boolean(compact.get("Attempted")),
-            "windows_resumed": boolean(windows.get("Resumed"))}
+            "windows_resumed": boolean(windows.get("Resumed")),
+            "windows_resume_failure": resume_failure_summary(windows.get("ResumeFailure"))}
+
+
+def resume_failure_summary(value):
+    if not isinstance(value, dict):
+        return {"kind": "unrecorded"}
+    kind, code = value.get("Kind", ""), value.get("Code", 0)
+    if type(code) is not int or not 0 <= code <= 0xffffffff:
+        return {"kind": "unrecognized"}
+    if kind in ("exit", "native") and code > 0:
+        return {"kind": kind, "code": code}
+    if kind in ("", "timeout", "canceled", "other") and code == 0:
+        return {"kind": kind or "unrecorded"}
+    return {"kind": "unrecognized"}
 
 
 def read_json(command):

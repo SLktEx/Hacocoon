@@ -101,7 +101,13 @@
     "jobs": [
       "incus-standalone",
       "incus-core-e2e",
-      "incus-owned-btrfs"
+      "incus-storage-cli",
+      "incus-host-tooling",
+      "incus-snapshots",
+      "incus-volume-base-build",
+      "incus-transfer",
+      "incus-evacuation-recovery",
+      "incus-maintenance"
     ],
     "contracts": [
       "Incus lifecycle and egress",
@@ -127,28 +133,87 @@
         "[product] Run Hacocoon egress policy against real Incus",
         "[product] Run Hacocoon Core and shipped CLI lifecycle against real Incus"
       ],
-      "incus-owned-btrfs": [
+      "incus-storage-cli": [
         "[infrastructure] Check out candidate source",
         "[infrastructure] Install pinned Go",
         "[fixture] Validate real Incus storage CLI E2E helpers",
         "[infrastructure] Prepare real Incus substrate",
         "[fixture] Prepare normal-user haco CLI acceptance",
-        "[product] Run normal haco create and run against Incus-owned Btrfs",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
         "[product] Verify Incus pool trim retains volume and snapshot",
-        "[product] Verify ordinary tar tree capture",
+        "[product] Verify ordinary tar tree capture"
+      ],
+      "incus-host-tooling": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[product] Verify standard Host tools and offline Store image reuse"
+      ],
+      "incus-snapshots": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
         "[infrastructure] Prepare pinned OCI runtime transfer assets",
-        "[product] Verify standard Host tools and offline Store image reuse",
-        "[product] Verify retained Bases, aggregate snapshots and component COW",
+        "[product] Verify retained Bases, aggregate snapshots and component COW"
+      ],
+      "incus-volume-base-build": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare Base and volume test binaries",
         "[product] Verify owned native volume import",
-        "[product] Verify definition-driven Base build and immutable revisions",
-        "[product] Verify independent persistent Store COW with real Btrfs",
+        "[product] Verify definition-driven Base build and immutable revisions"
+      ],
+      "incus-transfer": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
+        "[product] Verify persistent Store and volume/rootfs transfer"
+      ],
+      "incus-evacuation-recovery": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
+        "[product] Verify evacuation and interrupted-copy recovery"
+      ],
+      "incus-maintenance": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
         "[product] Verify retained Store maintenance through native adapter and controller CLI"
       ]
     },
     "job_names": [
       "incus-standalone",
       "incus-core-e2e",
-      "incus-owned-btrfs"
+      "incus-storage-cli",
+      "incus-host-tooling",
+      "incus-snapshots",
+      "incus-volume-base-build",
+      "incus-transfer",
+      "incus-evacuation-recovery",
+      "incus-maintenance"
     ]
   },
   "ubuntu-installer-e2e": {
@@ -181,40 +246,132 @@
   "windows-installer-e2e": {
     "file": "windows-all-scripts-e2e.yml",
     "jobs": [
-      "windows-user-path"
+      "windows-package",
+      "windows-native-client-tests",
+      "windows-installer-component-tests",
+      "windows-installer-lifecycle",
+      "windows-egress",
+      "windows-interop",
+      "windows-access",
+      "windows-host-customization",
+      "windows-reclamation",
+      "windows-notification"
     ],
     "contracts": [
+      "shared release-equivalent Windows package",
+      "native Windows clients and installer components",
       "packaged Windows/WSL install/restart/reinstall",
-      "SSH/IDE",
       "egress",
+      "Windows/WSL interop",
+      "SSH/IDE/transfer",
+      "Host customization",
       "reclamation",
       "notifications"
     ],
     "steps": {
-      "windows-user-path": [
+      "windows-package": [
         "[fixture] Checkout candidate",
         "[infrastructure] Set up Go",
-        "[fixture] Test native Windows client boundaries",
         "[infrastructure] Install pinned GoReleaser",
-        "[infrastructure] Prepare pinned portable VS Code client",
-        "[infrastructure] Record Windows and WSL substrate",
         "[fixture] Build release-equivalent candidate artifacts",
-        "[fixture] Build and extract release-equivalent Windows package",
+        "[fixture] Build and verify release-equivalent Windows package",
+        "[infrastructure] Publish shared Windows package"
+      ],
+      "windows-native-client-tests": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Set up Go",
+        "[fixture] Test native Windows client boundaries"
+      ],
+      "windows-installer-component-tests": [
+        "[fixture] Checkout candidate",
+        "[fixture] Prepare ConPTY user-input driver regressions",
+        "[product] Verify Windows installer components on PowerShell 5.1"
+      ],
+      "windows-installer-lifecycle": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
         "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
-        "[infrastructure] Stage cached WSL image into installer package",
+        "[fixture] Stage release-equivalent installer package",
         "[fixture] Prepare ConPTY user-input driver",
-        "[product] Verify Windows installer components on PowerShell 5.1",
         "[fixture] Reject Hacocoon test overrides before user path",
-        "[product] Exercise cached install, terminate/restart, and reinstall user path",
-        "[product] Verify installed controller Environment HTTPS and direct-egress refusal",
-        "[product] Verify native Windows interop and strict OpenSSH through ordinary Host entry",
+        "[product] Exercise cached install, terminate/restart, and reinstall user path"
+      ],
+      "windows-egress": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Set up Go",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Verify installed controller Environment HTTPS and direct-egress refusal"
+      ],
+      "windows-interop": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Verify native Windows interop through ordinary Host entry"
+      ],
+      "windows-access": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Prepare pinned portable VS Code client",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Verify strict OpenSSH, VS Code, preview, and transfer"
+      ],
+      "windows-reclamation": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Prepare retained transfer fixture for reclamation",
         "[product] Verify installed Linux reclamation stages",
-        "[product] Verify public reclamation through ordinary Host entry",
+        "[product] Verify public reclamation through ordinary Host entry"
+      ],
+      "windows-notification": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
         "[product] Verify installed native notification review route"
+      ],
+      "windows-host-customization": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Verify installed Host customization lifecycle"
       ]
     },
     "job_names": [
-      "windows-user-path"
+      "windows-package",
+      "windows-native-client-tests",
+      "windows-installer-component-tests",
+      "windows-installer-lifecycle",
+      "windows-egress",
+      "windows-interop",
+      "windows-access",
+      "windows-host-customization",
+      "windows-reclamation",
+      "windows-notification"
     ]
   }
 }

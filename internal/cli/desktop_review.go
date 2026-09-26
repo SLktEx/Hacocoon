@@ -23,7 +23,7 @@ func runDesktopReview() int {
 	client := controlapi.NewDefaultClient()
 	err := serveDesktopReview(ctx, client, os.Stdin, os.Stdout)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "Local review ended without a confirmed result. Inspect current requests and Policy before retrying.")
+		_, _ = fmt.Fprintln(os.Stderr, cliMessage("review.unconfirmed"))
 		return 1
 	}
 	return 0

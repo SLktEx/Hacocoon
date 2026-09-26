@@ -27,16 +27,34 @@ func runDoctor(args []string) int {
 
 func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		_, _ = fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [environment]"))
+		_, _ = fmt.Fprintln(stdout, cliMessage("usage", "haco doctor [--json] [--fix] [environment]"))
 		return 0
 	}
-	jsonOutput := false
-	if len(args) > 0 && args[0] == "--json" {
-		jsonOutput = true
+	usage := func() int {
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [--fix] [environment]"))
+		return 2
+	}
+	jsonOutput, fix := false, false
+parseOptions:
+	for len(args) > 0 {
+		switch args[0] {
+		case "--json":
+			if jsonOutput {
+				return usage()
+			}
+			jsonOutput = true
+		case "--fix":
+			if fix {
+				return usage()
+			}
+			fix = true
+		default:
+			break parseOptions
+		}
 		args = args[1:]
 	}
-	if len(args) > 1 || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
-		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [environment]"))
+	if len(args) > 1 || (fix && len(args) != 1) || (len(args) == 1 && (args[0] == "" || strings.HasPrefix(args[0], "-"))) {
+		_, _ = fmt.Fprintln(stderr, cliMessage("error.usage", "haco doctor [--json] [--fix] [environment]"))
 		return 2
 	}
 	target := ""
@@ -55,7 +73,7 @@ func doctor(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	client := controlapi.NewDefaultClient()
 	if target != "" {
-		report, err := diagnoseEnvironment(ctx, client, target)
+		report, err := diagnoseAndRepairEnvironment(ctx, client, target, fix)
 		if err != nil {
 			return fail("Could not inspect Environment; check haco env list and controller availability")
 		}

@@ -9,6 +9,8 @@ files, plus its associated OCI Store. An Environment is its disposable runtime.
 This workflow composes the existing catalogs and canonical lifecycle API; it
 does not introduce a second ownership catalog.
 
+For the ordinary registration-and-open path, see the [default development session](default-development-session.md). The explicit workflows below remain available.
+
 ## Path entry
 
 A local directory can hold a small Workspace reference. Explicit

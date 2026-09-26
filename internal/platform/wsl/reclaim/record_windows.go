@@ -64,6 +64,9 @@ func (r operationRecord) validate() error {
 		return errors.New("Windows reclamation requires proven Linux completion")
 	}
 	o := r.Observation
+	if !o.ResumeFailure.Valid() || (o.ResumeFailure.Kind != "" && (r.State != "failed" || !o.ResumeAttempted || o.Resumed)) {
+		return errors.New("invalid resume failure observation")
+	}
 	switch o.Failure {
 	case "":
 		if o.NativeError != 0 {

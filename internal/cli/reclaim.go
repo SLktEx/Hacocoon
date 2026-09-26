@@ -156,6 +156,7 @@ type windowsReclaimStatus struct {
 			OpenAttempts         int
 		}
 		ResumeAttempted, Resumed bool
+		ResumeFailure            reclamation.WindowsResumeFailure
 	} `json:"observation,omitempty"`
 }
 
@@ -181,6 +182,9 @@ func parseReclamationStatus(raw []byte) (windowsReclaimStatus, error) {
 	}
 	if result.Observation != nil {
 		o := result.Observation
+		if !o.ResumeFailure.Valid() || (o.ResumeFailure.Kind != "" && (result.State != "failed" || !o.ResumeAttempted || o.Resumed)) {
+			return result, errors.New(cliLanguage().Text("reclaim.text.invalid_observations"))
+		}
 		switch o.Failure {
 		case "":
 			if o.NativeError != 0 {
@@ -256,6 +260,12 @@ func writeReclamationStatus(out, diagnostic io.Writer, raw []byte) int {
 		}
 		if o.NativeError != 0 {
 			_, _ = fmt.Fprintf(out, cliLanguage().Text("reclaim.text.native_code"), o.NativeError)
+		}
+		if o.ResumeFailure.Kind != "" {
+			_, _ = fmt.Fprintf(out, cliLanguage().Text("reclaim.text.resume_failure"), cliLanguage().Text("reclaim.resume."+o.ResumeFailure.Kind))
+			if o.ResumeFailure.Code != 0 {
+				_, _ = fmt.Fprintf(out, cliLanguage().Text("reclaim.text.resume_code"), o.ResumeFailure.Code)
+			}
 		}
 		c := o.Compaction
 		if c.Virtual.Capacity > 0 {

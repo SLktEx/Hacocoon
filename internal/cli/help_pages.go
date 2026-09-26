@@ -13,7 +13,7 @@ var helpPages = []helpPage{
 	{Path: "setup", Syntax: "[--script <path> | --clear-script | --reapply-script | --script-result] [environment]", Message: "help.setup", Example: "haco setup dev"},
 	{Path: "config", Syntax: "[--edit | --file <file> | --json]", Message: "help.config", Example: "haco config"},
 	{Path: "approve", Syntax: "[--list] [--json] [request-id]", Message: "help.approve", Example: "haco approve --list"},
-	{Path: "doctor", Syntax: "[--json] [environment]", Message: "help.doctor", Example: "haco doctor dev"},
+	{Path: "doctor", Syntax: "[--json] [--fix] [environment]", Message: "help.doctor", Example: "haco doctor dev"},
 	{Path: "reclaim", Syntax: "[--yes | --status | --review [--yes]]", Message: "help.reclaim", Example: "haco reclaim --status"},
 	{Path: "version", Syntax: "[--json]", Message: "help.version", Example: "haco version --json"},
 	{Path: "cache", Syntax: "<settings|configure|status|collect|history|clear|recover>", Message: "cache.help", Example: "haco cache status work"},
@@ -42,7 +42,7 @@ var helpPages = []helpPage{
 	{Path: "env export", Syntax: "[--json] <stopped-env> [file.haco]", Message: "command.env.export", Example: "haco env export dev dev.haco"},
 	{Path: "env import", Syntax: "[--json] <file.haco> [new-env]", Message: "command.env.import", Example: "haco env import dev.haco restored"},
 	{Path: "repo", Syntax: "<command>", Message: "command.repo", Example: "haco repo list"},
-	{Path: "repo add", Syntax: "[--json] <id> <URL>", Message: "command.repo.add", Example: "haco repo add source https://github.com/OWNER/REPO.git"},
+	{Path: "repo add", Syntax: "[--json] <id> <URL>", Message: "command.repo.add", Example: "haco repo add sample https://github.com/OWNER/REPO.git"},
 	{Path: "repo list", Syntax: "[--json]", Message: "command.repo.list", Example: "haco repo list"},
 	{Path: "repo delete", Syntax: "[--yes] <id>", Message: "command.repo.delete", Example: "haco repo delete source"},
 	{Path: "workspace", Syntax: "<command>", Message: "command.workspace", Example: "haco workspace list"},
@@ -53,7 +53,6 @@ var helpPages = []helpPage{
 	{Path: "workspace list", Syntax: "[--json]", Message: "command.workspace.list", Example: "haco workspace list"},
 	{Path: "workspace delete", Syntax: "[--yes] <workspace>", Message: "command.workspace.delete", Example: "haco workspace delete work"},
 	{Path: "git", Syntax: "<command>", Message: "command.git", Example: "haco git pending"},
-	{Path: "git connect", Syntax: "[--json] <environment>", Message: "command.git.connect", Example: "haco git connect dev"},
 	{Path: "git pending", Syntax: "[--json]", Message: "command.git.pending", Example: "haco git pending"},
 	{Path: "git status", Syntax: "[--json] [--request <request-id>] <environment>", Message: "command.git.status", Example: "haco git status dev"},
 	{Path: "git reconcile", Syntax: "[--json] [--request <request-id>] <environment>", Message: "command.git.reconcile", Example: "haco git reconcile dev"},
@@ -98,7 +97,7 @@ var helpPages = []helpPage{
 	{Path: "ssh", Syntax: "<command>", Message: "command.ssh", Example: "haco ssh setup dev"},
 	{Path: "ssh setup", Syntax: "[environment]", Message: "command.ssh.setup", Example: "haco ssh setup dev"},
 	{Path: "ssh cleanup", Syntax: "[environment]", Message: "command.ssh.cleanup", Example: "haco ssh cleanup dev"},
-	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open --repo source ."},
+	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--select] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open"},
 }
 
 func commandHelp(out io.Writer, path string, language cliui.Language) bool {

@@ -18,6 +18,7 @@ import (
 	controlapi "github.com/SLktEx/Hacocoon/internal/controller/api"
 	control "github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
 const desktopCommandHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
@@ -34,7 +35,7 @@ type desktopCommandController struct {
 
 // Run the ordinary CLI against real Unix RPC, desktop key generation and owned
 // SSH files. Only controller outcomes and external desktop executables are fixtures.
-func desktopCommandFixture(t *testing.T) (*desktopCommandController, string) {
+func desktopCommandFixture(t *testing.T, defaultWorkflow ...bool) (*desktopCommandController, string) {
 	t.Helper()
 	if _, err := exec.LookPath("ssh-keygen"); err != nil {
 		t.Skip("OpenSSH key generation unavailable")
@@ -64,6 +65,35 @@ func desktopCommandFixture(t *testing.T) (*desktopCommandController, string) {
 	}
 	state.listed = []core.Environment{state.environment}
 	server := control.NewServer()
+	if len(defaultWorkflow) != 0 && defaultWorkflow[0] {
+		if err := server.Register(controlapi.MethodRepositoryManage, func(context.Context, json.RawMessage) (any, error) {
+			return controlapi.RepositoryManageResponse{Sources: readySources("api", "web")}, nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := server.Register(controlapi.MethodWorkflow, func(_ context.Context, raw json.RawMessage) (any, error) {
+			var req controlapi.WorkflowRequest
+			if err := json.Unmarshal(raw, &req); err != nil {
+				return nil, err
+			}
+			state.Lock()
+			defer state.Unlock()
+			if req.Operation == "prepare" {
+				return controlapi.WorkflowResponse{Reference: &workflow.Reference{Name: req.Prepare.Name, Workspace: state.environment.Workspace.ID}}, nil
+			}
+			if req.Operation == "open" {
+				result := workflow.OpenResult{Reference: req.Open.Reference, Environment: state.environment}
+				if defaultWorkflowFailure := state.failures[controlapi.MethodWorkflow]; defaultWorkflowFailure != nil {
+					// Simulate replacement after preparation but before SSH setup.
+					state.environment.RuntimeRef = "recycled-runtime"
+				}
+				return controlapi.WorkflowResponse{Open: &result}, nil
+			}
+			return nil, control.ErrInvalidArgument
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, method := range []string{controlapi.MethodEnvironmentList, controlapi.MethodEnvironmentStatus, controlapi.MethodEnvironmentSSH, controlapi.MethodEnvironmentConnections} {
 		if err := server.Register(method, func(_ context.Context, raw json.RawMessage) (any, error) {
 			state.Lock()
@@ -254,7 +284,7 @@ func TestSSHCommandRejectsLostResult(t *testing.T) {
 }
 
 func TestOpenCommandLaunchAndRetainedSSH(t *testing.T) {
-	for _, mode := range []string{"ssh", "ssh-fails", "editor", "editor-fails"} {
+	for _, mode := range []string{"ssh", "ssh-fails", "editor", "editor-fails", "selection"} {
 		t.Run(mode, func(t *testing.T) {
 			_, home := desktopCommandFixture(t)
 			bin := filepath.Join(home, "desktop tools")
@@ -265,6 +295,9 @@ func TestOpenCommandLaunchAndRetainedSSH(t *testing.T) {
 			t.Setenv("SSH_CLI_TEST_ARGS", result)
 			script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$SSH_CLI_TEST_ARGS.tmp\"\nmv -- \"$SSH_CLI_TEST_ARGS.tmp\" \"$SSH_CLI_TEST_ARGS\"\n"
 			name, args := "ssh", []string{"open", "--client", "ssh", "dev"}
+			if mode == "selection" {
+				args = []string{"open", "--select", "--client", "ssh"}
+			}
 			want := "-t\nhaco-dev\ncd /workspace && exec bash -l\n"
 			if strings.HasPrefix(mode, "editor") {
 				name, args = "code", []string{"open", "dev"}
@@ -311,6 +344,49 @@ func TestOpenCommandLaunchAndRetainedSSH(t *testing.T) {
 			}
 			if text := string(desktopCommandFile(t, filepath.Join(home, ".ssh/hacocoon/dev.conf"))); !strings.Contains(text, "Host haco-dev") {
 				t.Fatal("launch discarded prepared SSH")
+			}
+		})
+	}
+}
+
+func TestDefaultOpenLaunchAndRecycledOwnerRefusal(t *testing.T) {
+	for _, replaced := range []bool{false, true} {
+		t.Run(map[bool]string{false: "launch", true: "replaced"}[replaced], func(t *testing.T) {
+			state, home := desktopCommandFixture(t, true)
+			bin := filepath.Join(home, "bin")
+			if err := os.Mkdir(bin, 0700); err != nil {
+				t.Fatal(err)
+			}
+			marker := filepath.Join(home, "launched")
+			t.Setenv("DEFAULT_OPEN_MARKER", marker)
+			script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$DEFAULT_OPEN_MARKER\"\n"
+			if err := os.WriteFile(filepath.Join(bin, "ssh"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			if replaced {
+				state.failures[controlapi.MethodWorkflow] = core.ErrCapabilityStale
+			}
+			code, _, diagnostic := captureRun(t, "open", "--client", "ssh")
+			if replaced {
+				if code != 1 {
+					t.Fatal("recycled Env accepted", code, diagnostic)
+				}
+				if _, err := os.Stat(marker); !os.IsNotExist(err) {
+					t.Fatal("launched replaced Env", err)
+				}
+				state.Lock()
+				defer state.Unlock()
+				if len(state.prepared) != 0 {
+					t.Fatal("granted access to replaced Env")
+				}
+				return
+			}
+			if code != 0 {
+				t.Fatal(code, diagnostic)
+			}
+			if raw := desktopCommandFile(t, marker); !strings.Contains(string(raw), "haco-dev") {
+				t.Fatal("wrong shell target", string(raw))
 			}
 		})
 	}

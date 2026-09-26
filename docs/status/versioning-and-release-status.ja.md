@@ -98,8 +98,9 @@ Windows起動調整を保持し、mainのstream終了待ち修正を再利用し
 | v0.66 | Saved Environment data | 実装済み |
 | v0.67 | Portable Environment data | 実装済み |
 | v0.68 | Restore saved work by environment name | 実装済み |
+| v0.69 | Default Development Session | partial — 登録後のopenを自動化。後からの構成変更と実機確認は未完了 |
 
-現在のmilestone位置は **v0.68**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.69**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -226,3 +227,7 @@ main f225e5c1 (#701)へセットアップ・通信・設定案内と転送試験
 
 任意のBaseビルドEnv名はv0.68内の利用改善である。通常の通信設定を指定したbuild名へ絞り、
 所有情報は毎回新しく作る。段階番号は更新せず、実Packer完了やリリース公開の証明にもならない。
+
+M2のGit接続診断・明示的な修復はv0.68の使いやすさの修正です。既存の所有権確認を再利用し、チェックポイントの更新・pushの許可・リリースは行いません。
+
+M1の追加作業は、v0.68の日常利用の修正です。補助クライアントの日英案内とヘルプのみでの正常終了に対応します。チェックポイントの更新やリリースは行いません。人によるデスクトップの確認とCLI全体の翻訳は別途残ります。

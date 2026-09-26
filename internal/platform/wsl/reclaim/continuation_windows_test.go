@@ -4,9 +4,13 @@ package wslreclaim
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/SLktEx/Hacocoon/internal/storage/reclamation"
 	"os"
+	"os/exec"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -14,20 +18,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func TestWSLOperationsUseGUIDAndFixedCommands(t *testing.T) {
+func TestWSLOperationsUseGUIDAndTerminateName(t *testing.T) {
 	id, err := windows.GenerateGUID()
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := registration{ID: id, Name: "Hacocoon-Test", BasePath: `C:\owned`, VHDFileName: "ext4.vhdx"}
-	stop, err := r.wslArguments(wslStop)
-	if err != nil {
-		t.Fatal(err)
-	}
 	prefix := []string{"--distribution-id", id.String(), "--user", "root", "--cd", "/", "--exec", "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin"}
-	if !reflect.DeepEqual(stop, append(prefix, "/usr/bin/systemctl", "--no-block", "poweroff")) {
-		t.Fatal(stop)
-	}
 	resume, err := r.wslArguments(wslResume)
 	if err != nil || !reflect.DeepEqual(resume, append(prefix, "/usr/bin/true")) {
 		t.Fatal(resume, err)
@@ -36,15 +33,15 @@ func TestWSLOperationsUseGUIDAndFixedCommands(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(read, append(prefix, "/usr/bin/python3", "-I", "/usr/local/libexec/hacocoon-wsl-interop", "--read-registration")) {
 		t.Fatal("registration read must use the fixed isolated helper", read, err)
 	}
-	r.Name = "Same-GUID-Renamed"
-	if renamed, err := r.wslArguments(wslStop); err != nil || !reflect.DeepEqual(renamed, stop) {
-		t.Fatal("stop depends on name", renamed, err)
+	terminate, err := r.terminateArguments()
+	if err != nil || !reflect.DeepEqual(terminate, []string{"--terminate", "Hacocoon-Test"}) {
+		t.Fatal("terminate must select only the enrolled distribution", terminate, err)
 	}
 	if _, err := r.wslArguments(0); err == nil {
 		t.Fatal("unknown operation accepted")
 	}
 	r.ID = windows.GUID{}
-	if _, err := r.wslArguments(wslStop); err == nil {
+	if _, err := r.wslArguments(wslResume); err == nil {
 		t.Fatal("default distribution accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -57,7 +54,7 @@ func TestWSLOperationsUseGUIDAndFixedCommands(t *testing.T) {
 
 func TestDedicatedWSLContinuation(t *testing.T) {
 	if os.Getenv("HACO_E2E_RECLAIM_CONTINUATION") != "1" {
-		t.Skip("requires separate exact managed WSL stop/compact/resume authorization")
+		t.Skip("requires separate exact managed WSL terminate/compact/resume authorization")
 	}
 	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
 	if err != nil {
@@ -168,7 +165,7 @@ func TestPreparedContinuationRejectsBeforeAccess(t *testing.T) {
 
 func TestDedicatedWSLPreparedContinuation(t *testing.T) {
 	if os.Getenv("HACO_E2E_RECLAIM_HANDOFF") != "1" {
-		t.Skip("requires exact dedicated prepared stop/compact/resume authorization")
+		t.Skip("requires exact dedicated prepared terminate/compact/resume authorization")
 	}
 	r, err := readRegistration(os.Getenv("HACO_E2E_RECLAIM_REGISTRATION"))
 	if err != nil {
@@ -225,6 +222,44 @@ func TestContinuationFailureDiagnosticsAreFixedAndPreservePrimaryFailure(t *test
 		result, err := executeContinuation(context.Background(), func(context.Context) error { return tc.stop }, func(context.Context) (compactObservation, error) { return compactObservation{}, tc.compact }, func(context.Context) error { return tc.resume })
 		if err == nil || result.Failure != tc.stage || result.NativeError != tc.code {
 			t.Fatal(result, err)
+		}
+	}
+}
+
+func TestResumeDiagnosticChild(t *testing.T) {
+	if os.Getenv("HACO_TEST_RESUME_EXIT") == "1" {
+		os.Exit(0x8000ffff)
+	}
+}
+
+func TestResumeFailureSurvivesPrimaryFailureAndSerialization(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestResumeDiagnosticChild$")
+	cmd.Env = append(os.Environ(), "HACO_TEST_RESUME_EXIT=1")
+	childErr := cmd.Run()
+	if childErr == nil {
+		t.Fatal("child unexpectedly succeeded")
+	}
+	for _, tc := range []struct {
+		err  error
+		want reclamation.WindowsResumeFailure
+	}{
+		{childErr, reclamation.WindowsResumeFailure{Kind: "exit", Code: 0x8000ffff}},
+		{errors.Join(childErr, context.DeadlineExceeded), reclamation.WindowsResumeFailure{Kind: "timeout"}},
+		{context.Canceled, reclamation.WindowsResumeFailure{Kind: "canceled"}},
+		{syscall.Errno(5), reclamation.WindowsResumeFailure{Kind: "native", Code: 5}},
+		{errors.New("token=private"), reclamation.WindowsResumeFailure{Kind: "other"}},
+	} {
+		got, err := executeContinuation(context.Background(), func(context.Context) error { return nil }, func(context.Context) (compactObservation, error) { return compactObservation{}, errVirtualDiskAttached }, func(context.Context) error { return tc.err })
+		if err == nil || got.Failure != "compact_attached" || got.NativeError != 0 || got.ResumeFailure != tc.want || got.Resumed {
+			t.Fatal(got, err)
+		}
+		raw, err := json.Marshal(got)
+		if err != nil || strings.Contains(string(raw), "private") {
+			t.Fatal("unsafe diagnostic")
+		}
+		var decoded continuationObservation
+		if err := json.Unmarshal(raw, &decoded); err != nil || decoded != got {
+			t.Fatal("diagnostic lost in serialization", err)
 		}
 	}
 }

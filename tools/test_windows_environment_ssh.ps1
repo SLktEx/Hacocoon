@@ -525,11 +525,11 @@ fi
             if ($environmentReport.environment -ne $EnvironmentName -or [string]::IsNullOrWhiteSpace($environmentReport.workspace.id)) { throw 'Environment doctor reported the wrong Workspace' }
             $doctorPhase = 'prerequisite-status'
             foreach ($check in $environmentReport.checks) {
-                if ($check.name -cin @('runtime', 'workspace', 'dns_service', 'ssh_service') -and $check.status -cin @('ok', 'failed', 'skipped')) {
+                if ($check.name -cin @('runtime', 'workspace', 'dns_service', 'ssh_service', 'git_broker') -and $check.status -cin @('ok', 'failed', 'skipped', 'unknown', 'not_applicable')) {
                     Write-Host ('ENVIRONMENT DOCTOR CHECK: ' + $check.name + '=' + $check.status)
                 }
             }
-            if ($environmentDoctor.ExitCode -ne 0 -or @($environmentReport.checks | Where-Object { $_.status -ne 'ok' }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
+            if ($environmentDoctor.ExitCode -ne 0 -or @($environmentReport.checks | Where-Object { -not (Test-EnvironmentDoctorCheck $_) }).Count -ne 0) { throw 'Environment doctor did not pass local prerequisite checks' }
             Write-Host 'ENVIRONMENT DOCTOR WORKSPACE / DNS / SSH PREREQUISITES: PASS'
         } catch {
             $DesktopFailures.Add('doctor')

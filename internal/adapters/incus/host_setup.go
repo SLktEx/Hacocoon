@@ -41,6 +41,9 @@ func (r *Runtime) SetupTrustedHost(ctx context.Context, clientDirectory string) 
 	if err := r.provisionTrustedHostCompanion(ctx, paths[2], "/usr/local/bin/haco-notify"); err != nil {
 		return err
 	}
+	if err := r.provisionTrustedHostBaseBuildDefaults(ctx); err != nil {
+		return err
+	}
 	if r.trustedHostStorage != nil {
 		// The maintained composition prepares canonical Host storage and tools
 		// together. Package installation must not run before its ownership,

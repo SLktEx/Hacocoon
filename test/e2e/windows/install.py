@@ -418,23 +418,13 @@ def boot_guard_namespace() -> dict:
     return namespace
 
 
-def main(argv: Sequence[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--use-cached-wsl-image", action="store_true",
-                        help="invoke the shipped installer's -UseCachedWslImage option")
-    args = parser.parse_args(argv)
-    if os.name != "nt":
-        raise RuntimeError("this gate requires Windows")
-    inherited_child_environment()
-    existing = observe("wsl.exe", "--list", "--quiet").splitlines()
-    if INSTANCE.casefold() in {name.strip().casefold() for name in existing}:
-        raise RuntimeError("fresh-install gate refuses an existing Hacocoon distribution")
-    package_root = Path.cwd()
-    if not (package_root / "install-windows.bat").is_file():
-        raise RuntimeError("run from the extracted candidate ZIP")
-    run_phase("initial-install", run_bat, package_root, use_cached_wsl_image=args.use_cached_wsl_image)
+def run_user_journey(package_root: Path, *, use_cached_wsl_image: bool, fresh_only: bool = False) -> None:
+    run_phase("initial-install", run_bat, package_root, use_cached_wsl_image=use_cached_wsl_image)
     run_phase("installed-host-assertions", assert_host)
     run_phase("initial-host-entry", host_session, create=True)
+    if fresh_only:
+        print("Windows BAT / WSL entry / fresh installed host: PASS")
+        return
     previous_namespace = boot_guard_namespace()
     # A normal user stop, before any installer rerun that could repair startup.
     run_phase("terminate", subprocess.run, ["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
@@ -446,7 +436,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                         "-path", "*/networks/haco-host0/dnsmasq.pid"):
         raise RuntimeError("previous dnsmasq PID record was not retained in the boot archive")
     policy_before = sudo_policy_digest()
-    run_phase("reinstall", run_bat, package_root, use_cached_wsl_image=args.use_cached_wsl_image)
+    run_phase("reinstall", run_bat, package_root, use_cached_wsl_image=use_cached_wsl_image)
     run_phase("reinstalled-host-entry", host_session, create=False)
     run_phase("reinstalled-host-assertions", assert_host)
     if sudo_policy_digest() != policy_before:
@@ -457,6 +447,26 @@ def main(argv: Sequence[str] | None = None) -> None:
     subprocess.run(["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
     assert_doctor_report(observe("wsl.exe", "-d", INSTANCE, "--exec", "haco", "doctor", "--json"), expected_build)
     print("Windows BAT / WSL entry / restart / trusted-host data retention / cold doctor: PASS")
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--use-cached-wsl-image", action="store_true",
+                        help="invoke the shipped installer's -UseCachedWslImage option")
+    parser.add_argument("--fresh-only", action="store_true",
+                        help="stop after a verified fresh install and ordinary Host entry")
+    args = parser.parse_args(argv)
+    if os.name != "nt":
+        raise RuntimeError("this gate requires Windows")
+    inherited_child_environment()
+    existing = observe("wsl.exe", "--list", "--quiet").splitlines()
+    if INSTANCE.casefold() in {name.strip().casefold() for name in existing}:
+        raise RuntimeError("fresh-install gate refuses an existing Hacocoon distribution")
+    package_root = Path.cwd()
+    if not (package_root / "install-windows.bat").is_file():
+        raise RuntimeError("run from the extracted candidate ZIP")
+    run_user_journey(package_root, use_cached_wsl_image=args.use_cached_wsl_image,
+                     fresh_only=args.fresh_only)
 
 
 if __name__ == "__main__":

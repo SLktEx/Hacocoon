@@ -137,6 +137,7 @@ run_release_config() {
   section "release-config: pre/main/post boundary"
   pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_installer.ps1
   pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_wsl_stop_readiness.ps1
+  pwsh -NoLogo -NoProfile -NonInteractive -File tools/test_windows_editor_cleanup.ps1
   validate_install_boundary
 
   if [[ -e dist ]]; then

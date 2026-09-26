@@ -112,10 +112,9 @@ func inspectDetachedDynamic(h windows.Handle) (virtualDiskIdentity, error) {
 	return result, nil
 }
 
-// compact is an internal native operation, not WSL authorization/orchestration.
-// Caller must have selected the exact managed distribution and stopped it. No
-// parent chain is opened, no disk is attached, resized or replaced. Keep file and
-// parent handles throughout; sharing failures are returned, never bypassed.
+// compact is an internal native operation after the exact managed distribution
+// has been terminated through the WSL service. It waits only for that VHDX to
+// detach; unrelated distributions and the global WSL VM are never shut down.
 func (p *pinnedDisk) compact(ctx context.Context) (result compactObservation, err error) {
 	if err := ctx.Err(); err != nil {
 		return result, err

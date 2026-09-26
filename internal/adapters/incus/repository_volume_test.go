@@ -83,7 +83,7 @@ func TestRepositoryPlanUsesSelectedStorageAndRejectsInvalidNames(t *testing.T) {
 
 func TestRepositoryCreationPreservesCopyIDsAndAssignsFreshOwnership(t *testing.T) {
 	idmap := `[{"Isuid":true,"Isgid":false,"Hostid":1000000,"Nsid":0,"Maprange":1000000000},{"Isuid":false,"Isgid":true,"Hostid":1000000,"Nsid":0,"Maprange":1000000000}]`
-	for _, mode := range []string{"fresh", "copy", "invalid-target", "missing-idmap", "empty-idmap", "malformed-idmap", "cross-pool", "foreign-source", "source-failure", "lost-reply"} {
+	for _, mode := range []string{"fresh", "copy", "invalid-target", "missing-idmap", "empty-idmap", "malformed-idmap", "cross-pool", "foreign-source", "source-failure", "lost-reply", "lost-reply-unconfirmed"} {
 		t.Run(mode, func(t *testing.T) {
 			source := repositoryObject("repo", "demo", "demo")
 			target := repositoryObject("work", "task", "demo")
@@ -114,13 +114,22 @@ func TestRepositoryCreationPreservesCopyIDsAndAssignsFreshOwnership(t *testing.T
 					t.Fatal(name)
 				}
 				if len(args) == 2 && args[0] == "query" {
-					if args[1] != "/1.0/storage-pools/"+strings.Split(source.NativeRef, "/")[0]+"/volumes/custom/haco-repo-demo?project=hacocoon" {
-						t.Fatal("read another source", args)
-					}
-					if mode == "source-failure" {
+					sourcePath := "/1.0/storage-pools/" + strings.Split(source.NativeRef, "/")[0] + "/volumes/custom/haco-repo-demo?project=hacocoon"
+					targetPath := "/1.0/storage-pools/haco-local-default/volumes/custom/haco-work-task?project=hacocoon"
+					switch args[1] {
+					case sourcePath:
+						if mode == "source-failure" {
+							return host.Result{}, failure
+						}
+						return repositoryJSON(t, observation), nil
+					case targetPath:
+						if mode == "lost-reply" {
+							return repositoryJSON(t, repositoryVolume(target)), nil
+						}
 						return host.Result{}, failure
+					default:
+						t.Fatal("read another volume", args)
 					}
-					return repositoryJSON(t, observation), nil
 				}
 				if len(args) != 7 || !reflect.DeepEqual(args[:6], []string{"query", "-X", "POST", "--wait", "/1.0/storage-pools/haco-local-default/volumes/custom?project=hacocoon", "--data"}) {
 					t.Fatal("unexpected mutation", args)
@@ -129,7 +138,7 @@ func TestRepositoryCreationPreservesCopyIDsAndAssignsFreshOwnership(t *testing.T
 				if err := json.Unmarshal([]byte(args[6]), &created); err != nil {
 					t.Fatal(err)
 				}
-				if mode == "lost-reply" {
+				if mode == "lost-reply" || mode == "lost-reply-unconfirmed" {
 					return host.Result{}, failure
 				}
 				return host.Result{}, nil
@@ -146,13 +155,19 @@ func TestRepositoryCreationPreservesCopyIDsAndAssignsFreshOwnership(t *testing.T
 				}
 				return
 			}
-			if mode != "fresh" && mode != "copy" && mode != "lost-reply" {
+			if mode != "fresh" && mode != "copy" && mode != "lost-reply" && mode != "lost-reply-unconfirmed" {
 				if !errors.Is(err, core.ErrIncompatibleState) || posts != 0 {
 					t.Fatal("unverified copy created", err, created)
 				}
 				return
 			}
-			if (mode == "lost-reply" && !errors.Is(err, failure)) || (mode != "lost-reply" && err != nil) || posts != 1 {
+			if mode == "lost-reply-unconfirmed" {
+				if !errors.Is(err, failure) || posts != 1 {
+					t.Fatal("unconfirmed create was accepted", err, posts)
+				}
+				return
+			}
+			if err != nil || posts != 1 {
 				t.Fatal("creation outcome changed", err, posts)
 			}
 			wantConfig := map[string]any{"user.hacocoon.owner": target.Owner, "user.hacocoon.role": "work", "user.hacocoon.repository": "demo"}
@@ -163,6 +178,42 @@ func TestRepositoryCreationPreservesCopyIDsAndAssignsFreshOwnership(t *testing.T
 			}
 			if !reflect.DeepEqual(created, want) {
 				t.Fatal("copy changed filesystem IDs or inherited source authority", created)
+			}
+		})
+	}
+}
+
+func TestRepositoryDeviceAddReconcilesExactExistingDevice(t *testing.T) {
+	for _, mode := range []string{"exact", "foreign", "unavailable"} {
+		t.Run(mode, func(t *testing.T) {
+			failure := errors.New("device add reply lost")
+			device := map[string]string{"type": "disk", "pool": "haco-local-default", "source": "haco-repo-demo", "path": "/var/lib/hacocoon-repos/demo"}
+			if mode == "foreign" {
+				device["source"] = "haco-repo-other"
+			}
+			runner := &fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				if name != "incus" {
+					t.Fatal(name)
+				}
+				if len(args) > 2 && args[0] == "config" && args[1] == "device" && args[2] == "add" {
+					return host.Result{}, failure
+				}
+				if reflect.DeepEqual(args, []string{"query", "/1.0/instances/haco-host?project=hacocoon"}) {
+					if mode == "unavailable" {
+						return host.Result{}, errors.New("host unavailable")
+					}
+					return repositoryJSON(t, map[string]any{"name": "haco-host", "type": "container", "devices": map[string]map[string]string{"haco-repo-demo": device}}), nil
+				}
+				t.Fatal("unexpected provider operation", args)
+				return host.Result{}, nil
+			}}
+			err := (&RepositoryBackend{Runtime: New(runner)}).ensureRepositoryDevice(context.Background(), "haco-repo-demo", "haco-local-default", "haco-repo-demo", "/var/lib/hacocoon-repos/demo")
+			if mode == "exact" {
+				if err != nil {
+					t.Fatal("exact existing device was not reused", err)
+				}
+			} else if !errors.Is(err, failure) {
+				t.Fatal("foreign or unobservable device was accepted", err)
 			}
 		})
 	}

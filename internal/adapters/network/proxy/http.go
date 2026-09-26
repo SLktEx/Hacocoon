@@ -28,7 +28,8 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, environment s
 			return
 		}
 	}
-	addresses, ok := p.prepareUpstream(w, r, core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTP})
+	target := core.EgressRequest{Environment: environment, Host: host, Port: port, Protocol: core.EgressHTTP}
+	addresses, ok := p.prepareUpstream(w, r, target)
 	if !ok {
 		return
 	}
@@ -58,6 +59,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request, environment s
 	upstream.Header.Del("Proxy-Connection")
 	response, err := transport.RoundTrip(upstream)
 	if err != nil {
+		logUpstreamFailure(r.Context(), target, err)
 		http.Error(w, "upstream request failed", http.StatusBadGateway)
 		return
 	}
