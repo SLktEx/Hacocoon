@@ -64,13 +64,13 @@ jobs:
       - name: Test Windows code with coverage
         shell: pwsh
         run: |
-          go test -count=1 -shuffle=on -covermode=atomic -coverprofile=coverage-windows.out ./internal/platform/wsl/reclaim ./internal/client/reclaim ./internal/cli/wsl ./internal/cli/review ./internal/client/review ./internal/cli/tunnel ./internal/client/forward ./internal/platform/wsl/launch ./internal/streamio
+          go test -count=1 -shuffle=on -covermode=atomic -coverprofile=coverage_windows.out ./internal/platform/wsl/reclaim ./internal/client/reclaim ./internal/cli/wsl ./internal/cli/review ./internal/client/review ./internal/cli/tunnel ./internal/client/forward ./internal/platform/wsl/launch ./internal/streamio
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish Windows coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: go-coverage-windows
-          path: coverage-windows.out
+          path: coverage_windows.out
           if-no-files-found: error
           retention-days: 1
 
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           go tool cover -func=coverage.out | tee coverage.txt
           total="$(tail -n 1 coverage.txt)"
-          windows_total="$(go tool cover -func=coverage-windows.out | tail -n 1)"
+          windows_total="$(go tool cover -func=coverage_windows.out | tail -n 1)"
           {
             echo '## Go coverage'
             echo
