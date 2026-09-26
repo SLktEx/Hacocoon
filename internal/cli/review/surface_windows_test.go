@@ -23,6 +23,12 @@ import (
 
 type nativeDisplayFixture struct{ request core.ApprovalRequest }
 
+func TestNativeToastProcessTimeoutFitsStartupBudget(t *testing.T) {
+	if nativeToastProcessTimeout <= 30*time.Second || nativeToastProcessTimeout >= desktopreview.StartupTimeout {
+		t.Fatalf("native toast process timeout %s must exceed the observed hosted cold-start ceiling and remain below startup budget %s", nativeToastProcessTimeout, desktopreview.StartupTimeout)
+	}
+}
+
 func TestNativeToastDiagnosticsDoNotExposeProcessOutput(t *testing.T) {
 	for _, data := range []string{"SECRET", "HACO_TOAST_FAILURE:show:1\nSECRET", "HACO_TOAST_FAILURE:SECRET:1", "HACO_TOAST_OK"} {
 		err := nativeToastResult([]byte(data), errors.New("private process SECRET"))
