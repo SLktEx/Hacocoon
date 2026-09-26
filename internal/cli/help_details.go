@@ -65,7 +65,7 @@ func init() {
 	set([]string{"env copy"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[new-env]", "detail.copy_name")}, []cliui.HelpField{json})
 	set([]string{"env export"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[file.haco]", "detail.archive_out")}, []cliui.HelpField{json})
 	set([]string{"env import"}, []cliui.HelpField{field("<file.haco>", "detail.archive_in"), field("[new-env]", "detail.import_name")}, []cliui.HelpField{json})
-	set([]string{"repo add"}, []cliui.HelpField{field("<id>", "detail.repo_new"), field("<URL>", "detail.remote")}, nil, "detail.read_access")
+	set([]string{"repo add"}, []cliui.HelpField{field("<id>", "detail.repo_new"), field("<URL>", "detail.remote")}, []cliui.HelpField{json}, "detail.read_access")
 	set([]string{"repo delete"}, []cliui.HelpField{field("<id>", "detail.repo")}, []cliui.HelpField{yes})
 	set([]string{"workspace create"}, []cliui.HelpField{field("<workspace>", "detail.workspace_new")}, []cliui.HelpField{repos, field("--branch <branch>", "detail.branch")})
 	set([]string{"workspace prepare"}, nil, []cliui.HelpField{path, repos, name, base, oci})
@@ -100,7 +100,7 @@ func init() {
 	set([]string{"aws s3 ls"}, []cliui.HelpField{field("<s3://bucket/prefix>", "detail.s3_prefix")}, aws)
 	set([]string{"aws s3 cp"}, []cliui.HelpField{field("<s3://bucket/key>", "detail.s3_object"), field("<file>", "detail.download")}, aws)
 	set([]string{"ssh setup"}, []cliui.HelpField{field("[environment]", "detail.env_optional")}, nil)
-	set([]string{"open"}, []cliui.HelpField{field("[environment-or-directory]", "detail.open")}, []cliui.HelpField{field("--client vscode|ssh|none", "detail.client"), field("--repo <id[,id...]>", "detail.repos_optional"), name, base, oci, field("--port <port>", "detail.preview_port"), field("--close", "detail.close_preview"), field("--no-browser", "detail.no_browser"), field("--json", "detail.open_json")})
+	set([]string{"open"}, []cliui.HelpField{field("[environment-or-directory]", "detail.open")}, []cliui.HelpField{field("--client vscode|ssh|none", "detail.client"), field("--select", "open.select"), field("--repo <id[,id...]>", "detail.repos_optional"), name, base, oci, field("--port <port>", "detail.preview_port"), field("--close", "detail.close_preview"), field("--no-browser", "detail.no_browser"), field("--json", "detail.open_json")})
 	set([]string{"run"}, []cliui.HelpField{field("-- <command...>", "detail.command")}, []cliui.HelpField{field("--workspace <workspace>", "run.flag_workspace"), base, noOCI, field("--read-only", "run.flag_readonly"), field("-i, --interactive", "run.flag_input"), field("-t, -it, --tty", "run.flag_tty"), json, field("--rm", "run.flag_rm")}, "run.help")
 	for i := range helpPages {
 		page := &helpPages[i]
