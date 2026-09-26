@@ -177,3 +177,13 @@ The product entry is `cmd/haco`; implementation locations are in the [repository
 
 Repository registration is branch-independent through `haco repo add`; initial
 branch selection belongs to Workspace creation. See [Git semantics](design/git-and-github-capability.md#branch-independent-repository-registration).
+
+## M1 daily-use follow-up
+
+Implemented in this checkout: shared Japanese/English pending-approval, preview and experimental VS Code notices, plus vertical help and readiness guidance in haco-vscode. Help succeeds without preparing an Environment; invalid flags remain errors. JSON and approval decisions are unchanged. This builds on main 68c539c1, including Windows review cleanup in #721. Full CLI localization and packaged human acceptance remain partial; see the [language contract](reference/cli-language.md) and [M1 roadmap](status/architecture-and-roadmap.md).
+
+## M2 local Git recovery
+
+Implemented in this checkout: Environment doctor reports local Git wiring and explicit `--fix` reuses the canonical connection operation without upstream access or Policy changes. `haco git connect` is retired from the product CLI. Git-less/offline, stopped and unknown state remain distinct. [Git contract](design/git-and-github-capability.md#local-git-diagnosis-and-repair) owns the scope and limitations. Human authenticated Git/GUI acceptance remains pending.
+
+Reclamation now retains a separate fixed-category Windows resume failure and numeric code after a primary compaction failure. Ordinary status and CI can report both; this diagnostic improvement does not resolve the existing installed `compact_attached` failure.

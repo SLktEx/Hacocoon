@@ -157,3 +157,27 @@ func TestReclaimAbsentResultDoesNotClaimExecution(t *testing.T) {
 		t.Fatal("empty status invoked review", code, calls)
 	}
 }
+
+func TestReclamationResumeFailureIsSeparateAndValidated(t *testing.T) {
+	raw := `{"operation":"` + commandReclaimOperation + `","state":"failed","observation":{"Failure":"compact_attached","StopAttempted":true,"StopRequested":true,"ResumeAttempted":true,"Resumed":false,"ResumeFailure":{"Kind":"exit","Code":2147549183}}}`
+	for _, lang := range []string{"en", "ja"} {
+		t.Run(lang, func(t *testing.T) {
+			t.Setenv("HACO_UI_LANGUAGE", lang)
+			var out, diagnostic bytes.Buffer
+			if code := writeReclamationStatus(&out, &diagnostic, []byte(raw)); code != 1 || !strings.Contains(out.String(), "2147549183") || !strings.Contains(out.String(), map[string]string{"en": "restart failure", "ja": "再開の失敗理由"}[lang]) {
+				t.Fatal(code, out.String(), diagnostic.String())
+			}
+		})
+	}
+	for _, changed := range []string{
+		strings.Replace(raw, `"Resumed":false`, `"Resumed":true`, 1),
+		strings.Replace(raw, `"ResumeAttempted":true`, `"ResumeAttempted":false`, 1),
+		strings.Replace(raw, `"exit"`, `"private-token"`, 1),
+		strings.Replace(raw, `2147549183`, `0`, 1),
+		strings.Replace(raw, `"exit"`, `"timeout"`, 1),
+	} {
+		if _, err := parseReclamationStatus([]byte(changed)); err == nil {
+			t.Fatal("invalid diagnostic accepted")
+		}
+	}
+}

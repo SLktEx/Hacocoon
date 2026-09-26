@@ -183,11 +183,11 @@ register the saved repository ID and URL before connecting:
 
 ```bash
 haco repo add sample https://github.com/OWNER/REPO.git
-haco git connect dev-imported
+haco doctor --fix dev-imported
 ```
 
 Here `sample` and the URL must match the saved Workspace route; its saved branch remains fixed. If that
-matching source is already registered, only `haco git connect` is needed. This
+matching source is already registered, only `haco doctor --fix <env>` is needed. This
 does not replace the imported checkout or its uncommitted/untracked/unpushed work.
 Current Policy and approval still apply; imported data grants no credentials.
 A missing source, mismatched URL, or replaced Env/source identity cannot
@@ -209,3 +209,23 @@ performs a new exact-ref read under current Policy, original Environment creatio
 and source ownership. It never repeats a push or recreates an approval.
 A matching remote OID remains an observation and cannot erase a failed original
 operation. See [ADR 0086](../adr/0086-git-push-reconciliation-evidence.md).
+
+## Local Git diagnosis and repair
+
+Implemented: `haco doctor <env>` includes `git_broker`. It reads the current
+Workspace/source ownership, the broker's registered listener, and the exact Incus
+proxy/Workspace attachment through the same provider validation used by connection
+setup. For a running Env it also checks guest socket/helper presence. These local
+observations neither fetch upstream nor establish authentication, push authority,
+or the trustworthiness of guest processes. Raw guest/provider output is not shown.
+Non-managed and offline Workspaces report `not_applicable`; stopped Envs report
+`skipped`, and failed observations/ownership mismatches report `unknown`.
+
+`haco doctor --fix <env>` repairs a confirmed failed local Git check through the
+existing `ConnectGit` operation once, then rechecks it. It does not start an Env,
+repair SSH/DNS, fetch, push, change Policy, delete data or approve a request. A
+foreign proxy is refused rather than replaced. Unknown state is not automatically
+repaired. An externally removed Host socket whose listener is still registered can
+remain failed; inspect/restart the controller rather than overwriting unknown
+socket ownership. The product `haco git connect` command is retired; its internal
+management API remains for automatic creation and explicit doctor repair.

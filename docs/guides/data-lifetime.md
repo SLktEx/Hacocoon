@@ -46,7 +46,7 @@ To deliberately discard packages/rootfs changes:
 haco env stop dev
 haco env delete dev
 haco env create --workspace managed:work --base haco/ubuntu-26.04 dev
-haco git connect dev
+haco doctor --fix dev
 haco open dev
 ```
 

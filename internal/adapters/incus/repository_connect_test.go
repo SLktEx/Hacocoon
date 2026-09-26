@@ -98,6 +98,12 @@ func TestRepositoryGitConnectionRequiresOwnedWorkspaceAndExactProxy(t *testing.T
 				}
 			}}
 			backend := &RepositoryBackend{Runtime: New(runner), ProductBinary: client}
+			if mode == "new" || mode == "existing" || mode == "foreign-proxy" {
+				ready, inspectErr := backend.InspectGitConnection(context.Background(), env, work, socket)
+				if ready != (mode == "existing") || ((inspectErr != nil) != (mode == "foreign-proxy")) || added != 0 || pushed != 0 {
+					t.Fatal("inspection mutated or accepted different wiring", ready, inspectErr, added, pushed)
+				}
+			}
 			err := backend.ConnectGit(context.Background(), env, work, socket)
 			if mode == "new" || mode == "existing" {
 				if err != nil || pushed != 1 || (mode == "existing" && added != 0) || (mode == "new" && added != 1) {

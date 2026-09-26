@@ -183,6 +183,7 @@ jobs:
           ./tools/test_windows_installer_exit.ps1 -PausePython (Get-Command python).Source
           ./tools/test_windows_dns_diagnostic.ps1
           pwsh -NoLogo -NoProfile -File ./tools/test_windows_ssh_diagnostic.ps1
+          pwsh -NoLogo -NoProfile -File ./tools/test_windows_editor_cleanup.ps1
           if ($LASTEXITCODE -ne 0) { throw "SSH diagnostic regressions failed" }
 
       - name: "[fixture] Record bounded substrate evidence"

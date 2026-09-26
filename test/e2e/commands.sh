@@ -188,6 +188,20 @@ set -e
 [[ "$product_missing_code" == "1" ]]
 [[ ! -e "$root/product-missing-root/state" ]]
 
+# Git recovery is discovered through doctor; neither missing target nor the
+# retired command may reach a controller mutation.
+for language in en ja; do
+  HACO_UI_LANGUAGE="$language" "$bin/haco" doctor --help >"$root/doctor-help.out"
+  grep -Fq -- '--fix' "$root/doctor-help.out"
+done
+for args in 'doctor --fix' 'git connect dev'; do
+  set +e
+  "$bin/haco" $args >"$root/git-recovery.out" 2>"$root/git-recovery.err"
+  recovery_code=$?
+  set -e
+  [[ "$recovery_code" == 2 ]]
+done
+
 # Agent Host: release is intentionally idempotent, so a never-created session
 # gives us a deterministic successful process-level path without real Incus.
 "$bin/haco-agent-host" release --session e2e-never-created >"$root/agent.out" 2>"$root/agent.err"
@@ -202,8 +216,25 @@ vscode_code=$?
 set -e
 [[ "$vscode_code" == "1" ]]
 [[ ! -s "$root/vscode.out" ]]
-grep -Fq 'usage: haco-vscode <open|delete>' "$root/vscode.err"
+grep -Fq 'Use haco-vscode --help' "$root/vscode.err"
 grep -Fq 'unknown command "definitely-not-a-command"' "$root/vscode.err"
+
+# Help succeeds without controller state in either presentation language.
+for language in en ja; do
+  for command in root open delete; do
+    args=(--help)
+    [[ "$command" == root ]] || args=("$command" --help)
+    HACO_UI_LANGUAGE="$language" HACO_CONTROL_SOCKET="$root/missing-product.sock" \
+      "$bin/haco-vscode" "${args[@]}" >"$root/vscode-help.out" 2>"$root/vscode-help.err"
+    [[ ! -s "$root/vscode-help.err" ]]
+    grep -Fq 'haco-vscode' "$root/vscode-help.out"
+    if [[ "$language" == ja ]]; then
+      grep -Fq '使い方:' "$root/vscode-help.out"
+    else
+      grep -Fq 'Usage:' "$root/vscode-help.out"
+    fi
+  done
+done
 
 # Browser notifier: prove the real server process can start and terminate
 # cleanly on SIGTERM without requiring a desktop session.

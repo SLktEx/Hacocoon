@@ -101,7 +101,13 @@
     "jobs": [
       "incus-standalone",
       "incus-core-e2e",
-      "incus-owned-btrfs"
+      "incus-storage-cli",
+      "incus-host-tooling",
+      "incus-snapshots",
+      "incus-volume-base-build",
+      "incus-transfer",
+      "incus-evacuation-recovery",
+      "incus-maintenance"
     ],
     "contracts": [
       "Incus lifecycle and egress",
@@ -127,28 +133,87 @@
         "[product] Run Hacocoon egress policy against real Incus",
         "[product] Run Hacocoon Core and shipped CLI lifecycle against real Incus"
       ],
-      "incus-owned-btrfs": [
+      "incus-storage-cli": [
         "[infrastructure] Check out candidate source",
         "[infrastructure] Install pinned Go",
         "[fixture] Validate real Incus storage CLI E2E helpers",
         "[infrastructure] Prepare real Incus substrate",
         "[fixture] Prepare normal-user haco CLI acceptance",
-        "[product] Run normal haco create and run against Incus-owned Btrfs",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
         "[product] Verify Incus pool trim retains volume and snapshot",
-        "[product] Verify ordinary tar tree capture",
+        "[product] Verify ordinary tar tree capture"
+      ],
+      "incus-host-tooling": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[product] Verify standard Host tools and offline Store image reuse"
+      ],
+      "incus-snapshots": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
         "[infrastructure] Prepare pinned OCI runtime transfer assets",
-        "[product] Verify standard Host tools and offline Store image reuse",
-        "[product] Verify retained Bases, aggregate snapshots and component COW",
+        "[product] Verify retained Bases, aggregate snapshots and component COW"
+      ],
+      "incus-volume-base-build": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare Base and volume test binaries",
         "[product] Verify owned native volume import",
-        "[product] Verify definition-driven Base build and immutable revisions",
-        "[product] Verify independent persistent Store COW with real Btrfs",
+        "[product] Verify definition-driven Base build and immutable revisions"
+      ],
+      "incus-transfer": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
+        "[product] Verify persistent Store and volume/rootfs transfer"
+      ],
+      "incus-evacuation-recovery": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
+        "[product] Verify evacuation and interrupted-copy recovery"
+      ],
+      "incus-maintenance": [
+        "[infrastructure] Check out candidate source",
+        "[infrastructure] Install pinned Go",
+        "[fixture] Validate real Incus storage CLI E2E helpers",
+        "[infrastructure] Prepare real Incus substrate",
+        "[fixture] Prepare normal-user haco CLI acceptance",
+        "[product] Establish normal haco create and run against Incus-owned Btrfs",
+        "[infrastructure] Prepare pinned OCI runtime transfer assets",
         "[product] Verify retained Store maintenance through native adapter and controller CLI"
       ]
     },
     "job_names": [
       "incus-standalone",
       "incus-core-e2e",
-      "incus-owned-btrfs"
+      "incus-storage-cli",
+      "incus-host-tooling",
+      "incus-snapshots",
+      "incus-volume-base-build",
+      "incus-transfer",
+      "incus-evacuation-recovery",
+      "incus-maintenance"
     ]
   },
   "ubuntu-installer-e2e": {

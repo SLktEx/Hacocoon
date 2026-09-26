@@ -32,7 +32,7 @@ func preview(ctx context.Context, c previewController, name string, port int, cl
 			return "", err
 		}
 		if len(envs) != 1 {
-			return "", fmt.Errorf("select an Environment by name; use haco env list")
+			return "", fmt.Errorf("%s", cliMessage("preview.select"))
 		}
 		name = envs[0].Name
 	}
@@ -64,7 +64,7 @@ func preview(ctx context.Context, c previewController, name string, port int, cl
 		return "", nil
 	}
 	if len(matched) > 1 {
-		return "", fmt.Errorf("multiple preview connections; close this port and reopen")
+		return "", fmt.Errorf("%s", cliMessage("preview.multiple"))
 	}
 	var connection core.ClientConnection
 	if len(matched) == 1 {
@@ -88,11 +88,11 @@ func openPreview(name string, port int, closeConnection, noBrowser bool, out, di
 	client := controlapi.NewDefaultClient()
 	url, err := preview(ctx, client, name, port, closeConnection)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: preview:", err)
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.failed"), err)
 		return 1
 	}
 	if closeConnection {
-		fmt.Fprintln(out, "Preview connection closed.")
+		_, _ = fmt.Fprintln(out, cliMessage("preview.closed"))
 		return 0
 	}
 	if _, err = fmt.Fprintln(out, url); err != nil {
@@ -103,11 +103,11 @@ func openPreview(name string, port int, closeConnection, noBrowser bool, out, di
 	}
 	desktop, err := sshclient.ResolveDesktop(ctx)
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco: open the printed URL in your browser")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.open_url"))
 		return 1
 	}
 	if err := launchPreviewBrowser(ctx, desktop.Windows, url); err != nil {
-		fmt.Fprintln(diagnostic, "haco: browser launch failed; open the printed URL in your browser")
+		_, _ = fmt.Fprintln(diagnostic, cliMessage("preview.browser_failed"))
 		return 1
 	}
 	return 0

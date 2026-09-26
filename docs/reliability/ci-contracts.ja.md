@@ -19,7 +19,7 @@ local CI から実行する。権限境界は [CI trust boundary](../../.github/
 | Core、CLI、Policy、承認、Git broker、共有 package | `test`: test matrix、race、e2e | unit/component/integration と隔離 fixture を使う出荷 process。ローカル Git transport 拒否は認証済み GitHub push の成功を意味しない。 |
 | 配布・release 構成 | `test`: release-config、build | Linux 両 architecture、GoReleaser、installer archive を merge 前に検証。 |
 | Incus lifecycle、network、egress | `incus-core-e2e`: incus-standalone、incus-core-e2e | 独立 runner の native 基盤、provider、出荷 controller/CLI。standalone の Docker 共存ルールを製品 Environment の egress に適用しない。 |
-| Btrfs、Base、snapshot、transfer、保持 OCI | `incus-core-e2e`: incus-owned-btrfs | native adapter と CLI/controller。fixture は保持データを準備し、pool の遅延作成も検証する。全 packaged 受入ではない。 |
+| Btrfs、Base、snapshot、transfer、保持 OCI | `incus-core-e2e`: incus-storage-cli、incus-host-tooling、incus-snapshots、incus-volume-base-build、incus-transfer、incus-evacuation-recovery、incus-maintenance | 独立した fresh runner ごとに通常の `haco` create/run でレビュー済み Incus/Btrfs 製品基盤を作り、その後に担当する native adapter または CLI/controller 検証だけを行う。job 間で privileged な Incus 状態は共有しない。全 packaged 受入ではない。 |
 | Ubuntu installer・隔離 | `ubuntu-installer-e2e`: ubuntu-user-path | 未改変の配布 installer、通常ユーザー、製品 CLI の run/create/status/stop/start/delete と Workspace 保持、移行中 CLI の installed journey と kernel 検証。 |
 | Windows 共通 release candidate | `windows-installer-e2e`: windows-package | release 相当の amd64 package を1回だけ build し、同一 workflow run の独立 Windows job へ同じ archive を渡す。 |
 | Windows native client 境界 | `windows-installer-e2e`: windows-native-client-tests | packaged install と独立して native client / WSL 境界の focused test を実行する。 |

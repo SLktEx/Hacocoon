@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
+	"golang.org/x/term"
 )
 
 func runRepository(namespace string, args []string) int {
@@ -71,7 +73,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	case "workspace create":
 		flags.StringVar(&branch, "branch", "", cliMessage("detail.branch"))
 		flags.StringVar(&repo, "repo", "", cliMessage("detail.repos"))
-	case "git connect":
 	case "git approve", "git deny":
 		flags.StringVar(&save, "save", "", cliMessage("detail.saved"))
 	case "git pending":
@@ -112,7 +113,11 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	var err error
 	switch operation {
 	case "repo add":
-		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]}, diagnostic)
+		progress := newRepositoryProgressWriter(diagnostic)
+		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]}, progress)
+		if finishErr := progress.Finish(); err == nil && finishErr != nil {
+			err = finishErr
+		}
 	case "workspace create":
 		request := controlapi.WorkspaceCopyRequest{ID: pos[0], Repository: repo, Branch: branch}
 		if strings.Contains(repo, ",") {
@@ -120,9 +125,6 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 			request.Repositories = strings.Split(repo, ",")
 		}
 		result, err = client.CopyWorkspace(ctx, request)
-	case "git connect":
-		err = client.ConnectGit(ctx, pos[0])
-		result = "Environment Git helper connected"
 	case "git pending":
 		result, err = client.PendingGit(ctx)
 	case "git approve", "git deny":
@@ -143,4 +145,79 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 1
 	}
 	return 0
+}
+
+type repositoryProgressWriter struct {
+	out      io.Writer
+	terminal bool
+	active   bool
+	stage    string
+	pending  []byte
+}
+
+func newRepositoryProgressWriter(out io.Writer) *repositoryProgressWriter {
+	terminalOutput := false
+	if file, ok := out.(interface{ Fd() uintptr }); ok {
+		terminalOutput = term.IsTerminal(int(file.Fd()))
+	}
+	return &repositoryProgressWriter{out: out, terminal: terminalOutput}
+}
+
+func (w *repositoryProgressWriter) Write(p []byte) (int, error) {
+	if !w.terminal {
+		return w.out.Write(p)
+	}
+	w.pending = append(w.pending, p...)
+	for {
+		end := bytes.IndexByte(w.pending, '\n')
+		if end < 0 {
+			return len(p), nil
+		}
+		line := strings.TrimSuffix(string(w.pending[:end]), "\r")
+		w.pending = w.pending[end+1:]
+		if err := w.render(line); err != nil {
+			return len(p), err
+		}
+	}
+}
+
+func (w *repositoryProgressWriter) Finish() error {
+	if !w.terminal {
+		return nil
+	}
+	if len(w.pending) != 0 {
+		line := strings.TrimSuffix(string(w.pending), "\r")
+		w.pending = nil
+		if err := w.render(line); err != nil {
+			return err
+		}
+	}
+	if w.active {
+		w.active = false
+		_, err := io.WriteString(w.out, "\n")
+		return err
+	}
+	return nil
+}
+
+func (w *repositoryProgressWriter) render(line string) error {
+	if line == "" {
+		return nil
+	}
+	stage := line
+	if prefix, _, ok := strings.Cut(line, ":"); ok {
+		stage = prefix
+	}
+	if w.active && stage != w.stage {
+		if _, err := io.WriteString(w.out, "\n"); err != nil {
+			return err
+		}
+		w.active = false
+	}
+	if _, err := io.WriteString(w.out, "\r\x1b[2K"+line); err != nil {
+		return err
+	}
+	w.active = true
+	w.stage = stage
+	return nil
 }
