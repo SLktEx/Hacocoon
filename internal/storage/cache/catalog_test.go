@@ -100,3 +100,19 @@ func TestCacheCatalogRecoveryUsesExactRetainedCandidatesWithoutProducer(t *testi
 		t.Fatal(r, err, recovery)
 	}
 }
+
+func TestCacheRecoveryRetriesFencedDeletion(t *testing.T) {
+	w, f := maintenanceTestWorkflow()
+	f.resources[0].State = "deleting"
+	f.resources[0].CopyCleanup = true
+	recovery := &catalogRecoverFixture{}
+	w.Recoverer = recovery
+	h, err := w.CatalogHistory(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = w.MaintainCatalog(context.Background(), h.Revision, false)
+	if err != nil || len(recovery.recovered) != 1 {
+		t.Fatal("cleanup was not dispatched", err, recovery)
+	}
+}

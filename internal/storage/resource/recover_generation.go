@@ -30,6 +30,13 @@ func (s *Service) RecoverEnvironmentGeneration(ctx context.Context, ref core.Per
 		return result, core.ErrIncompatibleState
 	}
 	result.Candidate = target
+	if target.CopyOperation != "" && !target.CopyCompleted && (target.State == "creating" || target.State == "deleting") {
+		result.Candidate, err = s.cleanupCacheCopy(ctx, target)
+		if err == nil {
+			result.State = "cleaned"
+		}
+		return result, err
+	}
 	if target.State == "creating" {
 		if !target.CopyCompleted || target.CopySource != target.Producer {
 			return result, core.ErrRecoveryRequired

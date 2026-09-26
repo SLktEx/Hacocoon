@@ -211,7 +211,24 @@ func (s *Service) copyReserved(ctx context.Context, source, target core.Persiste
 		target.CopyCompleted = true
 		return nil
 	}
-	if staged, ok := s.Backend.(StagedCopyBackend); ok {
+	if tracked, ok := s.Backend.(trackedCacheCopyBackend); ok && core.ValidGenerationResource(target.Ref()) && core.ValidEnvironmentResourceRef(target.Producer) {
+		store, ok := s.Store.(cacheCopyStore)
+		if !ok {
+			return incomplete(core.ErrUnsupported)
+		}
+		record := func(operation string) error {
+			saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			updated, err := store.RecordCacheCopyOperation(saveCtx, target, operation)
+			if err == nil {
+				target = updated
+			}
+			return err
+		}
+		if err := tracked.CopyTracked(ctx, source, target, record, completed); err != nil {
+			return incomplete(err)
+		}
+	} else if staged, ok := s.Backend.(StagedCopyBackend); ok {
 		if err := staged.CopyWithCompletion(ctx, source, target, completed); err != nil {
 			return incomplete(err)
 		}
@@ -232,5 +249,6 @@ func (s *Service) copyReserved(ctx context.Context, source, target core.Persiste
 	target.State = "ready"
 	target.CopySource = core.PersistentResourceRef{}
 	target.CopyCompleted = false
+	target.CopyOperation = ""
 	return target, nil
 }

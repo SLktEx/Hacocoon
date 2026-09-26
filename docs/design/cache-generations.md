@@ -5,7 +5,7 @@
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented on main.
 Use the public commands below on the trusted Host. Enrollment is intentionally limited to new Environments; later enrollment is out of scope.
-Cleanup of failed/interrupted copy destinations remains planned. Named and --all source
+Failed/interrupted collection-copy cleanup is implemented in PR #737. Named and --all source
 history, reviewed clearing and positive-receipt recovery are implemented.
 Real-host results and large-repository performance are separate acceptance claims.
 
@@ -159,15 +159,14 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Planned: remove the owned destination when a copy fails or is interrupted, after
-confirming that the provider operation has stopped. Preserve the source and release
-copy reservations only after destination absence is confirmed. If operation state
-or cleanup is uncertain, retain ownership for recovery. This cleanup is not yet
-implemented. Existing-Env enrollment is excluded from M4.
+PR #737 implements failed/interrupted collection cleanup after confirming that the
+saved provider operation has stopped. Preserve the source and release reservations
+only after destination absence. Unknown operations and uncertain cleanup retain
+ownership for recovery. Existing-Env enrollment is excluded from M4.
 Retained-source history/clear and recovery of positively completed copies work
 with or without a remaining producer. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
-These remaining operations must use canonical lifecycle ownership. Workspace and
+These operations use canonical lifecycle ownership. Workspace and
 OCI data remain retained when an enrolled Environment is deleted.
 
 Real Incus/Btrfs acceptance must measure shared extents and independent mutation,
@@ -299,8 +298,10 @@ or reset advanced the source, complete data remains unselected; recovery does no
 delete it or replay an old publication. Use reviewed clear for retained data.
 Deletion-incomplete candidates report cleanup-required. Unknown copies and failed
 provider checks remain recovery-required and owned, with partial results preserved.
-Unknown native-copy cancellation remains unsupported; --all recovery includes
-positively completed orphan-source copies.
+Unfinished tracked collection copies are cleaned after their saved provider operation
+is terminal. Missing/expired operation receipts remain recovery-required; destination
+existence is never a completion or stop receipt. --all recovery includes this cleanup
+and positively completed orphan-source copies.
 
 Named-data snapshot/copy support is implemented through the canonical saved aggregate;
 saved bytes do not grant publication into a newer common generation. Portable
@@ -314,8 +315,8 @@ sources with no remaining producer. Existing Env names and configured area names
 are shown when they can be observed; a missing producer is explicitly unnamed,
 not inferred from an opaque ID. Ordinary output needs no native resource identity.
 
-`haco cache recover --all` resumes only positively completed copies through the
-same recovery transition. `haco cache clear --all` displays the complete scope
+`haco cache recover --all` resumes positively completed copies and unfinished tracked
+collection cleanup through the same recovery transitions. `haco cache clear --all` displays the complete scope
 and uses the common confirmation; `--yes` still requires successful display.
 A revision binds all groups, selections, exact owners and displayed Env names.
 Changed review is refused before mutation. Each group then uses the existing
@@ -360,3 +361,17 @@ mount paths. Traversal is bounded to 100,000 entries, depth 64, 4096-byte paths 
 4 MiB directory responses under a five-minute operation deadline. Unsupported or
 malformed observations fail closed. These are bounded initial operations, not
 large-repository performance acceptance. See [ADR 0101](../adr/0101-environment-cache-emptying.md).
+
+## Interrupted collection cleanup
+
+A failed collection keeps its failure result. The controller first fences completion,
+then waits up to 30 seconds independently of client cancellation for the saved Incus
+operation to terminate. It deletes only the reserved destination through common
+exact-owner deletion, releasing CopySource only after positive absence. Source data,
+Workspace, OCI and the selected generation remain. A cleaned failure is displayed
+as such; retry collection when ready. If the operation is still running or deletion
+fails, keep the Env stopped and use `haco cache recover <env> <area>` (or `--all`).
+Recovery can finish a previously recorded deletion without the expired operation.
+Submission without a saved operation ID, lost terminal observations and expired
+operations remain recovery-required. Completed copies and ambiguous selection writes
+retain the existing publication recovery. See [ADR 0112](../adr/0112-interrupted-cache-copy-cleanup.md).

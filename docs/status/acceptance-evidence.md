@@ -2095,3 +2095,26 @@ replace final-head installed acceptance.
 Combined PR #727 head `4459418c` passed four workflows but Windows run36164722897 failed with `compact_attached` after 359 opens, no compaction and unsuccessful resume; notification acceptance was skipped. The saved record lacked the resume error detail. This checkout preserves a separate fixed category and numeric code without changing the first failure. Earlier failures remain unresolved; new installed evidence is pending.
 
 Local focused CLI/status and language regressions passed. Native Windows tests passed for a real child exit `0x8000FFFF`, independent resume categories, serialized preservation of the primary failure, existing operation retention and review. The CI projection suite passed 21 tests. No installed WSL stop/compact cycle was run for this change. Initial verification preparation failed due to script quoting and a missing temporary source directory after WSL restart; corrected preparation and the focused tests then passed.
+
+## Interrupted cache collection cleanup
+
+PR #737 implements creation-only cache enrollment scope and tracked interrupted
+collection cleanup. Local WSL tests for resource/state/cache/Incus/CLI passed before
+the final retry-guidance wording. The later Japanese assertion rejected the valid
+instruction to stop before recollecting; it was narrowed to the obsolete mandatory
+recovery warning. The final focused result is recorded below after rerun.
+
+Real Incus 7.0.1 on WSL Hacocoon passed
+`TestRealIncusEnvironmentDataPlacementE2E` in 216.16 seconds. The disposable fixture
+lost one real operation-wait response, confirmed destination cleanup, preserved
+source and Workspace contents, resumed the producer, recollected, reused independent
+data with another Base name, and deleted owned test data. No production checks were
+disabled. This proves the small ordinary-Env flow, not giant-repository performance.
+Missing/expired operation receipts and human GUI acceptance remain separate.
+
+Initial local preparation failed on Windows worktree-path and CRLF differences;
+correcting the validation script allowed the tests to run. Broad static analysis
+reported 61 issues, including two new Boolean-style suggestions, which were fixed;
+unchanged baseline findings are not represented as a passing whole-tree lint.
+
+Final local validation passed: cache CLI (including both languages), resource/state/cache race tests, Workspace/controller API regressions, and changed-line golangci-lint (zero findings, matching PR CI scope). `tools/check_docs.py` and `git diff --check` passed. Maintained `bash tools/ci-local.sh docs` passed, including all 19 checker regressions. No release, giant-repository benchmark or human approval acceptance was claimed.
