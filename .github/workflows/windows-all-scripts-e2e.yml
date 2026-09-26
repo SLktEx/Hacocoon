@@ -444,9 +444,9 @@ jobs:
         shell: pwsh
         run: ./tools/run_windows_installer_e2e.ps1 -FreshOnly
 
-      - name: "[product] Verify strict OpenSSH, VS Code, preview, customization, and transfer"
+      - name: "[product] Verify strict OpenSSH, VS Code, preview, and transfer"
         shell: pwsh
-        run: python ./test/e2e/windows/access.py --skip-interop
+        run: python ./test/e2e/windows/access.py --skip-interop --skip-host-customization
 
       - name: "[fixture] Record bounded substrate evidence"
         if: always()
@@ -537,6 +537,70 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  windows-host-customization:
+    needs: [windows-package]
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: "[fixture] Checkout candidate"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "[infrastructure] Download shared Windows package"
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-e2e-package
+          path: ${{ runner.temp }}/windows-e2e-package
+
+      - name: "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache"
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}/hacocoon-wsl-cache/ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+
+      - name: "[fixture] Stage release-equivalent installer package"
+        shell: pwsh
+        run: ./tools/stage_windows_installer_e2e.ps1
+
+      - name: "[fixture] Prepare ConPTY user-input driver"
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --disable-pip-version-check --no-input "pywinpty==3.0.2"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install the ConPTY test driver dependency." }
+          python -m py_compile ./test/e2e/windows/install.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows user-path driver failed syntax validation." }
+
+      - name: "[fixture] Reject Hacocoon test overrides before user path"
+        shell: pwsh
+        run: |
+          $overrides = @(Get-ChildItem Env: | Where-Object { $_.Name -like 'HACO_*' -or $_.Name -like 'HACOQ_*' -or $_.Name -like 'HACOHOST_*' })
+          if ($overrides.Count -ne 0) {
+            $names = ($overrides.Name | Sort-Object) -join ', '
+            throw "Exact user-path E2E refuses Hacocoon environment overrides: $names"
+          }
+
+      - name: "[product] Execute fresh packaged Windows install"
+        shell: pwsh
+        run: ./tools/run_windows_installer_e2e.ps1 -FreshOnly
+
+      - name: "[product] Verify installed Host customization lifecycle"
+        shell: pwsh
+        run: ./tools/test_host_customization.ps1
+
+      - name: "[fixture] Record bounded substrate evidence"
+        if: always()
+        run: python tools/ci_diagnostics.py --output ci-substrate.json
+      - name: "[infrastructure] Retain substrate evidence"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-substrate-${{ github.job }}-${{ github.run_attempt }}
+          path: ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
+
   windows-notification:
     needs: [windows-package]
     runs-on: windows-2025
@@ -610,6 +674,7 @@ jobs:
       - windows-egress
       - windows-interop
       - windows-access
+      - windows-host-customization
       - windows-reclamation
       - windows-notification
     if: ${{ !cancelled() }}
