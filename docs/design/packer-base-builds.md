@@ -48,6 +48,28 @@ is `haco base build`; no Host-side standalone Packer launcher is provided.
 
 ## Dependencies and source files
 
+To prepare ordinary network settings for one build Environment, choose its name:
+
+```bash
+haco base build --name my-tools --builder packer-tools examples/packer
+```
+
+Before building, use [ordinary configuration](../reference/configuration.md) to
+review the required destinations with administrator rules whose `environment` is
+`packer-tools`, keeping `require-approval` when each request should be reviewed.
+The command itself neither saves a rule nor approves a download. Existing denials
+still apply. A named administrator rule also applies to future Envs with that name;
+ordinary saved approval answers remain bound to one creation identity. Review the
+intended rule lifetime and remove temporary settings when no longer needed.
+
+`--builder` uses normal Environment names: lowercase letters/digits and internal
+hyphens, at most 57 characters. Omit it for a random name. A name already in use
+is refused without adopting or deleting that Env. Retained failures must be
+inspected before another attempt, or use another new name. Each attempt still has
+fresh ownership and the same isolated execution/publication/cleanup. The JSON shell
+definition also accepts `builder_name`; an explicit CLI option overrides it.
+See [ADR 0109](../adr/0109-named-build-environments.md).
+
 Packer is optional for ordinary Base selection and creation. A Packer build
 prepares Python 3, CA certificates and OpenSSH in its disposable Ubuntu builder
 when Python/OpenSSH tools are missing, using ordinary `apt-get` operations.

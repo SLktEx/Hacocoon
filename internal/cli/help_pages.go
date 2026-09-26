@@ -42,11 +42,11 @@ var helpPages = []helpPage{
 	{Path: "env export", Syntax: "[--json] <stopped-env> [file.haco]", Message: "command.env.export", Example: "haco env export dev dev.haco"},
 	{Path: "env import", Syntax: "[--json] <file.haco> [new-env]", Message: "command.env.import", Example: "haco env import dev.haco restored"},
 	{Path: "repo", Syntax: "<command>", Message: "command.repo", Example: "haco repo list"},
-	{Path: "repo clone", Syntax: "--branch <branch> [--json] <id> <URL>", Message: "command.repo.clone", Example: "haco repo clone --branch main source https://github.com/OWNER/REPO.git"},
+	{Path: "repo add", Syntax: "[--json] <id> <URL>", Message: "command.repo.add", Example: "haco repo add sample https://github.com/OWNER/REPO.git"},
 	{Path: "repo list", Syntax: "[--json]", Message: "command.repo.list", Example: "haco repo list"},
 	{Path: "repo delete", Syntax: "[--yes] <id>", Message: "command.repo.delete", Example: "haco repo delete source"},
 	{Path: "workspace", Syntax: "<command>", Message: "command.workspace", Example: "haco workspace list"},
-	{Path: "workspace create", Syntax: "--repo <id[,id...]> [--json] <workspace>", Message: "command.workspace.create", Example: "haco workspace create --repo source work"},
+	{Path: "workspace create", Syntax: "--repo <id[,id...]> [--branch <branch>] [--json] <workspace>", Message: "command.workspace.create", Example: "haco workspace create --repo source work"},
 	{Path: "workspace prepare", Syntax: "[--json] --path <directory> --repo <id[,id...]> [--name <name>] [--base <base>] [--oci auto|none|oci:<store>]", Message: "command.workspace.prepare", Example: "haco workspace prepare --path . --repo source --name work"},
 	{Path: "workspace import", Syntax: "[--json] --path <directory> --repo <name> [--name <name>] [--base <base>] [--oci <choice>] <checkout>", Message: "command.workspace.import", Example: "haco workspace import --repo sample --path ./task ../linked-worktree"},
 	{Path: "workspace fork", Syntax: "[--json] --path <directory> [--name <name>] [--repo <first,second>] [--base <base>] <source>", Message: "command.workspace.fork", Example: "haco workspace fork --path ../branch --name branch work"},
@@ -63,7 +63,7 @@ var helpPages = []helpPage{
 	{Path: "base list", Syntax: "[--all] [--json]", Message: "command.base.list", Example: "haco base list"},
 	{Path: "base inspect", Syntax: "[--json] <base>", Message: "command.base.inspect", Example: "haco base inspect <base>"},
 	{Path: "base import", Syntax: "--name <base> [--json] <image.tar>", Message: "command.base.import", Example: "haco base import --name my-tools ./my-tools.tar"},
-	{Path: "base build", Syntax: "--name <base> [--from <base>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco base build --name my-tools ./tools-base"},
+	{Path: "base build", Syntax: "--name <base> [--from <base>] [--builder <env>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco base build --name my-tools ./tools-base"},
 	{Path: "base delete", Syntax: "[--yes] <name-or-fingerprint>", Message: "command.base.delete", Example: "haco base delete <base>"},
 	{Path: "snapshot", Syntax: "<command>", Message: "command.snapshot", Example: "haco snapshot list"},
 	{Path: "snapshot create", Syntax: "[--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},
@@ -98,7 +98,7 @@ var helpPages = []helpPage{
 	{Path: "ssh", Syntax: "<command>", Message: "command.ssh", Example: "haco ssh setup dev"},
 	{Path: "ssh setup", Syntax: "[environment]", Message: "command.ssh.setup", Example: "haco ssh setup dev"},
 	{Path: "ssh cleanup", Syntax: "[environment]", Message: "command.ssh.cleanup", Example: "haco ssh cleanup dev"},
-	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open --repo source ."},
+	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--select] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open"},
 }
 
 func commandHelp(out io.Writer, path string, language cliui.Language) bool {

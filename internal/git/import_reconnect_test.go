@@ -25,7 +25,7 @@ func (b *importReconnectBackend) ConnectGit(context.Context, core.Environment, O
 
 func TestImportedWorkspaceConnectsOnlyToExplicitMatchingSource(t *testing.T) {
 	const remote = "https://github.com/SLktEx/Hacocoon-test.git"
-	for _, mode := range []string{"matching", "remote-mismatch", "branch-mismatch", "offline"} {
+	for _, mode := range []string{"matching", "remote-mismatch", "offline"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -60,14 +60,11 @@ func TestImportedWorkspaceConnectsOnlyToExplicitMatchingSource(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(repos.Root, "bindings", "dev.json")); !os.IsNotExist(err) {
 				t.Fatal("missing route persisted a binding", err)
 			}
-			currentRemote, currentBranch := remote, "main"
+			currentRemote := remote
 			if mode == "remote-mismatch" {
 				currentRemote = "https://github.com/example/different.git"
 			}
-			if mode == "branch-mismatch" {
-				currentBranch = "other"
-			}
-			source, err := repos.Clone(ctx, "source", currentRemote, currentBranch)
+			source, err := repos.Add(ctx, "source", currentRemote)
 			if err != nil {
 				t.Fatal(err)
 			}

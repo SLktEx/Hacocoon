@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/platform/wsl/coord"
 	"golang.org/x/sys/windows"
 )
 
@@ -108,5 +109,50 @@ func TestContinuationGuardScopeAndRelease(t *testing.T) {
 	}
 	if err := next.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLaunchGateCrossProcess(t *testing.T) {
+	if name := os.Getenv("HACO_TEST_LAUNCH_GUARD"); name != "" {
+		guard, err := wslcoord.AcquireLaunch(name)
+		if guard != nil || !errors.Is(err, wslcoord.ErrBusy) {
+			t.Fatal("reclamation launch gate not shared", guard, err)
+		}
+		return
+	}
+	id, err := windows.GenerateGUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "Hacocoon-" + id.String()[1:37]
+	guard, err := wslcoord.AcquireLaunch(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestLaunchGateCrossProcess$")
+	child.Env = append(os.Environ(), "HACO_TEST_LAUNCH_GUARD="+name)
+	if out, err := child.CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	other, err := wslcoord.AcquireLaunch(name + "-other")
+	if err != nil {
+		t.Fatal("unrelated distribution blocked", err)
+	}
+	defer other.Close()
+	if err := guard.Close(); err != nil {
+		t.Fatal(err)
+	}
+	next, err := wslcoord.AcquireLaunch(name)
+	if err != nil {
+		t.Fatal("losing child leaked reservation", err)
+	}
+	defer next.Close()
+	for _, invalid := range []string{"", "-bad", "a\\b", "a/b"} {
+		if g, err := wslcoord.AcquireLaunch(invalid); g != nil || err == nil {
+			t.Fatal(invalid, g, err)
+		}
 	}
 }

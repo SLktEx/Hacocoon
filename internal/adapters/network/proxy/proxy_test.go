@@ -55,16 +55,16 @@ func TestParseAuthorityRejectsDirectIP(t *testing.T) {
 	}
 }
 
-func TestResolvePinnedRejectsPrivateOrMixedDNSAnswers(t *testing.T) {
+func TestResolvePinnedRejectsLoopbackOrMixedDNSAnswers(t *testing.T) {
 	proxy := New(&fakeAuthorizer{}, fakeSources{environment: "env-a"})
 	proxy.resolver = fakeDNS{addresses: []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}, {IP: net.ParseIP("127.0.0.1")}}}
 	if _, err := proxy.resolvePinned(context.Background(), "example.com"); !errors.Is(err, core.ErrPolicyDenied) {
 		t.Fatalf("mixed DNS error = %v, want ErrPolicyDenied", err)
 	}
 
-	proxy.resolver = fakeDNS{addresses: []net.IPAddr{{IP: net.ParseIP("10.0.0.8")}}}
+	proxy.resolver = fakeDNS{addresses: []net.IPAddr{{IP: net.ParseIP("::1")}}}
 	if _, err := proxy.resolvePinned(context.Background(), "example.com"); !errors.Is(err, core.ErrPolicyDenied) {
-		t.Fatalf("private DNS error = %v, want ErrPolicyDenied", err)
+		t.Fatalf("loopback DNS error = %v, want ErrPolicyDenied", err)
 	}
 }
 

@@ -56,7 +56,7 @@ func TestPackerBuildCLITransfersFilesAndGatesPrivateFailureOutput(t *testing.T) 
 		fixture.fail = failed
 		for _, machine := range []bool{false, true} {
 			for _, output := range []bool{false, true} {
-				args := []string{"base", "build", "--name", "tools", "--from", "haco/ubuntu-26.04"}
+				args := []string{"base", "build", "--name", "tools", "--from", "haco/ubuntu-26.04", "--builder", "packer-tools"}
 				if machine {
 					args = append(args, "--json")
 				}
@@ -90,7 +90,7 @@ func TestPackerBuildCLITransfersFilesAndGatesPrivateFailureOutput(t *testing.T) 
 		}
 	}
 	for _, got := range fixture.calls {
-		want := basebuild.Definition{Name: "tools", From: "haco/ubuntu-26.04", Packer: &basebuild.PackerTemplate{Files: []basebuild.SourceFile{{Path: "base.pkr.hcl", Data: []byte(files["base.pkr.hcl"])}, {Path: "setup.sh", Data: []byte(files["setup.sh"])}}}}
+		want := basebuild.Definition{Name: "tools", From: "haco/ubuntu-26.04", BuilderName: "packer-tools", Packer: &basebuild.PackerTemplate{Files: []basebuild.SourceFile{{Path: "base.pkr.hcl", Data: []byte(files["base.pkr.hcl"])}, {Path: "setup.sh", Data: []byte(files["setup.sh"])}}}}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("HCL/script bytes or hidden-file exclusion changed", got)
 		}
@@ -98,5 +98,9 @@ func TestPackerBuildCLITransfersFilesAndGatesPrivateFailureOutput(t *testing.T) 
 	code, _, _ := captureRun(t, "base", "build", "--name", "../invalid", directory)
 	if code != 2 || len(fixture.calls) != 8 {
 		t.Fatal("invalid request reached controller")
+	}
+	code, _, _ = captureRun(t, "base", "build", "--name", "tools", "--builder", "../tools", directory)
+	if code != 2 || len(fixture.calls) != 8 {
+		t.Fatal("invalid builder reached controller")
 	}
 }

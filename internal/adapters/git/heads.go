@@ -88,7 +88,7 @@ func fetchHead(git func([]byte, ...string) ([]byte, error), req AgentRequest, pa
 	}
 	head := req.Heads[0]
 	tracking := readCachePrefix + strings.TrimPrefix(head.Ref, "refs/heads/")
-	if _, err := git(nil, "fetch", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+head.Ref+":"+tracking); err != nil {
+	if _, err := git(nil, "fetch", "--progress", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+head.Ref+":"+tracking); err != nil {
 		return Response{}, fmt.Errorf("trusted remote fetch failed; check registration and Host authentication")
 	}
 	value, err := git(nil, "rev-parse", "--verify", tracking)

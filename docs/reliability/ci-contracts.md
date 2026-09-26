@@ -58,7 +58,10 @@ Each attempt's workflow conclusion is also retained. A startup failure with zero
 jobs cannot disappear when a later attempt starts successfully; attempt identity
 must match the recorded run and source SHA.
 After successful dependency completion, the evidence reader allows a bounded
-read-only wait for absent/null job conclusions to appear in the Actions API.
+read-only wait of up to 180 seconds for absent/null job conclusions to appear in the Actions API.
+The previous 60-second observation expired on a completed Incus product job;
+the retained receipt and the later terminal result are recorded separately.
+Missing successful job variants are also named in the gate's failure output.
 Terminal failure, cancellation or skip is never polled away; API errors and
 exhausted observation still fail. This wait does not rerun any workflow or test.
 
@@ -119,6 +122,27 @@ to construct deletion authority.
 | Internet / authenticated services | Some installed connectivity/Base tests still require upstream availability. Authenticated GitHub push requires a dedicated credential and remains separate from untrusted PR execution. |
 
 ## Acceptance layers and remaining limits
+
+During public reclamation, Windows-only CIM observations count `wslhost.exe`,
+`wsl.exe` and `vmmemWSL` processes alongside the existing worker-presence check.
+Changed counts and elapsed time are emitted with fixed fields; helper paths,
+process arguments, environment variables and arbitrary CIM properties are not
+logged. Failure preserves the worker result even if the final observation fails.
+No observation enters WSL, starts/stops a distribution, changes the timeout or
+retries reclamation. These counts cover all WSL processes visible to the Windows
+account, not one distribution. Zero counts are not disk-detachment evidence;
+native disk validation and recorded completion remain authoritative. The record
+can distinguish a remaining Windows WSL process from a disk still attached after
+those processes disappear; it cannot identify a Linux service or prove why it
+remains attached. Unavailable counts do not change the acceptance result.
+
+The same snapshot classifies up to eight ancestors of each `wsl.exe`, using only
+fixed categories such as reclamation, SSH, editor, shell and PowerShell. It emits
+aggregate chain counts, never actual process names, IDs, paths or arguments.
+Missing parents, cycles and parents created after their child are unavailable;
+unknown names stop traversal as `other`. This can narrow the source of a new WSL
+launch, but is not authenticated process identity or authority to stop a process.
+Unavailable ancestry does not change the worker-presence or completion checks.
 
 Windows reclamation retention uses the Base already built through the public CLI
 for the transfer fixture. Its manifest records the exact name and revision, and

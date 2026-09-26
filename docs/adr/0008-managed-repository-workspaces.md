@@ -3,6 +3,10 @@
 Status: accepted for implementation  
 Date: 2026-09-06
 
+Source branch selection is superseded by
+[ADR 0110](0110-branch-independent-repositories.md); the Workspace route now owns
+the selected branch. The ownership and credential boundaries below remain.
+
 ## Context
 
 The WSL PoC requires ordinary SSH and Git fetch/pull/push on an independent

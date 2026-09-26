@@ -24,26 +24,27 @@ An agent can edit, build and test without receiving Host management authority.
 
 ## Get started
 
-Follow [installation → create → connect → develop → stop and resume](docs/guides/getting-started.md).
+Follow [installation → repo add → open → develop](docs/guides/getting-started.md).
 It identifies which terminal to use, required permissions and what data remains.
 
 After installing and entering trusted `haco-host`, the core sequence is:
 
 ```bash
-haco doctor
-haco repo clone --branch main sample https://github.com/SLktEx/Hacocoon.git
-haco workspace create --repo sample sample-work
-haco env create --workspace managed:sample-work sample-dev
-haco open --client ssh sample-dev
+haco repo add api https://github.com/OWNER/API.git
+haco repo add web https://github.com/OWNER/WEB.git
+haco open
 ```
 
-Creating an Environment from a managed Git Workspace automatically connects the
-Git broker. Configure the narrow Git/package permissions described in the guide before
-network operations. Exit the development shell, then run `haco env stop sample-dev`
-in the Host. Later, `haco open --client ssh sample-dev` resumes it.
-Use `haco open sample-dev` for VS Code with Remote-SSH installed.
+Replace the URLs with your repositories. Haco prepares and reuses the development
+environment automatically. VS Code with Remote-SSH is the default; use
+`haco open --client ssh` for a shell. Permission requests remain explicit.
+Repeat `haco open` to return to the same work.
 
-Use the [current `haco` CLI](docs/reference/cli.md).
+See [first use and permissions](docs/guides/getting-started.md). Explicit
+Workspace, Environment, Base, storage, network and configuration operations remain
+available in the [CLI reference](docs/reference/cli.md). The
+[default-session contract](docs/design/default-development-session.md) describes
+retention, the eight-repository limit and later membership changes.
 
 ## Know what persists
 

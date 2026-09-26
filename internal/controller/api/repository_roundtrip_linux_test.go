@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -48,7 +49,14 @@ func (b *repositoryAPIBackend) InspectVolume(_ context.Context, object gitrepo.O
 func (b *repositoryAPIBackend) Populate(ctx context.Context, object gitrepo.Object) error {
 	return b.InspectVolume(ctx, object)
 }
-func (b *repositoryAPIBackend) RunGit(context.Context, gitadapter.AgentRequest) (gitadapter.Response, error) {
+func (b *repositoryAPIBackend) RunGit(_ context.Context, req gitadapter.AgentRequest) (gitadapter.Response, error) {
+	if req.Operation == "resolve" {
+		branch := req.Branch
+		if branch == "" {
+			branch = "main"
+		}
+		return gitadapter.Response{Ref: "refs/heads/" + branch, OID: strings.Repeat("a", 40)}, nil
+	}
 	return gitadapter.Response{}, core.ErrUnsupported
 }
 func (b *repositoryAPIBackend) ConnectGit(_ context.Context, env core.Environment, object gitrepo.Object, socket string) error {
@@ -98,9 +106,9 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 	}
 	sources := map[string]gitrepo.Object{}
 	for _, id := range []string{"api", "web"} {
-		request := RepositoryCloneRequest{ID: id, Remote: "https://github.com/example/" + id + ".git", Branch: "main"}
-		object, err := client.CloneRepository(ctx, request)
-		if err != nil || object.ID != id || object.Repository != id || object.Remote != request.Remote || object.Branch != request.Branch || object.Kind != "repo" || object.State != "ready" || len(object.Owner) != 32 {
+		request := RepositoryAddRequest{ID: id, Remote: "https://github.com/example/" + id + ".git"}
+		object, err := client.AddRepository(ctx, request, nil)
+		if err != nil || object.ID != id || object.Repository != id || object.Remote != request.Remote || object.Branch != "" || object.Kind != "repo" || object.State != "ready" || len(object.Owner) != 32 {
 			t.Fatal("clone receipt lost ownership/routing", object, err)
 		}
 		sources[id] = object
@@ -152,13 +160,13 @@ func TestRepositoryWireOwnsCopies(t *testing.T) {
 			t.Fatal("ambiguous/missing workspace source accepted", request)
 		}
 	}
-	for _, method := range []string{MethodRepositoryClone, MethodWorkspaceCopy, MethodGitConnect, MethodGitDecide} {
+	for _, method := range []string{MethodWorkspaceCopy, MethodGitConnect, MethodGitDecide} {
 		var status *control.StatusError
 		if err := client.wire.Call(ctx, method, "invalid request", nil); !errors.As(err, &status) || status.Code != "invalid_argument" {
 			t.Fatal("malformed repository request accepted", method, err)
 		}
 	}
-	if _, err := client.CloneRepository(ctx, RepositoryCloneRequest{ID: "bad", Remote: "https://token@github.com/example/api.git", Branch: "main"}); err == nil {
+	if _, err := client.AddRepository(ctx, RepositoryAddRequest{ID: "bad", Remote: "https://token@github.com/example/api.git"}, nil); err == nil {
 		t.Fatal("credential-bearing remote accepted")
 	}
 	backend.mu.Lock()

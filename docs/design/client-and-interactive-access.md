@@ -11,7 +11,13 @@ rejected alternatives. Real-host acceptance is distinct from implementation.
 `haco ssh setup [env]` installs or reuses client-owned keys, a strict host-key pin
 and a stable `haco-<name>` SSH target. `haco open [env]` uses the same setup and
 launches standard VS Code Remote-SSH on `/workspace`; `--client ssh` opens a shell.
-SSH setup is editor-neutral. No Hacocoon extension is required.
+Argument-free `open` prepares the [default session](default-development-session.md); `open --select` retains existing-Environment selection. SSH setup is editor-neutral. No Hacocoon extension is required.
+
+Environment selection, SSH-ready notices and editor launch/retry guidance follow
+[the CLI language](../reference/cli-language.md). Blank selection still cancels;
+noninteractive use requires a name when multiple Environments exist. Starting the
+editor does not confirm its remote connection. Invalid preview options report the
+required port/client before preparing a Workspace or connecting to the controller.
 
 After one successful setup, select the alias in VS Code's standard Remote Explorer
 SSH Targets or reopen the recent remote `/workspace` folder. On Windows,

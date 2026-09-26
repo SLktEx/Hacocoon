@@ -44,6 +44,38 @@ func TestHostToolsStageIsPreserved(t *testing.T) {
 	}
 }
 
+func TestUnknownChildStageCannotBecomeSetup(t *testing.T) {
+	for _, failure := range []error{nil, errors.New("SECRET-backend-output")} {
+		var events []Event
+		ctx := Observe(context.Background(), func(e Event) { events = append(events, e) })
+		err := Step(ctx, "setup", func() error {
+			return Step(ctx, "SECRET-unregistered-stage", func() error { return failure })
+		})
+		if !errors.Is(err, failure) {
+			t.Fatal(err)
+		}
+		if len(events) != 4 || events[0].Stage != "setup" || events[3].Stage != "setup" {
+			t.Fatalf("events=%+v", events)
+		}
+		for _, event := range events[1:3] {
+			if event.Stage != "unknown" || !ValidStage(event.Stage) {
+				t.Fatalf("unknown child impersonates setup or exposes raw stage: %+v", event)
+			}
+		}
+		wantState := "succeeded"
+		if failure != nil {
+			wantState = "failed"
+			stage, reason := Details(err)
+			if stage != "unknown" || reason != "failed" || strings.Contains(err.Error(), "SECRET") {
+				t.Fatal(stage, reason, err)
+			}
+		}
+		if events[1].State != "running" || events[2].State != wantState || events[3].State != wantState {
+			t.Fatalf("events=%+v", events)
+		}
+	}
+}
+
 func TestNotificationFailureDoesNotExposeUnknownOperation(t *testing.T) {
 	failure := &NotificationServiceFailure{Operation: "SECRET-backend-command"}
 	if failure.Error() != "failed" || Reason(failure) != "failed" {

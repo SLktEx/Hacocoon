@@ -52,7 +52,7 @@ func WriteCommandHelp(out io.Writer, program, path string, pages []CommandHelp, 
 				_, _ = fmt.Fprintln(out, "\n"+language.Text("help.commands"))
 				children = true
 			}
-			_, _ = fmt.Fprint(out, HelpLines(fmt.Sprintf("  %-14s", suffix), language.Text(child.Message), 60))
+			_, _ = fmt.Fprint(out, HelpLines(fmt.Sprintf("  %-14s ", suffix), language.Text(child.Message), 60))
 		}
 		if children {
 			_, _ = fmt.Fprintf(out, "\n  %s <command> --help\n", strings.TrimSpace(program+" "+path))

@@ -18,6 +18,9 @@ func TestBaseBuildWirePreservesPublicationEvidence(t *testing.T) {
 	socket := doctorTestSocket(t, func(server *control.Server) {
 		if err := RegisterBaseBuild(server, buildFunc(func(ctx context.Context, d basebuild.Definition) (basebuild.Result, error) {
 			calls++
+			if d.BuilderName != "build-test" {
+				t.Fatal("selected builder lost", d.BuilderName)
+			}
 			if _, ok := ctx.Deadline(); !ok {
 				t.Fatal("no deadline")
 			}
@@ -27,12 +30,12 @@ func TestBaseBuildWirePreservesPublicationEvidence(t *testing.T) {
 		}
 	})
 	client, _ := NewClient(socket)
-	got, err := client.BuildBase(context.Background(), basebuild.Definition{Name: "tools", Run: "true"})
+	got, err := client.BuildBase(context.Background(), basebuild.Definition{Name: "tools", Run: "true", BuilderName: "build-test"})
 	if err == nil || got.Result.Builder != "build-test" {
 		t.Fatal(got, err)
 	}
 	wire, _ := control.NewClient(control.UnixDialer(socket))
-	for _, req := range []any{map[string]string{"name": "tools", "run": "true", "privileged": "true"}, map[string]string{"name": "--public", "run": "true"}} {
+	for _, req := range []any{map[string]string{"name": "tools", "run": "true", "privileged": "true"}, map[string]string{"name": "--public", "run": "true"}, map[string]string{"name": "tools", "run": "true", "builder_name": "../tools"}} {
 		if wire.Call(context.Background(), MethodBaseBuild, req, nil) == nil {
 			t.Fatal("invalid accepted")
 		}

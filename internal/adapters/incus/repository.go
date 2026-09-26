@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
 	"io"
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -179,9 +180,16 @@ func (b *RepositoryBackend) RunGit(ctx context.Context, request gitadapter.Agent
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "incus", "exec", trustedHostName, "--project", b.Runtime.project, "--", "/usr/local/bin/haco", "_git-agent")
+	return runGitAgentCommand(ctx, cancel, cmd, input, request.PackOutput)
+}
+
+func runGitAgentCommand(ctx context.Context, cancel context.CancelFunc, cmd *exec.Cmd, input io.Reader, packOutput io.Writer) (gitadapter.Response, error) {
 	cmd.Stdin = input
-	cmd.Stderr = io.Discard
-	cmd.WaitDelay = time.Second
+	diagnostic := gitadapter.NewGitDiagnostic(gitadapter.ProgressWriter(ctx))
+	cmd.Stderr = diagnostic
+	// Incus forwards interrupt through its exec control channel to the agent.
+	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	cmd.WaitDelay = 5 * time.Second
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return gitadapter.Response{}, fmt.Errorf("trusted Git agent unavailable")
@@ -190,11 +198,19 @@ func (b *RepositoryBackend) RunGit(ctx context.Context, request gitadapter.Agent
 	if err := cmd.Start(); err != nil {
 		return gitadapter.Response{}, fmt.Errorf("trusted Git agent unavailable")
 	}
-	response, decodeErr := gitadapter.ReadResponse(output, request.PackOutput)
+	response, decodeErr := gitadapter.ReadResponse(output, packOutput)
+	callerErr := ctx.Err()
 	if decodeErr != nil {
 		cancel()
 	}
 	waitErr := cmd.Wait()
+	diagnostic.Flush()
+	if ctx.Err() != nil && decodeErr == nil {
+		return gitadapter.Response{}, ctx.Err()
+	}
+	if callerErr != nil {
+		return gitadapter.Response{}, callerErr
+	}
 	if decodeErr != nil {
 		return gitadapter.Response{}, decodeErr
 	}

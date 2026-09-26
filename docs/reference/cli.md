@@ -11,6 +11,7 @@ help and version require no controller.
 
 | Purpose | Syntax and defaults | Details |
 |---|---|---|
+| Normal development | `haco repo add <id> <URL>`, then `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [Automatic default session](../design/default-development-session.md); JSON requires `--client none` |
 | Workspace path | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [Owner-pinned entry and independent data forks](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [Exact options, guest listeners and management authority](../design/network-connections.md) |
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
@@ -19,12 +20,12 @@ help and version require no controller.
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
-| Source | `haco repo clone --branch <branch> <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); existing branch required |
-| Workspace | `haco workspace create --repo <id[,id...]> <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies |
+| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; optional `--branch` belongs to single-source `workspace create` |
+| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies |
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
 | Lifecycle | `haco env start <name>`, `stop <name>`, `delete <name>` | [Data lifetime](../guides/data-lifetime.md) |
-| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; interactive choice if ambiguous |
+| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; `open --select` or `ssh setup` offers existing-Env selection |
 | Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
 | Temporary command | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; `-i` streams input, `-it` uses a terminal; JSON is captured-output only |
@@ -69,7 +70,7 @@ On the trusted Host, `haco cache settings` displays configured areas, `haco cach
 ## Build a Base with Packer
 
 ```sh
-haco base build --name my-tools [--from haco/ubuntu-26.04] [--output] [--json] <directory>
+haco base build --name my-tools [--from haco/ubuntu-26.04] [--builder <env>] [--output] [--json] <directory>
 ```
 
 The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.

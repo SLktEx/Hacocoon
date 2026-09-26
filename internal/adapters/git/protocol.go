@@ -23,7 +23,7 @@ var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
 var branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_/-]{0,127}$`)
 
 // ValidWorkspaceRouting also accepts an explicitly offline Workspace. Source
-// repositories still require a nonempty validated remote and branch.
+// repositories require a nonempty validated remote; their identity has no branch.
 func ValidWorkspaceRouting(remote, branch string) bool {
 	return (remote == "" && branch == "") || (ValidateRemote(remote) == nil && ValidBranch(branch))
 }

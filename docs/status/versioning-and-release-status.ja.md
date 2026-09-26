@@ -15,6 +15,15 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 
 ## checkpoint履歴
 
+Windows通知の子孫プロセス終了修正は、既存の起動排他の契約を修復するものであり、
+v0.68の範囲に含める。[ADR 0110](../adr/0110-private-windows-process-ownership.ja.md)を参照。
+この修正によるタグ・リリース作成は行わない。
+
+#708とmainの責務整理の統合はv0.68内の変更です。既存のビルダー名指定・棚卸し・
+Windows起動調整を保持し、mainのstream終了待ち修正を再利用します。
+[候補ごとの検証結果](acceptance-evidence.ja.md#責務整理後の統合)を参照してください。
+この統合でタグやリリースは作成しません。
+
 下表のVersion・Gate列はYAMLの写しです。Gate名は識別子として英語を維持します。
 表は各節目の履歴を表し、現在の公開CLIにすべてが残るという意味ではありません。
 現在の詳細と残課題は機能別の実装状況・ロードマップへ集約しています。
@@ -89,8 +98,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 | v0.66 | Saved Environment data | 実装済み |
 | v0.67 | Portable Environment data | 実装済み |
 | v0.68 | Restore saved work by environment name | 実装済み |
+| v0.69 | Default Development Session | partial — 登録後のopenを自動化。後からの構成変更と実機確認は未完了 |
 
-現在のmilestone位置は **v0.68**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.69**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 
@@ -210,3 +220,10 @@ Gitの順次転送候補はv0.68内の利用改善として扱う。32 MiBのpac
 
 main f225e5c1 (#701)へセットアップ・通信・設定案内と転送試験修正を、同一headの
 5系統CI成功後に統合した。v0.68のまま、本人操作のリリース後確認をmainの条件にしない。
+
+名前付きの現行データ選択と復元ツリーの一括照合は、v0.68内のM5保守手順の追補である
+（[#703](https://github.com/SLktEx/Hacocoon/issues/703)）。開発用ヘルパーは既存の照合契約を使う。
+ローカル成功は実際の全データ選択や本人操作の確認完了ではなく、リリース公開も行っていない。
+
+任意のBaseビルドEnv名はv0.68内の利用改善である。通常の通信設定を指定したbuild名へ絞り、
+所有情報は毎回新しく作る。段階番号は更新せず、実Packer完了やリリース公開の証明にもならない。

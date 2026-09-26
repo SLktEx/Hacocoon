@@ -46,7 +46,7 @@ func pushOperation(git func([]byte, ...string) ([]byte, error), req AgentRequest
 	}
 	if old != ZeroOID {
 		tracking := readCachePrefix + strings.TrimPrefix(req.Ref, "refs/heads/")
-		if _, err := git(nil, "fetch", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+req.Ref+":"+tracking); err != nil {
+		if _, err := git(nil, "fetch", "--progress", "--no-tags", "--no-recurse-submodules", "--", req.Remote, "+"+req.Ref+":"+tracking); err != nil {
 			return Response{}, err
 		}
 		value, err := git(nil, "rev-parse", "--verify", tracking+"^{commit}")

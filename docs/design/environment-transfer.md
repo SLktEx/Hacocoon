@@ -61,6 +61,14 @@ before retrying. No automatic replay, overwrite or catalog-edit recovery is prov
 
 ## Native substrate and authority
 
+Current-data maintenance can select named managed data, Host settings, manual files
+and external data, then aggregate existing portable tree-manifest comparisons with
+`tools/evacuation_selection.py`. This read-only checkout helper does not add an import,
+capture or lifecycle implementation. Decisions to recreate or exclude data remain
+explicit; a matching selected subset does not establish inventory completeness,
+independent retention, application acceptance or authority to delete original data.
+See [selection and comparison](../guides/data-evacuation.md).
+
 Incus exports rootfs as a unified image and attached custom volumes separately.
 An instance archive alone does not include Workspace/OCI volume contents.
 Ordinary archives can cross pools; optimized archives require compatible drivers.

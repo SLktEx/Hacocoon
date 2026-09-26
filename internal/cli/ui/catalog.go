@@ -8,6 +8,20 @@ type translation struct {
 }
 
 var catalog = map[string]translation{
+	"open.stage.connection":          {"Preparing shell/editor access", "シェル・エディタ接続を準備"},
+	"open.stage.repositories":        {"Checking registered repositories", "登録済みリポジトリを確認"},
+	"open.stage.project":             {"Preparing project files", "作業ファイルを準備"},
+	"open.stage.environment":         {"Preparing or resuming the development environment", "開発環境を準備・再開"},
+	"open.progress":                  {"%s...", "%sしています…"},
+	"open.waiting":                   {"%s is still running. Network permission may need review in another Host terminal with haco approve.", "%sを続行中です。通信の承認が必要な場合は、別のHost端末で haco approve を実行してください。"},
+	"open.finished":                  {"%s: ready", "%s: 完了"},
+	"open.no_repositories":           {"Add a repository first: haco repo add <id> <URL>; then run haco open.", "まず haco repo add <id> <URL> でリポジトリを登録し、haco open を実行してください。"},
+	"open.too_many_repositories":     {"The default session supports up to eight repositories. Select a collection with haco open --repo <id,id> <directory>.", "通常の開発環境でまとめられるリポジトリは8個までです。haco open --repo <id,id> <directory> で対象を選んでください。"},
+	"open.reference_failed":          {"Cannot read the default session location. Check the ownership and permissions of ~/.haco-default; do not remove saved references to bypass a failure.", "通常の開発環境の保存先を確認できません。~/.haco-default の所有者と権限を確認してください。エラー回避のために保存情報を削除しないでください。"},
+	"open.retry":                     {"Run haco doctor to diagnose, then retry haco open. Retained work is not deleted. For incomplete ownership or changed repository selection, inspect haco workspace list and use the explicit workspace recovery/fork workflow.", "haco doctor で原因を確認し、haco open を再実行してください。作業データは削除しません。所有権が未確定の場合や登録リポジトリを変更した場合は、haco workspace list を確認し、明示的な復旧・fork操作を使ってください。"},
+	"open.approval":                  {"Preparing access automatically. If permission is requested, review it with haco approve in another Host terminal; this operation continues after approval. A denied Policy must be changed explicitly with haco config --edit, then retry haco open.", "接続を自動準備します。承認待ちの場合は別のHost端末で haco approve を実行してください。承認後は処理を続行します。Policyが拒否している場合は haco config --edit で明示的に変更し、haco open を再実行してください。"},
+	"open.select":                    {"Choose an existing Environment instead of opening the default session.", "通常の開発環境を開く代わりに、既存の環境を選びます。"},
+	"help.simple":                    {"Add repositories, then open Haco:", "リポジトリを登録して、Hacoを開く:"},
 	"error.logging":                  {"haco: invalid logging configuration", "haco: ログ設定が無効です。HACO_LOG_LEVELとHACO_LOG_FORMATを確認してください。"},
 	"base.import.archive":            {"Uncompressed Incus container image tar with metadata.yaml and rootfs; at most 64 GiB. Source files stay unchanged.", "metadata.yamlとrootfsを含む非圧縮のIncusコンテナイメージtar。上限64 GiB。元ファイルは変更しません。"},
 	"base.import.failed":             {"Base import did not complete. Check the archive, available storage and reported builder before retrying. A retry starts a new builder.", "Baseの取り込みは完了していません。アーカイブ、空き容量、表示された作成環境を確認してください。再試行は新しい作成環境から始まります。"},
@@ -16,6 +30,7 @@ var catalog = map[string]translation{
 	"base.packer_context":            {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
 	"base.packer_name":               {"Name of the Base to publish.", "作成するひな形の名前。"},
 	"base.packer_from":               {"Starting Base; omit to use the default.", "元にするひな形。省略時は既定値。"},
+	"base.builder_name":              {"Optional build Environment name for scoped network settings; existing Environments are never reused.", "通信設定の対象にするビルド用環境名（任意）。既存環境は再利用しません。"},
 	"base.packer_output":             {"Include private failed-build output; it may contain script data.", "失敗したbuildの非公開出力を表示します。スクリプト内の情報を含み得ます。"},
 	"base.packer_failed":             {"Check the HCL/scripts, Base tools and normal network approvals. Use --output for private build output. Review any retained builder before retrying.", "HCL・スクリプト、元のひな形のツール、通常のネットワーク承認を確認してください。build出力は--outputで確認できます。再試行前に残ったbuild環境を確認してください。"},
 	"flags.usage":                    {"Usage of %s:", "%s の使い方:"},

@@ -22,6 +22,8 @@ func cliMessage(id string, args ...any) string {
 func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 	_, _ = fmt.Fprintln(out, "Hacocoon")
 	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, language.Text("help.simple"))
+	_, _ = fmt.Fprint(out, "  haco repo add first https://github.com/OWNER/FIRST.git\n  haco repo add second https://github.com/OWNER/SECOND.git\n  haco open\n\n")
 	_, _ = fmt.Fprintln(out, language.Text("help.usage"))
 	_, _ = fmt.Fprintln(out, "  haco <command>")
 	_, _ = fmt.Fprintln(out)
@@ -50,7 +52,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"help", "help.help"},
 		{"version", "help.version"},
 	} {
-		_, _ = fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s", command.name), language.Text(command.message), 60))
+		_, _ = fmt.Fprint(out, cliui.HelpLines(fmt.Sprintf("  %-11s ", command.name), language.Text(command.message), 60))
 	}
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, language.Text("help.daily"))

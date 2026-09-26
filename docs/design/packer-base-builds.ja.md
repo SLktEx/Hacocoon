@@ -43,6 +43,26 @@ Hacocoonが所有する同じEnvを停止し、既存のIncus Base処理でrootf
 
 ## 必要なツールと入力ファイル
 
+通常の通信設定をビルドEnv一つに絞って準備する場合は、名前を指定します。
+
+```bash
+haco base build --name my-tools --builder packer-tools examples/packer
+```
+
+事前に[通常の設定操作](../reference/configuration.md)で必要な宛先を確認し、
+管理者規則の `environment` を `packer-tools` にします。
+要求ごとに確認する場合は `require-approval` を維持してください。
+build自体は規則の保存やダウンロードの承認を行わず、既存の拒否も維持します。
+管理者の名前指定規則は同名の後続Envにも適用されますが、通常の保存済み承認は
+一回の作成IDへの紐付けを維持します。規則の有効期間を確認し、不要な一時設定は取り除いてください。
+
+`--builder` は通常Envと同じ、小文字英数字と内部のハイフン、最大57文字の名前です。
+省略時はランダム名を使います。使用中の名前は既存Envを採用・削除せず拒否します。
+失敗後に対象が残った場合は再試行前に確認するか、別の新しい名前を使ってください。
+毎回新しい所有情報と、同じ隔離・実行・公開・後始末を使います。
+JSONのshell定義にも `builder_name` を指定でき、明示したCLIオプションが優先します。
+[ADR 0109](../adr/0109-named-build-environments.ja.md)を参照してください。
+
 通常のBase選択・Env作成にPackerは不要です。Packerビルドでは、Python／OpenSSHがなければ、
 使い捨てのUbuntu Env内で通常の`apt-get`を使い、Python 3・CA証明書・OpenSSHを準備します。
 カスタムBaseはこれらを事前に含められます。不足時にaptもなければ依存ツールの段階で失敗します。

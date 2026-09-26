@@ -10,15 +10,19 @@ import (
 )
 
 type fakeEnv struct {
-	t      *testing.T
-	calls  []string
-	work   core.Workspace
-	script string
-	fail   string
-	cancel context.CancelFunc
+	t            *testing.T
+	calls        []string
+	work         core.Workspace
+	script       string
+	fail         string
+	cancel       context.CancelFunc
+	expectedName string
 }
 
 func (f *fakeEnv) Create(_ context.Context, s core.EnvironmentSpec) (core.Environment, error) {
+	if f.expectedName != "" && s.Name != f.expectedName {
+		f.t.Fatal("selected builder name changed", s.Name)
+	}
 	f.calls = append(f.calls, "create")
 	if s.TemporaryWorkspace == nil || !core.ValidTemporaryWorkspace(*s.TemporaryWorkspace) || !s.SkipDefaultResource || s.WorkspacePath != "" {
 		f.t.Fatal("not isolated", s)
@@ -32,7 +36,10 @@ func (f *fakeEnv) Create(_ context.Context, s core.EnvironmentSpec) (core.Enviro
 	}
 	return core.Environment{Name: s.Name, Workspace: f.work}, nil
 }
-func (f *fakeEnv) ExecForWorkspace(_ context.Context, _ string, id core.WorkspaceID, r core.ExecutionRequest) (core.ExecutionResult, error) {
+func (f *fakeEnv) ExecForWorkspace(_ context.Context, name string, id core.WorkspaceID, r core.ExecutionRequest) (core.ExecutionResult, error) {
+	if f.expectedName != "" && name != f.expectedName {
+		f.t.Fatal("execution target changed", name)
+	}
 	if id != f.work.ID {
 		f.t.Fatal("workspace drift")
 	}
@@ -52,7 +59,10 @@ func (f *fakeEnv) ExecForWorkspace(_ context.Context, _ string, id core.Workspac
 	}
 	return core.ExecutionResult{}, nil
 }
-func (f *fakeEnv) StopForWorkspace(_ context.Context, _ string, id core.WorkspaceID) error {
+func (f *fakeEnv) StopForWorkspace(_ context.Context, name string, id core.WorkspaceID) error {
+	if f.expectedName != "" && name != f.expectedName {
+		f.t.Fatal("stop target changed", name)
+	}
 	f.calls = append(f.calls, "stop")
 	if id != f.work.ID {
 		f.t.Fatal("wrong stop")
@@ -62,7 +72,10 @@ func (f *fakeEnv) StopForWorkspace(_ context.Context, _ string, id core.Workspac
 	}
 	return nil
 }
-func (f *fakeEnv) PublishTemporaryBase(_ context.Context, _ string, w core.Workspace, n core.BaseName) (core.BaseInfo, error) {
+func (f *fakeEnv) PublishTemporaryBase(_ context.Context, name string, w core.Workspace, n core.BaseName) (core.BaseInfo, error) {
+	if f.expectedName != "" && name != f.expectedName {
+		f.t.Fatal("publication target changed", name)
+	}
 	f.calls = append(f.calls, "publish")
 	if w != f.work {
 		f.t.Fatal("wrong publisher")
@@ -72,7 +85,10 @@ func (f *fakeEnv) PublishTemporaryBase(_ context.Context, _ string, w core.Works
 	}
 	return core.BaseInfo{Name: n, Revision: core.BaseRevision("sha256:" + strings.Repeat("a", 64))}, nil
 }
-func (f *fakeEnv) DeleteTemporary(ctx context.Context, _ string, w core.Workspace) error {
+func (f *fakeEnv) DeleteTemporary(ctx context.Context, name string, w core.Workspace) error {
+	if f.expectedName != "" && name != f.expectedName {
+		f.t.Fatal("cleanup target changed", name)
+	}
 	f.calls = append(f.calls, "delete")
 	if w != f.work || ctx.Err() != nil {
 		f.t.Fatal("unsafe cleanup")
@@ -114,6 +130,31 @@ func TestDefinitionRejectsAuthorityShapingInput(t *testing.T) {
 	for _, d := range []Definition{{Name: "../x", Run: "true"}, {Name: "--public", Run: "true"}, {Name: "haco/x", Run: "true"}, {Name: "x", Run: ""}, {Name: "x", From: "x", Run: "true"}, {Name: "x", Run: strings.Repeat("a", MaxScriptBytes+1)}} {
 		if d.Validate() == nil {
 			t.Fatal(d)
+		}
+	}
+}
+
+func TestNamedBuilderKeepsFreshOwnershipAndNeverCleansFailedCreation(t *testing.T) {
+	var previous core.Workspace
+	for _, failure := range []string{"", "", "create", "publish", "delete"} {
+		f := &fakeEnv{t: t, script: "true", expectedName: "packer-tools", fail: failure}
+		result, err := (&Service{Environments: f}).Build(context.Background(), Definition{Name: "tools", Run: f.script, BuilderName: f.expectedName})
+		if (err != nil) != (failure != "") || !core.ValidTemporaryWorkspace(f.work) || f.work == previous {
+			t.Fatal("name became ownership or build outcome changed", result, err, f.work)
+		}
+		previous = f.work
+		if failure == "create" && !reflect.DeepEqual(f.calls, []string{"create"}) {
+			t.Fatal("failed creation tried to reuse or delete a named resource", f.calls)
+		}
+		if failure != "" && result.Builder != f.expectedName {
+			t.Fatal("retained target lost", result)
+		}
+	}
+	for _, name := range []string{"../tools", "-tools", "Tools", "tools.", "tools-", strings.Repeat("a", 58)} {
+		f := &fakeEnv{t: t}
+		_, err := (&Service{Environments: f}).Build(context.Background(), Definition{Name: "tools", Run: "true", BuilderName: name})
+		if !errors.Is(err, core.ErrInvalidArgument) || len(f.calls) != 0 {
+			t.Fatal("invalid name reached creation", name, err, f.calls)
 		}
 	}
 }

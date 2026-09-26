@@ -102,6 +102,13 @@ Never add a raw command-line log alongside the sanitized form. Arguments that ma
 
 ## Errors
 
+The Windows tunnel's owned companion reports process failures once with
+`operation=windows_tunnel_companion`, fixed `stage` (pipe/start/prepare/wait),
+fixed `reason` (other/wait_delay/exit/signaled/timeout/canceled/pipe_closed),
+`context_state` (active/timeout/canceled) and `duration_ms`. It never records the
+raw error, executable path, arguments or subprocess output. Observation does not
+change exit handling, cancellation or the bounded child-stop fallback.
+
 Do not log the same failure at every call layer.
 
 Preferred flow:
@@ -174,6 +181,18 @@ numeric `exit_code`. Stages distinguish lookup/recipe/start/execute/script;
 unknown response values become `unknown`/`internal`. Raw backend errors, recipe
 contents and process output are not copied into diagnostic fields.
 
+## Proxy upstream diagnostics
+
+The HTTP/CONNECT boundary owns the single `component=proxy`,
+`operation=egress_connect` ERROR for upstream failure. Fields are `environment_id`,
+`target_host` (authorized canonical hostname), `target_port`, `protocol` and
+`reason`. Fixed reasons are `dns_lookup_failed`, `dns_empty_result`,
+`address_loopback`, `address_disallowed`, `dial_failed`, `upstream_request_failed`,
+`canceled` and `timeout`. Context cancellation/deadline takes precedence over
+wrapped failure reasons. An intermediate failed address followed by a successful
+pinned dial is not logged as a failed operation. Raw resolver/dialer errors,
+resolved IPs, full URLs, headers and bodies are excluded at every log level.
+
 ## Daily operation diagnostics
 
 Host setup uses fixed `stage`, `state` and `reason` fields, plus `request_id` and
@@ -224,3 +243,17 @@ Named collection recovery uses the existing cache failure boundary and fixed `op
 Windows reclamation preparation/launch errors use the existing helper error boundary
 with fixed `phase`, `stage` and numeric `native_error` diagnostics. The failed-command
 stdout receipt contains only the allowlisted stage and code, never raw error text.
+
+Installed Windows reclamation CI records bounded `origins` for live WSL launchers
+and `host_origins` for WSL host processes, even when their launcher has exited.
+Both use the same fixed parent categories and reject missing/reused parent
+identities. Raw names, paths, PIDs and command lines remain excluded. These
+Windows-wide observations diagnose timing; they never authorize a stop or compaction.
+
+A separate bounded Windows process-start subscription records short-lived launchers
+that can disappear between snapshots. `reclamation_windows_start` emits only
+fixed `state`, `kind`, parent `chain` and elapsed `duration_ms`; parent PID reuse
+is rejected against the event's UTC creation time. At most 128 events are retained
+for 700 seconds, with explicit unavailable/truncated results. Raw WMI fields and
+errors are discarded. This observer never enters WSL, changes a worker result or
+kills the worker; teardown stops only its own observer process.

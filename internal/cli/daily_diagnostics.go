@@ -12,6 +12,21 @@ import (
 )
 
 func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
+	reason := dailyFailureReason(err)
+	_, _ = fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
+	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
+	if !configEnvironmentName.MatchString(name) {
+		name = "<name>"
+	}
+	_, _ = fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
+	if stage == "ssh_connection" && reason == "failed" {
+		_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
+	}
+	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.journal"))
+	return 1
+}
+
+func dailyFailureReason(err error) string {
 	reason := hostsetup.Reason(err)
 	var status *control.StatusError
 	if errors.As(err, &status) {
@@ -26,17 +41,7 @@ func dailyFailure(out io.Writer, operation, stage, name string, err error) int {
 	if errors.Is(err, context.Canceled) {
 		reason = "canceled"
 	}
-	fmt.Fprintf(out, "[failed] operation=%s stage=%s reason=%s\n", operation, stage, reason)
-	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.unknown_state"))
-	if !configEnvironmentName.MatchString(name) {
-		name = "<name>"
-	}
-	_, _ = fmt.Fprintf(out, cliLanguage().Text("daily.inspect"), name, name)
-	if stage == "ssh_connection" && reason == "failed" {
-		_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.ssh_policy"))
-	}
-	_, _ = fmt.Fprintln(out, cliLanguage().Text("daily.journal"))
-	return 1
+	return reason
 }
 
 // Production stdin can be a pipe/FIFO whose writer stays open. Never wait on it

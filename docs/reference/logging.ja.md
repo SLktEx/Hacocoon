@@ -24,6 +24,18 @@ HacocoonはCore、プロバイダー、ネットワーク、ストレージ、�
 失敗は通常、その操作を報告する境界でERRORを一度記録します。
 下位層はエラーを返すか付加情報で包み、必要な詳細をDEBUGへ出します。
 
+## プロキシ上流の診断
+
+HTTP／CONNECT の境界が、上流失敗の `component=proxy`、`operation=egress_connect`
+の ERROR を一度だけ記録します。フィールドは `environment_id`、`target_host`
+（認可済みの正規化したホスト名）、`target_port`、`protocol`、`reason` です。
+理由は `dns_lookup_failed`、`dns_empty_result`、`address_loopback`、
+`address_disallowed`、`dial_failed`、`upstream_request_failed`、`canceled`、
+`timeout` に限定します。包まれた失敗理由よりキャンセル・期限超過を優先します。
+固定した集合内で次のアドレスへの接続に成功した場合、途中の失敗を操作の ERROR として
+記録しません。DNS・接続処理の生のエラー、解決した IP、完全な URL、ヘッダー、本文は
+どのログレベルにも含めません。
+
 ## 実行ファイルの設定
 
 ```bash
@@ -75,6 +87,12 @@ HTTP header全体、プロセス環境全体、任意設定object、要求・応
 呼出し元も安全な項目だけを選び、不明な値は省きます。
 
 ## Hostコマンド・エラー・時間
+
+Windows転送の子プロセス失敗は、`operation=windows_tunnel_companion`、固定の
+`stage`（pipe/start/prepare/wait）、`reason`（other/wait_delay/exit/signaled/timeout/canceled/pipe_closed）、
+`context_state`（active/timeout/canceled）と`duration_ms`で一度だけ記録します。
+生のエラー、実行ファイルパス、引数、子プロセスの出力は記録しません。
+観測の追加で終了値・中断・子プロセスの停止期限は変えません。
 
 共有runnerは診断に必要な場合だけ、実行ファイルと安全化したargv、
 分類した構成要素、時間、終了値をDEBUGへ記録します。取得したstdout/stderrは自動記録しません。
@@ -156,3 +174,14 @@ Git照合は共通の同期済みCapability監査を使う。固定git-push-star
 Windowsの容量回収の準備・起動失敗は、既存の補助プログラムのエラー境界で、
 固定の `phase`、`stage` と数値の `native_error` を記録する。失敗したコマンドの
 標準出力には許可された段階と番号だけを返し、生のエラー文を含めない。
+
+導入済みWindowsの容量回収CIは、WSL起動プロセスの`origins`と、起動元が終了した後も
+残るWSL hostプロセスの`host_origins`を上限付きで記録する。同じ固定した親分類を使い、
+親の欠落・ID再利用の疑いは未確認とする。生の名前・パス・PID・引数は含めない。
+Windows全体の時系列観測であり、停止や圧縮を許可する証拠にはしない。
+
+観測間に終了する短命な起動元は、別の上限付きWindowsプロセス起動通知でも記録する。
+`reclamation_windows_start`は固定`state`・`kind`・親の`chain`・経過`duration_ms`だけを出し、
+イベントのUTC生成時刻より新しい親はID再利用として拒否する。700秒・128イベントを上限とし、
+未観測・切り詰めを明示する。生のWMI項目やエラーは破棄し、WSLへの接続・workerの結果変更・
+workerの終了は行わない。終了するのは自身の観測プロセスだけとする。

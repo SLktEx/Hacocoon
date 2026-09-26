@@ -27,6 +27,12 @@ The selected Workspace and its OCI Store survive. A retained Environment already
 leasing it must be deleted before lending it to another Environment; stop retains
 the lease. Alternatively use an independent Workspace copy.
 
+On failure, stderr reports a bounded reason category without raw backend details.
+For `busy`, the CLI explains retained Workspace leases and routes to the existing
+Env or an independent copy. This guidance never authorizes deletion, releases a
+lease, retries execution or changes the cleanup receipt. JSON remains on stdout;
+unknown cleanup remains unknown even when the refusal reason is known.
+
 Published OCI content is copied automatically, including for a temporary
 Workspace; --no-oci opts out. With no published content there is nothing to copy.
 Only the default copy bound to a temporary Workspace is removed after runtime

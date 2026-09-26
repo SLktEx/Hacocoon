@@ -39,6 +39,15 @@ termination. These read-only observations do not start or repair a distribution.
 
 ## Incus package baseline
 
+Implemented: signing-key retrieval retries transient transport/server errors,
+including connection refusal, at most twice before any APT configuration change.
+The same helper applies to ordinary Ubuntu/WSL installation and CI. Each transfer
+retains the 15-second connection and 60-second transfer limits; the retry-start
+budget is 120 seconds (an already-started transfer can finish beyond it).
+HTTPS/TLS validation and the exact primary-key fingerprint check remain required.
+Exhaustion, permanent HTTP errors or a mismatched key stop installation. No
+package mutation or failed test is automatically replayed.
+
 Implemented: Ubuntu/WSL installation and both dedicated Incus CI setup paths
 share `install/incus-lts.sh`. The supported server is Incus 7.0 LTS
 (`>= 7.0.1`, `< 7.1`). The helper verifies the pinned Zabbly primary key, rejects

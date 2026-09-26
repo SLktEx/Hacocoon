@@ -63,7 +63,10 @@ install_lts() (
   temporary="$(mktemp -d)"
   trap 'rm -f -- "$temporary/key.asc" "$temporary/sources" "$temporary/preferences"; rmdir -- "$temporary"' EXIT
   trap 'exit 1' HUP INT TERM
+  # Retry only this read, before any package/source mutation. Keep trust checks
+  # outside the retry and bound both attempts and the retry-start budget.
   curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 \
+    --retry 2 --retry-connrefused --retry-delay 1 --retry-max-time 120 \
     https://pkgs.zabbly.com/key.asc -o "$temporary/key.asc"
   # Every primary key must be the pinned key; checking only the first key can
   # accidentally trust extra keys from a malformed download.

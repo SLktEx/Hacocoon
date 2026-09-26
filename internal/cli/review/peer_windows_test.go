@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/client/review"
+	"github.com/SLktEx/Hacocoon/internal/platform/wsl/coord"
 )
 
 func TestNativePrivateReviewChild(t *testing.T) {
@@ -89,5 +92,57 @@ func TestNativePrivatePeerCancellationClosesAndReapsChild(t *testing.T) {
 	}
 	if _, err := p.Exchange(ctx, desktopreview.Message{Action: "list"}); err == nil {
 		t.Fatal("canceled peer was reused")
+	}
+}
+
+func TestNativePeerCannotStartDuringReclamation(t *testing.T) {
+	own, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Temporary-directory basename supplies a unique coordination name, not WSL.
+	distribution := "haco-test-" + filepath.Base(t.TempDir())
+	guard, err := wslcoord.AcquireLaunch(distribution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	plan := desktopreview.Invocation{File: own, Args: []string{"-test.run=^TestNativePrivateReviewChild$"}, Env: []string{"HACO_REVIEW_TEST_CHILD=1", "SystemRoot=" + os.Getenv("SystemRoot")}}
+	peer, err := startReadyReviewPeer(ctx, ctx, plan, own, strings.ToUpper(distribution))
+	if peer != nil || !errors.Is(err, wslcoord.ErrBusy) {
+		t.Fatal("started during reclamation", peer, err)
+	}
+	if err := guard.Close(); err != nil {
+		t.Fatal(err)
+	}
+	peer, err = startReadyReviewPeer(ctx, ctx, plan, own, distribution)
+	if err != nil {
+		t.Fatal("ordinary startup after release", err)
+	}
+	defer peer.Close()
+	next, err := wslcoord.AcquireLaunch(distribution)
+	if err != nil {
+		t.Fatal("startup guard remained held after readiness", err)
+	}
+	if err := next.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// A failed readiness must reap its child before releasing the startup gate.
+	slow := plan
+	slow.Env = append(append([]string{}, plan.Env...), "HACO_REVIEW_TEST_DELAY=1")
+	expired, stop := context.WithTimeout(ctx, time.Millisecond)
+	defer stop()
+	failed, err := startReadyReviewPeer(ctx, expired, slow, own, distribution)
+	if failed != nil || err == nil {
+		t.Fatal("expired readiness accepted", failed, err)
+	}
+	next, err = wslcoord.AcquireLaunch(distribution)
+	if err != nil {
+		t.Fatal("failed startup leaked guard", err)
+	}
+	if err := next.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

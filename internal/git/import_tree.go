@@ -29,6 +29,10 @@ func (s *RepositoryService) ImportWorkspaceTree(ctx context.Context, id, reposit
 	if err = s.Backend.InspectVolume(ctx, repo); err != nil {
 		return Object{}, err
 	}
-	object := Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: repo.Branch}
+	branch, err := s.resolveBranch(ctx, repo, "")
+	if err != nil {
+		return Object{}, err
+	}
+	object := Object{Kind: "work", ID: id, Repository: repository, Remote: repo.Remote, Branch: branch}
 	return s.importPreparedWorkspace(ctx, object, func(ctx context.Context, o Object) error { return backend.ImportWorkspaceTreeVolume(ctx, o, source) })
 }

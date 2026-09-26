@@ -1599,3 +1599,420 @@ after rebasing onto this main. The latter's normal ten-binary Linux/Windows
 package built in 42.32s. No local installation, WSL termination or publication
 was performed. Product code also matches the full-tested pre-rebase `9c9d2ed0`;
 four documentation conflicts preserved both independent evidence sections.
+
+### Named current-data selection
+
+Development implementation `fe23cf539a8f27e56d8357354540c9a7f8cc5488`
+([#703](https://github.com/SLktEx/Hacocoon/issues/703)) passed seven local Linux
+selection regressions, including two real copied trees with Git metadata, dirty
+files and symlinks, then independent changed and unrestored selections. It reused
+the existing scanner/comparer; originals remained unchanged. Windows passed six
+portable selection tests; the Linux filesystem case was explicitly skipped there.
+
+The Linux commands passed: selection 0.24s, existing tree comparison 0.25s,
+maintained full local test 84.69s, docs 18.25s and workflow policy 1.98s. A WSL
+root systemd-user-session warning preceded these checks; no service repair or
+permission change was used. Final paired documentation passed `check_docs.py`.
+This is selected local filesystem and repository evidence, not installed Incus,
+actual operator inventory completeness, independent retained storage, owner-idmap
+equivalence or authenticated editor/build/OCI/Git acceptance. The helper never
+grants deletion authority. Person-dependent checks remain post-release and do not
+block main integration after the required exact-head CI succeeds.
+
+### Git streaming main integration and selection rebase
+
+Main `6cdfe5d02bd1531da37ecd08c8c1e91134498c4e` integrates #702, with the same
+tree as head `821cecb6dae26efacb2ca3c77dc20e20e8c02c8c`. Quality35004194444,
+test35004194464, Ubuntu35004194454, Incus35004194621 and Windows35004194439
+all passed. Windows job104499736879 passed installed SSH/editor, Linux/public
+reclamation and native notification review; evidence job104509492624 also passed.
+This does not establish actual large Git through Incus or fresh human answers.
+
+#704's selection implementation is rebased as `db1ac9aafc1f0833898d21e5609be056bd38754e`
+with no changes to selection code/tests, local CI or workflow from `fe23cf53`.
+Documentation conflicts preserve both independent results. Earlier #704 head
+`9a8a7d07` had four successful workflows and Windows still running when replaced;
+these are not proof of the new combined head. The new exact head needs its own CI.
+
+### Named Base builder
+
+Implementation `f79744c38445021f5498e70ed87956669e3345da` adds optional builder
+names through CLI, controller and canonical Base orchestration. The normal Env
+name validator is shared; each repeated name gets a fresh temporary Workspace.
+Creation failure does not trigger cleanup, while uncertain publication and failed
+cleanup preserve their named target. No network rule is changed or approval granted.
+
+Local checks passed: focused Core/Base/workspace/controller/CLI/Packer tests13.09s,
+changed-code lint19.97s, full test65.21s, related race18.46s, CLI E2E5.68s,
+docs11.01s, workflow policy1.68s and native-test compile1.84s. After incorporating
+#704 unchanged, selected-tree tests0.11s, comparison0.13s, combined full test76.30s,
+docs10.65s and workflow policy1.43s passed. The same commit generated the normal
+Linux/Windows ten-binary installer candidate in35.38s, without installation or release.
+The generated `haco base build --help` also passed in English and Japanese, including the named-builder option.
+The WSL root-user-session warning remains; no service or permission repair was used.
+
+This is repository, local filesystem and package-build evidence. The earlier
+ordinary Packer dependency HTTP403 remains unresolved until reviewed scoped settings
+and actual download/build/publication/reuse succeed. The proposed all-Environment
+rule remains unapplied after automatic review refusal; named builders introduce no
+exception. Human approval/login acceptance remains post-release.
+
+On 2026-09-16, a bounded read of the [official Packer 1.16.0 distribution](https://releases.hashicorp.com/packer/1.16.0/) checksum list and
+ZIP central-directory metadata matched both pinned checksums in `prepare.py`.
+The amd64 archive/executable sizes were 34,785,580 / 108,318,882 bytes; arm64
+was 31,509,969 / 100,663,458 bytes. Both fit the existing 128 MiB limits. This
+checks distribution metadata only: no Packer executable was downloaded in full
+or run, and the earlier guest dependency HTTP403 is not resolved by this result.
+Read-only inspection found another active Go process in the dedicated local WSL
+and about 11 GB free on C:. Its installation, services and Policy were left intact;
+no new distribution, restart or broader communication rule was used for acceptance.
+
+### Repeated Windows detachment refusal and process observations
+
+The following later Windows public reclamation attempts failed with
+`compact_attached`, after successful Linux stages and stop requests. Each made
+359 native open attempts without starting compaction. Ordinary installation,
+HTTPS, SSH/editor/forwarding and the separate Linux reclamation gate passed;
+the later notification gate was skipped.
+
+| Exact head | Windows run / job | Same-target resume |
+|---|---|---|
+| `9a8a7d07f93677690c04cb6124c8d78bb5373965` (#704, before rebase) | 35006335176 / 104506895607 | failed |
+| `4c94462ffd6e42d5f1e831cff41224fe051021ba` (#704) | 35008285127 / 104513489162 | passed |
+| `c0692cdf327be7f809333c2a9ea23753bd1f5661` (#705, before documentation update) | 35009099013 / 104516251265 | passed |
+| `428b2bdb53b1070ec4d870bf7589778f29f90042` (#705) | 35011032772 / 104522727488 | passed |
+| `38aeae56ed769b41e59c0d9e89859f2f7e50c52e` (#706, counts only) | 35012950293 / 104529173573 | passed |
+| `c3a2cc8678cdfc4e396d6ac0699eb1cca9d0c626` (#706, second attempt) | 35016859540 / 104544769661 | passed |
+
+Earlier successful allocation recovery remains valid within its recorded scope;
+these later failures remain unresolved under #381. Virtual observation handles
+are closed between attempts, the public driver never reenters WSL before worker
+completion, and its separate reader continues draining ConPTY. Existing receipts
+cannot distinguish Linux shutdown delay, WSL detachment delay or another restart.
+
+Implementation `356b8c509107aa0f37eec5ce04aefe274b604e44` adds Windows-only CIM
+process counts to the public test's existing worker observation. Only changed
+counts, elapsed time and fixed scope/state fields are logged. Counts describe all
+visible WSL processes, not selected-distro ownership or detached-disk authority.
+No product operation, timeout, permission, retry or automatic WSL entry changes.
+Unavailable diagnostics preserve the original failure.
+
+Windows regressions passed (13 observation/refusal tests, 12 retention tests).
+The actual system PowerShell 5.1 query passed, observing three `wslhost.exe`, two
+`wsl.exe`, one `vmmemWSL` and no helper processes, without entering or stopping WSL.
+An independently archived Linux checkout passed observation tests0.21s,
+retention0.23s, maintained local CI docs19.17s and workflow policy3.64s. The WSL
+root-user-session warning was retained without repairs. Product Go code and
+workflow definitions are unchanged; the earlier full repository results remain
+scoped to their heads. These are diagnostic/component results, not a successful
+installed reclamation with the new observations or a fix for the above failures.
+
+The first installed observation at #706 head `38aeae56` failed as recorded above;
+its four other required workflows passed. At 6.6 seconds, Windows-visible
+`wslhost.exe` and `wsl.exe` counts reached zero. At 12 seconds `wsl.exe` returned
+to two, then `wslhost.exe` reached two at 17.6 seconds. This is evidence of new
+Windows WSL processes, not proof of which distribution or launcher restarted.
+The follow-up classifies parent chains without entering WSL or changing product
+behavior. Windows PowerShell 5.1 fixture/query regression and the 14 other tests
+passed; the real read-only query classified four WSL processes as PowerShell
+descendants. That local observation does not identify the CI restart source.
+The archived Linux follow-up passed 14 observation tests (0.50s; the Windows-only
+query test was SKIP), 12 retention tests (0.61s), maintained local docs (20.78s)
+and workflow policy (1.86s). The same root-user-session warning remained.
+
+At `c3a2cc86`, the first Windows attempt (job104542349177) failed before product
+installation: the pinned Microsoft VS Code ZIP response ended prematurely.
+Native Windows unit tests passed; installation and later stages were skipped.
+One failed-job rerun successfully downloaded/verified that unchanged archive and
+passed installation, HTTPS, SSH/editor and Linux reclaim. Public reclaim then
+failed as above. At 6.9 seconds all observed WSL launch/host processes disappeared;
+at 29.1 seconds two launch processes returned with `other` / `wsl/other` parents.
+Thus that run did not identify an SSH, editor, terminal or reclamation parent.
+Unknown does not exclude Hacocoon: the initial categories omitted `haco-review.exe`.
+The follow-up includes installed notification/client executables and known Windows
+WSL host/relay/service categories. It changes no product behavior or timeout.
+The extended native PowerShell query passed all 15 Windows regressions (0.52s).
+The combined Linux archive passed 14 observation tests (0.21s, one Windows-only
+SKIP), local docs (11.48s) and workflow policy (2.16s).
+
+### Current Git binding inventory
+
+The M5 inventory follow-up projects saved single/collection Git bindings through
+the existing repository-reference reader. Windows ran 25 tests successfully with
+seven Linux-only skips. An archived Linux checkout passed inventory32 (0.36s),
+association18 (0.28s), selection7 (0.15s), maintained local docs (13.75s) and
+workflow policy (1.70s); the root-user-session warning remained.
+
+Read-only use against the current dedicated WSL observed two repository records
+and one binding, with complete reference projection and no unreviewed directory
+entries. The preceding inventory had left `bindings` unprojected. The result is
+retained privately; source metadata, services and Policy were not changed.
+`authority` and binding `state_validated` remain false. This does not prove that
+the saved connection is current, that all required data was selected, or that data
+has been captured, restored or used for authenticated development.
+
+### SSH and editor entry language
+
+The ordinary SSH/open follow-up uses the shared catalog for Environment selection,
+readiness, editor retry and cleanup notices. Common preview-option validation now
+reports corrections before Workspace preparation; accepted requests are unchanged.
+An isolated 1,669-file Linux copy passed CLI/catalog tests (12.35s), including
+actual PTY selection/cancellation and client-owned SSH configuration in English
+and Japanese. Maintained local CI `test` passed (80.54s), including all Go tests,
+vet, maintenance helpers and notification client tests; local CI `docs` passed
+(9.92s). The first Japanese PTY attempt failed because the test binary's common
+initializer cleared the language override. The test now explicitly restores its
+requested language in the child; both languages then passed. Product selection
+or authority was not changed to make that test pass. The existing WSL root-user
+session warning remains. These component checks do not prove installed Windows
+editor connectivity or person-dependent approval. Those remain separate checks.
+
+### Notification startup versus reclamation
+
+At #707 head c0843ed4, retry job104622907624 passed installation, HTTPS,
+SSH/editor and Linux reclamation but failed public compaction (359 opens,
+compact_attached, compaction not started, resumed=true, notification stage SKIP).
+WSL launch/host counts were zero at 7.0s; at 23.8s two launches returned with
+notification/unavailable and wsl/notification/unavailable ancestry. This narrows
+one restart source. It does not explain #708 b3cece34/job104626263843, where three
+host processes remained after launches reached zero at 6.3s; that run also failed
+compact_attached with no compaction and resumed=false. Previous successful
+recovery and all preceding failures retain their scopes. #708's quality failure
+was two unchecked output errors; both are corrected in the follow-up.
+
+The shared startup reservation follows [ADR 0108](../adr/0108-background-wsl-start-coordination.md).
+An isolated 1,672-file Linux copy passed maintained local CI test (73.45s), docs
+(9.88s), native review/reclaim test compilation (1.26s/0.89s), and CI-equivalent
+Linux changed-code lint 2.13.2 (12.14s, zero issues). Actual Windows passed three
+private-peer tests (0.45s) and eight guard/continuation/detached-open tests (1.02s),
+including separate-process exclusion and ordinary startup after release. The
+first native invocation failed at PowerShell argument parsing before tests ran;
+passing an argument array fixed invocation without changing product/test code.
+Whole-repository Windows lint could not typecheck the existing Linux-only Incus
+syscall.Stat_t test dependency. Its narrowed retry did not run: the local WSL
+failed CreateInstance/E_FAIL while C: had zero free bytes. Generated test binaries
+and source archive were removed; source and logs remain, with only about 20 MiB
+free afterward. No WSL restart, user-data deletion or permission relaxation was
+performed during that attempt. Subsequent installed acceptance is recorded below.
+
+### Integration after the responsibility layout change
+
+At #708 head `7e5971b5`, [Windows run 35052021171](https://github.com/SLktEx/Hacocoon/actions/runs/35052021171)
+and job104654261663 passed ordinary installation, SSH/editor, retained
+Workspace/OCI/snapshot restoration and native notification ownership/refusal.
+Public reclamation completed after 254 open attempts and resumed successfully:
+allocated bytes fell from 7,730,102,272 to 4,957,667,328 (2,772,434,944 recovered),
+with virtual capacity unchanged. This is evidence for that candidate; it does not
+erase preceding attached-disk failures or prove every external client closes.
+
+The same head passed Incus, Ubuntu and quality workflows but
+[test run 35052021206](https://github.com/SLktEx/Hacocoon/actions/runs/35052021206)
+failed its race job104654262485: Japanese forwarding presentation returned while
+the advertised listener still accepted a connection. The other product test jobs
+passed; the evidence aggregate failed because race failed. Main `bfa19ecb` / #694
+already fixes concurrent close completion in the shared stream implementation and
+contains deterministic listener/accepted-connection/relay regressions. Integration
+reuses this fix rather than weakening the failing assertion or rerunning the old
+head until it passes.
+
+After integrating `bfa19ecb`, an isolated copy on the new WSL passed the maintained
+local CI `test` and `race` entry points. The focused CLI/forwarding/stream/Base
+race checks passed first. Windows cross-builds and actual native review (three
+tests) and guard/continuation/detached-open checks (eight tests, plus subtests)
+also passed. These native checks did not stop WSL or compact the installed disk.
+The shared coordination code now lives under `internal/platform/wsl/coord`.
+The unmerged named-builder decision uses ADR 0109 to avoid colliding with main's
+ADR 0107; its behavior is unchanged.
+
+The new local WSL initially used installed `bfa19ecb`, Ubuntu 26.04.1 and Incus 7.0.1;
+ordinary-user doctor passed all six checks. The user selected only five Hacocoon
+development Git trees for evacuation. All archived contents, restored Git objects,
+HEADs and working states were verified on Windows. Other application data and
+non-Git test copies were explicitly excluded. This is source preservation, not
+all-managed-data, guest-idmap or authenticated restored-development acceptance.
+
+At head `d8ec1374`, Incus run 35090329488 passed all three product jobs
+(104774859128, 104774859406 and 104774859443). Evidence job104778087319 failed:
+artifact10444681175 records `needs_success=true`, no failed product attempts and
+no unproven required steps, but the last job's conclusion remained null after
+60 seconds, leaving `incus-owned-btrfs` missing. Later terminal job metadata
+confirms success. This observation failure remains recorded; no test was rerun.
+The bounded metadata observation is now 180 seconds, with missing jobs named in
+the failure output. Regression checks cover delayed success, expiry, immediate
+terminal failures and API errors; none grants success from `needs` alone.
+
+The same candidate was packaged using pinned GoReleaser 2.17.1 and the normal
+Windows packager/installer on the new `Hacocoon` WSL. Client and controller both
+report `d8ec1374`; all six doctor checks passed. Ordinary public commands cloned
+main into an independent Workspace, wrote a retained marker from a temporary
+Env, and reopened it after cleanup. Snapshot, independent restore, deletion of
+only the restored Env, then a new temporary Env retained the marker SHA-256,
+guest owner `0:0`, Git administration directory and OCI attachment. This is a
+small retained-data check, not populated OCI/application, authenticated Git or
+huge-repository acceptance. The first marker probe's `git` subcommand failed
+because the default Base has no Git executable; its shell's final hash command
+returned zero. Later probes use fail-fast execution and do not claim Git execution.
+
+One explicit cold WSL configuration call found no controller socket and did not
+apply a change. A normal open management terminal, successful doctor and fresh
+configuration inspection preceded the confirmed apply. Three ordinary
+`require-approval` rules are limited to `packer-tools` and the exact Ubuntu
+HTTP/HashiCorp HTTPS destinations, expiring at 2026-09-16T13:42:55Z; default deny
+is retained. The attempt subsequently failed at `dependencies` with apt exit 100:
+Ubuntu package downloads could not connect through the ordinary proxy. No human
+GUI answer was confirmed. Packer download, HCL execution, publication and reuse
+were not reached. Normal CLI inspection confirmed the temporary `packer-tools`
+Env absent and no `roadmap-tools` Base published. The three temporary rules were
+then removed through revision-bound configuration; default deny and zero rules
+match the original settings. No implicit allow or automatic retry was used.
+
+Windows run35090329311/job104774858507 at `d8ec1374` passed installation,
+HTTPS, SSH/editor and Linux reclamation, but public reclamation failed with
+`compact_attached`, 359 opens, no compaction and successful resume. Notification
+acceptance was skipped. Launch/host counts reached zero at 6.7s; at 23.1s two
+host processes appeared without a sampled live launcher, then disappeared at
+39.4s. The 94.2s launcher ancestry is the worker's bounded resume. No new
+notification ancestry was observed; this does not prove that no short-lived
+launcher existed between samples. The cause remains unresolved. CI now projects
+WSL host ancestry separately with the same bounded fixed categories, without
+changing product shutdown, the 90-second detach budget, or refusal conditions.
+All 16 Windows observation regressions passed, including actual PowerShell 5.1
+projection. The earlier `7e5971b5` success does not resolve this failure.
+
+The local `d8ec1374` public export produced 599,424,512 bytes; the Windows copy
+matched SHA-256 `0e3fdd21e6eb257b53123f837a1e32cd60fc62d74d21dc311c5f5d62f922c9da`.
+Import through the projected Windows path created independent managed data.
+After deleting only that imported Env, a new temporary Env retained the same
+marker hash, guest owner, Git directory and OCI attachment. Original source,
+snapshot and bundle remain. This is one small same-PC transfer, not cross-machine
+or authenticated development acceptance.
+
+The same locally installed candidate subsequently completed public `haco reclaim`
+on the new `Hacocoon` WSL, operation `1c487b24-df95-4cc6-85fe-cb0f97d490ae`.
+Windows allocation fell from 9,603,907,584 to 7,861,174,272 bytes: 1,742,733,312
+bytes recovered, 254 open attempts, virtual capacity unchanged and resume successful.
+Normal public status reported both Linux stages and Windows complete; all six
+doctor checks passed afterward. A temporary Env using the independent imported
+Workspace retained the marker hash, guest owner `0:0`, Git directory and OCI
+attachment, then confirmed cleanup. No global WSL shutdown or forced detach was used.
+This does not explain or erase the earlier local enrollment and CI attached-disk failures.
+
+An initial post-reclaim probe chose the source Workspace still leased by the
+stopped `roadmap-save` Env. Creation correctly refused with `storage has active
+sessions`; the CLI hid that reason behind unknown-cleanup guidance. The attempted
+Env was absent on inspection. The source Env and its lease were retained, and the
+successful probe used the independent imported Workspace instead. The follow-up
+shares bounded failure classification with daily commands, adds bilingual `busy`
+guidance and preserves JSON, exit/cleanup semantics and backend redaction.
+The reason/lease regressions failed before the change and passed afterward in
+both languages. Maintained local `test`, `docs` and `workflow-policy` checks plus
+focused CLI race tests passed. A development CLI against the installed controller
+reproduced the same busy refusal with Japanese reason/lease guidance; the source
+Env remained the only retained Env. This is CLI-plus-installed-controller evidence,
+not a new installer or release.
+
+At `423fa602`, test35093944048, quality35093943917, Ubuntu35093944270 and
+Incus35093944417 passed, including the Incus evidence aggregate. Windows
+run35093944130/job104786573377 passed installation, HTTPS, parallel cold SSH,
+actual VS Code editing, export/import and post-deletion retained-work recreation.
+Its tunnel confirmed native listener ownership and eight 1 MiB exchanges, then
+Ctrl+C produced the generic Windows connection failure and exit 1. The terminal
+fixture timed out waiting for exit zero. Reclaim and notification steps were
+skipped, so no new host-ancestry result exists. Main was not merged or the run retried.
+
+The unchanged installed `d8ec1374` tunnel passed that complete ordinary Windows
+terminal journey locally, including native ownership, exchanges, half-close and
+Ctrl+C listener cleanup. The first local invocation could not start its terminal
+driver because pywinpty was missing; after preparing CI's pinned 3.0.2 in the
+test directory, the product path ran without repair or policy changes. The CI
+cancellation failure remains unresolved. The companion now records bounded
+failure stage/category, cancellation state and elapsed time, preserving nonzero
+exit results and the ten-second forced-stop fallback rather than assuming cause.
+
+<a id="incus-key-download"></a>
+
+## Incus signing-key connection failure
+
+At `1054688e`, test35097958384, quality35097958387, Ubuntu35097958415 and
+Windows35097958377 passed. Windows job104799915515 confirmed the normal tunnel's
+native ownership, eight 1 MiB exchanges, half-close and Ctrl+C cleanup. Public
+reclamation completed and resumed, recovering 2,790,260,736 allocated bytes;
+the installed notification route step passed. This is not a human approval answer
+and does not explain the earlier intermittent tunnel/attached-disk failures.
+
+Incus35097958382 failed: standalone job104800045423 could not connect to
+`pkgs.zabbly.com:443` while retrieving the signing key (curl exit 7, 207 ms), before
+product tests. Owned-Btrfs104800045764 and Core104800045879 passed; the evidence
+aggregate correctly failed. No same-head rerun or main merge was performed.
+
+The shared product/CI installer now retries only the key download for bounded
+transient failures, retaining HTTPS and the exact primary-key check. Local real
+curl against an isolated TLS server covers 503 recovery, exhaustion, permanent
+404 refusal and recovered-but-untrusted key refusal before Host writes. The
+first new fixture omitted Content-Length and failed on TLS EOF; after fixing
+the fixture's HTTP framing, all 13 helper tests passed in 9.19 s. Corrected-head
+packaged/native CI acceptance remains pending; earlier failures remain recorded.
+
+At `a0303de9`, test35104226448, quality35104226544, Ubuntu35104226594 and
+Incus35104226446 passed. The new 13 key-helper tests passed in CI (9.01 s).
+A separate local real-curl probe observed actual connection refusal (exit 7),
+then started the isolated TLS listener and confirmed recovery through the unchanged
+helper. Key parsing and Host/package mutations remained command-boundary fixtures.
+
+Windows35104226632/job104821130448 passed installation, HTTPS, SSH/editor,
+tunnel Ctrl+C cleanup and Linux reclamation, then failed public reclamation:
+`compact_attached`, 357 opens, no compaction attempted, resume succeeded;
+notification was skipped. WSL host counts fell to zero at 7.7 s, returned at
+29.1 s with `service/windows-service/other` ancestry, and fell to zero at 45.2 s.
+No launcher was present in those snapshots; the shared VM remained. The 93.2 s
+launch was the worker's recovery. Five-second sampling cannot exclude shorter
+launchers or establish the exact distribution. This failure is unresolved.
+
+A bounded read-only Windows process-start subscription now complements snapshots,
+sharing parent classification and reporting no raw names, paths, IDs or arguments.
+It never changes worker results, retries work or enters WSL. Local PowerShell 5.1
+projection tests cover an already-exited child and a reused parent; reader tests
+cover limits, malformed/private fields and diagnostic failure preserving the
+original product failure. Actual local subscription was denied by Windows access
+control, so event-provider acceptance remains pending CI. Another local WSL was
+running and was left untouched; no new installed reclaim was attempted. No
+same-head rerun or main merge was performed.
+
+<a id="private-windows-launch-descendants"></a>
+
+## Private Windows launch descendants
+
+The preceding #708 head `a67a982acaaacb8f446db338d8b40808e096b467` passed all
+five required workflows and was merged as `63bc41d14336b8c50895b4f689b12e2a49583a31`.
+Windows run35110190568/job104841576457 recovered 2,805,989,376 allocated bytes,
+resumed the same WSL and passed retained-data, native tunnel Ctrl+C and notification
+routes. Its actual process-start observer saw no new WSL launch between stop and
+recovery. That pass does not explain the earlier failed candidates above.
+
+On that main baseline, a new native component regression reproduced a descendant
+writing after failed readiness and `peer.Close` (2.21 s, failure). The private-job
+fix is `aec8d4bca6ed9f07b2ad74c76f99ac6895082442`. Native review package tests then
+passed (3.86 s), including delayed descendants, an exited wrapper, unrelated-peer
+survival, cancellation and launch exclusion. The interactive toast surface test
+was SKIP because no interactive notification session was enabled; human clicks
+were not exercised. Windows amd64 test compilation and arm64 compilation passed,
+as did the shared review/forward Linux packages. A one-off native read-only
+`SessionPlan("Hacocoon")` handshake and confirmed close succeeded against the
+installed `d8ec1374` distribution (0.06 s). This did not replace installed binaries
+or submit an approval. Packaged acceptance of this fix remains pending.
+
+Separate investigation of installed `d8ec1374` passed three ordinary Windows
+native-owner / 8x1 MiB / half-close / Ctrl+C tunnel runs. The fourth stopped before
+exchange when `Get-NetTCPConnection` observation exceeded its 15-second bound;
+that is an unresolved observation failure, not another Ctrl+C failure. A bounded
+pipe-only probe through ordinary Host entry passed 25 real WSL-to-Windows Ctrl+C
+cancellations. The first probe attempted direct outer-WSL execution and failed
+with exec-format error; it was not cancellation evidence. None of these passes
+establishes the cause of the older `423fa602` tunnel nonzero exit.
+
+No new local public reclamation ran: another distribution remained running and
+was left untouched. The actual local Windows process-start subscription remained
+unavailable due to Windows access control. The prior `a0303de9` attached-disk
+failure remains unresolved; the new reproduced ownership defect is a concrete
+fix, not proof of identity with every intermittent failure. See
+[ADR 0110](../adr/0110-private-windows-process-ownership.md).
