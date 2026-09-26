@@ -253,6 +253,12 @@ func TestRepositoryPopulateDetachesWorkspaceBeforeReturningSuccess(t *testing.T)
 					mounted = true
 					return host.Result{}, nil
 				}
+				if reflect.DeepEqual(args, []string{"query", "/1.0/instances/haco-host?project=hacocoon"}) {
+					if mode != "attach-fails" {
+						t.Fatal("unexpected device reconciliation", mode)
+					}
+					return repositoryJSON(t, map[string]any{"name": "haco-host", "type": "container", "devices": map[string]map[string]string{}}), nil
+				}
 				if reflect.DeepEqual(args, []string{"config", "device", "remove", "haco-host", "haco-work-task", "--project", "hacocoon"}) {
 					if !mounted {
 						t.Fatal("removed an unowned device")

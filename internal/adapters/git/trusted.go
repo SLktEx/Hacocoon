@@ -80,7 +80,44 @@ func RunAgent(ctx context.Context, req AgentRequest, repos, workspaces string) (
 	}
 	switch req.Operation {
 	case "clone":
-		_, err := trustedGit(ctx, "", nil, "clone", "--progress", "--template=", "--no-local", "--no-tags", "--", req.Remote, dir)
+		gitDir := filepath.Join(dir, ".git")
+		info, statErr := os.Lstat(gitDir)
+		if statErr == nil {
+			if !info.IsDir() {
+				return Response{}, fmt.Errorf("trusted repository metadata is not a directory")
+			}
+			remotes, err := trustedGit(ctx, dir, nil, "remote")
+			if err != nil {
+				return Response{}, err
+			}
+			listed := strings.Fields(string(remotes))
+			switch {
+			case len(listed) == 0:
+				if _, err := trustedGit(ctx, dir, nil, "remote", "add", "origin", req.Remote); err != nil {
+					return Response{}, err
+				}
+			case len(listed) == 1 && listed[0] == "origin":
+				origin, err := trustedGit(ctx, dir, nil, "remote", "get-url", "origin")
+				if err != nil || strings.TrimSpace(string(origin)) != req.Remote {
+					return Response{}, fmt.Errorf("trusted repository remote changed")
+				}
+			default:
+				return Response{}, fmt.Errorf("trusted repository has unexpected remotes")
+			}
+			_, err = trustedGit(ctx, dir, nil, "fetch", "--progress", "--no-tags", "--no-write-fetch-head", "--", req.Remote, "+refs/heads/*:refs/remotes/origin/*")
+			return Response{}, err
+		}
+		if statErr != nil && !os.IsNotExist(statErr) {
+			return Response{}, fmt.Errorf("trusted repository metadata unavailable")
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil && !os.IsNotExist(err) {
+			return Response{}, err
+		}
+		if err == nil && len(entries) != 0 {
+			return Response{}, fmt.Errorf("trusted repository has incomplete unverified data")
+		}
+		_, err = trustedGit(ctx, "", nil, "clone", "--progress", "--template=", "--no-local", "--no-tags", "--", req.Remote, dir)
 		return Response{}, err
 	case "workspace":
 		if !ValidID(req.Workspace) {

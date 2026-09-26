@@ -95,8 +95,21 @@ func (b *RepositoryBackend) CreateVolume(ctx context.Context, object gitrepo.Obj
 	if err != nil {
 		return err
 	}
-	_, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
-	return err
+	result, createErr := b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
+	if createErr == nil && result.ExitCode == 0 {
+		return nil
+	}
+	if createErr == nil {
+		createErr = core.ErrRuntimeUnavailable
+	}
+	// A lost POST reply is not a failed create. Reconcile against the exact
+	// persisted owner before deciding that the operation still needs recovery.
+	reconcile, cancel := context.WithTimeout(context.WithoutCancel(ctx), b.Runtime.cleanupTimeout)
+	defer cancel()
+	if err := b.InspectVolume(reconcile, object); err == nil {
+		return nil
+	}
+	return createErr
 }
 func (b *RepositoryBackend) InspectVolume(ctx context.Context, object gitrepo.Object) error {
 	_, err := b.inspectVolumeConfig(ctx, object)
@@ -137,6 +150,38 @@ func (b *RepositoryBackend) observeVolume(ctx context.Context, object gitrepo.Ob
 	return observed, nil
 }
 
+func (b *RepositoryBackend) ensureRepositoryDevice(ctx context.Context, device, pool, volume, target string) error {
+	result, addErr := b.Runtime.runner.Run(ctx, "incus", "config", "device", "add", trustedHostName, device, "disk", "pool="+pool, "source="+volume, "path="+target, "--project", b.Runtime.project)
+	if addErr == nil && result.ExitCode == 0 {
+		return nil
+	}
+	if addErr == nil {
+		addErr = core.ErrRuntimeUnavailable
+	}
+	// Retried population may find the device left by the previous attempt, or
+	// may have lost the successful add reply. Only the exact expected device is
+	// accepted; a same-name foreign device remains a hard failure.
+	reconcile, cancel := context.WithTimeout(context.WithoutCancel(ctx), b.Runtime.cleanupTimeout)
+	defer cancel()
+	out, err := b.Runtime.runner.Run(reconcile, "incus", "query", "/1.0/instances/"+trustedHostName+"?project="+b.Runtime.project)
+	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
+		return addErr
+	}
+	var instance struct {
+		Name    string                       `json:"name"`
+		Type    string                       `json:"type"`
+		Devices map[string]map[string]string `json:"devices"`
+	}
+	if json.Unmarshal([]byte(out.Stdout), &instance) != nil || instance.Name != trustedHostName || instance.Type != "container" {
+		return addErr
+	}
+	expected := map[string]string{"type": "disk", "pool": pool, "source": volume, "path": target}
+	if !reflect.DeepEqual(instance.Devices[device], expected) {
+		return addErr
+	}
+	return nil
+}
+
 func (b *RepositoryBackend) Populate(ctx context.Context, object gitrepo.Object) error {
 	if err := b.Runtime.verifyTrustedHostOwnership(ctx); err != nil {
 		return err
@@ -152,8 +197,7 @@ func (b *RepositoryBackend) Populate(ctx context.Context, object gitrepo.Object)
 		operation = "workspace"
 	}
 	device := "haco-" + object.Kind + "-" + object.ID
-	// A new record owns a new name; device collisions are refused by Incus.
-	if _, err := b.Runtime.runner.Run(ctx, "incus", "config", "device", "add", trustedHostName, device, "disk", "pool="+pool, "source="+volume, "path="+root+"/"+object.ID, "--project", b.Runtime.project); err != nil {
+	if err := b.ensureRepositoryDevice(ctx, device, pool, volume, root+"/"+object.ID); err != nil {
 		return err
 	}
 	_, err := b.RunGit(ctx, gitadapter.AgentRequest{Operation: operation, Repository: object.Repository, Workspace: object.ID, Remote: object.Remote, Branch: object.Branch})
