@@ -65,6 +65,8 @@ Write-NativeStage 'complete'
 
 var nativeToastFailure = regexp.MustCompile(`^HACO_TOAST_FAILURE:(runtime|xml|create|identity|show|history):(-?[0-9]{1,11})$`)
 
+const nativeToastProcessTimeout = 40 * time.Second
+
 type nativeToastSurface struct {
 	plan  desktopreview.Invocation
 	appID string
@@ -118,9 +120,11 @@ func encodeNativeScript(s string) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 func (s *nativeToastSurface) invoke(ctx context.Context, operation, id, xml string) error {
-	// Cold Windows PowerShell/WinRT startup can exceed the short UI action
-	// budget. The caller still owns shorter review/read/cleanup deadlines.
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// Cold Windows PowerShell/WinRT startup has reached the previous 30-second
+	// child ceiling on hosted Windows while the owning startup context still had
+	// time remaining. Keep a bounded child ceiling below StartupTimeout; shorter
+	// review/read/cleanup parent deadlines still win.
+	ctx, cancel := context.WithTimeout(ctx, nativeToastProcessTimeout)
 	defer cancel()
 	data, err := json.Marshal(struct {
 		Operation string `json:"operation"`
