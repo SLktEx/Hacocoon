@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
 
 Add-Type @'
 using System;
@@ -100,12 +102,52 @@ $result = [ordered]@{
     shell_windows_before = @()
     shell_windows_after_uri = @()
     shell_windows_after_hotkey = @()
+    screen_capture_supported = $false
+    screen_region_width = 0
+    screen_region_height = 0
+    screen_hash_before = ''
+    screen_hash_after_uri = ''
+    screen_hash_after_hotkey = ''
+    screen_changed_after_uri = $false
+    screen_changed_after_hotkey = $false
     title_visible = $false
     allow_visible = $false
     deny_visible = $false
     allow_invoke_pattern = $false
     deny_invoke_pattern = $false
     duration_ms = 0
+}
+
+function Get-RightShellRegion {
+    $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+    $width = [Math]::Min(700, $bounds.Width)
+    $height = [Math]::Max(1, $bounds.Height - 120)
+    $bitmap = New-Object System.Drawing.Bitmap $width, $height
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $sourceX = $bounds.Right - $width
+        $graphics.CopyFromScreen($sourceX, $bounds.Top, 0, 0, $bitmap.Size)
+        $stream = New-Object IO.MemoryStream
+        try {
+            $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+            $sha = [Security.Cryptography.SHA256]::Create()
+            try {
+                $digest = $sha.ComputeHash($stream.ToArray())
+            } finally {
+                $sha.Dispose()
+            }
+            return [pscustomobject]@{
+                Width = $width
+                Height = $height
+                Hash = ([BitConverter]::ToString($digest)).Replace('-', '').ToLowerInvariant()
+            }
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
 }
 
 function Find-UIElementByName([string]$Name) {
@@ -205,6 +247,15 @@ try {
 
     $result.stage = 'notification-center-uri'
     $result.shell_windows_before = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
+    try {
+        $screenBefore = Get-RightShellRegion
+        $result.screen_capture_supported = $true
+        $result.screen_region_width = $screenBefore.Width
+        $result.screen_region_height = $screenBefore.Height
+        $result.screen_hash_before = $screenBefore.Hash
+    } catch {
+        Write-Host ('Desktop capture unavailable: ' + $_.Exception.GetType().FullName)
+    }
     $result.notification_center_uri_attempted = $true
     try {
         Start-Process -FilePath 'ms-actioncenter:'
@@ -214,6 +265,15 @@ try {
     }
     Start-Sleep -Seconds 2
     $result.shell_windows_after_uri = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
+    if ($result.screen_capture_supported) {
+        try {
+            $screenAfterUri = Get-RightShellRegion
+            $result.screen_hash_after_uri = $screenAfterUri.Hash
+            $result.screen_changed_after_uri = $screenAfterUri.Hash -ne $result.screen_hash_before
+        } catch {
+            Write-Host ('Post-URI desktop capture unavailable: ' + $_.Exception.GetType().FullName)
+        }
+    }
     $notificationCenter = Find-NotificationCenterSurface
     $result.notification_center_surface_visible = $null -ne $notificationCenter
 
@@ -223,6 +283,15 @@ try {
         [HacocoonNotificationUIProbeInput]::OpenNotificationCenter()
         Start-Sleep -Seconds 2
         $result.shell_windows_after_hotkey = @([HacocoonNotificationUIProbeInput]::VisibleShellWindows())
+        if ($result.screen_capture_supported) {
+            try {
+                $screenAfterHotkey = Get-RightShellRegion
+                $result.screen_hash_after_hotkey = $screenAfterHotkey.Hash
+                $result.screen_changed_after_hotkey = $screenAfterHotkey.Hash -ne $result.screen_hash_after_uri
+            } catch {
+                Write-Host ('Post-hotkey desktop capture unavailable: ' + $_.Exception.GetType().FullName)
+            }
+        }
         $notificationCenter = Find-NotificationCenterSurface
         $result.notification_center_surface_visible = $null -ne $notificationCenter
     }
