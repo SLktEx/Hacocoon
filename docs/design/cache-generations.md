@@ -4,8 +4,8 @@
 
 Status: **partial**. Host settings, creation-time enrollment, stopped whole-area
 collection and independent generation reuse are implemented on main.
-Use the public commands below on the trusted Host. Existing-Env enrollment and
-unknown native-copy cancellation remain incomplete. Named and --all source
+Use the public commands below on the trusted Host. Enrollment is intentionally limited to new Environments; later enrollment is out of scope.
+Cleanup of failed/interrupted copy destinations remains planned. Named and --all source
 history, reviewed clearing and positive-receipt recovery are implemented.
 Real-host results and large-repository performance are separate acceptance claims.
 
@@ -21,7 +21,9 @@ Host does not build the cache or execute guest-origin data as trusted tooling.
 Unconfigured files, source code, irreplaceable outputs and credentials are outside
 the selection. Placement supports explicit HOME and managed-repository targets,
 including individual collection members, and rejects links or existing content.
-Only creation-time enrollment is supported; existing content is not adopted.
+Enrollment occurs only at Environment creation. After changing Host settings, create
+a new Environment to apply them; existing placements and contents are unchanged.
+Existing-Env enrollment is not planned.
 
 ## Atomic publication contract
 
@@ -157,7 +159,11 @@ compatibility and migration are outside this development scope.
 
 ## Completion still required
 
-Existing-Env enrollment and unknown native-copy cancellation remain incomplete.
+Planned: remove the owned destination when a copy fails or is interrupted, after
+confirming that the provider operation has stopped. Preserve the source and release
+copy reservations only after destination absence is confirmed. If operation state
+or cleanup is uncertain, retain ownership for recovery. This cleanup is not yet
+implemented. Existing-Env enrollment is excluded from M4.
 Retained-source history/clear and recovery of positively completed copies work
 with or without a remaining producer. Unknown copy outcomes retain ownership;
 there is no automatic replay or inference of success from an existing destination.
