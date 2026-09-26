@@ -92,20 +92,20 @@ DOCKER_BUILDKIT=0 docker build --network none -t hacocoon-standard-docker:repeat
 			t.Fatal(err)
 		}
 		guest(name, persistentOCIConfiguration)
-		// Transfer only the digest-verified public binary archives into this offline
-		// fixture, never a Host configuration directory, socket or credential.
-		guest(name, "mkdir -p /var/cache/hacocoon/host-tooling")
-		for _, archive := range []string{
-			"/var/cache/hacocoon/host-tooling/nerdctl-full-2.3.5-linux-amd64.tar.gz",
-			"/var/cache/hacocoon/host-tooling/docker-28.5.2-linux-amd64.tgz",
+		// The receiving Environment supplies its own runtime. Reuse the existing
+		// offline runtime fixture instead of applying trusted-Host service policy
+		// (notably Docker networking/package assumptions) to an ordinary Env.
+		// Only digest-verified public archives cross this boundary; no Host socket,
+		// configuration directory or credential is copied.
+		for source, target := range map[string]string{
+			"/var/cache/hacocoon/host-tooling/nerdctl-full-2.3.5-linux-amd64.tar.gz": "/tmp/nerdctl-full.tar.gz",
+			"/var/cache/hacocoon/host-tooling/docker-28.5.2-linux-amd64.tgz":         "/tmp/docker.tgz",
 		} {
-			local := filepath.Join(t.TempDir(), filepath.Base(archive))
-			command("file", "pull", trustedHostName+archive, local, "--project", runtime.project)
-			command("file", "push", local, name+archive, "--project", runtime.project, "--mode", "0644")
+			local := filepath.Join(t.TempDir(), filepath.Base(target))
+			command("file", "pull", trustedHostName+source, local, "--project", runtime.project)
+			command("file", "push", local, name+target, "--project", runtime.project, "--mode", "0644")
 		}
-		for _, stage := range []string{"host_tooling", "host_services"} {
-			command("exec", name, "--project", runtime.project, "--", "/usr/bin/python3", "-I", "-c", hostToolingScript, stage)
-		}
+		guest(name, runtimeFixtureInstall)
 		if copied := strings.TrimSpace(guest(name, `nerdctl image inspect --format '{{.Id}}' hacocoon-standard:local`)); copied != id {
 			t.Fatal("copy changed image identity")
 		}
