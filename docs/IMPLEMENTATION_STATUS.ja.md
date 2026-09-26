@@ -2,7 +2,7 @@
 
 [English](IMPLEMENTATION_STATUS.md) | 日本語
 
-現在のmilestone位置は **v0.68**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
+現在のmilestone位置は **v0.69**。番号の正本と履歴は[バージョンとリリース状況](status/versioning-and-release-status.ja.md)を参照してください。
 
 このページはこのcheckoutのコードで使える範囲を示し、統合欄で確認済みのmainとPRの変更を区別します。初めて使う場合は[利用開始ガイド](guides/getting-started.ja.md)へ進んでください。実機で確認できた範囲・失敗・スキップは[検証証拠](status/acceptance-evidence.ja.md)、残りの開発方針は[ロードマップ](status/architecture-and-roadmap.md)が管理します。
 
@@ -16,15 +16,16 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 
 | 機能 | 状態 | 使える範囲・制約・残課題 |
 |---|---|---|
+| [通常の開発環境](design/default-development-session.ja.md) | partial | `repo add`後の引数なし`open`で全登録リポジトリ、既定Base・保存領域、再利用する環境を正規APIで準備。所有者の永続固定・進捗・上級操作の明示選択を維持。後からの構成自動変更と導入済みIncus・Windows・desktopでの確認は未実施。 |
 | [Experimental VS Code](reference/experimental-vscode.ja.md) | 実装済み | 共通YAMLサブツリーをエディタ・ファイル・JSONから編集。EnvのRemote settingsと、依存先を含む日数・pre-release・固定版によるExtension選択。安定版・既定serverパス・Linux x64/arm64が対象。実Marketplace・エディタ・Windows/WSLでの受け入れ確認は未実施。 |
 | [Host の標準ツール](design/trusted-host.ja.md#host-の標準ツール) | 実装済み | 通常のローカル setup がユーザースクリプトの前に Git/gh と固定版 containerd/nerdctl/BuildKit を導入。管理対象 OCI データと Host 内のソケットを利用し、再 setup はデータを保持。公開版 Windows インストーラー、arm64 実機、独自の既存導入環境の確認は別途必要。 |
 | [日常操作・setup診断](reference/daily-workflow.ja.md) | 実装済み | 制限付きの進捗・相関IDをstderrへ出力し、最終応答を検証。切断後も処理終了まで排他を保持し、非対話の確認は入力待ちしない。専用Linuxでの検証とWindows既定エントリー・IDEの確認は別。 |
 | [Workspaceのパス参照・fork](design/workspace-workflow.md) | 実装済み | 明示したリポジトリの準備、所有者を固定したパスによる再開、正規ライフサイクルを使う停止中のGit/OCI独立コピー。復旧が必要なコピーは所有記録を保持。Windows自動接続と大規模リポジトリ性能は未確認。 |
 | [TCP/UDP開発接続](design/network-connections.md) | 実装済み | ゲストの明示的なループバック待受、生成ID付きポリシー・承認、任意のルール期限、接続中の失効を実装。HTTP/SNI・送信元保護を維持。専用基盤の検証は限定範囲で、外部インターネット・VPN・Windows UI全体は未完了。 |
 | [導入・Host](guides/installation.ja.md) | 実装済み | Ubuntu 26.04以降・専用WSL 2、コントローラー経由のsetup/doctor、永続的な信頼済み`haco-host`。Ubuntuのログインシェルは変更しない。Windowsネイティブの`haco.exe`は未提供。既存の非rootアクセスグループを検証して管理ユーザーに再利用。WindowsパッケージCIで通常入口・native interopの候補版別の証拠あり。広い導入構成は別途確認。 |
-| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | 既存ブランチのclone、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
+| [リポジトリ・Workspace](guides/git-workflow.ja.md) | 実装済み | ブランチ非依存の登録、独立した管理コピーとcollectionを作成。停止後も排他的リースを保持。独立forkのメンバー選択とcheckout/linked worktree入力を実装。その場でのメンバー編集と準備中断からの一般的な復旧は非対応・未完了。 |
 | [Envの作成・停止・再開・削除](guides/data-lifetime.ja.md) | 実装済み | 管理対象・外部Workspaceから作成、一覧・状態・停止・開始・削除。rootfsは使い捨てだがWorkspaceとStoreは削除後も保持。所有状態が不明なら解放を拒否。`switch-base`は無効・保留。 |
-| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
+| [SSH・エディター](design/client-and-interactive-access.md) | 実装済み | 鍵・設定を再利用するセットアップ、`haco open --select`の選択、鍵を固定したProxyCommand／controller UDS経由のポート不要SSH。既定はVS Code、`--client ssh`でシェル。プロキシ変数は自動設定。広範なIDE・Windows・AHPの確認はクライアント依存。 |
 | [対話端末の画面サイズ](design/controller-client-transport.ja.md#対話端末の画面サイズ) | 実装済み | Host・Envのシェルで初期サイズを渡し、別途合意した制限付きのサイズ変更要求を送信。Linuxでは専用のraw PTYを使用。構成要素・実PTY試験で編集、サイズ変更、バイト保持、終了、端末復元を確認。導入済みIncus・Windows・WSLの実機確認は未完了。 |
 | [通常のGit操作](guides/git-workflow.ja.md) | 部分実装 | ブランチ非依存の`repo add`、Workspace初期ブランチの選択、秘密情報を除くclone/fetch進捗のstderr表示、要求の終了に連動したキャンセル。全head取得と各refの独立した読み取り確認、新規ブランチ一つまたは既存fast-forwardの内容固定push承認。clone/fetchはpush許可を与えず、mainへの承認を維持。送信済みpushは正確なold/newとリモート観測を照合し、自動再送しない。fetchは検証した祖先履歴を再利用し、既存targetへのpushは手元にある旧履歴を省く。新規targetも正確なrefの新しい読み取り判断を通して利用可能な公開済み祖先を再利用する。複数headのfetchは上限付きのバッファで個々のpackを順番に転送・取り込みする。1 packは16 GiBまでで、最終の完了証明と取り込み成功を要求する。LFS/submodule、force・削除・複数ref、不明結果からの一般的な復旧は制限または非対応。認証付き実機利用と巨大レポは別途受入が必要。 |
 | [ポリシー・設定](reference/configuration.ja.md) | 実装済み | revision付きの参照・編集、要求単位の承認と範囲の保存。deny、require-approval、allowの順で優先。プロバイダー・デスクトップの広い検証は別途必要。通知失敗で権限は付与されない。 |
@@ -51,6 +52,12 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 削除し、一時実行の後始末とマーカー処理を共通化しました。rootfs importは対応CPUを2系統に
 制限したままIncus SDKの別名を受け付けます。[所有権](adr/0002-environment-lifecycle-ownership.md)と
 [移送](design/environment-transfer.ja.md)を参照してください。
+
+Standard の外向き通信は、Policy 認可済みの私設・グローバルユニキャスト宛てを許可し、
+Physical Host のループバック拒否、DNS の固定、Environment 内の localhost 迂回を維持します。
+ログは DNS 解決失敗・空の応答、アドレス拒否、接続失敗を区別します。
+コンポーネント試験で検証しており、導入済み環境の私設ネットワークとゲストの localhost は
+別途受け入れ確認が必要です。[外向き通信の認可](design/egress-authorization.ja.md)を参照してください。
 
 ## 確認の境界
 
@@ -152,6 +159,9 @@ M2・M3の実利用確認はユーザー担当とし、報告されるまで未�
 ## 構成整理と旧CLIの廃止
 
 製品の入口は `cmd/haco` です。実装の場所は[構成案内](../CONTRIBUTING.md#repository-map)を参照してください。`hacoq`、旧GitHub capability、Docker status/prepareコマンドは撤去しました。現行Git・OCIとclient helperは保持しています。native Ubuntuではcontroller経由の管理コマンドを使えますが、製品の対話的なtrusted Hostシェル接続コマンドはありません。Windowsのログイン経路は保持しています。[決定記録](adr/0107-responsibility-layout-and-cli-retirement.ja.md)も参照してください。
+
+`haco repo add`によるリポジトリ登録はブランチに依存しません。初期ブランチはWorkspace作成時に選びます。
+[Gitの設計](design/git-and-github-capability.md#branch-independent-repository-registration)を参照してください。
 
 ## M1の日常利用の追加修正
 

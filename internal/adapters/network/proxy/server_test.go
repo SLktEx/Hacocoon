@@ -61,9 +61,12 @@ func TestProxyShutdownClosesCONNECTAtEveryBlockingStage(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			proxy := New(&fakeAuthorizer{}, fakeSources{environment: "env-a"})
-			proxy.resolver = fakeDNS{addresses: []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}}
+			proxy.resolver = fakeDNS{addresses: []net.IPAddr{{IP: net.ParseIP("192.168.1.8")}}}
 			upstreamReady := make(chan net.Conn, 1)
-			proxy.dial = func(context.Context, string, string) (net.Conn, error) {
+			proxy.dial = func(_ context.Context, network, address string) (net.Conn, error) {
+				if network != "tcp" || address != "192.168.1.8:443" {
+					return nil, errors.New("CONNECT did not use the pinned private destination")
+				}
 				conn, peer := net.Pipe()
 				upstreamReady <- peer
 				return conn, nil

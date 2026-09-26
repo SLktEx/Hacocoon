@@ -98,8 +98,9 @@ Windows起動調整を保持し、mainのstream終了待ち修正を再利用し
 | v0.66 | Saved Environment data | 実装済み |
 | v0.67 | Portable Environment data | 実装済み |
 | v0.68 | Restore saved work by environment name | 実装済み |
+| v0.69 | Default Development Session | partial — 登録後のopenを自動化。後からの構成変更と実機確認は未完了 |
 
-現在のmilestone位置は **v0.68**。上表とこの値はYAMLの写しです。
+現在のmilestone位置は **v0.69**。上表とこの値はYAMLの写しです。
 
 具体的なクラウドproviderとlocal registryは延期中です。local registryは必須の節目ではなく、番号も予約していません。Base実体の自動保持（旧v0.47–v0.49）は[ADR 0040](../adr/0040-incus-first-snapshots.md)の方式へ置き換わっています。
 

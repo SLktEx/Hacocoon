@@ -3,6 +3,10 @@
 Status: accepted  
 Date: 2026-09-06
 
+The public-only DNS address requirement is superseded by
+[ADR 0110](0110-private-egress-and-loopback-isolation.md). Controller ownership,
+hostname authorization, DNS pinning and shutdown invariants remain in force.
+
 ## Context
 
 The canonical Environment provider denies direct traffic, but the installed
