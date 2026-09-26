@@ -263,7 +263,6 @@
       ],
       "windows-reclamation": [
         "[fixture] Checkout candidate",
-        "[infrastructure] Prepare pinned portable VS Code client",
         "[infrastructure] Download shared Windows package",
         "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
         "[fixture] Stage release-equivalent installer package",
