@@ -73,9 +73,7 @@ function Find-NotificationCenterSurface {
     $names = @(
         'Notification Center',
         'Notifications',
-        'Action center',
-        '通知センター',
-        '通知'
+        'Action center'
     )
     foreach ($name in $names) {
         $found = Find-UIElementByName $name
