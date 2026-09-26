@@ -42,6 +42,16 @@ class EnvironmentBoundaryTest(unittest.TestCase):
             self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
 
 
+class JourneyModeTest(unittest.TestCase):
+    def test_fresh_only_stops_before_restart_and_reinstall(self):
+        phases = []
+        def record(name, *args, **kwargs):
+            phases.append(name)
+        with patch.object(gate, "run_phase", side_effect=record):
+            gate.run_user_journey(Path("package"), use_cached_wsl_image=True, fresh_only=True)
+        self.assertEqual(phases, ["initial-install", "installed-host-assertions", "initial-host-entry"])
+
+
 class InstallerCommandTest(unittest.TestCase):
     def test_normal_and_cached_installs_type_the_shipped_command_once(self):
         for cached, expected in ((False, "install-windows.bat\r\n"),
