@@ -102,8 +102,9 @@ def run_in_host_terminal(driver, checks):
         if terminal.proc.isalive(): terminal.proc.terminate(force=True)
 
 
-def run_native_checks(driver, run_check, interop_only=False, host_customization=False):
-    run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
+def run_native_checks(driver, run_check, interop_only=False, host_customization=False, skip_interop=False):
+    if not skip_interop:
+        run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
     if interop_only:
         return
     # Cold acceptance deliberately terminates WSL. Close the original terminal
@@ -112,12 +113,15 @@ def run_native_checks(driver, run_check, interop_only=False, host_customization=
 
     if host_customization:
         run_check('test_host_customization.ps1')
-    run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
+    if not skip_interop:
+        run_in_host_terminal(driver, lambda: run_check('test_windows_host_interop.ps1'))
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--interop-only', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--interop-only', action='store_true')
+    mode.add_argument('--skip-interop', action='store_true')
     parser.add_argument('--require-non-c', action='store_true')
     parser.add_argument('--persistence-manifest')
     parser.add_argument('--reclamation-manifest')
@@ -149,7 +153,8 @@ def main():
         print(result.stdout, result.stderr, flush=True)
         verify_acceptance_result(name, result, os.environ.get('GITHUB_ACTIONS') == 'true')
 
-    run_native_checks(driver, run_check, args.interop_only, os.environ.get('GITHUB_ACTIONS') == 'true')
+    run_native_checks(driver, run_check, args.interop_only,
+                      os.environ.get('GITHUB_ACTIONS') == 'true', args.skip_interop)
     print('WINDOWS NATIVE ACCESS THROUGH ORDINARY HOST ENTRY: PASS')
 
 

@@ -21,8 +21,15 @@ local CI から実行する。権限境界は [CI trust boundary](../../.github/
 | Incus lifecycle、network、egress | `incus-core-e2e`: incus-standalone、incus-core-e2e | 独立 runner の native 基盤、provider、出荷 controller/CLI。standalone の Docker 共存ルールを製品 Environment の egress に適用しない。 |
 | Btrfs、Base、snapshot、transfer、保持 OCI | `incus-core-e2e`: incus-owned-btrfs | native adapter と CLI/controller。fixture は保持データを準備し、pool の遅延作成も検証する。全 packaged 受入ではない。 |
 | Ubuntu installer・隔離 | `ubuntu-installer-e2e`: ubuntu-user-path | 未改変の配布 installer、通常ユーザー、製品 CLI の run/create/status/stop/start/delete と Workspace 保持、移行中 CLI の installed journey と kernel 検証。 |
-| Windows/WSL install・restart・reinstall | `windows-installer-e2e`: windows-user-path | BAT、ConPTY、通常 WSL/Host entry、reinstall 前の terminate、Host データ保持。phase 時間を記録する。初期 driver 単独では Environment のデータ保持を証明しない。 |
-| SSH・IDE・network・transfer・reclamation・通知 | 同上 | 初期 BAT に続く installed egress と native Windows/OpenSSH/VS Code の実際の検証 step が必要。 |
+| Windows 共通 release candidate | `windows-installer-e2e`: windows-package | release 相当の amd64 package を1回だけ build し、同一 workflow run の独立 Windows job へ同じ archive を渡す。 |
+| Windows native client 境界 | `windows-installer-e2e`: windows-native-client-tests | packaged install と独立して native client / WSL 境界の focused test を実行する。 |
+| Windows installer component 回帰 | `windows-installer-e2e`: windows-installer-component-tests | ConPTY driver assertion と PowerShell 5.1 の installer、停止待ち、exit、DNS、SSH diagnostic 回帰を独立実行する。 |
+| Windows/WSL install・restart・reinstall | `windows-installer-e2e`: windows-installer-lifecycle | BAT、ConPTY、通常 WSL/Host entry、reinstall 前の terminate、Host データ保持、cold doctor を同一 runner 状態で検証する。 |
+| installed Environment egress | `windows-installer-e2e`: windows-egress | 独立した fresh packaged install で Environment HTTPS と direct-egress 拒否を検証する。 |
+| Windows/WSL native interop | `windows-installer-e2e`: windows-interop | 独立した fresh packaged install で通常 Host entry と Windows executable/PATH/stdout/stderr interop を検証する。 |
+| SSH・IDE・preview・customization・transfer | `windows-installer-e2e`: windows-access | 独立した fresh packaged install で strict OpenSSH、VS Code、preview、Host customization、transfer を検証し、専用 interop probe は重複させない。 |
+| reclamation・保持データ | `windows-installer-e2e`: windows-reclamation | 独立した fresh packaged install で transfer fixture を保持し、Linux stage、Windows/public reclamation、回収後データを検証する。 |
+| native notification review | `windows-installer-e2e`: windows-notification | 独立した fresh packaged install で native review registration と notification route を検証する。 |
 
 branch protection には既存 check に加え `test-evidence`、`incus-core-e2e-evidence`、
 `ubuntu-installer-e2e-evidence`、`windows-installer-e2e-evidence` を必須として設定する。
