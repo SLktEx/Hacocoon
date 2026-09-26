@@ -113,15 +113,16 @@ Windowsの登録は、登録値、Linux導入ID、WindowsユーザーSID、固�
 Windows側はVHDXと親ディレクトリを固定し、reparse point・hardlinkを拒否してrenameを防ぎます。
 ローカルdrive パスだけに対応し、UNC・デバイスパス・alternate ストリーム・曖昧なWin32表記は拒否します。
 実参照で測る割り当てとファイル長は仮想ディスク容量とは別です。
-動的で接続解除済みのVHDXを固定したvolume-GUID パスから開き、親ディスクはたどりません。
-圧縮中も参照を保持します。open失敗を避けるために固定を外さないでください。
 
-OpenVirtualDiskの共有違反と接続中の確認には、共通で90秒の期限を使います。
-接続中の仮想ディスク観測ハンドルは待機前に閉じ、同じ固定volume pathを開き直します。
-保持したままではWindowsの切断を妨げるためです。実ファイル・親の固定は維持します。
-close失敗・不明な観測は直ちに失敗し、切断済みのハンドルで圧縮を一度だけ行います。
-[観測ハンドルの寿命](../adr/0103-virtual-disk-observation-lifetime.ja.md)を参照してください。同期的なnative呼び出し一回が待機上限を超える場合はあります。
-処理後に容量と仮想ディスク識別子を再確認します。
+Windows側の停止はSystem32の `wsl.exe --terminate <登録済みdistribution名>` を使います。
+WSLの公開CLIは名前を登録GUIDへ解決して、そのdistributionの `TerminateInstance` を実行します。
+Hacocoonは名前だけを権限根拠にはせず、呼び出し前後で登録GUID・Windows所有者・固定したVHDX実体・
+Linux導入IDの既存bindingを再確認します。全WSL停止やglobal idle設定変更は行いません。
+
+停止後は固定したVHDXがWindowsから接続解除されるまで、従来どおり上限90秒でnative APIを観測します。
+接続解除済みを確認してから一度だけ `CompactVirtualDisk` を実行し、仮想容量・disk identifierと
+Windows上の割り当てを再確認します。Linux内から `systemctl poweroff` を要求して共有VMのidle終了を
+待つ経路はproductionでは使いません。
 
 ## 永続的なworkerの処理順
 
@@ -144,13 +145,12 @@ consoleなし、NUL入出力、OS指定の作業ディレクトリ、消去し�
 待機は3分までで、中断はpipeだけを閉じ、workerを終了・再試行しません。
 外側のWindows Jobによりworkerが終了する可能性は残るため、未完了の証拠が必要です。
 
-停止はSystem32のWSLに `--distribution-id <GUID>` で、
-固定の `systemctl --no-block poweroff` を渡します。
-全WSL停止、登録解除、名前への代替は行いません。
-ディストリビューション停止だけでは共有WSL VMがdiskを解放したと判断できません。
-他のディストリビューションの停止やglobal idle設定の変更で強制しないでください。
-停止を試みた後は失敗時にも同じGUIDへの期限付き再開を試みます。
-`/usr/bin/true` の再開だけではコントローラーの準備完了になりません。
+Linux側のdiscard完了後、Windows workerは登録・導入bindingを再確認してから
+`wsl.exe --terminate <登録済みdistribution名>` を一度だけ実行します。
+Linux内の `systemctl poweroff` ではなくWSL Serviceのdistribution terminationを使い、
+その後に対象VHDXの接続解除を確認して圧縮します。停止を試みた後は失敗時にも
+同じGUIDへの期限付き再開を試みます。`/usr/bin/true` の再開だけでは
+コントローラーの準備完了になりません。
 
 最終結果には各段階を残します。API成功・PID・起動受付・WSL再開は、計測を伴う回収完了の代替ではありません。
 古いhelperはversion 2やinterruptedを拒否し、項目を黙って捨てません。
@@ -196,9 +196,9 @@ Host 識別情報、未接続Workspace・OCI・スナップショットの復元
 終了コードは非ゼロを維持し、起動していない証拠として使わない。不明・不正な診断は
 従来どおり結果不明として扱う。自動再送、記録削除、登録確認の緩和や所有権の変更は行わない。
 
-保存結果が `compact_attached` の場合、ディスクが使用中のためWindows側の圧縮を
-開始していないこと、データが保持されること、再実行の前に明示的な確認が必要なことを示す。
-ディスクを解放するために他のWSLを停止する処理は追加しない。
+保存結果が `compact_attached` の場合、対象distributionをterminateした後もVHDXが
+上限内に接続解除されなかったことを示します。圧縮は開始せずデータを保持し、
+明示的な確認後に別試行を要求します。他のWSLを停止する処理は追加しません。
 
 再開失敗は`ResumeFailure`へ固定分類`Kind`と数値`Code`を別途保存します。分類は時間切れ・キャンセル・プロセスのエラー終了・Windowsエラー・その他です。終了コードは符号なしWindowsプロセスコード、nativeはWin32エラー番号です。元の停止・圧縮失敗は維持し、通常の日英状態表示とCIで確認できます。子プロセスの生出力は含めません。過去に保存されなかった詳細は不明のままで、時間制限・停止対象・再試行・所有の判断は変わりません。
 
@@ -206,8 +206,8 @@ Host 識別情報、未接続Workspace・OCI・スナップショットの復元
 
 容量回収は保護された処理全体で、ユーザー・distributionごとの共通起動排他を保持する。
 通知側は期限付きの読み取り接続確認まで同じ排他を保持し、その後に解放する。
-競合時はWSLを起動せず、回答も再送しない。外部クライアントが切断を妨げる場合は
-引き続き拒否する。所有確認、90秒の期限、接続中の圧縮拒否は変えない。
+競合時はWSLを起動せず、回答も再送しない。外部クライアントが同じdistributionを起動しようとする場合は引き続き排他で拒否する。
+所有確認、90秒の接続解除上限、保存済み操作のfail-closed方針は維持する。
 [ADR 0108](../adr/0108-background-wsl-start-coordination.ja.md)を参照。
 
 通知の専用起動は、プロセス作成時からWindowsの専用Jobに所属させる。
