@@ -114,15 +114,15 @@ Windows側はVHDXと親ディレクトリを固定し、reparse point・hardlink
 ローカルdrive パスだけに対応し、UNC・デバイスパス・alternate ストリーム・曖昧なWin32表記は拒否します。
 実参照で測る割り当てとファイル長は仮想ディスク容量とは別です。
 
-Windows側の停止・offline trim・VHDX圧縮は、System32の
-`wsl.exe --manage <登録済みdistribution名> --compact` に委譲します。WSLは名前をGUIDへ解決した後、
-対象distributionをcompacting状態でロックし、対象だけを停止し、offline trim/ejectとVHDX圧縮を行います。
-Hacocoonはこの公開CLIの名前だけを権限根拠にはせず、呼び出し前後で登録GUID・Windows所有者・
-固定したVHDX実体・Linux導入IDの既存bindingを再確認します。全WSL停止やglobal idle設定変更は行いません。
+Windows側の停止はSystem32の `wsl.exe --terminate <登録済みdistribution名>` を使います。
+WSLの公開CLIは名前を登録GUIDへ解決して、そのdistributionの `TerminateInstance` を実行します。
+Hacocoonは名前だけを権限根拠にはせず、呼び出し前後で登録GUID・Windows所有者・固定したVHDX実体・
+Linux導入IDの既存bindingを再確認します。全WSL停止やglobal idle設定変更は行いません。
 
-WSLの圧縮成功後は、固定したVHDXを一度だけnative APIで観測し、動的VHDX・仮想容量・disk identifierと
-Windows上の割り当てを保存します。以前の90秒detach pollingと自前の`CompactVirtualDisk`は
-production経路では使用しません。低レベルnative primitiveは隔離したcomponent test用にのみ残します。
+停止後は固定したVHDXがWindowsから接続解除されるまで、従来どおり上限90秒でnative APIを観測します。
+接続解除済みを確認してから一度だけ `CompactVirtualDisk` を実行し、仮想容量・disk identifierと
+Windows上の割り当てを再確認します。Linux内から `systemctl poweroff` を要求して共有VMのidle終了を
+待つ経路はproductionでは使いません。
 
 ## 永続的なworkerの処理順
 
@@ -146,11 +146,11 @@ consoleなし、NUL入出力、OS指定の作業ディレクトリ、消去し�
 外側のWindows Jobによりworkerが終了する可能性は残るため、未完了の証拠が必要です。
 
 Linux側のdiscard完了後、Windows workerは登録・導入bindingを再確認してから
-`wsl.exe --manage <登録済みdistribution名> --compact` を一度だけ実行します。
-このWSL操作自身が対象distributionの停止と圧縮中ロックを所有するため、
-Hacocoonは別の`systemctl poweroff`やdetach待ちを挟みません。
-操作をWSLへ渡した後は、失敗時にも同じGUIDへの期限付き再開を試みます。
-`/usr/bin/true` の再開だけではコントローラーの準備完了になりません。
+`wsl.exe --terminate <登録済みdistribution名>` を一度だけ実行します。
+Linux内の `systemctl poweroff` ではなくWSL Serviceのdistribution terminationを使い、
+その後に対象VHDXの接続解除を確認して圧縮します。停止を試みた後は失敗時にも
+同じGUIDへの期限付き再開を試みます。`/usr/bin/true` の再開だけでは
+コントローラーの準備完了になりません。
 
 最終結果には各段階を残します。API成功・PID・起動受付・WSL再開は、計測を伴う回収完了の代替ではありません。
 古いhelperはversion 2やinterruptedを拒否し、項目を黙って捨てません。
@@ -196,16 +196,16 @@ Host 識別情報、未接続Workspace・OCI・スナップショットの復元
 終了コードは非ゼロを維持し、起動していない証拠として使わない。不明・不正な診断は
 従来どおり結果不明として扱う。自動再送、記録削除、登録確認の緩和や所有権の変更は行わない。
 
-既存の保存結果にある `compact_attached` は旧native経路の履歴として引き続き読み取れます。
-新しいproduction経路ではWSLのmanaged compact失敗を `compact` として保存し、
-データを保持したまま明示的な確認後に別試行を要求します。他のWSLを停止する処理は追加しません。
+保存結果が `compact_attached` の場合、対象distributionをterminateした後もVHDXが
+上限内に接続解除されなかったことを示します。圧縮は開始せずデータを保持し、
+明示的な確認後に別試行を要求します。他のWSLを停止する処理は追加しません。
 
 ## バックグラウンド通知の起動
 
 容量回収は保護された処理全体で、ユーザー・distributionごとの共通起動排他を保持する。
 通知側は期限付きの読み取り接続確認まで同じ排他を保持し、その後に解放する。
 競合時はWSLを起動せず、回答も再送しない。外部クライアントが同じdistributionを起動しようとする場合は引き続き排他で拒否する。
-所有確認と保存済み操作のfail-closed方針は維持する。
+所有確認、90秒の接続解除上限、保存済み操作のfail-closed方針は維持する。
 [ADR 0108](../adr/0108-background-wsl-start-coordination.ja.md)を参照。
 
 通知の専用起動は、プロセス作成時からWindowsの専用Jobに所属させる。
