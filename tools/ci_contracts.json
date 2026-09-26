@@ -188,6 +188,7 @@
       "windows-egress",
       "windows-interop",
       "windows-access",
+      "windows-host-customization",
       "windows-reclamation",
       "windows-notification"
     ],
@@ -198,6 +199,7 @@
       "egress",
       "Windows/WSL interop",
       "SSH/IDE/transfer",
+      "Host customization",
       "reclamation",
       "notifications"
     ],
@@ -259,7 +261,7 @@
         "[fixture] Prepare ConPTY user-input driver",
         "[fixture] Reject Hacocoon test overrides before user path",
         "[product] Execute fresh packaged Windows install",
-        "[product] Verify strict OpenSSH, VS Code, preview, customization, and transfer"
+        "[product] Verify strict OpenSSH, VS Code, preview, and transfer"
       ],
       "windows-reclamation": [
         "[fixture] Checkout candidate",
@@ -282,6 +284,16 @@
         "[fixture] Reject Hacocoon test overrides before user path",
         "[product] Execute fresh packaged Windows install",
         "[product] Verify installed native notification review route"
+      ],
+      "windows-host-customization": [
+        "[fixture] Checkout candidate",
+        "[infrastructure] Download shared Windows package",
+        "[infrastructure] Restore trusted Ubuntu 26.04 WSL image cache",
+        "[fixture] Stage release-equivalent installer package",
+        "[fixture] Prepare ConPTY user-input driver",
+        "[fixture] Reject Hacocoon test overrides before user path",
+        "[product] Execute fresh packaged Windows install",
+        "[product] Verify installed Host customization lifecycle"
       ]
     },
     "job_names": [
@@ -292,6 +304,7 @@
       "windows-egress",
       "windows-interop",
       "windows-access",
+      "windows-host-customization",
       "windows-reclamation",
       "windows-notification"
     ]
