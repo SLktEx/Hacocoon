@@ -21,21 +21,18 @@ import (
 type wslOperation uint8
 
 const (
-	wslStop wslOperation = iota + 1
-	wslResume
+	wslResume wslOperation = iota + 1
 	wslReadRegistration
 )
 
 // wslArguments deliberately has no caller command, shell, name lookup or
-// default-distribution branch. systemd owns shutdown within the selected WSL.
+// default-distribution branch. Operations here address the enrolled GUID.
 func (r registration) wslArguments(operation wslOperation) ([]string, error) {
 	if _, err := r.diskPath(); err != nil {
 		return nil, err
 	}
 	args := []string{"--distribution-id", r.ID.String(), "--user", "root", "--cd", "/", "--exec"}
 	switch operation {
-	case wslStop:
-		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/systemctl", "--no-block", "poweroff"), nil
 	case wslResume:
 		return append(args, "/usr/bin/env", "-i", "PATH=/usr/sbin:/usr/bin:/sbin:/bin", "/usr/bin/true"), nil
 	case wslReadRegistration:
@@ -55,6 +52,25 @@ func (r registration) runWSLTo(ctx context.Context, operation wslOperation, outp
 		return err
 	}
 	return r.runWSLArguments(ctx, args, output)
+}
+
+// managedCompactArguments uses WSL's public per-distribution compaction entry.
+// The public CLI accepts a distribution name, while Hacocoon separately pins and
+// revalidates the enrolled GUID, disk identity and Windows owner before and after
+// invocation. WSL resolves this name to a GUID before its compact operation.
+func (r registration) managedCompactArguments() ([]string, error) {
+	if _, err := r.diskPath(); err != nil {
+		return nil, err
+	}
+	return []string{"--manage", r.Name, "--compact"}, nil
+}
+
+func (r registration) runWSLManagedCompact(ctx context.Context) error {
+	args, err := r.managedCompactArguments()
+	if err != nil {
+		return err
+	}
+	return r.runWSLArguments(ctx, args, io.Discard)
 }
 
 // Only fixed operation builders in this package supply arguments.
@@ -88,9 +104,10 @@ func (r registration) runWSLArguments(ctx context.Context, args []string, output
 	return r.revalidate()
 }
 
-// continuationObservation distinguishes requesting systemd shutdown from proving
-// native compaction completion. Resume only proves that the exact WSL can launch;
-// controller/Host readiness must be checked separately by the public workflow.
+// continuationObservation distinguishes requesting WSL-managed compaction from
+// proving compaction completion. The managed operation terminates only the exact
+// selected distribution before compacting it. Resume only proves that the exact
+// WSL can launch; controller/Host readiness is checked by the public workflow.
 type continuationObservation struct {
 	Failure                      string `json:",omitempty"`
 	NativeError                  uint32 `json:",omitempty"`
@@ -218,30 +235,24 @@ func (r registration) executeRecorded(ctx context.Context, records *operationSto
 		}
 		return r.reclaimLinux(ctx, target.Installation)
 	}, func(ctx context.Context) (continuationObservation, error) {
-		return executeContinuation(ctx,
-			func(ctx context.Context) error {
-				if err := records.requireBinding(target); err != nil {
-					return err
-				}
-				// Linux discard may take minutes. Recheck the installed identity before
-				// poweroff rather than trusting the earlier observation indefinitely.
-				identity, err := r.readInstallation(ctx)
-				if err != nil {
-					return err
-				}
-				if identity != target.Installation {
-					return errors.New("managed installation changed before WSL stop")
-				}
-				return r.runWSL(ctx, wslStop)
-			},
+		return executeManagedContinuation(ctx,
 			func(ctx context.Context) (compactObservation, error) {
 				if err := records.requireBinding(target); err != nil {
 					return compactObservation{}, err
 				}
+				// Linux discard may take minutes. Recheck the installed identity immediately
+				// before handing stop+offline trim+compaction to the WSL service.
+				identity, err := r.readInstallation(ctx)
+				if err != nil {
+					return compactObservation{}, err
+				}
+				if identity != target.Installation {
+					return compactObservation{}, errors.New("managed installation changed before WSL compaction")
+				}
 				if err := r.revalidate(); err != nil {
 					return compactObservation{}, err
 				}
-				return pin.compact(ctx)
+				return pin.compactManaged(ctx, r)
 			},
 			func(ctx context.Context) error {
 				if err := r.runWSL(ctx, wslResume); err != nil {
@@ -253,8 +264,41 @@ func (r registration) executeRecorded(ctx context.Context, records *operationSto
 	})
 }
 
-// Only the native binding above supplies these actions in production. This small
-// seam tests failure/cancellation order without shutting down a WSL distribution.
+// executeManagedContinuation models the public WSL compact operation as one
+// stop+compact request. A failed preflight does not launch or resume WSL; once the
+// command is attempted, bounded resume is always tried because WSL may have
+// terminated the selected distribution before reporting an error.
+func executeManagedContinuation(ctx context.Context,
+	compact func(context.Context) (compactObservation, error), resume func(context.Context) error,
+) (result continuationObservation, err error) {
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	defer func() {
+		if !result.StopAttempted {
+			return
+		}
+		resumeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		result.ResumeAttempted = true
+		resumeErr := resume(resumeCtx)
+		result.Resumed = resumeErr == nil
+		if resumeErr != nil && result.Failure == "" {
+			result.recordFailure("resume", resumeErr)
+		}
+		err = errors.Join(err, resumeErr)
+	}()
+	result.Compaction, err = compact(ctx)
+	result.StopAttempted = result.Compaction.Attempted
+	result.StopRequested = result.Compaction.Attempted
+	if err != nil {
+		result.recordFailure("compact", err)
+	}
+	return result, err
+}
+
+// The legacy native sequencing seam remains for component tests of partial
+// stop/compact/resume failure ordering. Production uses WSL-managed compaction.
 func executeContinuation(ctx context.Context, stop func(context.Context) error,
 	compact func(context.Context) (compactObservation, error), resume func(context.Context) error,
 ) (result continuationObservation, err error) {
