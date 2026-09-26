@@ -36,9 +36,19 @@ func TestWSLOperationsUseGUIDAndTerminateName(t *testing.T) {
 	if _, err := r.wslArguments(0); err == nil {
 		t.Fatal("unknown operation accepted")
 	}
+	t.Run("terminate honors canceled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if err := r.runWSLTerminate(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatal("canceled terminate must not start WSL", err)
+		}
+	})
 	r.ID = windows.GUID{}
 	if _, err := r.wslArguments(wslResume); err == nil {
 		t.Fatal("default distribution accepted")
+	}
+	if _, err := r.terminateArguments(); err == nil {
+		t.Fatal("terminate accepted invalid registration")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
