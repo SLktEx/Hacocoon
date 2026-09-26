@@ -38,21 +38,29 @@ func prepareStandardHostToolingCopy(t *testing.T, ctx context.Context, runtime *
 gh --version
 nerdctl --version
 buildctl --version
-test ! -e /usr/local/bin/docker
-test ! -e /usr/bin/docker
-systemctl restart containerd buildkit`)
+docker --version
+systemctl restart containerd buildkit docker
+docker info >/dev/null`)
 	guest(trustedHostName, `nerdctl pull docker.io/library/busybox:latest`)
 	guest(trustedHostName, `nerdctl run --rm docker.io/library/busybox:latest echo public-pull-ok`)
+	guest(trustedHostName, `docker pull docker.io/library/busybox:latest`)
+	guest(trustedHostName, `test "$(docker run --rm --network none docker.io/library/busybox:latest echo docker-public-pull-ok)" = docker-public-pull-ok`)
 	guest(trustedHostName, `mkdir -p /root/host-tooling-context
 printf 'FROM busybox:latest\nRUN echo built > /built\nCMD ["cat", "/built"]\n' > /root/host-tooling-context/Dockerfile`)
-	guest(trustedHostName, `nerdctl build -t hacocoon-standard:local /root/host-tooling-context`)
+	guest(trustedHostName, `nerdctl build -t hacocoon-standard:local /root/host-tooling-context
+DOCKER_BUILDKIT=0 docker build --network none -t hacocoon-standard-docker:local /root/host-tooling-context`)
 	guest(trustedHostName, `test "$(nerdctl run --rm --pull never hacocoon-standard:local)" = built
+test "$(docker run --rm --network none --pull never hacocoon-standard-docker:local)" = built
 test -s /var/lib/hacocoon-oci/buildkit/cache.db
 buildctl du -v | grep '^ID:' | sort > /root/build-cache-before
 test -s /root/build-cache-before`)
 	id := strings.TrimSpace(guest(trustedHostName, `nerdctl image inspect --format '{{.Id}}' hacocoon-standard:local`))
 	if !strings.HasPrefix(id, "sha256:") {
 		t.Fatal("missing built image identity")
+	}
+	dockerID := strings.TrimSpace(guest(trustedHostName, `docker image inspect --format '{{.Id}}' hacocoon-standard-docker:local`))
+	if !strings.HasPrefix(dockerID, "sha256:") {
+		t.Fatal("missing Docker built image identity")
 	}
 	command("stop", trustedHostName, "--project", runtime.project, "--timeout", "60")
 	command("start", trustedHostName, "--project", runtime.project)
@@ -62,11 +70,16 @@ test -s /root/build-cache-before`)
 	if after := strings.TrimSpace(guest(trustedHostName, `nerdctl image inspect --format '{{.Id}}' hacocoon-standard:local`)); after != id {
 		t.Fatal("repeat setup lost image")
 	}
+	if after := strings.TrimSpace(guest(trustedHostName, `docker image inspect --format '{{.Id}}' hacocoon-standard-docker:local`)); after != dockerID {
+		t.Fatal("repeat setup lost Docker image")
+	}
 	guest(trustedHostName, `test "$(nerdctl run --rm --pull never hacocoon-standard:local)" = built
+test "$(docker run --rm --network none --pull never hacocoon-standard-docker:local)" = built
 buildctl du -v | grep '^ID:' | sort > /root/build-cache-after
 cmp /root/build-cache-before /root/build-cache-after
-nerdctl build -t hacocoon-standard:repeat /root/host-tooling-context`)
-	t.Log("PASS standard Git/gh, public pull/run, BuildKit build/run, restart and repeat setup retaining image/cache")
+nerdctl build -t hacocoon-standard:repeat /root/host-tooling-context
+DOCKER_BUILDKIT=0 docker build --network none -t hacocoon-standard-docker:repeat /root/host-tooling-context`)
+	t.Log("PASS standard Git/gh, nerdctl and Docker public pull/build/run, restart and repeat setup retaining images/cache")
 
 	return func(target core.PersistentResource) {
 		name := "haco-area-runtime-copy"
@@ -79,25 +92,35 @@ nerdctl build -t hacocoon-standard:repeat /root/host-tooling-context`)
 			t.Fatal(err)
 		}
 		guest(name, persistentOCIConfiguration)
-		// Transfer only the digest-verified public binary archive into this offline
+		// Transfer only the digest-verified public binary archives into this offline
 		// fixture, never a Host configuration directory, socket or credential.
-		archive := "/var/cache/hacocoon/host-tooling/nerdctl-full-2.3.5-linux-amd64.tar.gz"
-		local := filepath.Join(t.TempDir(), "nerdctl-full.tar.gz")
-		command("file", "pull", trustedHostName+archive, local, "--project", runtime.project)
 		guest(name, "mkdir -p /var/cache/hacocoon/host-tooling")
-		command("file", "push", local, name+archive, "--project", runtime.project, "--mode", "0644")
+		for _, archive := range []string{
+			"/var/cache/hacocoon/host-tooling/nerdctl-full-2.3.5-linux-amd64.tar.gz",
+			"/var/cache/hacocoon/host-tooling/docker-28.5.2-linux-amd64.tgz",
+		} {
+			local := filepath.Join(t.TempDir(), filepath.Base(archive))
+			command("file", "pull", trustedHostName+archive, local, "--project", runtime.project)
+			command("file", "push", local, name+archive, "--project", runtime.project, "--mode", "0644")
+		}
 		for _, stage := range []string{"host_tooling", "host_services"} {
 			command("exec", name, "--project", runtime.project, "--", "/usr/bin/python3", "-I", "-c", hostToolingScript, stage)
 		}
 		if copied := strings.TrimSpace(guest(name, `nerdctl image inspect --format '{{.Id}}' hacocoon-standard:local`)); copied != id {
 			t.Fatal("copy changed image identity")
 		}
+		if copiedDocker := strings.TrimSpace(guest(name, `docker image inspect --format '{{.Id}}' hacocoon-standard-docker:local`)); copiedDocker != dockerID {
+			t.Fatal("copy changed Docker image identity")
+		}
 		guest(name, `test "$(nerdctl run --rm --network none --pull never hacocoon-standard:local)" = built
+test "$(docker run --rm --network none --pull never hacocoon-standard-docker:local)" = built
 nerdctl image rm hacocoon-standard:local
+docker image rm hacocoon-standard-docker:local
 test ! -S /run/hacocoon/control.sock
 test ! -S /var/lib/incus/unix.socket`)
-		guest(trustedHostName, `test "$(nerdctl run --rm --pull never hacocoon-standard:local)" = built`)
-		t.Log("PASS managed Host area copied to independent offline Store; image reused without pull and deletion isolated")
+		guest(trustedHostName, `test "$(nerdctl run --rm --pull never hacocoon-standard:local)" = built
+test "$(docker run --rm --network none --pull never hacocoon-standard-docker:local)" = built`)
+		t.Log("PASS managed Host area copied to independent offline Store; nerdctl/Docker images reused without pull and deletion isolated")
 		if strings.TrimSpace(command("config", "get", name, "user.hacocoon.kind", "--project", runtime.project)) != "runtime-copy-fixture" {
 			t.Fatal("fixture ownership changed")
 		}
