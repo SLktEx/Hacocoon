@@ -194,3 +194,25 @@ func TestOfflineWorkspaceDoesNotRetainUnrelatedHostSource(t *testing.T) {
 		t.Fatal("offline data removed", err)
 	}
 }
+
+func TestSavedWorkspaceOpensWithoutCurrentRepositoryRegistration(t *testing.T) {
+	ctx := context.Background()
+	backend := &offlineBrokerBackend{}
+	repos := NewRepositoryService(t.TempDir(), backend)
+	work := Object{Kind: "work", ID: "saved-copy", Repository: "old-source", Remote: "https://github.com/example/original", Branch: "main", Owner: strings.Repeat("b", 32), NativeRef: "pool/saved-copy", RestoredFrom: "checkpoint", State: "ready"}
+	if err := repos.reserve(work); err != nil {
+		t.Fatal(err)
+	}
+	envs := &identityEnvironmentStore{environment: core.Environment{Name: "dev", Workspace: core.Workspace{ID: core.WorkspaceID("workspace:managed:" + work.Owner), Path: "managed:" + work.ID}}}
+	broker := NewBroker(repos, envs, t.TempDir())
+	if err := broker.Connect(ctx, "dev"); !errors.Is(err, core.ErrUnsupported) || backend.connected {
+		t.Fatal("missing source blocked saved data or granted authority", err)
+	}
+	if _, err := os.Stat(filepath.Join(repos.Root, "bindings", "dev.json")); !os.IsNotExist(err) {
+		t.Fatal("invented route", err)
+	}
+	got, err := repos.Get("work", work.ID)
+	if err != nil || got.Remote != work.Remote || got.RestoredFrom != work.RestoredFrom {
+		t.Fatal("saved configuration rewritten", got, err)
+	}
+}

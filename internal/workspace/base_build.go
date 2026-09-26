@@ -46,3 +46,23 @@ func (s *Service) PublishTemporaryBase(ctx context.Context, name string, work co
 	}
 	return publisher.PublishBase(ctx, env, lease, base)
 }
+
+// Commit publishes a new Image under the source lifecycle and Workspace locks.
+// It never stops, starts or rewrites the source Environment.
+func (s *Service) Commit(ctx context.Context, name string, image core.BaseName) (result core.BaseInfo, err error) {
+	err = s.withSnapshotSourceMode(ctx, name, true, func(ctx context.Context, source core.SnapshotSource) error {
+		lease, e := s.store.GetWorkspaceLease(ctx, name)
+		if e != nil {
+			return e
+		}
+		publisher, ok := s.runtime.(interface {
+			CommitImage(context.Context, core.Environment, core.WorkspaceLease, core.BaseName) (core.BaseInfo, error)
+		})
+		if !ok {
+			return core.ErrUnsupported
+		}
+		result, e = publisher.CommitImage(ctx, source.Environment, lease, image)
+		return e
+	})
+	return
+}

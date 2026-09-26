@@ -24,13 +24,13 @@ func (s *recoveryAPIService) Create(context.Context, core.EnvironmentSpec) (core
 func (s *recoveryAPIService) List(context.Context) ([]core.Environment, error) {
 	return nil, s.failure()
 }
-func (s *recoveryAPIService) Exec(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
+func (s *recoveryAPIService) ExecUser(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, s.failure()
 }
 func (s *recoveryAPIService) PrepareShellStream(context.Context, string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error) {
 	return nil, s.failure()
 }
-func (s *recoveryAPIService) Delete(context.Context, string) error { return s.failure() }
+func (s *recoveryAPIService) DeleteUser(context.Context, string, bool) error { return s.failure() }
 func (s *recoveryAPIService) Status(context.Context, string) (core.EnvironmentStatus, error) {
 	return core.EnvironmentStatus{}, s.failure()
 }

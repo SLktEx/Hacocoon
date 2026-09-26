@@ -107,7 +107,7 @@ Hooksはライフサイクル観測や後始末補助には使えても、Hooks�
 
 ```text
 haco env create / status / delete; haco open --client ssh
-haco run
+haco open --new [IMAGE]
 haco-vscode open / delete
 ```
 

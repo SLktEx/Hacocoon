@@ -1,10 +1,11 @@
 package cliui
 
 var detailCatalog = map[string]translation{
+	"detail.force_delete":       {"Stop a running Environment before deleting it.", "実行中のEnvironmentを停止してから削除します。"},
 	"detail.setup_reapply":      {"Rerun only the saved Host script on an already prepared Host; do not select an Environment.", "準備済みHostの保存手順だけを再実行します。開発環境の指定とは併用しません。"},
 	"detail.setup_result":       {"Show the last saved Host script output and exit status; do not run it again.", "Hostで最後に実行した保存手順の出力と終了結果を表示します。再実行はしません。"},
 	"detail.local_port":         {"Physical Host loopback port; omission chooses an available port.", "Physical Hostのloopbackポート。省略時は空いている番号を選びます。"},
-	"detail.open_json":          {"Print a machine-readable default-session or directory open result; requires --client none.", "通常の開発環境またはディレクトリを開いた結果をJSONで表示します。--client noneの指定が必要です。"},
+	"detail.open_json":          {"Print machine-readable Environment metadata; requires --client none.", "Environmentの情報をJSONで表示します。--client noneの指定が必要です。"},
 	"detail.doctor_env":         {"Optional Environment to diagnose; omission checks the Host. Diagnostics inspect and do not repair.", "調べる開発環境の名前。省略時はHostを確認します。診断では修復を実行しません。"},
 	"detail.setup_env":          {"Optional Environment to set up; omission prepares the trusted Host and applies its saved script only when unapplied. Explicit Environment setup reruns its saved recipe.", "セットアップする開発環境。省略時はHostを準備し、未適用の保存手順だけ実行します。環境を明示すると、その保存手順を再実行します。"},
 	"detail.setup_script":       {"Save and run a regular UTF-8 bash script (at most 1 MiB). Do not combine with --clear-script.", "通常のUTF-8 bashスクリプト（最大1MiB）を保存して実行します。--clear-scriptとは併用しません。"},
@@ -89,11 +90,11 @@ var detailCatalog = map[string]translation{
 	"detail.s3_prefix":          {"Required S3 bucket/prefix URL to list.", "必須。一覧を取得するS3 bucket／prefixのURL。"},
 	"detail.s3_object":          {"Required S3 object URL to download.", "必須。ダウンロードするS3 objectのURL。"},
 	"detail.download":           {"Required new destination file. Existing files and unsafe paths are refused.", "必須。保存先の新しいファイル。既存ファイルや安全でないパスは拒否します。"},
-	"detail.open":               {"Omit to prepare or resume all registered repositories. An explicit Environment name or work directory opens that work; --select chooses an existing Environment.", "省略時は登録済みの全リポジトリを準備・再開します。環境名や作業ディレクトリを指定すればその作業を開きます。--selectで既存の環境を選べます。"},
+	"detail.open":               {"Omit to resume the last opened Environment, or create the first from the default Image. --new creates independent work; --select explicitly chooses an existing Environment.", "省略時は最後に開いたEnvironmentを再開し、まだなければ既定Imageから作成します。--newで新規作成、--selectで既存環境を明示的に選択します。"},
 	"detail.client":             {"Client to open: vscode (default), ssh or none.", "開くクライアント。既定はvscode。ssh、noneも選択できます。"},
 	"detail.preview_port":       {"Open this Environment HTTP port as an approved preview.", "環境のHTTPポートを、許可されたプレビューとして開きます。"},
 	"detail.close_preview":      {"Close the preview selected with --port.", "--portで指定したプレビューを閉じます。"},
 	"detail.no_browser":         {"Print the preview URL without opening a browser.", "ブラウザを起動せず、プレビューURLを表示します。"},
 	"detail.command":            {"Required executable and arguments after --. Arguments are passed directly, not interpreted as Host shell code.", "必須。--の後に実行ファイルと引数を指定します。Hostのshell命令として解釈せず、そのまま渡します。"},
-	"detail.retention":          {"Environment deletion keeps retained Workspace files, OCI data and snapshots. Deleting those resources is a separate operation.", "環境を削除しても、保持Workspaceのファイル・OCIデータ・snapshotは残ります。それらの削除は別操作です。"},
+	"detail.retention":          {"Deletion removes Environment-owned Workspace and OCI data. Explicit Volumes, independent Workspaces and snapshots remain.", "Environment所有のWorkspaceとOCIデータは削除します。明示Volume、独立Workspace、Snapshotは残ります。"},
 }

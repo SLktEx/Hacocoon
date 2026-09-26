@@ -27,6 +27,9 @@ func (s *RepositoryService) ListSources(ctx context.Context) ([]SourceUse, error
 	}
 	result := []SourceUse{}
 	for _, source := range sources {
+		if source.Excluded {
+			continue
+		}
 		v := SourceUse{Source: source, Workspaces: []string{}}
 		for _, w := range work {
 			for _, member := range w.Copies() {
@@ -104,4 +107,20 @@ func (s *RepositoryService) RunGit(ctx context.Context, expected Object, req git
 		return gitadapter.Response{}, core.ErrCapabilityStale
 	}
 	return s.Backend.RunGit(ctx, req)
+}
+
+// UnregisterSource excludes future copies while retaining exact routing authority
+// needed by already-created Workspaces. It never edits those Workspaces.
+func (s *RepositoryService) UnregisterSource(ctx context.Context, id, owner string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	source, err := s.readObject("repo", id)
+	if err != nil {
+		return err
+	}
+	if source.Owner != owner {
+		return core.ErrCapabilityStale
+	}
+	source.Excluded = true
+	return s.save(source)
 }

@@ -79,6 +79,10 @@ func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spe
 		provenance := *saved.Source.Environment.Base
 		created.Base = &provenance
 	}
+	if saved.Image != nil {
+		image := *saved.Image
+		created.Base = &image
+	}
 	// No provider call between native creation and durable ownership.
 	if err := record(created); err != nil {
 		return created, err
@@ -95,8 +99,10 @@ func (p *SandboxProvider) CreateEnvironmentFromSnapshot(ctx context.Context, spe
 	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources); err != nil {
 		return created, err
 	}
-	if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {
-		return created, err
+	if !spec.DeferStart {
+		if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {
+			return created, err
+		}
 	}
 	return created, nil
 }

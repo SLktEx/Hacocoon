@@ -155,16 +155,7 @@ PY
     "$CLI_ROOT/controller.out" \
     "$CLI_ROOT/controller.err"
 
-  run_json="$("$HACO_BIN" run --workspace "$RUN_WORKSPACE" --json -- sh -c 'printf "run-ok\n"; printf "from-run\n" > /workspace/from-run.txt')"
-  python3 - "$run_json" <<'PY'
-import json, sys
-row = json.loads(sys.argv[1])
-assert row["execution"]["exit_code"] == 0, row
-assert row["execution"]["stdout"] == "run-ok\n", row
-assert row["cleaned_up"] is True, row
-PY
-  [[ "$(cat "$RUN_WORKSPACE/from-run.txt")" == "from-run" ]] || fail "haco run did not write through the real workspace mount"
-  python3 tools/test_temporary_run.py "$HACO_BIN" "$RUN_WORKSPACE"
+  python3 tools/test_environment_exec.py "$HACO_BIN" haco/ubuntu-26.04
   incus storage show "$POOL" --project "$PROJECT" >/dev/null
   assert_incus_managed_storage
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "workspace data changed during pool reuse"

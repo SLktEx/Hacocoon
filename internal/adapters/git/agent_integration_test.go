@@ -207,8 +207,14 @@ func TestRepositoryCloneRetryHandlesOnlyOwnedGitShapes(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Repository = "non-git"
-	if _, err := RunAgent(ctx, req, repos, ""); err == nil {
-		t.Fatal("retry adopted non-Git residue")
+	if _, err := RunAgent(ctx, req, repos, ""); err != nil {
+		t.Fatal("owned source did not reacquire Git metadata", err)
+	}
+	if got := testGit(t, nonGit, "rev-parse", "refs/remotes/origin/main"); got != want {
+		t.Fatal("reacquired source did not fetch remote default", got)
+	}
+	if data, err := os.ReadFile(filepath.Join(nonGit, "partial")); err != nil || string(data) != "unverified" {
+		t.Fatal("reacquisition removed unrelated residue", err)
 	}
 }
 

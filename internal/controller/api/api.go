@@ -91,9 +91,9 @@ type HostShellRequest struct {
 type environmentService interface {
 	Create(context.Context, core.EnvironmentSpec) (core.Environment, error)
 	List(context.Context) ([]core.Environment, error)
-	Exec(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
+	ExecUser(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
 	PrepareShellStream(context.Context, string) (func(context.Context, io.Reader, io.Writer, io.Writer) error, error)
-	Delete(context.Context, string) error
+	DeleteUser(context.Context, string, bool) error
 }
 
 type clientService interface {
@@ -232,7 +232,7 @@ func Register(server *control.Server, environments environmentService, clients c
 		if strings.TrimSpace(request.Environment) == "" || len(request.Argv) == 0 {
 			return nil, control.NewStatusError("invalid_argument", "environment and argv are required")
 		}
-		result, err := environments.Exec(ctx, request.Environment, core.ExecutionRequest{Argv: request.Argv})
+		result, err := environments.ExecUser(ctx, request.Environment, core.ExecutionRequest{Argv: request.Argv})
 		if err != nil && result.ExitCode <= 0 {
 			return nil, translateError(err)
 		}
@@ -261,7 +261,7 @@ func Register(server *control.Server, environments environmentService, clients c
 		if err != nil {
 			return nil, err
 		}
-		if err := environments.Delete(ctx, request.Environment); err != nil {
+		if err := environments.DeleteUser(ctx, request.Environment, false); err != nil {
 			return nil, translateError(err)
 		}
 		return nil, nil

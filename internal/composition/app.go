@@ -2,6 +2,7 @@ package composition
 
 import (
 	"context"
+	"errors"
 	ocitooling "github.com/SLktEx/Hacocoon/internal/adapters/oci"
 	"net"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/env"
 	"github.com/SLktEx/Hacocoon/internal/env/copy"
+	"github.com/SLktEx/Hacocoon/internal/env/creation"
 	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
 	"github.com/SLktEx/Hacocoon/internal/env/setup"
 	"github.com/SLktEx/Hacocoon/internal/env/transfer"
@@ -52,6 +54,9 @@ const defaultLocalStorageSize = "128GiB"
 const defaultLocalStorageMountOptions = "compress=zstd:3,noatime,nodiscard"
 
 type App struct {
+	ImageCommands       *incus.BaseProvider
+	Creation            *creation.Service
+	InitialImage        func(context.Context) (core.BaseName, error)
 	Cache               *cache.Workflow
 	hostSetupActive     sync.Mutex
 	hostSetupDone       chan struct{}
@@ -61,7 +66,6 @@ type App struct {
 	EnvironmentCopy     *environmentcopy.Service
 	BaseBuild           *basebuild.Service
 	BaseManage          *basemanage.Service
-	SnapshotRestore     *snapshotrestore.Service
 	AWS                 *awsplugin.Broker
 	Reviews             *review.Service
 	Configuration       *capabilityapp.PolicyConfiguration
@@ -71,7 +75,6 @@ type App struct {
 	AgentHosts          *agenthostapp.Broker
 	Clients             *clientapp.Service
 	Capabilities        *capabilityapp.Service
-	Runner              *runapp.Service
 	Events              *eventsapp.Service
 	Bases               *environmentapp.Router
 	Runtime             *incus.Runtime
@@ -188,6 +191,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 
 	environments := workspaceapp.NewWithProvider(runtime, store, repositoryWorkspaceProvider{repositories: repositories})
 	resources := &persistentresource.Service{Store: store, Backend: &incus.PersistentResourceBackend{Runtime: incusRuntime, ImportRoot: filepath.Join(root, "transfers"), ImportLimit: environmenttransfer.DefaultPayloadLimit}}
+	environments.ConfigureWorkspaceResourceDeletion(resources.DeleteForWorkspace)
 	workspaceStores := ociplugin.WorkspaceStores{Resources: resources}
 	incusRuntime.ConfigureHostCopyRecovery(workspaceStores.RecoverHostCopies)
 	incusRuntime.ConfigureHostStorage(func(ctx context.Context) error {
@@ -212,6 +216,19 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 			return nil, err
 		}
 		return selector.Select(ctx, request)
+	})
+	environments.ConfigureSnapshotNames(func(ctx context.Context, name string) error {
+		if _, err := runtime.InspectBase(ctx, core.BaseName(name)); err == nil {
+			return core.ErrAlreadyExists
+		} else if !errors.Is(err, core.ErrNotFound) {
+			return err
+		}
+		if _, err := repositories.Workspace(ctx, "volume-"+name); err == nil {
+			return core.ErrAlreadyExists
+		} else if !errors.Is(err, core.ErrNotFound) {
+			return err
+		}
+		return nil
 	})
 	runs := runapp.NewWithRecovery(environments, store, filepath.Join(stateDir, "run-locks"))
 	runs.ConfigureTemporaryWorkspace(workspaceStores.CleanupTemporary)
@@ -243,11 +260,13 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 	operations.Handle("/", awsplugin.NewGuestHandler(awsBroker, egressSources))
 
 	return &App{
+		ImageCommands:       incusProvider.BaseProvider,
 		Cache:               &cache.Workflow{Settings: cacheSettings, Catalog: store, Collector: environments, Cleaner: resources, Recoverer: resources, Emptier: environments},
 		Workflow:            &workflow.Service{Repositories: repositories, Environments: environments, Stores: resources},
+		Creation:            &creation.Service{Catalog: store, Images: runtime, Workspaces: repositories, Environments: environments, Snapshots: restorer},
+		InitialImage:        incusProvider.EnsureStandardImage,
 		Networks:            networks,
 		transferCatalog:     store,
-		SnapshotRestore:     restorer,
 		BaseBuild:           &basebuild.Service{Environments: environments, Packer: packerplugin.Runner{}},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
@@ -264,7 +283,6 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Clients:       clientapp.NewWithLifecycle(runtime, store, environments),
 		Capabilities:  capabilities,
 		Configuration: configuration,
-		Runner:        runs,
 		Events:        eventsapp.New(auditPath),
 		Bases:         runtime,
 		Runtime:       incusRuntime,

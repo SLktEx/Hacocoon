@@ -18,7 +18,7 @@ Hacocoon は Incus に開発用の操作、データごとに異なる寿命、�
 
 ## 実行より長く残るデータ
 
-Environment は使い捨てです。通常の削除でも Workspace／Git、保持する OCI データ、保存済みスナップショットは残します。未保存の実行状態を完全に復旧する必要はありません。再作成は現在の保持データ、スナップショット復元は保存時のデータを使います。詳細は[データの寿命](guides/data-lifetime.ja.md)と[スナップショット](design/environment-snapshots.md)に集約します。
+Environmentの構成は作成時に固定し、内部の作業内容は変更できます。削除時はEnvironment固有のWorkspace／Git／OCIデータも削除します。独立Volumeと保存済みSnapshotは残ります。Snapshotは保存時点から新Environmentを作る材料です。既存Environmentが壊れていても自動修復・再作成しません。詳細は[作成仕様](design/environment-creation.ja.md)と[データの寿命](guides/data-lifetime.ja.md)を参照してください。
 
 使い捨ての実行環境でも、所有者の識別と削除完了の確認は必須です。停止中も利用権は保持します。後始末の結果が不明なら所有記録を残し、復旧が必要と報告します。
 

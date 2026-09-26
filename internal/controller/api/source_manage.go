@@ -44,7 +44,7 @@ func repositoryManageHandler(s *gitrepo.RepositoryService) control.Handler {
 			if !gitadapter.ValidID(req.ID) || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:identity", Owner: req.Owner}) {
 				return nil, control.ErrInvalidArgument
 			}
-			return RepositoryManageResponse{}, translateError(s.DeleteSource(ctx, req.ID, req.Owner))
+			return RepositoryManageResponse{}, translateError(s.UnregisterSource(ctx, req.ID, req.Owner))
 		default:
 			return nil, control.ErrInvalidArgument
 		}

@@ -12,8 +12,8 @@ publication, revisions, retention and reviewed deletion.
 Run from the Linux/WSL client with the example directory available locally:
 
 ```bash
-haco base build --name my-tools --from haco/ubuntu-26.04 examples/packer
-haco base inspect my-tools
+haco image build --name my-tools --from haco/ubuntu-26.04 examples/packer
+haco image inspect my-tools
 haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
@@ -44,14 +44,14 @@ Standalone `packer build` remains a guest-local Packer operation. To use this
 example independently, supply your own guest-local SSH port and private-key path
 as `haco_packer_port`/`haco_packer_key` variables inside the Env. It provisions
 that guest and does not register a Hacocoon Base. The managed publication entry
-is `haco base build`; no Host-side standalone Packer launcher is provided.
+is `haco image build`; no Host-side standalone Packer launcher is provided.
 
 ## Dependencies and source files
 
 To prepare ordinary network settings for one build Environment, choose its name:
 
 ```bash
-haco base build --name my-tools --builder packer-tools examples/packer
+haco image build --name my-tools --builder packer-tools examples/packer
 ```
 
 Before building, use [ordinary configuration](../reference/configuration.md) to
@@ -119,7 +119,7 @@ under `/run/hacocoon/packer` and are removed by the existing instance cleanup
 before publication. This is not a sanitizer for arbitrary secrets placed
 elsewhere by a user script.
 
-The existing `haco base build base.json` form accepts bounded
+The existing `haco image build base.json` form accepts bounded
 `name`, optional `from`, and `run`; do not convert HCL to that format. The private
 control request permits exactly one provisioning engine. Both paths reuse the
 same lifecycle service, leases and native catalog. See

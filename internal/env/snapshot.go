@@ -14,6 +14,20 @@ type snapshotProvider interface {
 	DeleteSnapshotComponent(context.Context, core.SnapshotComponent) error
 }
 
+func (r *Router) SnapshotImage(ctx context.Context, c core.SnapshotComponent) (core.BaseRef, error) {
+	backend, native, _, err := r.snapshotBackend(c)
+	if err != nil {
+		return core.BaseRef{}, err
+	}
+	provider, ok := backend.(interface {
+		SnapshotImage(context.Context, core.SnapshotComponent) (core.BaseRef, error)
+	})
+	if !ok {
+		return core.BaseRef{}, core.ErrUnsupported
+	}
+	return provider.SnapshotImage(ctx, native)
+}
+
 func (r *Router) PlanSnapshot(ctx context.Context, s core.SnapshotSource, id string) ([]core.SnapshotComponent, error) {
 	p, native, providerID, err := r.resolveWithID(s.Environment.RuntimeRef)
 	if err != nil {

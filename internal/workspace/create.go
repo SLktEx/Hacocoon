@@ -183,6 +183,7 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 		}
 	}
 	runtimeSpec := core.EnvironmentRuntimeSpec{
+		DeferStart:          spec.DeferStart,
 		DNSMode:             spec.DNSMode,
 		Attachments:         attachments,
 		InstanceID:          instanceID,
@@ -266,6 +267,8 @@ func (s *Service) create(ctx context.Context, spec core.EnvironmentSpec, saved *
 	}
 
 	environment = core.Environment{
+		OwnedWorkspace:     spec.OwnedWorkspace,
+		Volume:             spec.Volume,
 		DNSMode:            spec.DNSMode,
 		Attachments:        lease.Attachments,
 		PersistentResource: persistent.Ref(),

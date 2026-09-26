@@ -10,6 +10,30 @@ import (
 type helpPage = cliui.CommandHelp
 
 var helpPages = []helpPage{
+	{Path: "exec", Syntax: "[-i] [-t] [-w DIR] ENV -- COMMAND [ARG...]", Message: "command.exec", Example: "haco exec -it sleepy-otter -- bash"},
+	{Path: "env exec", Syntax: "[-i] [-t] [-w DIR] ENV -- COMMAND [ARG...]", Message: "command.exec", Example: "haco env exec sleepy-otter -- git status"},
+	{Path: "restart", Syntax: "ENV", Message: "command.restart", Example: "haco restart sleepy-otter"},
+	{Path: "commit", Syntax: "ENV IMAGE", Message: "command.commit", Example: "haco commit sleepy-otter tools"},
+	{Path: "image tag", Syntax: "SOURCE TARGET", Message: "command.image.tag", Example: "haco image tag tools next"},
+	{Path: "repo inspect", Syntax: "[--json] REPO", Message: "command.repo.inspect", Example: "haco repo inspect repo-123"},
+	{Path: "create", Syntax: "[--name NAME] [--volume VOLUME] [--json] IMAGE", Message: "command.create", Example: "haco create haco/ubuntu-26.04"},
+	{Path: "image", Syntax: "<command>", Message: "command.image", Example: "haco image ls"},
+	{Path: "image ls", Syntax: "[--json]", Message: "command.image", Example: "haco image ls"},
+	{Path: "image default", Syntax: "[IMAGE]", Message: "command.image.default", Example: "haco image default haco/ubuntu-26.04"},
+	{Path: "image inspect", Syntax: "[--json] IMAGE", Message: "command.base.inspect", Example: "haco image inspect haco/ubuntu-26.04"},
+	{Path: "image rm", Syntax: "IMAGE", Message: "command.base.delete", Example: "haco image rm tools"},
+	{Path: "volume", Syntax: "<command>", Message: "command.volume", Example: "haco volume ls"},
+	{Path: "volume create", Syntax: "[--container ENV] [--json] NAME", Message: "command.volume", Example: "haco volume create work"},
+	{Path: "volume ls", Syntax: "[--json]", Message: "command.volume", Example: "haco volume ls"},
+	{Path: "volume inspect", Syntax: "[--json] VOLUME", Message: "command.volume", Example: "haco volume inspect work"},
+	{Path: "volume rm", Syntax: "VOLUME", Message: "command.volume", Example: "haco volume rm work"},
+	{Path: "ps", Syntax: "[--json]", Message: "command.env.list", Example: "haco ps"},
+	{Path: "env ls", Syntax: "[--json]", Message: "command.env.list", Example: "haco env ls"},
+	{Path: "start", Syntax: "ENV", Message: "command.env.start", Example: "haco start work"},
+	{Path: "stop", Syntax: "ENV", Message: "command.env.stop", Example: "haco stop work"},
+	{Path: "rm", Syntax: "[-f] ENV", Message: "command.env.delete", Example: "haco rm work"},
+	{Path: "inspect", Syntax: "[--json] ENV", Message: "command.env.status", Example: "haco inspect work"},
+
 	{Path: "setup", Syntax: "[--script <path> | --clear-script | --reapply-script | --script-result] [environment]", Message: "help.setup", Example: "haco setup dev"},
 	{Path: "config", Syntax: "[--edit | --file <file> | --json]", Message: "help.config", Example: "haco config"},
 	{Path: "approve", Syntax: "[--list] [--json] [request-id]", Message: "help.approve", Example: "haco approve --list"},
@@ -25,14 +49,13 @@ var helpPages = []helpPage{
 	{Path: "cache configure", Syntax: "[--json] <file>", Message: "cache.configure", Example: "haco cache configure cache.json"},
 	{Path: "cache status", Syntax: "[--json] <env>", Message: "cache.status", Example: "haco cache status work"},
 	{Path: "cache collect", Syntax: "[--json] <env> [area]", Message: "cache.collect", Example: "haco cache collect work"},
-	{Path: "run", Syntax: "[-i | -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] [--rm] -- <command...>", Message: "run.help", Example: "haco run -it -- bash"},
 	{Path: "env", Syntax: "<command>", Message: "command.env", Example: "haco env list"},
 	{Path: "env list", Syntax: "[--json]", Message: "command.env.list", Example: "haco env list"},
 	{Path: "env create", Syntax: "--workspace <workspace> [--base <base>] [--resource oci:<store>] [--dns host|backend|disabled] [--no-oci] [--json] <name>", Message: "command.env.create", Example: "haco env create --workspace managed:work dev"},
 	{Path: "env status", Syntax: "[--json] <name>", Message: "command.env.status", Example: "haco env status dev"},
 	{Path: "env start", Syntax: "[--json] <name>", Message: "command.env.start", Example: "haco env start dev"},
 	{Path: "env stop", Syntax: "[--json] <name>", Message: "command.env.stop", Example: "haco env stop dev"},
-	{Path: "env delete", Syntax: "[--json] <name>", Message: "command.env.delete", Example: "haco env delete dev"},
+	{Path: "env delete", Syntax: "[-f] [--json] <name>", Message: "command.env.delete", Example: "haco env delete dev"},
 	{Path: "env ssh", Syntax: "--key <public-key-file> [--json] <name>", Message: "command.env.ssh", Example: "haco env ssh --key /path/to/key.pub dev"},
 	{Path: "env ssh-config", Syntax: "<name>", Message: "command.env.ssh-config", Example: "haco env ssh-config dev"},
 	{Path: "env disconnect", Syntax: "[--json] <name> <connection-id>", Message: "command.env.disconnect", Example: "haco env disconnect dev <connection-id>"},
@@ -64,11 +87,14 @@ var helpPages = []helpPage{
 	{Path: "base import", Syntax: "--name <base> [--json] <image.tar>", Message: "command.base.import", Example: "haco base import --name my-tools ./my-tools.tar"},
 	{Path: "base build", Syntax: "--name <base> [--from <base>] [--builder <env>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco base build --name my-tools ./tools-base"},
 	{Path: "base delete", Syntax: "[--yes] <name-or-fingerprint>", Message: "command.base.delete", Example: "haco base delete <base>"},
+	{Path: "image list", Syntax: "[--all] [--json]", Message: "command.base.list", Example: "haco image list"},
+	{Path: "image import", Syntax: "--name <image> [--json] <image.tar>", Message: "command.base.import", Example: "haco image import --name my-tools ./my-tools.tar"},
+	{Path: "image build", Syntax: "--name <image> [--from <image>] [--builder <env>] [--output] [--json] <directory>", Message: "command.base.build", Example: "haco image build --name my-tools ./tools-base"},
+	{Path: "image delete", Syntax: "[--yes] <name-or-fingerprint>", Message: "command.base.delete", Example: "haco image delete <image>"},
 	{Path: "snapshot", Syntax: "<command>", Message: "command.snapshot", Example: "haco snapshot list"},
-	{Path: "snapshot create", Syntax: "[--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},
+	{Path: "snapshot create", Syntax: "[--name NAME] [--json] <env>", Message: "command.snapshot.create", Example: "haco snapshot create dev"},
 	{Path: "snapshot inspect", Syntax: "[--json] [--details] <snapshot>", Message: "command.snapshot.inspect", Example: "haco snapshot inspect snap-0123456789abcdef0123456789abcdef"},
 	{Path: "snapshot list", Syntax: "[--json] [env]", Message: "command.snapshot.list", Example: "haco snapshot list"},
-	{Path: "snapshot restore", Syntax: "[--json] [--latest] <snapshot-id|source-env> [new-env]", Message: "command.snapshot.restore", Example: "haco snapshot restore --latest dev restored"},
 	{Path: "snapshot delete", Syntax: "<snapshot-id>", Message: "command.snapshot.delete", Example: "haco snapshot delete <snapshot-id>"},
 	{Path: "plugin", Syntax: "<command>", Message: "command.plugin", Example: "haco plugin oci --help"},
 	{Path: "plugin oci", Syntax: "<command>", Message: "command.plugin.oci", Example: "haco plugin oci store list"},
@@ -97,7 +123,7 @@ var helpPages = []helpPage{
 	{Path: "ssh", Syntax: "<command>", Message: "command.ssh", Example: "haco ssh setup dev"},
 	{Path: "ssh setup", Syntax: "[environment]", Message: "command.ssh.setup", Example: "haco ssh setup dev"},
 	{Path: "ssh cleanup", Syntax: "[environment]", Message: "command.ssh.cleanup", Example: "haco ssh cleanup dev"},
-	{Path: "open", Syntax: "[--json] [--client vscode|ssh|none] [--select] [--repo <id[,id...]>] [--name <name>] [--base <base>] [--oci auto|none|oci:<store>] [--port <port>] [--close] [--no-browser] [environment-or-directory]", Message: "command.open", Example: "haco open"},
+	{Path: "open", Syntax: "[--select] [--new [IMAGE]] [--name NAME] [--volume VOLUME] [--snapshot SNAPSHOT] [--client vscode|ssh|none] [--json] [--port PORT] [--close] [--no-browser] [ENV]", Message: "command.open", Example: "haco open --new"},
 }
 
 func commandHelp(out io.Writer, path string, language cliui.Language) bool {
@@ -105,7 +131,7 @@ func commandHelp(out io.Writer, path string, language cliui.Language) bool {
 }
 
 // Only literal command paths followed by help are intercepted. In particular,
-// `haco run -- tool --help` remains an Execution, not Hacocoon help.
+// Arguments following -- belong to the selected operation.
 func requestedCommandHelp(args []string, out io.Writer) bool {
 	if len(args) < 2 || (args[len(args)-1] != "--help" && args[len(args)-1] != "-h") {
 		return false

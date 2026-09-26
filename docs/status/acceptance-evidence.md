@@ -2,9 +2,34 @@
 
 [日本語](acceptance-evidence.ja.md) | English
 
-Status: recorded acceptance evidence. These tests ran on the identified historical commits; this documentation refactor does not rerun or claim real-host acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md) for current availability.
+Status: recorded acceptance evidence. Except for explicitly marked local candidates, these tests ran on the identified historical commits; this documentation refactor does not rerun or claim real-host acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md) for current availability.
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
+
+<a id="unified-creation-local"></a>
+
+## Unified creation: local Issue #728 candidate
+
+On 2026-09-26, the uncommitted Issue #728 working tree based on `9d63f193`
+passed `TestRealIncusSnapshotAggregateE2E` on Windows/WSL2, Ubuntu 26.04.1,
+Incus 7.0.1 and Btrfs. The shipped CLI used a private test controller/catalog.
+The run verified running/stopped Snapshot capture with a new Image, export/import,
+`open --new --snapshot`, independent rootfs/Git/Workspace/OCI bytes, fresh authority,
+source-state preservation, deletion of generated data and exact owned cleanup.
+Uncommitted/untracked files and unpushed commits survived. The original 20-minute
+fixture budget expired after import; the bounded 45-minute rerun passed in 1,754
+seconds. The first fixture was cleaned through canonical ownership-checked APIs.
+Existing user Environments were not used as fixtures.
+
+Local CI stages covered Go tests/vet/race with Go 1.26.7, command/orchestration E2E,
+isolated kernel forwarding, documentation/workflow checks and Linux/Windows
+snapshot packaging. Windows native installer components also passed locked-file,
+ownership and junction refusal, PowerShell 5.1-to-WSL literal argument transport
+and WSL stop-readiness checks. This is local working-tree evidence, not a published
+release or hosted CI result. Fresh standard-Image installation, VS Code/SSH GUI
+acceptance, authenticated Git network operations and live OCI consistency were
+not rerun. The native aggregate deliberately skipped cached-source-image deletion,
+live containerd transfer and the separately gated installed-controller import.
 
 <a id="portless-ssh"></a>
 

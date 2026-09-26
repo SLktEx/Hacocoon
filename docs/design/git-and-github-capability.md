@@ -98,7 +98,10 @@ Git/GitHub authority must stay explicit even if the exact CLI, policy attributes
 
 ## Branch-independent repository registration
 
-`haco repo add <id> <remote>` registers one trusted source without a branch.
+`haco repo add <URL>` registers one trusted source without a branch or a required
+user-chosen ID. Transport variants are normalized to a canonical identity; repeated
+registration refreshes that source. Explicit IDs remain available for reconnecting
+legacy imported routes.
 The Host clone stores all advertised branches. Existing source JSON
 records with a `branch` field remain readable, but that legacy value no longer
 selects a Workspace or grants branch authority. New registrations omit it;
@@ -108,7 +111,8 @@ No Core database schema or owned volume is replaced.
 `workspace create --repo <id> [--branch <branch>] <workspace>` resolves and fetches
 an existing branch under the source lock before making the independent volume
 copy. Without `--branch`, resolve remote HEAD. Collections/path preparation use
-each remote default, as do new sources added during restore and local tree imports.
+each remote default, as do local tree imports. Snapshot creation of a new
+Environment uses only saved members and never adds current registrations.
 Tree imports preserve the supplied HEAD/index while resolving the registered
 upstream default for broker discovery; saved members keep their saved routing.
 The selected branch records initial checkout provenance;
@@ -132,29 +136,28 @@ reserved on incomplete creation. This is repository-level implementation;
 installed Incus cancellation and large authenticated clones need separate
 acceptance. See [ADR 0110](../adr/0110-branch-independent-repositories.md).
 
-## Explicit source repository deletion
+## Repository registration and retained sources
 
-Implemented: `haco repo list [--json]` and `haco repo delete [--yes] <id>` expose
-retained Host source checkouts and reviewed deletion. A source remains part of
-current brokered Git routing even though Workspace filesystem copies are
-independent. Every Workspace record with a configured Git source, including intermediate records,
-therefore blocks deletion. This preserves local Git data and the ability to use
-the existing approved transport. It is not an automatic unused-data collector.
+`haco repo ls`, `haco repo inspect <repo>` and `haco repo delete <repo>` manage
+materials for future Environments. Deletion excludes a source from future copies;
+it never edits existing Workspace members, their Git routing or their files.
+Registering the same repository again refreshes and includes the existing source.
+The protected registry retains the exact source ownership needed by existing
+Environments. Exclusion is a selection setting, not a new creation progress state.
 
-The registry lock serializes clone, Workspace copy and source deletion. The service
-rechecks the reviewed owner, refuses incomplete preparation, preflights native
-storage, then uses the existing `deleting` record until positive native absence.
-Git execution rechecks the exact source under the same registry lock after approval; queued requests cannot use a same-name replacement. The Incus adapter takes the existing Host lifecycle lock. It respects pending Host OCI-copy records, checks exact native volume
-ownership and the specific current Host device, and detaches only that device.
-Native snapshots, backups, schedules, extra users and changed devices fail closed.
-A failed detach/delete keeps its receipt for explicit retry; no backup or rollback
-is created. Remote repositories, credentials, independent Workspace/OCI/snapshot
-data and Env permission generations are unchanged.
+Physical source cleanup remains an internal operation. It refuses referencing
+Workspace records and checks native ownership, saved children and positive absence
+before releasing the source receipt. This preserves the safety invariants of
+[ADR 0045](../adr/0045-explicit-source-repository-deletion.md); its old public
+physical-deletion workflow is superseded by
+[unified creation](../adr/0112-unified-environment-creation.md).
 
-Schema 13 and existing repository records are preserved. No data migration is
-required. Current snapshot Git provenance remains independent of a source checkout;
-a restored Workspace may require explicit Git reconnection under current policy.
-See [ADR 0045](../adr/0045-explicit-source-repository-deletion.md).
+The registry lock serializes registration, copying and source cleanup. Git execution
+rechecks source identity and URL under that lock after approval. Neither exclusion
+nor later registration rewrites an existing Environment's repository set.
+Snapshot-created Environments use their saved Workspace composition. If a saved
+source is absent on this installation, opening succeeds offline without granting
+Git authority; explicit registration and connection remain necessary for Git transport.
 
 ## Offline Workspace routing
 

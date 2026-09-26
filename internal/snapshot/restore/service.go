@@ -49,9 +49,23 @@ type Result struct {
 }
 
 var envName = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,55}[a-z0-9])?$`)
-var savedID = regexp.MustCompile(`^snap-[a-f0-9]{32}$`)
+var savedID = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,39}[a-z0-9])?$`)
 
 func (s *Service) RestoreSnapshot(ctx context.Context, id, name string) (Result, error) {
+	return s.restoreSnapshot(ctx, id, name, true)
+}
+
+// CreateEnvironment materializes a snapshot into a new stopped Environment.
+// It shares data ownership and cleanup with the internal copy/import callers.
+func (s *Service) CreateEnvironment(ctx context.Context, id, name string) (core.Environment, error) {
+	result, err := s.restoreSnapshot(ctx, id, name, false)
+	if err != nil {
+		return core.Environment{}, err
+	}
+	return s.Catalog.GetEnvironment(ctx, result.Environment)
+}
+
+func (s *Service) restoreSnapshot(ctx context.Context, id, name string, start bool) (Result, error) {
 	if !savedID.MatchString(id) {
 		return Result{}, core.ErrInvalidArgument
 	}
@@ -93,6 +107,20 @@ func (s *Service) RestoreSnapshot(ctx context.Context, id, name string) (Result,
 	if err != nil {
 		if object.ID != "" {
 			result.State = "cleanup-required"
+			// A completed data copy whose source-release failed is still new,
+			// unpublished data. Remove it under the canonical Workspace lock.
+			if object.State == "ready" {
+				cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+				defer cancel()
+				work := core.Workspace{ID: core.WorkspaceID("workspace:managed:" + object.Owner), Path: "managed:" + object.ID}
+				cleanupErr := s.Environments.CleanupRestoredData(cleanup, work, func(ctx context.Context) error { return s.Workspaces.DeleteRestoredCopy(ctx, object) })
+				if cleanupErr == nil {
+					result.Workspace = ""
+					result.State = "failed"
+				} else {
+					err = errors.Join(err, cleanupErr, core.ErrRecoveryRequired)
+				}
+			}
 		}
 		return result, err
 	}
@@ -130,9 +158,13 @@ func (s *Service) RestoreSnapshot(ctx context.Context, id, name string) (Result,
 			return fail(err)
 		}
 	}
-	environment, err := s.Environments.CreateFromSnapshot(ctx, core.EnvironmentSpec{Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, SkipDefaultResource: resource.ID == ""}, id)
+	environment, err := s.Environments.CreateFromSnapshot(ctx, core.EnvironmentSpec{Name: name, WorkspacePath: work.Path, PersistentResource: resource.ID, SkipDefaultResource: resource.ID == "", DeferStart: !start, OwnedWorkspace: true}, id)
 	if err != nil {
 		return fail(err)
+	}
+	if !start {
+		result.State = "stopped"
+		return result, nil
 	}
 	result.State = "start-failed"
 	if err := s.Environments.StartForWorkspace(ctx, environment.Name, work.ID); err != nil {

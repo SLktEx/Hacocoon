@@ -29,6 +29,9 @@ func runRepository(namespace string, args []string) int {
 	return repositoryCommand(ctx, namespace, args, os.Stdout, os.Stderr)
 }
 func repositoryCommand(ctx context.Context, namespace string, args []string, out, diagnostic io.Writer) int {
+	if namespace == "repo" && len(args) > 0 && args[0] == "ls" {
+		args = append([]string{"list"}, args[1:]...)
+	}
 	if requestedCommandHelp(append([]string{namespace}, args...), out) {
 		return 0
 	}
@@ -42,7 +45,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		commandHelp(diagnostic, namespace, cliLanguage())
 		return 2
 	}
-	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "delete") {
+	if namespace == "repo" && len(args) > 0 && (args[0] == "list" || args[0] == "inspect" || args[0] == "delete") {
 		c := controlapi.NewDefaultClient()
 		return sourceManageCommand(ctx, c, args, os.Stdin, out, diagnostic)
 	}
@@ -84,7 +87,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 2
 	}
 	pos := flags.Args()
-	if len(pos) != n || (operation == "workspace create" && (repo == "" || (branch != "" && strings.Contains(repo, ",")))) {
+	if (len(pos) != n && !(operation == "repo add" && len(pos) == 1)) || (operation == "workspace create" && (repo == "" || (branch != "" && strings.Contains(repo, ",")))) {
 		return usage()
 	}
 	var choice capabilityapp.SavedChoice
@@ -113,8 +116,12 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 	var err error
 	switch operation {
 	case "repo add":
+		request := controlapi.RepositoryAddRequest{Remote: pos[len(pos)-1]}
+		if len(pos) == 2 {
+			request.ID = pos[0]
+		}
 		progress := newRepositoryProgressWriter(diagnostic)
-		result, err = client.AddRepository(ctx, controlapi.RepositoryAddRequest{ID: pos[0], Remote: pos[1]}, progress)
+		result, err = client.AddRepository(ctx, request, progress)
 		if finishErr := progress.Finish(); err == nil && finishErr != nil {
 			err = finishErr
 		}

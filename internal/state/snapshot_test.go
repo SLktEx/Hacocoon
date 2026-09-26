@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -214,5 +215,29 @@ func TestSnapshotCatalogSchemaAndCancellation(t *testing.T) {
 		if err := s.CheckSnapshotIdle(ctx, "dev"); err == nil {
 			t.Fatal("unsafe schema accepted", version)
 		}
+	}
+}
+
+func TestSnapshotImageReceiptRequiredForNewCapture(t *testing.T) {
+	s, snap := snapshotCatalogFixture(t)
+	ctx := context.Background()
+	snap.Components = append(snap.Components, core.SnapshotComponent{Role: "image", NativeRef: "image/saved", Owner: strings.Repeat("c", 32), State: "planned"})
+	mustSnapshot(t, s.BeginSnapshot(ctx, snap))
+	for _, c := range snap.Components {
+		mustSnapshot(t, s.RecordSnapshotComponent(ctx, snap.ID, c, "created"))
+		c.State = "created"
+		mustSnapshot(t, s.RecordSnapshotComponent(ctx, snap.ID, c, "verified"))
+	}
+	if err := s.CommitSnapshot(ctx, snap.ID); err == nil {
+		t.Fatal("Image-less new Snapshot published")
+	}
+	if err := s.RecordSnapshotImage(ctx, snap.ID, core.BaseRef{Name: "different", Revision: core.BaseRevision("sha256:" + strings.Repeat("a", 64))}); err == nil {
+		t.Fatal("different Image identity accepted")
+	}
+	mustSnapshot(t, s.RecordSnapshotImage(ctx, snap.ID, core.BaseRef{Name: core.BaseName(snap.ID), Revision: core.BaseRevision("sha256:" + strings.Repeat("a", 64))}))
+	mustSnapshot(t, s.CommitSnapshot(ctx, snap.ID))
+	got, err := NewEnvironmentJSONStore(s.path).GetSnapshot(ctx, snap.ID)
+	if err != nil || got.Image == nil || got.Image.Name != core.BaseName(snap.ID) {
+		t.Fatal(got, err)
 	}
 }

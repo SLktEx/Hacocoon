@@ -5,10 +5,13 @@ Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 
 ## Daily use
 
-`haco base list` and `haco base inspect <name>` show starting points. Create with
-`haco env create --base <name> --workspace managed:<workspace> <environment>`.
-Existing Environments retain their original immutable revision when a name moves.
-No switch-base step is required.
+`haco image ls` and `haco image inspect IMAGE` show starting points. Create a
+stopped Environment with `haco create IMAGE`, or create/start/open with
+`haco open --new [IMAGE]`. `haco image default [IMAGE]` inspects/changes the
+reference for future omitted-Image creation. Initial setup downloads the standard
+Image and records that reference only when unset. Explicit Image and Snapshot
+creation never rewrite it. See [source selection](environment-creation.md).
+Existing Environments retain their original revision when a name moves.
 
 For actual Packer HCL2 and external shell scripts, use [Packer Base builds](packer-base-builds.md). The optional plugin provisions only the owned ordinary builder; the publication and cleanup rules below remain authoritative.
 
@@ -23,8 +26,8 @@ For a simple shell definition, save this as `base.json`:
 ```
 
 ```bash
-haco base build base.json
-haco base inspect my-tools
+haco image build base.json
+haco image inspect my-tools
 haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
@@ -114,10 +117,10 @@ Archive import is implemented in the current candidate as described below.
 
 Status: implemented; scoped native and Windows acceptance is recorded in [acceptance evidence](../status/acceptance-evidence.md#storage).
 
-`haco base list --all [--json]` shows retained built-image revisions, their exact
+`haco image list --all [--json]` shows retained built-image revisions, their exact
 fingerprints and build owners, current aliases, Environment/native users and
 independent snapshot provenance. The ordinary Base list still shows selectable
-starting points. `haco base delete <name>` selects the current built revision;
+starting points. `haco image delete <name>` selects the current built revision;
 a fingerprint or an unambiguous hexadecimal prefix of at least eight characters
 selects an older revision. Deletion previews the exact selection and asks for
 confirmation (`--yes` for explicit automation). It does not delete every revision
@@ -157,7 +160,7 @@ separate from reusable Base tooling.
 **Implemented candidate:** on the trusted Linux/WSL client, run:
 
 ```bash
-haco base import --name my-tools ./my-tools.tar
+haco image import --name my-tools ./my-tools.tar
 haco env create --base my-tools --workspace ./work demo
 ```
 

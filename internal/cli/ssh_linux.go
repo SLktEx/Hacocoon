@@ -43,7 +43,7 @@ func runSSH(args []string) int {
 	}
 	return setupDesktopSSH(args[1:], "")
 }
-func runOpen(args []string) int {
+func openWorkspaceDirectory(args []string) int {
 	flags := flag.NewFlagSet("haco open", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	flags.Usage = func() {
@@ -78,16 +78,15 @@ func runOpen(args []string) int {
 	selectedArgs := flags.Args()
 	var preparedEnvironment *core.Environment
 	pathMode := len(selectedArgs) == 1 && workspacePath(selectedArgs[0])
-	defaultMode := len(selectedArgs) == 0 && !*selectEnvironment && !portSet
 	if *selectEnvironment && (len(selectedArgs) != 0 || *selected == "none" || *jsonOutput) {
 		flags.Usage()
 		return 2
 	}
-	if *jsonOutput && ((!pathMode && !defaultMode) || *selected != "none") {
+	if *jsonOutput && (!pathMode || *selected != "none") {
 		fmt.Fprintln(os.Stderr, cliMessage("open.json_path"))
 		return 2
 	}
-	if !pathMode && (*repos != "" || *workName != "" || (!defaultMode && (*base != "" || *oci != "" || *selected == "none"))) {
+	if !pathMode && (*repos != "" || *workName != "" || (*base != "" || *oci != "" || *selected == "none")) {
 		fmt.Fprintln(os.Stderr, cliMessage("open.path_options"))
 		return 2
 	}
@@ -99,30 +98,23 @@ func runOpen(args []string) int {
 		fmt.Fprintln(os.Stderr, cliMessage("open.preview_options"))
 		return 2
 	}
-	if defaultMode {
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	if *selectEnvironment {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		path, err := defaultOpenDirectory()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, cliMessage("open.reference_failed"))
-			return 1
-		}
-		result, err := openDefaultWorkspace(ctx, controlapi.NewDefaultClient(), path, *base, *oci, os.Stderr)
+		envs, err := controlapi.NewDefaultClient().ListEnvironments(ctx)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "haco:", err)
-			fmt.Fprintln(os.Stderr, cliMessage("open.retry"))
 			return 1
 		}
-		selectedArgs = []string{result.Environment.Name}
-		preparedEnvironment = &result.Environment
-		if *selected == "none" {
-			if writeCLIResult(os.Stdout, result, *jsonOutput) != nil {
-				return 1
-			}
+		chosen, err := chooseDesktopEnvironment(envs, stdioIsInteractive(), os.Stdin, os.Stderr)
+		if errors.Is(err, errEnvironmentChoiceCanceled) {
 			return 0
 		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "haco:", err)
+			return 2
+		}
+		return runOpen([]string{"--client", *selected, chosen.Name})
 	}
 	if pathMode {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)

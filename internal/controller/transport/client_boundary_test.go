@@ -61,7 +61,7 @@ func TestClientRejectsInvalidPeerResponses(t *testing.T) {
 func TestClientCannotSendInvalidRequests(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		for _, request := range []any{make(chan int), strings.Repeat("x", maxControlEnvelopeBytes)} {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			received := make(chan []byte, 1)
 			client, err := NewClient(func(context.Context) (net.Conn, error) {
@@ -85,12 +85,17 @@ func TestClientCannotSendInvalidRequests(t *testing.T) {
 			if err == nil {
 				t.Fatal("unencodable or oversized request accepted")
 			}
+			if ctx.Err() != nil {
+				t.Fatal("request encoding exceeded operation deadline", ctx.Err())
+			}
+			// Check connection release independently of the time spent encoding
+			// the oversized payload under the race detector.
 			select {
 			case data := <-received:
 				if len(data) != 0 {
 					t.Fatal("partial operation request emitted", string(data))
 				}
-			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
 				t.Fatal("failed encoding retained connection")
 			}
 		}

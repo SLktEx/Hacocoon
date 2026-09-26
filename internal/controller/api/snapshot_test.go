@@ -77,7 +77,7 @@ func TestSnapshotTransportKeepsOutcomeAndRejectsInvalidRequests(t *testing.T) {
 		t.Fatal(inspected, inspectErr)
 	}
 	before := f.calls
-	for _, raw := range []string{`{"operation":"inspect","id":"snap-short"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","binding":"private"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"delete","id":"snap-short"}`, `{"operation":"delete","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"create"}`, `{"operation":"list","id":"other"}`, `{"operation":"create","environment":"demo","binding":"private"}`, `{"operation":"restore"}`, `null`} {
+	for _, raw := range []string{`{"operation":"inspect","id":"../snap"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","binding":"private"}`, `{"operation":"inspect","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"delete","id":"../snap"}`, `{"operation":"delete","id":"snap-11111111111111111111111111111111","environment":"demo"}`, `{"operation":"create"}`, `{"operation":"list","id":"other"}`, `{"operation":"create","environment":"demo","binding":"private"}`, `{"operation":"restore"}`, `null`} {
 		var out SnapshotResponse
 		if err := client.wire.Call(ctx, MethodSnapshot, json.RawMessage(raw), &out); err == nil {
 			t.Fatal("accepted", raw)

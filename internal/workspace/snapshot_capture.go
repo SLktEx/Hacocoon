@@ -36,13 +36,13 @@ type snapshotCatalog interface {
 // CaptureSnapshot holds canonical source locks through all capture and publication
 // steps. A nonempty result ID on error names a durable reservation for recovery.
 func (s *Service) CaptureSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
-	return s.captureSnapshot(ctx, name, true, "")
+	return s.captureSnapshot(ctx, name, true, "", "")
 }
 
 // CaptureStoppedSnapshot refuses a running source under the canonical locks.
 // Copy callers must not stop or restart somebody else's running workload.
 func (s *Service) CaptureStoppedSnapshot(ctx context.Context, name string) (core.Snapshot, error) {
-	return s.captureSnapshot(ctx, name, false, "")
+	return s.captureSnapshot(ctx, name, false, "", "")
 }
 
 // CaptureStoppedSnapshotForWorkspace refuses a recycled Env name under the
@@ -51,9 +51,9 @@ func (s *Service) CaptureStoppedSnapshotForWorkspace(ctx context.Context, name s
 	if expected == "" {
 		return core.Snapshot{}, core.ErrInvalidArgument
 	}
-	return s.captureSnapshot(ctx, name, false, expected)
+	return s.captureSnapshot(ctx, name, false, expected, "")
 }
-func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool, expected core.WorkspaceID) (result core.Snapshot, err error) {
+func (s *Service) captureSnapshot(ctx context.Context, name string, allowRunning bool, expected core.WorkspaceID, id string) (result core.Snapshot, err error) {
 	backend, ok := s.runtime.(SnapshotBackend)
 	if !ok {
 		return result, core.ErrUnsupported
@@ -62,21 +62,33 @@ func (s *Service) captureSnapshot(ctx context.Context, name string, quiesce bool
 	if !ok {
 		return result, core.ErrUnsupported
 	}
-	err = s.withSnapshotSourceMode(ctx, name, quiesce, func(ctx context.Context, source core.SnapshotSource) error {
+	if id == "" {
+		var nonce [16]byte
+		_, _ = rand.Read(nonce[:])
+		id = "snap-" + hex.EncodeToString(nonce[:])
+	}
+	unlock, err := s.LockResourceName(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	defer unlock()
+	if s.checkSnapshotName != nil {
+		if err := s.checkSnapshotName(ctx, id); err != nil {
+			return result, err
+		}
+	}
+	err = s.withSnapshotSourceMode(ctx, name, allowRunning, func(ctx context.Context, source core.SnapshotSource) error {
 		if expected != "" && source.Environment.Workspace.ID != expected {
 			return core.ErrCapabilityStale
 		}
-		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog)
+		result, err = s.captureSnapshotLocked(ctx, source, backend, catalog, id)
 		return err
 	})
 	return result, err
 }
 
 // The caller holds the canonical Environment and Workspace lifecycle locks.
-func (s *Service) captureSnapshotLocked(ctx context.Context, source core.SnapshotSource, backend SnapshotBackend, catalog snapshotCatalog) (result core.Snapshot, err error) {
-	var nonce [16]byte
-	_, _ = rand.Read(nonce[:])
-	id := "snap-" + hex.EncodeToString(nonce[:])
+func (s *Service) captureSnapshotLocked(ctx context.Context, source core.SnapshotSource, backend SnapshotBackend, catalog snapshotCatalog, id string) (result core.Snapshot, err error) {
 	err = func() error {
 		components, err := backend.PlanSnapshot(ctx, source, id)
 		if err != nil {
@@ -118,6 +130,25 @@ func (s *Service) captureSnapshotLocked(ctx context.Context, source core.Snapsho
 			}
 			component.State = "verified"
 			result.Components[i] = component
+			if component.Role == "image" {
+				reader, ok := s.runtime.(interface {
+					SnapshotImage(context.Context, core.SnapshotComponent) (core.BaseRef, error)
+				})
+				writer, writable := s.store.(interface {
+					RecordSnapshotImage(context.Context, string, core.BaseRef) error
+				})
+				if !ok || !writable {
+					return fail(core.ErrUnsupported)
+				}
+				image, err := reader.SnapshotImage(ctx, component)
+				if err != nil {
+					return fail(err)
+				}
+				if err := writer.RecordSnapshotImage(ctx, id, image); err != nil {
+					return fail(err)
+				}
+				result.Image = &image
+			}
 		}
 		if err := catalog.CommitSnapshot(ctx, id); err != nil {
 			return fail(err)
@@ -156,4 +187,11 @@ func (s *Service) DeleteSnapshot(ctx context.Context, id string) error {
 		}
 		return catalog.FinalizeSnapshotDelete(ctx, id)
 	})
+}
+
+func (s *Service) CaptureNamedSnapshot(ctx context.Context, environment, name string) (core.Snapshot, error) {
+	if name == "" {
+		return core.Snapshot{}, core.ErrInvalidArgument
+	}
+	return s.captureSnapshot(ctx, environment, true, "", name)
 }

@@ -39,6 +39,9 @@ func (f *fixture) RestoreWorkspace(_ context.Context, id string, saved core.Snap
 	if f.fail == "work" {
 		return gitrepo.Object{}, core.ErrRuntimeUnavailable
 	}
+	if f.fail == "work-ready" {
+		return f.object, core.ErrRecoveryRequired
+	}
 	return f.object, nil
 }
 func (f *fixture) DeleteRestoredCopy(_ context.Context, o gitrepo.Object) error {
@@ -101,7 +104,7 @@ func (f *fixture) CleanupRestoredData(ctx context.Context, w core.Workspace, rem
 	return remove(ctx)
 }
 func TestRestorePublicWorkflowAndFailureOwnership(t *testing.T) {
-	for _, mode := range []string{"ok", "no-oci", "existing", "lease", "work", "oci", "create", "cancel", "cleanup", "start"} {
+	for _, mode := range []string{"ok", "no-oci", "existing", "lease", "work", "work-ready", "oci", "create", "cancel", "cleanup", "start"} {
 		t.Run(mode, func(t *testing.T) {
 			f := &fixture{fail: mode, saved: core.Snapshot{ID: "snap-" + strings.Repeat("c", 32), State: "ready", Source: core.SnapshotSource{Environment: core.Environment{Name: "dev", PersistentResource: core.PersistentResourceRef{ID: "oci:saved"}}}}}
 			if mode == "no-oci" {
@@ -131,7 +134,7 @@ func TestRestorePublicWorkflowAndFailureOwnership(t *testing.T) {
 				if err == nil || calls != "work" {
 					t.Fatal(result, err, calls)
 				}
-			case "oci", "create", "cancel":
+			case "oci", "create", "cancel", "work-ready":
 				if err == nil || result.Workspace != "" || result.OCI != "" || !strings.Contains(calls, "delete-work") {
 					t.Fatal(result, err, calls)
 				}

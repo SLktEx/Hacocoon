@@ -62,7 +62,7 @@ product_pages += list((root / "docs/guides").glob("*.md"))
 for path in product_pages:
     text = path.read_text(encoding="utf-8")
     for match in re.finditer(
-        r"\b(?:haco\s+(?:create|exec|shell|delete|events|connections|forward|unforward)\b"
+        r"\b(?:haco\s+(?:run|shell|delete|events|connections|forward|unforward)\b"
         r"|hacoq\s+plugin\s+oci\s+(?:store\b|image\s+(?:list|delete)\b))", text
     ):
         line = text[:match.start()].count("\n") + 1
@@ -267,7 +267,7 @@ require_text("docs/reference/client-adapter.md", [
     "haco ssh setup", "pkg/interaction", "VS Code", "JetBrains", "code-server",
 ])
 require_text("docs/design/plugin-architecture.md", [
-    "Core / Standard / Plugin classification", "haco base",
+    "Core / Standard / Plugin classification", "haco image",
     "0107-responsibility-layout-and-cli-retirement.md",
 ])
 require_text("docs/design/oci-seed-and-cow.md", [

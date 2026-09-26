@@ -59,7 +59,7 @@ func validImportResult(r environmenttransfer.ImportResult) bool {
 	if r.OCI != "" && (len(r.OCI) < 5 || r.OCI[:4] != "oci:" || !importPublicName.MatchString(r.OCI[4:])) {
 		return false
 	}
-	if len(r.Offline) > 8 {
+	if len(r.Offline) > core.MaxWorkspaceRepositories {
 		return false
 	}
 	for _, name := range r.Offline {

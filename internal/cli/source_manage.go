@@ -25,12 +25,12 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 	f := flag.NewFlagSet("haco repo "+args[0], flag.ContinueOnError)
 	f.SetOutput(diagnostic)
 	f.Usage = func() { commandHelp(diagnostic, "repo "+args[0], cliLanguage()) }
-	var yes, machine bool
+	var machine bool
 	switch args[0] {
-	case "list":
+	case "list", "inspect":
 		f.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "delete":
-		f.BoolVar(&yes, "yes", false, cliMessage("detail.yes"))
+		_ = f.Bool("yes", false, cliMessage("detail.yes"))
 	default:
 		return 2
 	}
@@ -40,7 +40,7 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 		}
 		return 2
 	}
-	if (args[0] == "list" && f.NArg() != 0) || (args[0] == "delete" && (f.NArg() != 1 || !gitadapter.ValidID(f.Arg(0)))) {
+	if (args[0] == "list" && f.NArg() != 0) || (args[0] != "list" && (f.NArg() != 1 || !gitadapter.ValidID(f.Arg(0)))) {
 		f.Usage()
 		return 2
 	}
@@ -73,19 +73,14 @@ func sourceManageCommand(ctx context.Context, c sourceManageClient, args []strin
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("source.missing"))
 		return 1
 	}
+	if args[0] == "inspect" {
+		if err := json.NewEncoder(out).Encode(selected); err != nil {
+			return 1
+		}
+		return 0
+	}
 	if err := writeSources(out, []gitrepo.SourceUse{*selected}); err != nil {
 		return 1
-	}
-	if len(selected.Workspaces) > 0 {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("source.busy"))
-		return 1
-	}
-	if selected.Source.State != "ready" && selected.Source.State != "deleting" {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("source.incomplete"))
-		return 1
-	}
-	if code := confirmDataDeletion(in, diagnostic, yes, "source.delete_warning", "source.delete_prompt", "source.retained"); code != 0 {
-		return code
 	}
 	_, err = c.RepositoryManage(ctx, controlapi.RepositoryManageRequest{Operation: "delete", ID: selected.Source.ID, Owner: selected.Source.Owner})
 	if err != nil {

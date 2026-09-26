@@ -157,7 +157,7 @@ func (r *Runtime) createSnapshotVolume(ctx context.Context, p snapshotVolumePlan
 	if err != nil {
 		return err
 	}
-	if status.State != core.EnvironmentStopped {
+	if status.State != core.EnvironmentStopped && status.State != core.EnvironmentRunning {
 		return core.ErrIncompatibleState
 	}
 	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+p.Pool)

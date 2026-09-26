@@ -2,9 +2,32 @@
 
 [English](acceptance-evidence.md) | 日本語
 
-状態: 検証記録。ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+状態: 検証記録。明示したローカル候補を除き、ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
+
+<a id="unified-creation-local"></a>
+
+## 作成経路統合：Issue #728のローカル候補
+
+2026-09-26、`9d63f193`を基点とするIssue #728の未commit作業ツリーで、
+`TestRealIncusSnapshotAggregateE2E`がWindows/WSL2、Ubuntu 26.04.1、Incus 7.0.1、
+Btrfs上で成功しました。CLIバイナリと専用のテストcontroller/catalogを使い、
+running/stoppedからの新Image付きSnapshot作成、export/import、`open --new --snapshot`、
+rootfs・Git・Workspace・OCIデータの独立性、新しい権限世代、元の稼働状態の保持、
+生成データ削除、所有資源のcleanupを確認しました。未commit・未追跡ファイルと未push commitも
+保持しました。最初はimport後にfixtureの20分上限へ達しましたが、テスト上限を45分にした
+再実行は1,754秒で成功しました。最初のfixtureも所有者を検証する正規APIでcleanupしました。
+既存ユーザーEnvironmentは試験対象にしていません。
+
+ローカルCIではGo 1.26.7によるtests/vet/race、CLI・orchestration E2E、隔離kernelの
+forwarding、文書・workflow検査、Linux/Windowsのsnapshot配布物生成を実行しました。
+Windowsネイティブの導入component試験ではファイルロック・所有者・junctionの拒否、
+PowerShell 5.1から実WSLへのリテラル引数転送、WSL停止待ちも成功しました。
+公開releaseやhosted CIの結果ではなく、ローカル作業ツリーの証拠です。標準Imageの新規導入、
+VS Code・SSH GUI、認証付きGit通信、稼働中OCIの整合性は今回再検証していません。
+native aggregateでは既存cache Imageの削除、live containerd転送、別gateの導入済みcontroller
+によるimportを明示的にskipしました。
 
 <a id="portless-ssh"></a>
 

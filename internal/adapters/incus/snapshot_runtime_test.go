@@ -95,7 +95,7 @@ func TestSavedRuntimeCopyUsesIndependentRootAndFreshIdentity(t *testing.T) {
 	}
 }
 func TestSavedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
-	for _, mode := range []string{"ok", "receipt", "configuration", "ssh", "ssh-exit", "masks"} {
+	for _, mode := range []string{"ok", "receipt", "configuration", "ssh", "ssh-exit", "masks", "saved-image-stopped"} {
 		t.Run(mode, func(t *testing.T) {
 			root, observed := savedRuntimeFixture()
 			copied, recorded, renewed, guard := false, false, false, false
@@ -104,6 +104,9 @@ func TestSavedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 				if copied && !recorded {
 					t.Fatal("provider call before ownership receipt", args)
+				}
+				if mode == "saved-image-stopped" && (args[0] == "start" || args[0] == "exec") {
+					t.Fatal("Snapshot create booted guest", args)
 				}
 				if args[0] == "image" || (len(args) > 2 && args[0] == "profile" && args[2] == "default") {
 					t.Fatal("Base/default dependency", args)
@@ -179,9 +182,16 @@ func TestSavedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 			}
 			c.State = "verified"
 			saved := core.Snapshot{State: "ready", Components: []core.SnapshotComponent{c}}
-			result, err := p.CreateEnvironmentFromSnapshot(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", InstanceID: "env-" + strings.Repeat("f", 32), WorkspacePath: "/tmp/work"}, saved, func(created core.EnvironmentRuntime) error {
-				if !copied || recorded || created.Ref != "haco-demo" || created.Base != nil {
+			if mode == "saved-image-stopped" {
+				saved.Source.Environment.Base = &core.BaseRef{Name: "original"}
+				saved.Image = &core.BaseRef{Name: "saved-image", Revision: "sha256:saved"}
+			}
+			result, err := p.CreateEnvironmentFromSnapshot(context.Background(), core.EnvironmentRuntimeSpec{Name: "demo", InstanceID: "env-" + strings.Repeat("f", 32), WorkspacePath: "/tmp/work", DeferStart: mode == "saved-image-stopped"}, saved, func(created core.EnvironmentRuntime) error {
+				if !copied || recorded || created.Ref != "haco-demo" || (mode != "saved-image-stopped" && created.Base != nil) {
 					t.Fatal("bad receipt", created)
+				}
+				if mode == "saved-image-stopped" && (created.Base == nil || *created.Base != *saved.Image) {
+					t.Fatal("Snapshot Image lost", created)
 				}
 				recorded = true
 				if mode == "receipt" {
@@ -192,8 +202,8 @@ func TestSavedRuntimeRecordsBeforeCurrentConfiguration(t *testing.T) {
 			if !copied || !recorded || result.Ref != "haco-demo" {
 				t.Fatal("ownership missing", result, err)
 			}
-			if mode == "ok" {
-				if err != nil || !renewed {
+			if mode == "ok" || mode == "saved-image-stopped" {
+				if err != nil || renewed != (mode == "ok") {
 					t.Fatal("current configuration incomplete", err)
 				}
 			} else if err == nil {
