@@ -66,7 +66,7 @@ After=network.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/lib/hacocoon/docker/dockerd --storage-driver=vfs
+ExecStart=/usr/local/lib/hacocoon/docker/dockerd
 Environment=PATH=/usr/local/lib/hacocoon/docker:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Delegate=yes
 KillMode=process
