@@ -221,7 +221,8 @@ class HostToolingTests(unittest.TestCase):
             self.assertEqual(unit.stat().st_ino, inode)
             self.assertIn("Type=notify\n", unit.read_text())
             docker_unit = Path(self.root + "/etc/systemd/system/docker.service").read_text()
-            self.assertIn("/usr/local/lib/hacocoon/docker/dockerd --storage-driver=vfs", docker_unit)
+            self.assertIn("ExecStart=/usr/local/lib/hacocoon/docker/dockerd\n", docker_unit)
+            self.assertNotIn("--storage-driver=", docker_unit)
             self.assertIn("Type=notify\n", Path(self.root + "/etc/systemd/system/buildkit.service.d/10-hacocoon-readiness.conf").read_text())
             self.assertTrue(any(call.args[0] == ["/usr/local/bin/docker", "info"]
                                 for call in run.call_args_list))
