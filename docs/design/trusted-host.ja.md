@@ -366,9 +366,9 @@ containerd、nerdctl、BuildKit、Docker を導入します。Windows/WSL イン
 
 `containerd.service`、`buildkit.service`、`docker.service` を有効化し、利用可能に
 なるまで確認します。nerdctl は既定で `default` 名前空間と `native` snapshotter を使い、
-containerd のダウンロード後の展開設定も一致させます。Docker は専用の bundle 依存を使い、
-管理対象の `/etc/docker/daemon.json` にある data/exec root と、非特権のネスト Host で
-動作させるための `vfs` storage driver を使います。setup 成功後、信頼済み `haco-host`
+containerd のダウンロード後の展開設定も一致させます。Docker は専用の bundle 依存と、管理対象の `/etc/docker/daemon.json` にある data/exec root を使います。
+Hacocoon は Docker の storage driver を強制せず、利用可能な backing filesystem と kernel に
+対応する driver の選択は Docker に任せます。setup 成功後、信頼済み `haco-host`
 内で実行します。
 
 ```bash
