@@ -1,6 +1,6 @@
 # ADR 0020: Keep temporary Workspaces inside the owned runtime
 
-Public CLI/RPC decisions are superseded by [ADR 0111](0112-unified-environment-creation.md). The original rationale below is historical.
+Public CLI/RPC decisions are superseded by [ADR 0113](0113-unified-environment-creation.md). The original rationale below is historical.
 
 
 Status: accepted

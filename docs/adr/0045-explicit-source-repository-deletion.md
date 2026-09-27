@@ -1,7 +1,7 @@
 # ADR 0045: Explicit deletion of unused source repositories
 
 Status: physical cleanup invariants retained; public Repository deletion semantics
-superseded by [ADR 0111](0112-unified-environment-creation.md).
+superseded by [ADR 0113](0113-unified-environment-creation.md).
 
 ## Context
 

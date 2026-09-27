@@ -150,7 +150,7 @@ Workspace records and checks native ownership, saved children and positive absen
 before releasing the source receipt. This preserves the safety invariants of
 [ADR 0045](../adr/0045-explicit-source-repository-deletion.md); its old public
 physical-deletion workflow is superseded by
-[unified creation](../adr/0112-unified-environment-creation.md).
+[unified creation](../adr/0113-unified-environment-creation.md).
 
 The registry lock serializes registration, copying and source cleanup. Git execution
 rechecks source identity and URL under that lock after approval. Neither exclusion

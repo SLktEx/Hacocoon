@@ -271,3 +271,42 @@ func TestNativeProgressBoundsAndPartialReads(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeToastInputWithoutModuleAutoload(t *testing.T) {
+	plan, err := desktopreview.SessionPlan("Hacocoon-Native-Test", os.Getenv("SystemRoot"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := "$PSModuleAutoLoadingPreference='None';" + nativeToastInputScript + `
+try {
+ $data=Read-NativeToastInput ([Console]::In.ReadToEnd())
+ $fields=@($data.operation,$data.appID,$data.tag,$data.xml)
+ $encoded=[string[]]::new(4)
+ for($i=0;$i -lt 4;$i++){$encoded[$i]=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($fields[$i]))}
+ [Console]::Out.Write([string]::Join([char]10,$encoded))
+}catch{exit 1}`
+	for _, payload := range []string{
+		encodeNativeToastInput("clear", "Hacocoon.test", "", ""),
+		encodeNativeToastInput("show", "Hacocoon.test", "tag", "<toast>日本語\n'`$()&amp;</toast>"),
+		"one\ntwo", "!\n\n\n", "/w==\n\n\n",
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cmd := exec.CommandContext(ctx, os.Getenv("SystemRoot")+`\System32\WindowsPowerShell\v1.0\powershell.exe`, "-NoProfile", "-NonInteractive", "-EncodedCommand", encodeNativeScript(script))
+		cmd.Env = plan.Env
+		cmd.Stdin = strings.NewReader(payload)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		output, err := cmd.Output()
+		timedOut := ctx.Err() != nil
+		cancel()
+		if timedOut {
+			t.Fatal("native input test timed out")
+		}
+		valid := strings.HasPrefix(payload, "Y2xlYXI=") || strings.HasPrefix(payload, "c2hvdw==")
+		if valid && (err != nil || string(output) != payload) {
+			t.Fatal("literal toast frame did not round-trip", err)
+		}
+		if !valid && err == nil {
+			t.Fatal("malformed toast frame accepted")
+		}
+	}
+}

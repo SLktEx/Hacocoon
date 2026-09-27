@@ -23,7 +23,7 @@ open自体は権限を与えません。
 作業環境を保持し、同じopenを再試行できます。壊れた既存環境は自動修復・再作成しません。
 ディレクトリ参照は独立管理Workspaceの明示操作として残り、通常openの選択には使いません。
 [日常操作](../reference/daily-workflow.ja.md)、[旧設計判断](../adr/0111-default-development-session.ja.md)、
-[現在の設計判断](../adr/0112-unified-environment-creation.ja.md)を参照してください。
+[現在の設計判断](../adr/0113-unified-environment-creation.ja.md)を参照してください。
 
 `haco open --select`は既存Environmentを明示的に選び、同じopenサービスで開いて
 last-openedを更新します。通常のopenでは選択画面を要求しません。

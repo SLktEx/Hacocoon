@@ -1,6 +1,6 @@
 # ADR 0111: Compose the default development session in the client
 
-Superseded for default selection, creation and data lifetime by [ADR 0112](0112-unified-environment-creation.md). Explicit permissions, progress and ownership checks remain.
+Superseded for default selection, creation and data lifetime by [ADR 0113](0113-unified-environment-creation.md). Explicit permissions, progress and ownership checks remain.
 
 [日本語](0111-default-development-session.ja.md) | English
 

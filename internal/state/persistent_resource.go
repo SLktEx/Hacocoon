@@ -76,7 +76,7 @@ func (s *EnvironmentJSONStore) BeginPersistentResourceCreate(_ context.Context, 
 // MarkPersistentResourceCopyCompleted records the provider's positive completion
 // before source restoration. It never releases either copy reservation.
 func (s *EnvironmentJSONStore) MarkPersistentResourceCopyCompleted(_ context.Context, r core.PersistentResource) error {
-	if r.State != "creating" || r.CopySource == (core.PersistentResourceRef{}) || r.CopyCompleted {
+	if r.State != "creating" || r.CopySource == (core.PersistentResourceRef{}) || r.CopyCompleted || r.CopyCleanup {
 		return core.ErrInvalidArgument
 	}
 	return s.resourceTransaction(func(d *environmentFileState) error {
@@ -91,7 +91,7 @@ func (s *EnvironmentJSONStore) MarkPersistentResourceCopyCompleted(_ context.Con
 
 func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context, r core.PersistentResource) error {
 	return s.resourceTransaction(func(d *environmentFileState) error {
-		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || (r.State != "creating" && r.State != "created") {
+		if existing, ok := d.PersistentResources[r.ID]; !ok || existing != r || r.CopyCleanup || (r.State != "creating" && r.State != "created") {
 			return core.ErrIncompatibleState
 		}
 		if r.EnvironmentInstance != "" && r.CopySource == (core.PersistentResourceRef{}) && r.State != "created" {
@@ -108,6 +108,7 @@ func (s *EnvironmentJSONStore) CommitPersistentResourceCreate(_ context.Context,
 		r.RestoreSource = ""
 		r.CopySource = core.PersistentResourceRef{}
 		r.CopyCompleted = false
+		r.CopyOperation = ""
 		d.PersistentResources[r.ID] = r
 		return nil
 	})
@@ -137,6 +138,7 @@ func (s *EnvironmentJSONStore) BeginWorkspaceResourceDelete(ctx context.Context,
 type persistentResourceDeletion struct {
 	Workspace           core.WorkspaceID
 	Identity            core.PersistentResourceRef
+	StoppedCopy         core.PersistentResource
 	Reviewed            bool
 	EnvironmentInstance string
 }
@@ -184,7 +186,8 @@ func (s *EnvironmentJSONStore) beginPersistentResourceDelete(_ context.Context, 
 			// No provider request can start after the parent absence fence.
 			r.CopySource = core.PersistentResourceRef{}
 		}
-		if r.CopySource != (core.PersistentResourceRef{}) || (r.SourceOnly && r.State == "creating") {
+		stoppedCopy := request.StoppedCopy == r && r.CopyCleanup && validCacheCopyReceipt(r)
+		if (r.CopySource != (core.PersistentResourceRef{}) || (r.SourceOnly && r.State == "creating")) && !stoppedCopy {
 			return core.ErrRecoveryRequired
 		}
 		if persistentCopyReserved(*d, id) {
@@ -254,6 +257,9 @@ func validatePersistentResourceState(data environmentFileState) error {
 				return core.ErrIncompatibleState
 			}
 		}
+		if (r.CopyOperation != "" || r.CopyCleanup) && (!validCacheCopyReceipt(r) || (r.CopyCleanup && r.CopyCompleted)) {
+			return core.ErrIncompatibleState
+		}
 		if r.CopySource == (core.PersistentResourceRef{}) {
 			if r.CopyCompleted {
 				return core.ErrIncompatibleState
@@ -261,7 +267,7 @@ func validatePersistentResourceState(data environmentFileState) error {
 			continue
 		}
 		source, ok := data.PersistentResources[r.CopySource.ID]
-		if !ok || (r.State != "creating" && (r.State != "planned" || r.EnvironmentInstance == "")) || source.State != "ready" || source.Ref() != r.CopySource || source.Kind != r.Kind || source.ID == r.ID || source.Owner == r.Owner || source.NativeRef == r.NativeRef {
+		if !ok || (r.State != "creating" && (r.State != "deleting" || !r.CopyCleanup) && (r.State != "planned" || r.EnvironmentInstance == "")) || source.State != "ready" || source.Ref() != r.CopySource || source.Kind != r.Kind || source.ID == r.ID || source.Owner == r.Owner || source.NativeRef == r.NativeRef {
 			return fmt.Errorf("invalid persistent copy reservation: %w", core.ErrIncompatibleState)
 		}
 		for _, lease := range data.Leases {
@@ -306,7 +312,7 @@ func (s *EnvironmentJSONStore) BeginPersistentResourceCopy(_ context.Context, so
 }
 
 func reservePersistentResourceCopy(data *environmentFileState, source, target core.PersistentResource) error {
-	if !core.ValidPersistentResourceRef(target.Ref()) || target.ID == source.ID || target.Owner == source.Owner || target.Kind != source.Kind || target.NativeRef == "" || target.NativeRef == source.NativeRef || (target.State != "creating" && (target.State != "planned" || target.EnvironmentInstance == "")) || target.CreatedAt.IsZero() || target.CopySource != source.Ref() || target.CopyCompleted {
+	if !core.ValidPersistentResourceRef(target.Ref()) || target.ID == source.ID || target.Owner == source.Owner || target.Kind != source.Kind || target.NativeRef == "" || target.NativeRef == source.NativeRef || (target.State != "creating" && (target.State != "planned" || target.EnvironmentInstance == "")) || target.CreatedAt.IsZero() || target.CopySource != source.Ref() || target.CopyCompleted || target.CopyCleanup || target.CopyOperation != "" {
 		return core.ErrInvalidArgument
 	}
 	if _, exists := data.PersistentResources[target.ID]; exists {

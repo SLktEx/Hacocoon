@@ -26,7 +26,7 @@ repaired or rebuilt automatically. Directory references remain an explicit
 workflow for independently managed Workspaces; they do not select the default
 session. See [daily use](../reference/daily-workflow.md),
 [the superseded decision](../adr/0111-default-development-session.md) and
-[the current decision](../adr/0112-unified-environment-creation.md).
+[the current decision](../adr/0113-unified-environment-creation.md).
 
 `haco open --select` explicitly chooses an existing Environment through the same
 open service and updates last-opened; ordinary open never requires a picker.

@@ -62,7 +62,7 @@ Environments fail without automatic replacement or Workspace rebinding.
 
 Ownership receipts and resource relations remain durable. No new per-step creation
 progress state machine is introduced. See [lifecycle ownership](../adr/0002-environment-lifecycle-ownership.md)
-and [decision](../adr/0112-unified-environment-creation.md).
+and [decision](../adr/0113-unified-environment-creation.md).
 
 ## Names, execution and retries
 

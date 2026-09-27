@@ -232,6 +232,10 @@ func (b *PersistentResourceBackend) Copy(ctx context.Context, source, target cor
 
 // Completion is durably recorded by the canonical lifecycle before Host resume.
 func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, source, target core.PersistentResource, completed func() error) error {
+	return b.copyWithReceipt(ctx, source, target, nil, completed)
+}
+
+func (b *PersistentResourceBackend) copyWithReceipt(ctx context.Context, source, target core.PersistentResource, record func(string) error, completed func() error) error {
 	pool, name, err := managedResourceVolume(target)
 	if err != nil {
 		return err
@@ -301,9 +305,15 @@ func (b *PersistentResourceBackend) CopyWithCompletion(ctx context.Context, sour
 			return err
 		}
 	}
-	result, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
-	if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-		return fmt.Errorf("persistent copy completion unconfirmed: %w", core.ErrRecoveryRequired)
+	if record != nil {
+		if err := b.submitTrackedCopy(ctx, pool, data, record); err != nil {
+			return err
+		}
+	} else {
+		result, err = b.Runtime.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", "/1.0/storage-pools/"+pool+"/volumes/custom?project="+b.Runtime.project, "--data", string(data))
+		if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
+			return fmt.Errorf("persistent copy completion unconfirmed: %w", core.ErrRecoveryRequired)
+		}
 	}
 	if completed != nil {
 		if err := completed(); err != nil {

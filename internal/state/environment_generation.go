@@ -28,7 +28,7 @@ func environmentGenerationCopy(data environmentFileState, source, target core.Pe
 	if !core.ValidEnvironmentInstanceID(source.EnvironmentInstance) || !core.ValidEnvironmentResourceRef(source.Ref()) || source.SourceOnly || source.WorkspaceID != "" || source.State != "ready" || source.EnvironmentInstance != lease.InstanceID || lease.State != core.WorkspaceLeaseActive || lease.RuntimeAbsent || !lease.MatchesEnvironment(data.Environments[lease.EnvironmentID]) {
 		return false
 	}
-	if !core.ValidGenerationResource(target.Ref()) || !target.SourceOnly || target.EnvironmentInstance != "" || target.WorkspaceID != "" || target.RestoreSource != "" || target.State != "creating" || target.CopySource != source.Ref() || target.Kind != source.Kind {
+	if !core.ValidGenerationResource(target.Ref()) || !target.SourceOnly || target.EnvironmentInstance != "" || target.WorkspaceID != "" || target.RestoreSource != "" || (target.State != "creating" && (target.State != "deleting" || !target.CopyCleanup)) || target.CopySource != source.Ref() || target.Kind != source.Kind {
 		return false
 	}
 	for _, area := range lease.Attachments {

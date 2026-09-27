@@ -55,7 +55,7 @@ EnvironmentはImage・Workspace identity・所有関係・任意のVolume名を�
 
 細かな進捗state machineは追加せず、所有証跡とresourceの対応を保持します。
 [所有原則](../adr/0002-environment-lifecycle-ownership.md)と
-[設計判断](../adr/0112-unified-environment-creation.ja.md)を参照してください。
+[設計判断](../adr/0113-unified-environment-creation.ja.md)を参照してください。
 
 ## 名前・実行・再試行
 
