@@ -63,7 +63,7 @@ func TestImageTagRefusesForeignAliasAndChangedLocalImage(t *testing.T) {
 			if _, err := p.TagImage(context.Background(), "source", "../target"); !errors.Is(err, core.ErrInvalidArgument) {
 				t.Fatal(err)
 			}
-			p.sources["reserved"] = p.sources["reserved"]
+			p.sources["reserved"] = "local:" + testFingerprintA
 			if _, err := p.TagImage(context.Background(), "source", "reserved"); !errors.Is(err, core.ErrAlreadyExists) {
 				t.Fatal(err)
 			}
