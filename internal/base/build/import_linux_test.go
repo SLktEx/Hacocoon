@@ -4,10 +4,13 @@ package basebuild
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -20,7 +23,7 @@ type importEnv struct {
 }
 
 func (f *importEnv) CreateFromArchive(ctx context.Context, s core.EnvironmentSpec, source io.ReadSeeker, root string, limit int64) (core.Environment, error) {
-	if !*f.exhausted || root == "" || limit != MaxArchiveBytes || s.Base != "" || s.Resources != builderResources() {
+	if !*f.exhausted || root == "" || limit != DefaultArchiveLimitBytes || s.Base != "" || s.Resources != builderResources() {
 		f.t.Fatal("input not captured before isolated creation")
 	}
 	raw, err := io.ReadAll(source)
@@ -80,7 +83,7 @@ func TestBaseArchiveImportRejectsInvalidInputBeforeCreation(t *testing.T) {
 	if err := os.Chmod(root, 0700); err != nil {
 		t.Fatal(err)
 	}
-	for _, mode := range []string{"name", "empty", "source-failed", "canceled", "directory"} {
+	for _, mode := range []string{"name", "empty", "source-failed", "canceled", "directory", "limit"} {
 		t.Run(mode, func(t *testing.T) {
 			complete := false
 			f := &importEnv{fakeEnv: &fakeEnv{t: t}, exhausted: &complete}
@@ -92,6 +95,8 @@ func TestBaseArchiveImportRejectsInvalidInputBeforeCreation(t *testing.T) {
 			switch mode {
 			case "name":
 				req.Name = "--privileged"
+			case "limit":
+				req.MaxBytes = 4
 			case "empty":
 				source = strings.NewReader("")
 			case "source-failed":
@@ -111,3 +116,75 @@ func TestBaseArchiveImportRejectsInvalidInputBeforeCreation(t *testing.T) {
 type failedArchiveReader struct{}
 
 func (failedArchiveReader) Read([]byte) (int, error) { return 0, errors.New("interrupted upload") }
+
+func TestArtifactIntegrityAndIdentityBeforeImportCreation(t *testing.T) {
+	for _, mode := range []string{"digest", "size", "id", "architecture", "foreign-architecture"} {
+		t.Run(mode, func(t *testing.T) {
+			complete := false
+			f := &importEnv{fakeEnv: &fakeEnv{t: t}, exhausted: &complete}
+			root := t.TempDir()
+			if err := os.Chmod(root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			digest := sha256.Sum256([]byte("archive bytes"))
+			a := &Artifact{ID: strings.Repeat("a", 32), SHA256: hex.EncodeToString(digest[:]), Size: 13, Architecture: "x86_64"}
+			switch mode {
+			case "digest":
+				a.SHA256 = strings.Repeat("b", 64)
+			case "foreign-architecture":
+				a.Architecture = "aarch64"
+				if runtime.GOARCH == "arm64" {
+					a.Architecture = "x86_64"
+				}
+			case "size":
+				a.Size = 1
+			case "id":
+				a.ID = "../escape"
+			case "architecture":
+				a.Architecture = "unknown"
+			}
+			_, err := (&Service{Environments: f}).Import(context.Background(), ImportRequest{Name: "tools", Artifact: a}, strings.NewReader("archive bytes"), root)
+			if err == nil || len(f.calls) != 0 {
+				t.Fatal("unverified artifact created/published a Base", err, f.calls)
+			}
+		})
+	}
+}
+
+func TestVerifiedArtifactUsesCanonicalImportAndExactBuilderIdentity(t *testing.T) {
+	arch := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
+	if arch == "" {
+		t.Skip("supported Incus architecture required")
+	}
+	root := t.TempDir()
+	if err := os.Chmod(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	complete := false
+	f := &importEnv{fakeEnv: &fakeEnv{t: t, fail: "publish"}, exhausted: &complete}
+	digest := sha256.Sum256([]byte("archive bytes"))
+	id := strings.Repeat("a", 32)
+	req := ImportRequest{Name: "tools", Artifact: &Artifact{ID: id, SHA256: hex.EncodeToString(digest[:]), Size: 13, Architecture: arch}}
+	got, err := (&Service{Environments: f}).Import(context.Background(), req, observedEOF{strings.NewReader("archive bytes"), &complete}, root)
+	if err == nil || got.State != "publication-unconfirmed" || got.Builder != "build-"+id {
+		t.Fatal("canonical uncertain ownership lost", got, err)
+	}
+	if !reflect.DeepEqual(f.calls, []string{"create", "clean", "stop", "publish"}) {
+		t.Fatal(f.calls)
+	}
+}
+
+func TestImportRootDiskScalesWithArtifact(t *testing.T) {
+	for _, size := range []int64{1, 65 << 30, 500 << 30, 2 << 40, MaxArchiveLimitBytes} {
+		got := importBuilderResources(size)
+		want := builderResources()
+		if uint64(size) > core.MaxRootDiskResourceBytes/2 {
+			want.RootBytes = core.ResourceLimit{Mode: core.ResourceLimitUnlimited}
+		} else if uint64(size)*2 > want.RootBytes.Value {
+			want.RootBytes.Value = uint64(size) * 2
+		}
+		if got != want || got.RootBytes.Value > core.MaxRootDiskResourceBytes {
+			t.Fatal(size, got)
+		}
+	}
+}

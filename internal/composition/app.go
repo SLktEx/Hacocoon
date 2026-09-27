@@ -15,7 +15,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
 	"github.com/SLktEx/Hacocoon/internal/adapters/network/dns"
 	"github.com/SLktEx/Hacocoon/internal/adapters/network/proxy"
-	packerplugin "github.com/SLktEx/Hacocoon/internal/adapters/packer"
 	agenthostapp "github.com/SLktEx/Hacocoon/internal/agenthost"
 	"github.com/SLktEx/Hacocoon/internal/base/build"
 	"github.com/SLktEx/Hacocoon/internal/base/manage"
@@ -248,7 +247,7 @@ func local(ctx context.Context, approval capabilityapp.ApprovalProvider) (*App, 
 		Networks:            networks,
 		transferCatalog:     store,
 		SnapshotRestore:     restorer,
-		BaseBuild:           &basebuild.Service{Environments: environments, Packer: packerplugin.Runner{}},
+		BaseBuild:           &basebuild.Service{Environments: environments},
 		BaseManage:          &basemanage.Service{Backend: incusProvider.BaseProvider, Catalog: store},
 		EnvironmentCopy:     &environmentcopy.Service{Catalog: store, Snapshots: environments, Restorer: restorer},
 		AWS:                 awsBroker,

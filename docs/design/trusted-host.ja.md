@@ -457,3 +457,10 @@ Host setupには承認操作はありません。busyは別setupの実行中を�
 Hostセットアップの完了、保存手順の結果、復旧方法はclientの日本語・英語設定に従う。
 診断用のstate/reason値と要求の対応関係を保ち、明示した`--script-result`の出力はそのまま表示する。
 翻訳によって保存手順の明示的な再実行の契約を変えない。
+
+## Packerとnested Incus
+
+通常のHost setupが固定版Packer 1.16.0と共通の署名検証付きIncus 7.0 LTSを
+haco-host内へ導入します。nested daemonはHost内の独立状態、所有属性付きdir poolと
+NAT bridgeを持ち、既存security.nesting=trueを再利用します。Physical Hostの
+Incusや管理状態はマウントしません。[Packer](packer-base-builds.ja.md)を参照してください。

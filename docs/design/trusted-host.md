@@ -517,3 +517,11 @@ Host setup completion, saved-script results and recovery guidance follow the
 client's English/Japanese presentation. Diagnostic state/reason tokens and request
 correlation remain stable; explicit `--script-result` output remains verbatim.
 Localization does not change the explicit replay contract.
+
+## Packer and nested Incus
+
+Normal Host tooling setup also installs pinned Packer 1.16.0 and the shared signed
+Incus 7.0 LTS package policy inside haco-host. The nested daemon owns separate local
+state, an owned directory pool and NAT bridge; existing security.nesting=true is
+reused. No Physical Host Incus/state mount is added. See
+[Packer builds](packer-base-builds.md) for trusted HCL, artifact import and recovery.

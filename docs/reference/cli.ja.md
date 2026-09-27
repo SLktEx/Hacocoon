@@ -69,10 +69,12 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 ## Packerでひな形を作る
 
 ```sh
-haco base build --name my-tools [--from haco/ubuntu-26.04] [--builder <env>] [--output] [--json] <directory>
+haco base build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
 ```
 
-フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。
+画像サイズとbuild/import全体の時間に既定の固定上限はありません。`--max-image-size unlimited`で既定動作を明示し、有限の値でサイズを制限できます。キャンセルとarchive検証は維持します。
+
+`haco setup` 後の trusted `haco-host` 内で実行します。Packer と固定した Incus plugin は Host 上、provisioner は別の nested instance 内で動きます。元画像は HCL で指定します。フォルダへHCL2と外部スクリプトを置き、オプションはフォルダより前に指定します。準備・渡すデータ・結果・復旧は[Packerの操作](../design/packer-base-builds.ja.md)を参照してください。
 
 ### キャッシュの履歴とクリア
 
@@ -92,7 +94,7 @@ Env作成時に`--dns host|backend|disabled`を選べます（通常は`host`）
 
 ## Baseのアーカイブ取り込み
 
-`haco base import --name <base> [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
+`haco base import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
 
 [入力・上限・失敗時の扱い](../design/base-images-and-custom-environments.md#import-a-container-image-archive)。
 

@@ -150,7 +150,8 @@
         "[infrastructure] Prepare real Incus substrate",
         "[fixture] Prepare normal-user haco CLI acceptance",
         "[product] Establish normal haco create and run against Incus-owned Btrfs",
-        "[product] Verify standard Host tools and offline Store image reuse"
+        "[product] Verify standard Host tools and offline Store image reuse",
+        "[product] Build and import real Packer Incus images"
       ],
       "incus-snapshots": [
         "[infrastructure] Check out candidate source",

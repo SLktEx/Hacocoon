@@ -31,6 +31,16 @@ func TestHostToolingPythonContracts(t *testing.T) {
 	}
 }
 
+func TestNestedIncusToolingContracts(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux trusted Host provisioner")
+	}
+	output, err := exec.Command("python3", "-I", "testdata/host_packer_test.py").CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, output)
+	}
+}
+
 func TestHostToolingWaitsForGuestManagerBeforeDispatch(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux Host provisioner")
@@ -123,7 +133,7 @@ func TestHostToolingRequiresOwnedSourceAndReportsBoundedStages(t *testing.T) {
 			}}
 			err := (&PersistentResourceBackend{Runtime: New(runner)}).ProvisionHostTools(ctx, source)
 			if mode == "ok" {
-				if err != nil || !reflect.DeepEqual(stages, []string{"host_packages", "host_tooling", "host_services"}) {
+				if err != nil || !reflect.DeepEqual(stages, []string{"host_packages", "host_tooling", "host_services", "host_packer"}) {
 					t.Fatalf("stages=%v err=%v", stages, err)
 				}
 			} else {

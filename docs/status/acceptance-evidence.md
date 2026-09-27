@@ -2131,3 +2131,123 @@ restricted process environment, history clearing and all existing deadlines.
 The original CI failure remains evidence, not a successful notification run.
 
 Local Windows acceptance passed native owned-history clear, English/Japanese toast display and removal (34.81 s), plus input decoding without module autoload, malformed-frame rejection, cancellation/reaping and diagnostic redaction. An initial confined test process rejected .NET calls under ConstrainedLanguage; normal native execution passed without changing Windows policy or product environment. The hosted failure remains pending the updated CI run; no human answer was submitted.
+
+<a id="nested-packer"></a>
+
+## Nested Incus Packer replacement
+
+Initial Issue #566 candidate based on main `d2bdbdff`: actual nested Packer acceptance was pending at this point.
+The historical ordinary-builder failures and unverified records above remain historical
+evidence; the new architecture does not retroactively turn them into passes.
+
+Local validation on 2026-09-27 used Go 1.26.7 and golangci-lint 2.13.2.
+Packer, Base build/import/manage, Incus, controller API and CLI tests, including
+race checks, passed. Changed-code lint reported zero issues; whole-repository
+`go vet ./...`, documentation checks (including 19 regressions), workflow-policy
+checks and `git diff --check` passed. The full local test entry point failed at
+`TestOrdinaryLargeGitFetchAndApprovedPush` (approval request timeout); the same
+failure reproduced on unmodified main `d2bdbdff`. The initial Windows-share run
+also timed out in the milestone black-box test; that test passed from the native
+WSL validation checkout. The broad race attempt also observed the existing
+transport timing failure `TestClientCannotSendInvalidRequests`; relevant candidate
+package race checks passed separately. These are not full-suite passes.
+
+The real Incus Packer E2E attempt failed during normal trusted-Host networking:
+the existing `haco-host0` belongs to the installed Host in another project, so
+ownership validation correctly refused reuse. No Packer stage ran. Exact retained
+fixture project/pool: `haco-packer-e2e-b17070ddb4eaf6f0`.
+An independent unprivileged test substrate `haco-566-physical` was then created on
+its dedicated owned bridge `haco-566-test` (`10.71.201.0/24`). Outbound package
+fetching timed out under the existing Docker forwarding policy. Fixture-only
+firewall changes required explicit approval and had not yet been applied.
+
+Consequently fresh nested daemon setup, actual Packer/plugin download and execution,
+export/stream/import, immutable revision reuse, cleanup, and the added real failure
+cases remained **unaccepted** at that stage. The maintained CI now requires
+`TestRealIncusPackerBaseBuildE2E` through `ci_required_tests.py`; hosted CI has not run
+for this candidate. No SKIP or partial run is counted as a successful Packer build.
+
+Follow-up on 2026-09-27: the user approved two temporary forwarding rules limited
+to `haco-566-test` and its established replies. The independent substrate then
+installed and started Incus 7.0.1. Initial fresh-Host attempts exposed missing
+`nftables` and an over-wide subordinate ID allocation in the extra nested test
+substrate. Product Host setup now includes `nftables`; build profiles bound their
+ID range to 65,536. The substrate's allocation was confined to its parent's range.
+
+Fixture `haco-packer-e2e-fbe80b3c42466d65` passed normal fresh Host setup, actual
+Packer 1.16.0 installation, nested daemon initialization, real Incus plugin 1.0.5
+initialization/loading, validation and build instance creation. Build
+`228843315a966b96e64b545df11a7078` FAILED during shell provisioning because guest
+boot initialized `/tmp` after script upload. This is not a successful build.
+Its stopped Host, nested instance and receipt are retained; its NIC was detached
+only to release the fixture bridge. Templates now use Packer's documented
+`remote_folder = "/root"`. A separate real Incus probe confirmed the default
+profile must be removed with the private project, not deleted independently;
+the worker and regression fixture were corrected accordingly.
+
+The 64 GiB archive ceiling was replaced with a 1 TiB default and explicit
+`--max-image-size` override. Size arithmetic, bounded stream rejection, a 65 GiB
+sparse-file CLI check, related race tests, vet, changed-code lint, docs and workflow
+checks passed. This does not establish TB-scale image acceptance. Re-running the
+full local test entry point still failed the previously reproduced Git approval
+timeout (`TestOrdinaryLargeGitFetchAndApprovedPush`, 89.81 s).
+
+The corrected run in `haco-packer-e2e-ff391d7466b03e08` reached real shell script
+execution, image publication and native export (561,748,480 bytes, nested image
+`19964f9c33ccaa6344e485a2f9e1fe1689f6bb0f1bf2621250d26dc01b3cdf34`). Build
+`d057e6789fdd9c195abd8ca75026b4c9` then FAILED at the canonical import Env's root-disk
+quota: the unprivileged Physical Host fixture cannot apply the Btrfs quota.
+The controller stream and validation ran; no canonical Base revision or normal Env
+success is claimed. The transport artifact and receipt remain recovery-required.
+No product resource limit was disabled. A separate privileged Physical Host
+fixture was prepared; its product `haco-host` and ordinary Environments retain
+normal unprivileged settings and trust boundaries.
+
+Final run on 2026-09-27: `TestRealIncusPackerBaseBuildE2E` **PASS**, 2302.13 s,
+in exact project/pool `haco-packer-e2e-5405bbdd220ba630`. Incus 7.0.1 ran in the
+independent WSL Physical Host fixture `haco-566-physical-root`. Normal fresh Host
+setup installed Packer 1.16.0 and initialized nested Incus; the real plugin 1.0.5
+was downloaded/loaded, HCL validated, and `setup.sh` executed in a separate instance.
+Native image export, bounded controller API stream, canonical archive import and
+immutable Base publication all passed. A normal Env returned `hello-from-packer`.
+A second build changed the new Env to `hello-from-packer-two`, while the original
+Env retained its original revision and output. Both successful builds left no
+nested temporary instance/image/project, artifact or context. Test Envs and
+published test Bases were then deleted through existing lifecycle APIs.
+
+Real invalid-HCL, plugin initialization and provisioner failures preserved the
+current Base pointer and original Env. Their exact receipts were retained:
+`7a666170a99a7cdc54b2a17af9437f0c`, `0e5b22a4938be0e81d0aee2c0e1e0b5f`,
+`f29e7a76901f05b296049d0d597a941f`. Component regressions separately cover export,
+interrupted stream, import/unknown acknowledgement, cleanup and cancellation;
+these injected failures are not represented as real-provider failure acceptance.
+
+The fixture's first publication used Incus's default compression. Its second
+publication used supported `images.compression_algorithm=none` to reduce slow WSL
+compression; production daemon settings were untouched. The Physical Host fixture
+was privileged to exercise real Btrfs quota, while product Host/build/ordinary
+instances remained unprivileged. The controller endpoint used the standard
+transport/API/service with fixture-owned state, not the installed production catalog.
+Both approved bridge firewall rules were removed and positively checked absent.
+Both Physical Host fixtures were stopped. Failed-attempt resources remain for
+diagnosis; no guessed cleanup was performed.
+
+The maintained CI requires the real test and rejects a missing/conditional Packer
+step, missing test or SKIP. Its bounded timeout was increased after the measured
+38-minute local run. Workflow policy and contract regressions passed. Hosted CI,
+arm64, TB-scale performance and installed production-controller acceptance remain
+unverified. The previously recorded full-suite Git timeout remains a failure.
+
+Follow-up on 2026-09-28: at the user's request, Base build/import now defaults to
+no configured image-size or overall duration cap. Explicit `--max-image-size`
+limits remain available. Inspection found the shared transfer still inherited the
+Environment 64 GiB wire ceiling and 30-minute client/server deadline; the earlier
+1 TiB CLI/sparse-file checks had not proved that full path. Base now selects its
+own wire limit/deadline policy while Environment/Workspace retain theirs.
+The prior 2302.13-second real Packer PASS remains evidence for that earlier revision,
+not a newly executed unlimited-size or unlimited-duration acceptance run.
+A real short-lived systemd probe confirmed `RuntimeMaxUSec=infinity` and
+`LimitFSIZE=infinity`, then exited inactive. No Packer/HCL ran on the Physical Host.
+Large-image acceptance remains unverified; arm64 is outside the requested scope.
+
+Follow-up validation passed: related Go tests (including Incus), Base/Packer/CLI/controller race checks, whole-repository vet, changed-code lint (zero findings), docs consistency and diff whitespace checks. A 2 TiB-plus sparse file exercised metadata-only CLI streaming; real socket tests verified deadline policy, and frame-counter boundary tests crossed the former 64 GiB wire cap without claiming that volume of transferred data. The full Packer E2E was not rerun for this limit-policy change.

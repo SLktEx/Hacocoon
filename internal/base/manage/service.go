@@ -15,6 +15,8 @@ type Identity struct {
 	BuildInstance string        `json:"build_instance"`
 }
 type Image struct {
+	// Diagnostic correlation only; deletion still requires immutable Identity.
+	BuildEnvironment string `json:"build_environment,omitempty"`
 	Identity
 	Current              bool     `json:"current"`
 	Aliases              []string `json:"aliases"`

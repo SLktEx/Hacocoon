@@ -173,7 +173,7 @@ func (p *BaseProvider) PublishBase(ctx context.Context, env core.Environment, le
 			return result, core.ErrAlreadyExists
 		}
 	}
-	properties := map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": string(name), "user.hacocoon.build-instance": lease.InstanceID}
+	properties := map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": string(name), "user.hacocoon.build-instance": lease.InstanceID, "user.hacocoon.build-environment": env.Name}
 	data := map[string]any{"public": false, "auto_update": false, "properties": properties, "source": map[string]string{"type": "instance", "name": env.RuntimeRef}, "aliases": []map[string]string{{"name": buildAlias, "description": builtBaseDescription}}}
 	if err := p.baseQuery(ctx, "POST", p.basePath(""), data, nil); err != nil {
 		return result, fmt.Errorf("image publication unconfirmed; inspect Incus alias %s: %w", buildAlias, core.ErrRecoveryRequired)

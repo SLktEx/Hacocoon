@@ -1,108 +1,101 @@
-# PackerでBaseを作る
+# PackerによるBase作成
 
 日本語 | [English](packer-base-builds.md)
 
-状態: mainで部分実装。実Packerを通常の使い捨てEnvで動かす経路を実装しています。
-導入済み環境での受入は別に確認します。公開・revision・保持・確認付き削除は、既存の
-[Baseのライフサイクル](base-images-and-custom-environments.md)が管理します。
+状態: 実装済み。従来の通常Env内Packerアダプターをnested Incus方式へ置き換えます。
+専用WSL fixtureで実Incus E2Eは成功しました。hosted CIとTB規模の画像は未検証です。受入対象はamd64です。
+実機結果は[受入記録](../status/acceptance-evidence.ja.md#nested-packer)で区別します。
 
-## 再利用するツールを作る
+## ツールを含むBaseを作る
 
-サンプルのフォルダが手元にあるLinux／WSLのクライアントから実行します。
+通常の `haco setup` 後、trusted `haco-host` で実行します。
 
 ```bash
-haco base build --name my-tools --from haco/ubuntu-26.04 examples/packer
+haco base build --name my-tools examples/packer
 haco base inspect my-tools
 haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
 ```
 
-[サンプル](../../examples/packer/base.pkr.hcl)は実際のHCL2と
-`provisioner "shell" { script = "setup.sh" }`を使います。shellは別ファイルのまま扱い、
-Hacocoon専用JSON定義は不要です。`--from`を省略すると既定のBaseを使います。
-オプションはフォルダより前に指定してください。作成したツールは`hello-from-packer`を
-表示します。再ビルドで`my-tools`の参照先が更新されても、既存EnvのBase revisionは変わりません。
+ツールは `hello-from-packer` を返します。オプションはディレクトリの前に置きます。
+[サンプル](../../examples/packer/base.pkr.hcl)は標準HCL2、実
+[Incus plugin v1.0.5](https://github.com/bketelsen/packer-plugin-incus/tree/v1.0.5)、
+外部 `setup.sh` を使います。shellの標準属性`remote_folder`は`/root`とし、
+起動時の`/tmp` mount／初期化との競合を避けます。Packerは1.16.0、pluginは `= 1.0.5` に固定します。
+`image`、`output_image`、`container_name`、`launch_config`、
+`publish_properties` はこのupstream版の契約です。
 
-ビルドEnv内でPacker 1.16.0の`fmt`、`init`、`validate`、`build`を順番に実行します。
-整形するのは転送したコピーだけです。HCLの評価・変数・plugin・外部shell・`shell-local`・
-post-processorもすべてEnv内の権限で動きます。変数値には通常の`variables.auto.pkrvars.hcl`を使えます。
-サンプルのSSHポートと鍵は変数の初期値から取得します。Packerの
-[env関数](https://developer.hashicorp.com/packer/docs/templates/hcl_templates/functions/contextual/env)は
-この初期値で使い、sourceブロックへ直接書きません。
+Packer本体、plugin、`shell-local`、local post-processorは通常のPackerの意味で
+trusted `haco-host` 上で動きます。HCLとpluginは信頼済みビルドコードです。
+provisionerの対象は別のnested Incus instanceです。そこにも通常Envにも、
+Physical HostのIncus socket、管理状態、再利用可能な認証情報は渡しません。
+Physical HostはHCL評価やplugin実行を行いません。
 
-組み込みの[null builder](https://developer.hashicorp.com/packer/docs/builders/null)が、
-同じEnvのループバックSSH経由で構築します。Packer自体が成果イメージを返さないのは正常です。
-Hacocoonが所有する同じEnvを停止し、既存のIncus Base処理でrootfsを公開します。
-別のbuilderやpost-processorを記述しても、Hostの権限や公開対象は変わりません。
+## 依存ツールと入力ファイル
 
-単独の`packer build`もEnv内で動かす通常のPacker操作です。この例を独立して使う場合は、
-自分で準備したEnv内のSSHポートと秘密鍵のパスを`haco_packer_port`／`haco_packer_key`変数に
-指定します。これはEnvの内容を構築するだけで、HacocoonのBaseとして登録しません。
-管理されたBase公開の入口は`haco base build`です。Host側で単独Packerを起動する機能は設けません。
+標準Host setupがSHA-256固定のamd64/arm64 Packerを導入します。
+IncusはPhysical Hostと共通の署名検証付きLTS installerをHost内で実行します。
+対象は7.0.x、最低7.0.1で、通常のpatch更新を追い、新しい系列から自動降格しません。
+所有者不明・非互換のnested storageは削除せず拒否します。
+Pythonやpackage管理、IncusはHost側の依存で、ビルド対象Baseの前提ではありません。
 
-## 必要なツールと入力ファイル
+nested daemonはHost内だけで待ち受け、Host自身の `/var/lib/incus` を使います。
+所有属性付きdir pool `haco-packer` とNAT bridge `haco-packer0` を再利用します。
+既存の `security.nesting=true` を使い、privileged化やPhysical Hostマウントは追加しません。
+Host setupはnestedネットワーク用の`nftables`も導入します。build専用profileは`security.idmap.size=65536`を設定し、非特権のnested instanceへ渡すUID/GID範囲を限定します。
+既存archive importに合わせimage圧縮は `none` です。
+buildごとにランダムID、所有属性、独立image/profileを持つ専用projectを作ります。
 
-通常の通信設定をビルドEnv一つに絞って準備する場合は、名前を指定します。
+CLIは通常ファイル128個・合計512 KiBまでを複製します。直下の `.pkr.hcl` が必要です。
+隠し項目を除外し、不正path、link、特殊ファイル、上限超過を拒否します。
+スクリプトは信頼済みHostで動くため、認証情報をcontextへ入れないでください。
+Linux／WSLから利用します。
 
-```bash
-haco base build --name my-tools --builder packer-tools examples/packer
-```
+templateには `HACO_PACKER_BUILD_ID` を渡します。出力imageの
+`user.hacocoon.packer-build` 属性へこの値を書き込み、一致する非公開container imageを
+1個だけ生成します。変数と `auto.pkrvars.hcl` は通常のPacker仕様です。
+元imageはHCLで選びます。`--from` と `--builder` はJSON定義専用です。
 
-事前に[通常の設定操作](../reference/configuration.md)で必要な宛先を確認し、
-管理者規則の `environment` を `packer-tools` にします。
-要求ごとに確認する場合は `require-approval` を維持してください。
-build自体は規則の保存やダウンロードの承認を行わず、既存の拒否も維持します。
-管理者の名前指定規則は同名の後続Envにも適用されますが、通常の保存済み承認は
-一回の作成IDへの紐付けを維持します。規則の有効期間を確認し、不要な一時設定は取り除いてください。
+画像サイズと操作全体の固定上限は既定ではありません。`--max-image-size 2TiB` で任意の上限を設けられ、`--max-image-size unlimited` は既定動作を明示します。`haco base import` も同じ指定に対応します。明示上限はexport、転送、controller検証に適用します。整数のファイルoffset表現とfilesystem／storageの容量制約は残ります。転送メモリは一定で、画像全体を読み込みません。import Envのroot disk quotaは実artifactの2倍（最低64 GiB）とし、Coreの有限quota表現を超える場合だけ既存のdisk unlimitedを使います。CPU・メモリ・PID予算は有限のままです。容量不足は既存の失敗・復旧処理へ戻します。TB規模の実画像の所要時間・ディスク使用量は未検証です。
 
-`--builder` は通常Envと同じ、小文字英数字と内部のハイフン、最大57文字の名前です。
-省略時はランダム名を使います。使用中の名前は既存Envを採用・削除せず拒否します。
-失敗後に対象が残った場合は再試行前に確認するか、別の新しい名前を使ってください。
-毎回新しい所有情報と、同じ隔離・実行・公開・後始末を使います。
-JSONのshell定義にも `builder_name` を指定でき、明示したCLIオプションが優先します。
-[ADR 0109](../adr/0109-named-build-environments.ja.md)を参照してください。
+## artifactと公開
 
-通常のBase選択・Env作成にPackerは不要です。Packerビルドでは、Python／OpenSSHがなければ、
-使い捨てのUbuntu Env内で通常の`apt-get`を使い、Python 3・CA証明書・OpenSSHを準備します。
-カスタムBaseはこれらを事前に含められます。不足時にaptもなければ依存ツールの段階で失敗します。
-このpluginがHostへツールを導入することはありません。
+`fmt -> init -> validate -> build` はHost内の時間制限付きsystemd service/cgroupで動きます。
+project所有者と完全なimage fingerprintを確認し、native unified container imageをexportして、
+サイズ・SHA-256・CPU architectureを記録します。終了コードだけで成功を判定せず、
+instance不在を確認してから専用project内の正確なimage、project、一時contextを削除します。
 
-Packerの公式Linux amd64／arm64アーカイブはEnvが`releases.hashicorp.com`から取得し、
-固定のSHA-256を検証してから所定の実行ファイルへ書き込みます。取得量・展開量を制限し、
-アーカイブが指定するパスは展開しません。パッケージ・Packer・pluginの取得には通常のproxyと
-承認経路を使います。拒否された取得は失敗し、許可ルールの追加や通信制限の回避は行いません。
-ビルドごとに新しいEnv内の領域へ取得します。世代をまたぐパッケージ／Packerのキャッシュは
-この変更には含まれません。
+CLIが既存の上限付き `base.import` streamでartifactを送ります。controllerは操作ID、
+hash、size、ローカルCPUを確認し、全入力の受信、archive検証、所有管理、
+resource limit、既存Base import／公開ライフサイクルを再利用します。
+import用の通常一時EnvはPacker実行場所ではありません。
 
-入力は通常ファイル128個・合計512 KiBまでです。パスはASCII英数字・下線・ドット・ハイフンを
-使い、各要素の先頭は英数字または下線にします。深さは8要素、長さは240文字までです。
-フォルダ直下に少なくとも一つの`.pkr.hcl`が必要です。`.git`・`.env`などドットから始まる項目は
-送りません。それ以外の不正名、symlink、hardlink、特殊ファイル、衝突、上限超過は拒否します。
-読み取り中はフォルダ・ファイルの実体を照合し、HostのフォルダをEnvへマウントしません。
-これは設定とスクリプトを渡す仕組みで、巨大リポジトリの転送手段ではありません。
-選んだ通常ファイルは未信頼のビルドEnvへ渡るため、そこにも認証情報を含めないでください。
+immutable revisionとaliasの契約を維持します。再buildしても既存Envは元revisionを保持し、
+新規Envだけが新revisionを選びます。JSON定義は別経路のままです。
+[Base import](base-images-and-custom-environments.md#import-a-container-image-archive)を参照してください。
 
-入力の収集はLinux／WSLに対応し、それ以外のネイティブクライアントでは未対応です。
-Windowsでは通常のWSL／Host入口からLinuxのコマンドを使います。Windowsファイルの読み取りと
-導入済みWindows→WSL経路の受入は、Linuxの部品テストとは別に記録します。
+## 失敗と復旧
 
-## 結果と失敗時の対応
+`/var/lib/hacocoon-packer/builds/<build-id>/receipt.json` に、正確なnested project、
+Base名、image fingerprint、artifact hash/size、段階、controller側の `build-<build-id>` を永続記録します。
+公開するnative imageにもbuilder名を記録し、import完了後の応答喪失でも
+`haco base list --all --json` の `build_environment` と照合できます。これは診断情報であり、
+削除の所有権確認は既存のfingerprintとimmutable build-instance identityで行います。
+`--json` は状態と保持identityを返します。source・子process出力・認証情報を
+controllerのログには入れません。
 
-`--json`はBaseの名前・revision、状態、残ったビルドEnvの名前を返します。依存ツール準備、
-Packer準備、整形、初期化、検証、構築の失敗には段階を表示します。`--output`を加えると、
-失敗した段階の非公開の標準出力・標準エラーも各16 KiBまで表示します。JSONには省略フラグが付きます。
-人向け表示では引用表現にし、Envが出した端末制御文字をそのまま実行させません。
-出力にはスクリプトの内容やスクリプトが出した秘密情報が含まれ得ます。controllerのエラー・ログへは
-渡しません。成功した段階の出力は保持しません。
+HCL不正、init／plugin／provisioner失敗、中断、export失敗、nested cleanup失敗では
+importを開始しません。変更結果が不明ならreceiptとresourceを復旧必要として保持します。
+stream中断やimport応答不明でもartifactとcontroller identityを残し、
+自動再試行、alias巻き戻し、名前推測による削除は行いません。
 
-中断・公開前の失敗は、所有者を照合した共通の一時Env削除へ進みます。削除の成否が不明なら
-所有を保持し、復旧が必要な状態を返します。公開の成否が不明なら、ビルドEnvとIncus側の証拠を
-保持して確認を求めます。公開後にEnv削除が失敗してもBaseは残します。再試行は新規ビルドです。
-一時SSH鍵・Packer・入力ファイルは`/run/hacocoon/packer`に置き、公開前の既存の初期化処理で
-削除します。利用者のスクリプトが別の場所へ書いた秘密情報を検出・除去する仕組みではありません。
+import確認後に正確な操作のartifactとreceiptを削除します。既存archive importと同じく、
+完全に公開されたBaseは後続cleanup失敗でも保持し、成功ではなく復旧必要と報告します。
+native公開結果が不明なら既存のimage/build証拠を維持します。
+応答を失っただけではpointerが動かなかったとは証明できないため、再実行せず証拠を調べます。
 
-既存の`haco base build base.json`では、`name`・任意の`from`・長さを制限した`run`を使う
-単純なshell定義も指定できます。HCLをこのJSONへ変換する必要はありません。非公開の制御要求では構築方式を一つだけ指定でき、
-どちらも同じライフサイクル・lease・Incusのカタログを使います。
-[ADR 0089](../adr/0089-guest-packer-provisioning.ja.md)を参照してください。
+Packer各段階とimage exportにwrapperの固定timeoutは設けません。
+worker終了時はcgroup内の子processも停止し、CLI中断はその操作のserviceだけを停止要求します。
+管理操作・通信停滞・cleanupの待ち時間は有限のままです。CLIの強制終了ではworkerが継続する場合があるため、
+正確なreceiptとserviceを確認し、必要ならそのserviceを停止します。永続記録を保持し、推測cleanupはしません。[ADR 0113](../adr/0113-trusted-host-nested-packer.ja.md)がADR 0089を置き換えます。

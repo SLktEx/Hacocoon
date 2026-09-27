@@ -166,7 +166,12 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	if os.Geteuid() != 0 {
 		t.Fatal("root required for independent Btrfs inspection")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	timeout := 12 * time.Minute
+	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
+		// Fresh setup now also installs Packer and the nested Incus daemon.
+		timeout = 24 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	runner := host.ExecRunner{}
 	command := func(args ...string) string {

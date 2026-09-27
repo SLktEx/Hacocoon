@@ -256,3 +256,5 @@ not advance a checkpoint or establish actual Packer completion or publication.
 M2 local Git diagnosis/explicit repair is a v0.68 usability correction. It reuses existing broker ownership and does not advance the checkpoint, grant push permission or publish a release.
 
 The M1 follow-up remains a v0.68 daily-use correction. Bilingual auxiliary-client guidance and successful help-only execution do not advance the checkpoint or publish a release. Human desktop acceptance and full CLI localization remain separate.
+
+Issue #566 replaces the existing Packer slice within v0.68; no checkpoint or release is created. Trusted Host execution, nested Incus artifacts and the required real-build CI gate supersede the ordinary builder design. The complete real Incus/Packer E2E passed on a dedicated WSL fixture; hosted CI and TB-scale acceptance remain unverified. See [Packer builds](../design/packer-base-builds.md).

@@ -1,6 +1,6 @@
 # Packerの構築処理をEnv内で実行する
 
-状態: 採用、実装候補。 [English](0089-guest-packer-provisioning.md)
+状態: 履歴。[ADR 0113](0113-trusted-host-nested-packer.ja.md)により廃止。以下は当時の判断で、現行の実行方式ではありません。 [English](0089-guest-packer-provisioning.md)
 
 ## 決定
 

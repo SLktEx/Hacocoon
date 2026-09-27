@@ -6,6 +6,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -43,7 +44,7 @@ func RegisterWorkspaceImport(server *control.Server, receive func(context.Contex
 	if receive == nil {
 		return core.ErrInvalidArgument
 	}
-	return registerImportStream(server, MethodWorkspaceImport, func(payload json.RawMessage) (func(context.Context, io.Reader) (WorkspaceImportResult, error), error) {
+	return registerImportStream(server, MethodWorkspaceImport, environmentExportWireLimit, 30*time.Minute, func(payload json.RawMessage) (func(context.Context, io.Reader) (WorkspaceImportResult, error), error) {
 		var req WorkspaceImportRequest
 		if decodeExportJSON(payload, &req) != nil || req.Validate() != nil {
 			return nil, control.ErrInvalidArgument
@@ -55,7 +56,7 @@ func (c *Client) ImportWorkspace(ctx context.Context, source io.Reader, req Work
 	if source == nil || req.Validate() != nil {
 		return WorkspaceImportResult{}, core.ErrInvalidArgument
 	}
-	return uploadInput(ctx, c, source, MethodWorkspaceImport, req, validWorkspaceImportResult, func(r WorkspaceImportResult) bool {
+	return uploadInput(ctx, c, source, MethodWorkspaceImport, req, environmentExportWireLimit, 30*time.Minute, validWorkspaceImportResult, func(r WorkspaceImportResult) bool {
 		return r.State == "ready" && r.Name == req.Name && r.Repository == req.Repository && r.Workspace != ""
 	})
 }

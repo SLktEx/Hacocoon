@@ -2,125 +2,114 @@
 
 [日本語](packer-base-builds.ja.md) | English
 
-Status: partial on main. Actual Packer execution is wired
-through ordinary disposable Environments; installed acceptance remains separate.
-The existing [Base lifecycle](base-images-and-custom-environments.md) owns image
-publication, revisions, retention and reviewed deletion.
+Status: implemented. The nested Incus implementation replaces the historical
+ordinary-Environment Packer adapter. The real Incus E2E passed on a dedicated WSL fixture; hosted CI and TB-scale
+images remain unverified (amd64 acceptance scope). Evidence is recorded separately in
+[acceptance evidence](../status/acceptance-evidence.md#nested-packer).
 
 ## Build a reusable tool
 
-Run from the Linux/WSL client with the example directory available locally:
+Run in trusted `haco-host` after normal `haco setup`:
 
 ```bash
-haco base build --name my-tools --from haco/ubuntu-26.04 examples/packer
+haco base build --name my-tools examples/packer
 haco base inspect my-tools
 haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
 ```
 
-The [example](../../examples/packer/base.pkr.hcl) uses real HCL2 and
-`provisioner "shell" { script = "setup.sh" }`. Keep the shell script as a separate
-file. No Hacocoon JSON definition is required. `--from` may be omitted for the
-normal default Base. Options precede the directory. The final tool prints
-`hello-from-packer`. Existing Environments retain their original Base revision
-when another build moves `my-tools` to a new image.
+The tool prints `hello-from-packer`. Options precede the directory.
+The [example](../../examples/packer/base.pkr.hcl) is standard HCL2 using the real
+[Incus plugin v1.0.5](https://github.com/bketelsen/packer-plugin-incus/tree/v1.0.5)
+and an external `setup.sh`. Its documented shell `remote_folder` is `/root` to
+avoid boot-time `/tmp` mount/cleanup races. Packer is pinned to 1.16.0 and the plugin constraint
+is exactly `= 1.0.5`. `image`, `output_image`, `container_name`,
+`launch_config`, and `publish_properties` follow that upstream version.
 
-Packer 1.16.0 runs `fmt`, `init`, `validate`, then `build` inside the builder.
-Formatting changes only the staged copy. HCL evaluation, variables, plugins,
-external scripts, `shell-local` and post-processors all run with guest authority.
-Use ordinary `variables.auto.pkrvars.hcl` files for variable values. The example obtains
-the guest-local SSH port/key through variable defaults: Packer's
-[env function](https://developer.hashicorp.com/packer/docs/templates/hcl_templates/functions/contextual/env)
-is valid there, not directly in a source block.
-
-The built-in [null builder](https://developer.hashicorp.com/packer/docs/builders/null)
-provisions the existing builder over loopback SSH. Its lack of an artifact is
-expected: Hacocoon subsequently stops that same owned Env and publishes its
-rootfs through the canonical Incus Base lifecycle. Running another builder or
-post-processor does not authorize Host resources or change what is published.
-
-Standalone `packer build` remains a guest-local Packer operation. To use this
-example independently, supply your own guest-local SSH port and private-key path
-as `haco_packer_port`/`haco_packer_key` variables inside the Env. It provisions
-that guest and does not register a Hacocoon Base. The managed publication entry
-is `haco base build`; no Host-side standalone Packer launcher is provided.
+Packer, plugins, `shell-local` and local post-processors execute in trusted
+`haco-host` with normal Packer semantics. HCL and plugins are trusted build code.
+Provisioners run in a separate nested Incus instance. Neither that instance nor
+an ordinary Environment receives Physical Host Incus sockets, state or credentials.
+The Physical Host never evaluates HCL or runs plugins.
 
 ## Dependencies and source files
 
-To prepare ordinary network settings for one build Environment, choose its name:
+Normal Host setup installs the checksum-pinned amd64/arm64 Packer distribution.
+It uses the shared signed Incus LTS installer inside `haco-host`: 7.0.x,
+minimum 7.0.1, with ordinary patch updates and no automatic downgrade from newer
+series. Existing incompatible or foreign nested storage is refused without deletion.
+Python, package tooling and Incus are Host tooling, not build-target prerequisites.
 
-```bash
-haco base build --name my-tools --builder packer-tools examples/packer
-```
+The nested daemon is local-only and uses its own `/var/lib/incus`. Setup creates
+an owned directory storage pool `haco-packer` and NAT bridge `haco-packer0`;
+both survive builds and repeated setup. Existing trusted-Host
+`security.nesting=true` is reused without privileged mode or Physical Host mounts.
+Host setup also installs `nftables` for nested networking. The build profile sets `security.idmap.size=65536` to bound the UID/GID range delegated to its unprivileged nested instance.
+Image compression is `none` for the existing uncompressed archive import contract.
+Each build creates an exclusive, randomly identified Incus project with private
+images/profiles and an ownership property.
 
-Before building, use [ordinary configuration](../reference/configuration.md) to
-review the required destinations with administrator rules whose `environment` is
-`packer-tools`, keeping `require-approval` when each request should be reviewed.
-The command itself neither saves a rule nor approves a download. Existing denials
-still apply. A named administrator rule also applies to future Envs with that name;
-ordinary saved approval answers remain bound to one creation identity. Review the
-intended rule lifetime and remove temporary settings when no longer needed.
+The CLI stages at most 128 regular files totaling 512 KiB; at least one root
+`.pkr.hcl` is required. Hidden entries are skipped; unsafe paths, links, special
+files and oversized contexts are rejected. These trusted scripts run on the Host,
+so do not put credentials in build contexts. Linux/WSL is the supported entry.
 
-`--builder` uses normal Environment names: lowercase letters/digits and internal
-hyphens, at most 57 characters. Omit it for a random name. A name already in use
-is refused without adopting or deleting that Env. Retained failures must be
-inspected before another attempt, or use another new name. Each attempt still has
-fresh ownership and the same isolated execution/publication/cleanup. The JSON shell
-definition also accepts `builder_name`; an explicit CLI option overrides it.
-See [ADR 0109](../adr/0109-named-build-environments.md).
+The template receives `HACO_PACKER_BUILD_ID`. It must write that value to the
+output image property `user.hacocoon.packer-build`; exactly one private container
+image must match. Packer variables retain ordinary HCL/`auto.pkrvars.hcl` semantics.
+Choose the source image in HCL. `--from` and `--builder` belong to JSON definitions.
 
-Packer is optional for ordinary Base selection and creation. A Packer build
-prepares Python 3, CA certificates and OpenSSH in its disposable Ubuntu builder
-when Python/OpenSSH tools are missing, using ordinary `apt-get` operations.
-Custom Bases can provide these tools themselves; otherwise a Base without apt
-fails the dependency stage. Nothing is installed on the Host by this plugin.
+There is no configured image-size cap or overall deadline by default. Use `--max-image-size 2TiB` to impose an optional cap, or `--max-image-size unlimited` to state the default explicitly; `haco base import` accepts the same option. Explicit caps apply to export, upload and controller validation. Signed file-offset representation and filesystem/storage capacity still apply. Transfers use bounded memory and do not load the image all at once. The import Env root disk quota scales to twice the artifact size with a 64 GiB minimum; if that exceeds Core's finite quota representation, only the disk uses its existing unlimited mode. CPU, memory and PID budgets remain finite. Disk-full errors retain the existing failure/recovery semantics. TB-scale image duration and disk consumption remain unverified.
 
-The guest downloads the official Linux amd64/arm64 Packer archive from
-`releases.hashicorp.com` and verifies a pinned SHA-256 before writing the fixed
-executable. Archive and executable sizes are bounded; archive paths are never
-extracted. Package/Packer/plugin downloads keep the normal proxy and approval
-path. A denied download fails; the build does not inject an allow rule or bypass
-the network guard. A new build downloads into a fresh guest-local directory;
-cross-build package/Packer caches are not implemented by this slice.
+## Artifact and publication
 
-The client copies at most 128 regular files, totaling 512 KiB. Paths use ASCII
-letters, digits, underscores, dots and hyphens, with at most eight components
-and 240 characters; each component starts with a letter, digit or underscore.
-At least one `.pkr.hcl` file must be at the directory root. Dot-prefixed entries
-(including `.git` and `.env`) are skipped. Other invalid names, symlinks,
-hardlinks, special files, collisions and oversized contexts are refused.
-Directory/file identities are pinned while reading; no Host directory is mounted
-in the builder. This is a script/configuration context, not a large-repository
-upload mechanism. Keep credentials out of ordinary source files too: selected
-files are deliberately supplied to the untrusted builder.
+`fmt -> init -> validate -> build` runs in a bounded systemd service/cgroup in
+`haco-host`. The worker verifies the nested project owner and image fingerprint,
+exports the native unified container image, and records its size, SHA-256 and CPU
+architecture. Packer's exit status is insufficient: the worker positively checks
+instance absence, then deletes exact image fingerprints in its owned project and
+removes that project and temporary context before starting import.
 
-Linux and WSL read the context; native non-Linux context collection is unsupported.
-Windows users invoke the Linux command through their normal WSL/Host entry.
-Projected Windows-file and installed Windows-to-WSL acceptance must be recorded
-separately from Linux component tests.
+The CLI uploads the artifact through the existing bounded `base.import` stream.
+The controller checks the operation ID, digest, size and supported local CPU,
+captures the complete input, and reuses native archive validation, ownership,
+resource limits and the canonical Base import/publication lifecycle. The temporary
+ordinary import Env is not a Packer runner. The controller consumes only an image.
+
+The existing immutable revision and alias contract is unchanged. Old Environments
+keep their pinned revision; a successful rebuild selects a new revision only for
+future Environments. JSON definitions remain a separate build path.
+See [Base archive import](base-images-and-custom-environments.md#import-a-container-image-archive).
 
 ## Results and failure
 
-`--json` returns Base identity/revision, state and any retained builder name.
-Dependency, preparation, formatting, initialization, validation and provisioning
-failures report a stage. `--output` additionally reveals the failed stage's
-private stdout/stderr, bounded to 16 KiB each with truncation flags in JSON.
-Human output is quoted to prevent guest terminal controls from posing as prompts.
-Output may include script contents or secrets written by the script; it never
-enters the controller's error/log chain. Successful stage output is not retained.
+Each attempt has a durable private receipt under
+`/var/lib/hacocoon-packer/builds/<build-id>/receipt.json`. It records the exact
+Base name, nested project, image fingerprint, artifact digest/size, stage and controller
+import builder `build-<build-id>`. Native publication records this builder name as
+`build_environment` in `haco base list --all --json`, retaining correlation even when a
+completed import loses its reply and removes its temporary Env. This is diagnostic
+metadata; deletion still requires the existing fingerprint and immutable build-instance identity. `--json` reports state and retained identity.
+No source, subprocess output or credentials enter controller logs.
 
-Cancellation and pre-publication failure use exact-owner temporary-Env cleanup.
-Cleanup ambiguity retains ownership and reports recovery-required. Publication
-uncertainty retains the builder and native image evidence for review. A published
-Base survives a later builder-cleanup failure. Retry starts a fresh build; it is
-not automatic replay. The ephemeral SSH keys, Packer files and build context live
-under `/run/hacocoon/packer` and are removed by the existing instance cleanup
-before publication. This is not a sanitizer for arbitrary secrets placed
-elsewhere by a user script.
+Invalid HCL, initialization/plugin/provisioner failure, cancellation, export
+failure or nested cleanup failure never starts import. Unknown mutation results
+retain the receipt and resources as recovery-required. Interrupted upload or an
+unconfirmed import reply retains the artifact and exact controller identity;
+there is no automatic retry, alias rollback or guessed resource deletion.
 
-The existing `haco base build base.json` form accepts bounded
-`name`, optional `from`, and `run`; do not convert HCL to that format. The private
-control request permits exactly one provisioning engine. Both paths reuse the
-same lifecycle service, leases and native catalog. See
-[ADR 0089](../adr/0089-guest-packer-provisioning.md).
+After confirmed import, transport cleanup removes only the exact operation's
+artifact and receipt. As with existing archive import, a complete published Base
+survives a subsequent cleanup failure; that outcome is reported as
+recovery-required, never success. Native publication uncertainty retains the
+canonical image/build evidence. A lost acknowledgement cannot prove the pointer
+did not move; inspect the receipt and native image rather than replaying import.
+
+Packer stages and image export have no wrapper deadline. The worker cgroup kills
+descendants on exit; a canceled CLI requests stop of its exact service. Bounded
+management, stalled-I/O and cleanup waits remain. If the caller is killed abruptly, the worker
+may continue: inspect the exact receipt and service, and stop that service if
+needed. Durable evidence does not authorize speculative resource deletion.
+
+[ADR 0113](../adr/0113-trusted-host-nested-packer.md) supersedes ADR 0089.

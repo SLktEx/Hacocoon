@@ -10,7 +10,7 @@ Incus/Btrfs and Windows-to-WSL SSH acceptance passed at `a2fcb72`.
 Existing Environments retain their original immutable revision when a name moves.
 No switch-base step is required.
 
-For actual Packer HCL2 and external shell scripts, use [Packer Base builds](packer-base-builds.md). The optional plugin provisions only the owned ordinary builder; the publication and cleanup rules below remain authoritative.
+For actual Packer HCL2 and external shell scripts, use [Packer Base builds](packer-base-builds.md). Packer runs in trusted haco-host against nested Incus; its native artifact uses the archive import lifecycle below.
 
 For a simple shell definition, save this as `base.json`:
 
@@ -184,12 +184,10 @@ reusable credentials. The normal source guard, Policy/Approval, DNS and guest ke
 renewal remain. The imported rootfs executes only with ordinary Env authority.
 The transport image is temporary and never promoted to the retained Base.
 
-Archive import then shares the definition/Packer builder's guest cleanup, stop,
+Archive import then shares the definition builder's guest cleanup, stop,
 immutable publication and atomic logical-alias update. All builders now receive
-finite defaults before start: 2 CPUs, 4 GiB RAM, 1,024 PIDs and 64 GiB root disk.
-Archive input/output are bounded to 64 GiB and one million native archive entries;
-the public operation has a 30-minute deadline. These are working limits, not
-large-repository performance claims. Source data and existing Base revisions remain.
+finite defaults before start: 2 CPUs, 4 GiB RAM and 1,024 PIDs. The import root disk quota is twice the captured archive size, with a 64 GiB minimum; beyond Core's finite quota representation, disk alone uses its existing unlimited mode. JSON builds retain their 64 GiB default.
+Archive import has no configured size cap or overall deadline by default; `--max-image-size` supplies an optional cap. File-offset/filesystem limits, bounded memory and the one-million-entry archive validation limit remain. This is not a large-image performance claim. Source data and existing Base revisions remain.
 
 Failed input does not publish a Base. Failed creation uses canonical exact-owned
 cleanup; ambiguous creation/publication retains its builder/native receipt.
@@ -198,3 +196,5 @@ pointer to unverified data. A published Base survives failed builder cleanup.
 Inspect the reported builder and Base before explicit cleanup or starting a fresh
 import. As with definitions, arbitrary secrets deliberately included in a rootfs
 cannot be automatically identified. See [ADR 0099](../adr/0099-base-archive-builder.md).
+
+Native Base images retain the originating builder Environment name for diagnostic correlation (`build_environment` in `haco base list --all --json`). Historical revisions may omit it. Deletion authority continues to require the exact fingerprint and immutable build-instance identity; a builder name alone never authorizes cleanup.

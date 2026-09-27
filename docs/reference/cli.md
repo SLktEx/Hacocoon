@@ -70,10 +70,12 @@ On the trusted Host, `haco cache settings` displays configured areas, `haco cach
 ## Build a Base with Packer
 
 ```sh
-haco base build --name my-tools [--from haco/ubuntu-26.04] [--builder <env>] [--output] [--json] <directory>
+haco base build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
 ```
 
-The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.
+Image size and total build/import duration have no configured cap by default. `--max-image-size unlimited` states the default explicitly; a finite value imposes a size cap. Cancellation and archive validation remain active.
+
+Run in trusted `haco-host` after `haco setup`. Packer and its pinned Incus plugin run there; a separate nested instance runs provisioners. Choose the source image in HCL. The directory contains HCL2 and external scripts. Options precede it. See [Packer builds](../design/packer-base-builds.md) for dependencies, data selection, results and recovery.
 
 ### Cache history and clear
 
@@ -94,7 +96,7 @@ Environment creation accepts `--dns host|backend|disabled` (default `host`); ord
 
 ## Base archive input
 
-`haco base import --name <base> [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
+`haco base import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
 
 See [input, limits and failure handling](../design/base-images-and-custom-environments.md#import-a-container-image-archive).
 
