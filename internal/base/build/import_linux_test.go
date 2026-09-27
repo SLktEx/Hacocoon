@@ -188,3 +188,27 @@ func TestImportRootDiskScalesWithArtifact(t *testing.T) {
 		}
 	}
 }
+
+// Digest verification must observe cancellation between chunks even after the
+// entire upload has been captured; large local artifacts can take time to hash.
+func TestArtifactDigestReadObservesCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	source := &cancelDigestReader{cancel: cancel}
+	n, err := io.Copy(sha256.New(), &importReader{ctx, source})
+	if n != 1 || !errors.Is(err, context.Canceled) || source.reads != 1 {
+		t.Fatal("digest read continued after cancellation", n, err, source.reads)
+	}
+}
+
+type cancelDigestReader struct {
+	cancel context.CancelFunc
+	reads  int
+}
+
+func (r *cancelDigestReader) Read(p []byte) (int, error) {
+	r.reads++
+	p[0] = 'x'
+	r.cancel()
+	return 1, nil
+}

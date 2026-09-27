@@ -45,7 +45,7 @@ func (s *Service) Import(ctx context.Context, req ImportRequest, source io.Reade
 			return result, core.ErrInvalidArgument
 		}
 		digest := sha256.New()
-		if _, err := io.Copy(digest, io.NewSectionReader(input, 0, n)); err != nil {
+		if _, err := io.Copy(digest, &importReader{ctx, io.NewSectionReader(input, 0, n)}); err != nil {
 			return result, err
 		}
 		if hex.EncodeToString(digest.Sum(nil)) != a.SHA256 {
