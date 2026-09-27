@@ -213,9 +213,9 @@ introduced.
 The owned Host-area E2E can build and run actual Docker/nerdctl images in the Host,
 copy its area through the canonical resource service, and run the same identities
 in a separate networkless instance with `--pull never`. The copy path does not
-export/import images. Docker 28.5.2 uses vfs and nerdctl 2.3.5/containerd 2.3.3 uses
-the native snapshotter in this fixture; other drivers/versions and full installed
-CLI recreation are separate acceptance scopes. It verifies independent image
+export/import images. The fixture does not force a Docker storage driver; nerdctl 2.3.5/containerd 2.3.3
+uses the native snapshotter. Driver/version portability and full installed CLI
+recreation remain separate acceptance scopes. It verifies independent image
 deletion and exact owned cleanup. Runtime binaries and build context are fixture
 inputs, not shared Host management sockets or credentials.
 
