@@ -59,8 +59,8 @@ unfinished copy marker. A pre-existing paused Host or marker is never adopted.
 This pause suspends Host processes; it is not a graceful Docker/containerd shutdown
 or a saved running-container migration. It offers a filesystem snapshot boundary;
 application crash recovery and usable image metadata require actual runtime
-acceptance. The real fixture now proves built-image recovery for Docker
-28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3/native after this pause/COW protocol.
+acceptance. The real fixture proves built-image recovery for Docker 28.5.2 without forcing a
+storage driver and for nerdctl 2.3.5/containerd 2.3.3/native after this pause/COW protocol.
 It does not prove clean application shutdown, running-container migration or
 all runtime versions/drivers.
 
@@ -104,7 +104,7 @@ copying its area. A separate networkless instance with compatible runtimes keeps
 the same image IDs and runs with `--pull never`; copy-image deletion leaves Host
 images usable. The fixture also verifies Btrfs ancestry and bidirectional area
 mutation/deletion, then removes its owned instances, volumes, Base, project and
-pool. Docker 28.5.2 uses vfs; nerdctl 2.3.5/containerd 2.3.3 uses native snapshots.
+pool. Docker 28.5.2 uses its selected supported storage driver; nerdctl 2.3.5/containerd 2.3.3 uses native snapshots.
 This is provider/runtime acceptance, not full installed CLI recreation or proof
 for arbitrary drivers, active tasks, runtime upgrades or interrupted copies.
 
