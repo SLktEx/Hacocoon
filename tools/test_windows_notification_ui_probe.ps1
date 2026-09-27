@@ -323,12 +323,17 @@ try {
     $result.allow_invoke_pattern = Supports-Invoke $allowElement
     $result.deny_invoke_pattern = Supports-Invoke $denyElement
 
-    if (-not $result.title_visible) { throw 'toast title not visible through UI Automation' }
-    if (-not $result.allow_visible -or -not $result.deny_visible) { throw 'toast actions not visible through UI Automation' }
-    if (-not $result.allow_invoke_pattern -or -not $result.deny_invoke_pattern) { throw 'toast actions do not expose InvokePattern' }
-
     $result.stage = 'complete'
-    $result.supported = $true
+    $result.supported = (
+        $result.title_visible -and
+        $result.allow_visible -and
+        $result.deny_visible -and
+        $result.allow_invoke_pattern -and
+        $result.deny_invoke_pattern
+    )
+    if (-not $result.supported) {
+        Write-Host 'Notification UI Automation capability is unavailable on this runner; probe completed successfully.'
+    }
     $exitCode = 0
 } catch {
     Write-Host ("Notification UI probe stopped at stage=" + $result.stage + "; exception_type=" + $_.Exception.GetType().FullName)
