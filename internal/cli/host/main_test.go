@@ -36,7 +36,7 @@ func (fakeControllerClient) OpenEnvironmentShell(context.Context, string) (net.C
 	return nil, errors.New("not implemented")
 }
 
-func (fakeControllerClient) DeleteEnvironment(context.Context, string) error {
+func (fakeControllerClient) RemoveEnvironment(context.Context, string, bool) error {
 	return nil
 }
 
@@ -76,5 +76,32 @@ func TestParseCreateRequestRejectsDuplicateWorkspace(t *testing.T) {
 	_, err := parseCreateRequest([]string{"--workspace", "/a", "--workspace", "/b", "demo"})
 	if !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+type deletingControllerClient struct {
+	fakeControllerClient
+	name  string
+	force bool
+	calls int
+}
+
+func (c *deletingControllerClient) RemoveEnvironment(_ context.Context, name string, force bool) error {
+	c.name, c.force = name, force
+	c.calls++
+	return nil
+}
+func TestHostDeleteCarriesExplicitForceToController(t *testing.T) {
+	for _, args := range [][]string{{"dev"}, {"-f", "dev"}, {"dev", "--force"}} {
+		c := &deletingControllerClient{}
+		if err := envDeleteCommand(context.Background(), c, args); err != nil || c.name != "dev" || c.force != (len(args) == 2) || c.calls != 1 {
+			t.Fatal(args, c, err)
+		}
+	}
+	for _, args := range [][]string{{}, {"-f"}, {"dev", "extra"}, {"--unknown", "dev"}, {"-f", "--force", "dev"}} {
+		c := &deletingControllerClient{}
+		if err := envDeleteCommand(context.Background(), c, args); !errors.Is(err, core.ErrInvalidArgument) || c.calls != 0 {
+			t.Fatal(args, c, err)
+		}
 	}
 }

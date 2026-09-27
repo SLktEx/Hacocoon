@@ -97,7 +97,7 @@ class CheckDocsRegressionTest(unittest.TestCase):
     def test_rejects_legacy_top_level_command_in_getting_started(self):
         self.mutate_and_require_failure(
             "docs/guides/getting-started.md",
-            lambda text: text + "\n```sh\nhaco create demo\n```\n",
+            lambda text: text + "\n```sh\nhaco run demo\n```\n",
             "legacy/product CLI namespace mismatch",
         )
 

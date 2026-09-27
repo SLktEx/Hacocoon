@@ -55,6 +55,11 @@ func (s *EnvironmentJSONStore) beginEnvironmentCreate(_ context.Context, lease c
 	if saved != nil && !reflect.DeepEqual(data.Snapshots[saved.ID], *saved) {
 		return core.ErrCapabilityStale
 	}
+	for name, work := range data.OwnedWorkspaceCleanup {
+		if name == lease.EnvironmentID || work.ID == lease.WorkspaceID || work.Path == lease.SourcePath {
+			return core.ErrRecoveryRequired
+		}
+	}
 	if _, ok := data.Environments[lease.EnvironmentID]; ok {
 		return fmt.Errorf("environment %q: %w", lease.EnvironmentID, core.ErrAlreadyExists)
 	}
@@ -268,6 +273,12 @@ func (s *EnvironmentJSONStore) FinalizeEnvironmentDelete(_ context.Context, envi
 				return core.ErrRecoveryRequired
 			}
 		}
+	}
+	if data.LastOpened == environmentID {
+		data.LastOpened = ""
+	}
+	if env, ok := data.Environments[environmentID]; ok && env.OwnedWorkspace {
+		data.OwnedWorkspaceCleanup[environmentID] = env.Workspace
 	}
 	delete(data.Environments, environmentID)
 	delete(data.Leases, environmentID)

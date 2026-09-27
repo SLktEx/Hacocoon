@@ -25,7 +25,7 @@ type controllerClient interface {
 	EnvironmentStatus(context.Context, string) (core.EnvironmentStatus, error)
 	ExecEnvironment(context.Context, string, []string) (core.ExecutionResult, error)
 	OpenEnvironmentShell(context.Context, string) (net.Conn, error)
-	DeleteEnvironment(context.Context, string) error
+	RemoveEnvironment(context.Context, string, bool) error
 }
 
 type commandExitError struct{ code int }
@@ -224,10 +224,23 @@ func envShellCommand(ctx context.Context, client controllerClient, args []string
 }
 
 func envDeleteCommand(ctx context.Context, client controllerClient, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: haco-host env delete <environment>: %w", core.ErrInvalidArgument)
+	name, force := "", false
+	for _, arg := range args {
+		if arg == "-f" || arg == "--force" {
+			if force {
+				return core.ErrInvalidArgument
+			}
+			force = true
+		} else if strings.HasPrefix(arg, "-") || name != "" {
+			return core.ErrInvalidArgument
+		} else {
+			name = arg
+		}
 	}
-	return client.DeleteEnvironment(ctx, args[0])
+	if core.ValidateEnvironmentName(name) != nil {
+		return fmt.Errorf("usage: haco-host env delete [-f] <environment>: %w", core.ErrInvalidArgument)
+	}
+	return client.RemoveEnvironment(ctx, name, force)
 }
 
 func doctorCommand(ctx context.Context, client controllerClient, args []string) error {

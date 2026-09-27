@@ -47,51 +47,26 @@ func (r *quiesceRuntime) StartEnvironment(context.Context, string) error {
 	}
 	return nil
 }
-func TestSnapshotRunningCaptureQuiescesAndRetainsOutcome(t *testing.T) {
-	for _, failure := range []string{"", "stopped", "stop", "stop-unconfirmed", "identity", "capture", "start", "start-unconfirmed"} {
-		t.Run(failure, func(t *testing.T) {
+func TestSnapshotCapturePreservesSourceState(t *testing.T) {
+	for _, running := range []bool{false, true} {
+		for _, fail := range []bool{false, true} {
 			_, store, backend := captureFixture(t)
-			rt := &quiesceRuntime{captureRuntime: backend, running: failure != "stopped", failure: failure}
+			rt := &quiesceRuntime{captureRuntime: backend, running: running}
 			svc := New(rt, store)
-			if failure == "capture" {
+			if fail {
 				store.trace.fail = "verify:rootfs"
 			}
 			saved, err := svc.CaptureSnapshot(context.Background(), "resume")
-			switch failure {
-			case "", "stopped":
-				if err != nil || saved.State != "ready" {
-					t.Fatal(saved, err)
-				}
-			case "start", "start-unconfirmed":
-				if err == nil || saved.State != "ready" || saved.ID == "" {
-					t.Fatal("lost completed save", saved, err)
-				}
-			case "capture":
-				if !errors.Is(err, core.ErrRecoveryRequired) || saved.State != "recovery-required" || rt.running {
-					t.Fatal(saved, err)
-				}
-			default:
-				if err == nil || saved.ID != "" || len(store.trace.events) != 0 {
-					t.Fatal("capture before stop/identity confirmation", saved, err, store.trace.events)
-				}
+			if !fail && (err != nil || saved.State != "ready") {
+				t.Fatal(saved, err)
 			}
-			if failure == "" && !reflect.DeepEqual(rt.events, []string{"inspect", "stop", "inspect", "start", "inspect"}) {
-				t.Fatal(rt.events)
+			if fail && err == nil {
+				t.Fatal("capture failure lost")
 			}
-			if failure == "stopped" && (!reflect.DeepEqual(rt.events, []string{"inspect"}) || rt.running) {
-				t.Fatal("stopped source restarted", rt.events)
+			if rt.running != running || !reflect.DeepEqual(rt.events, []string{"inspect"}) {
+				t.Fatal("capture changed source state", rt.events)
 			}
-			if saved.ID != "" {
-				items, e := svc.ListSnapshots(context.Background(), "")
-				if e != nil || len(items) != 1 || items[0].ID != saved.ID || items[0].State != saved.State {
-					t.Fatal("durable result differs", items, e)
-				}
-				items, e = svc.ListSnapshots(context.Background(), "other")
-				if e != nil || len(items) != 0 {
-					t.Fatal(items, e)
-				}
-			}
-		})
+		}
 	}
 }
 

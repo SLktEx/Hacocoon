@@ -109,7 +109,7 @@ nerdctl --snapshotter native images --digests
 buildctl du
 ''')
     before = guest(first,'nerdctl --snapshotter native image inspect --format "{{.Id}}" docker.io/library/busybox:latest hacocoon-test:local').stdout
-    haco('env','delete',first)
+    haco('env','delete','-f',first)
     retained = json.loads(haco('plugin','oci','store','inspect',store_a).stdout)['resources'][0]
     assert retained == a
     policy(first,remove=True)
@@ -126,11 +126,11 @@ nerdctl --snapshotter native build --progress plain --network none -t hacocoon-t
 buildctl du
 ''')
     assert 'CACHED' in reused.stderr + reused.stdout
-    haco('env','delete',second)
+    haco('env','delete','-f',second)
     policy(second,remove=True)
     haco('env','create','--workspace',str(work),'--resource','oci:'+store_b,separate)
     guest(separate,'test ! -d /var/lib/hacocoon-oci/containerd && test ! -d /var/lib/hacocoon-oci/buildkit && test -f /workspace/build-context/marker')
-    haco('env','delete',separate)
+    haco('env','delete','-f',separate)
     haco('plugin','oci','store','delete',store_a)
     haco('plugin','oci','store','delete',store_b)
     assert haco('plugin','oci','store','inspect',store_a,check=False).returncode != 0

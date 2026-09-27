@@ -4,7 +4,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、実行中のEnvironment内でのコマンド実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
 
 ## 概要
 
@@ -182,7 +182,7 @@ haco-host env create --workspace <path> <environment>
 haco-host env status <environment>
 haco-host env exec <environment> -- <command...>
 haco-host env shell <environment>
-haco-host env delete <environment>
+haco-host env delete [-f] <environment>
 haco-host doctor
 ```
 
@@ -275,15 +275,12 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 - 実需が出た場合のみremote 通信
 - profilingで必要性が示された場合のみFD passing / zero-copy
 
-## 一時実行のキャンセル
+## Environment実行とキャンセル
 
-状態: **通信と製品の一時実行 CLI は実装済み**。
-`run.execute` はストリーム handshake の後、サイズ制限付きの JSON 結果を1つ返します。
-入力 frame は受け付けません。クライアント接続の切断や想定外の入力で execution を中断します。
-正規の run 後始末は独立した期限を使い、呼出元は切断を削除成功と扱ってはいけません。
-結果の書込み期限は30秒です。通常のライフサイクル RPC の意味は変えません。
-pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で再試行しません。
-詳細は [ADR 0018](../adr/0018-ephemeral-run-cancellation.md) を参照してください。
+`environment.process` は `haco exec` と `haco env exec` の共通経路です。
+既存の起動中Environmentだけを選び、所有権・generation・Workspace leaseを確認し、
+削除と共通のlifecycle lockを実行終了まで保持します。停止中は失敗し、自動起動しません。
+切断時はコマンドを中断しますがEnvironmentを削除・停止しません。
 
 ## 日常の Environment 確認
 
@@ -332,12 +329,12 @@ Windows 操作権限も与えません。[対象識別の取得](storage-reclama
 
 `system.setup.progress`は既存の特権管理socketだけで利用する、上限付きJSONイベントstreamです。`system.setup`と一つの排他を共有し、同じserviceを呼びます。固定stage/state/reason、所要時間、controller生成の相関IDを返します。完了には最終frameを要求し、EOFを成功とみなしません。CLIは別の変更要求へfallbackしません。接続断でも時間制限付き処理が戻るまでserver側のlifecycle所有権を維持します。guest endpointや新たな管理権限は追加しません。[setup診断](trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。
 
-## 一時実行の双方向転送
+## Environmentの双方向実行
 
-`run.process`は上限付きのstdin/stdout/stderr、入力終了・受信可能量、共通cleanup後の結果を転送します。
-接続切断時は中断し、結果や通信完了が確認できなければ不明として残します。既存の端末サイズ制御と
-providerの任意の実行契約を使い、clientにIncus管理権限を渡しません。[一時実行](temporary-execution.ja.md)と
-[ADR 0085](../adr/0085-bounded-process-streams.md)を参照してください。
+上限付きstdin/stdout/stderr、EOF・受信可能量、明示的な終了結果を転送します。
+`-i` は標準入力、`-t` はPTYを選び、`-it`も使えます。`-w`は作業ディレクトリを指定します。
+端末のサイズ変更と復元を共通処理で行い、guestへIncus管理権限を渡しません。
+旧一時実行の公開RPCは撤去しました。[作成仕様](environment-creation.ja.md)を参照してください。
 
 ## client側TCP待受
 

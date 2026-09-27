@@ -9,15 +9,14 @@
 [インストール](../guides/installation.ja.md)後、信頼された管理端末で実行します。
 
 ```bash
-haco repo add api https://github.com/OWNER/API.git
-haco repo add web https://github.com/OWNER/WEB.git
+haco repo add https://github.com/OWNER/API.git
 haco open
 ```
 
-URLを作業対象に置き換えてください。独立したファイル、既定Base、設定済みの保存領域を
+URLを作業対象に置き換えてください。独立したファイル、既定Image、設定済みの保存領域を
 準備し、環境を作成・再利用してRemote-SSH導入済みのVS Codeを開きます。
 シェルなら`haco open --client ssh`です。認証情報は信頼されたHostに保持します。
-編集先は`/workspace/api`・`/workspace/web`で、リポジトリ1個なら`/workspace`です。
+1個なら`/workspace`、複数なら`/workspace/<repository-id>`で編集します。
 
 進捗はstderrに表示します。承認待ちがある場合は別の信頼された端末で`haco approve`を
 実行すると、回答後に処理を続行します。既定denyではpromptを作りません。
@@ -27,23 +26,23 @@ URLを作業対象に置き換えてください。独立したファイル、�
 
 ## 作業に戻る
 
-同じ管理ユーザーのhomeから再び`haco open`を実行します。同じ作業を再利用し、停止済みなら
+再び`haco open`を実行します。最後に開いたEnvironmentを再利用し、停止済みなら
 再開します。エディタやシェルの終了だけでは停止しません。意図的に停止する場合は
 `haco env list`で名前を確認し、`haco env stop <environment>`を実行します。
 次回の`haco open`だけで再開でき、startは不要です。停止なら導入ツール・rootfs・編集・
 設定済みOCIデータを保持します。削除とは異なります。
 
-最初の構成はリポジトリ1〜8個です。後で登録を変更しても既存の作業を上書きしません。
-構成変更には明示的なforkを使います。[通常の開発環境](../design/default-development-session.ja.md)を参照してください。
+登録が0件でも空のWorkspaceで開始できます。登録変更は今後の作成だけに反映します。
+現在の登録集合で作るなら`haco open --new`、保存データを使うなら`--snapshot SNAPSHOT`です。
+[作成仕様](../design/environment-creation.ja.md)を参照してください。
 
-## 詳細な選択と設定
+**Env内**の`/workspace`で編集し、そのrepositoryのbuild/testを実行します。Go repositoryなら例として`go build ./...`、`go test ./...`です。network/package/Git操作には引き続きPolicy/承認が必要です。独立した作業は`haco open --new [IMAGE]`で新しいEnvironmentを作成します。
 
-既存の明示的なコマンドも使えます。環境名を指定するopen、`haco open --select`による
-既存環境の選択、`haco open .`による所有者を固定した参照の再開を維持します。
+既存の明示的なコマンドも使えます。環境名を指定するopen、`haco open .`による所有者を固定した参照の再開を維持します。
 新しいディレクトリには`--repo`が必要で、内容を暗黙に取り込みません。
 [Workspace準備・fork](../design/workspace-workflow.md)と[CLI参照](cli.ja.md)から
 Workspace・Env・Base・ストレージ・通信・設定を明示的に操作できます。
-通常のopenでも`--base`・`--oci`を指定できますが、既存の互換性検証に従います。
+`--base`・`--oci`は明示的なディレクトリ操作で利用できます。新規作成の既定値は`haco image default [IMAGE]`で確認・変更します。
 
 `haco ssh setup <environment>`は接続の準備だけを行います。
 `haco open --client none --json`は通常の環境を準備・再開して識別情報を返し、
@@ -52,9 +51,9 @@ Workspace・Env・Base・ストレージ・通信・設定を明示的に操作�
 
 ## 対象・script利用・キャンセル
 
-明示的なlifecycle操作には名前を指定します。open --selectとssh setupは端末の番号一覧から選択でき、空入力なら接続変更前にキャンセルします。Envが一つだけなら自動選択できます。scriptでは常に名前を指定してください。非対話で選択が曖昧な場合は入力待ちにしません。オプションは対象より前に置き、各commandの`--help`で書式を確認します。
+明示的なlifecycle操作には名前を指定します。ssh setupは端末の番号一覧から選択でき、空入力なら接続変更前にキャンセルします。Envが一つだけなら自動選択できます。scriptでは常に名前を指定してください。非対話で選択が曖昧な場合は入力待ちにしません。オプションは対象より前に置き、各commandの`--help`で書式を確認します。
 
-結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json <environment>`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。一時実行は別契約で時間制限付きcleanupを要求し、その確認結果を返します。
+結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json <environment>`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。作成失敗時は新たに所有したresourceをcleanupし、既存の作業環境は自動再作成しません。
 
 ## 失敗後の操作
 
@@ -77,6 +76,10 @@ backendの生出力や秘密は診断フィールドに含めません。stream�
 
 ## 必要なものだけ削除する
 
-**trusted haco-host内**の`haco env delete <environment>`は、明示対象と消える・残るデータを表示して既存の正規削除APIを呼びます。Env runtime/rootfs/接続を除去し、Workspace、OCI Store、独立snapshotは保持します。明示Env名を削除意思として扱う既存契約を維持し、新たなpromptや互換性を壊すcommand改名は追加しません。失敗時には不在を確認できておらず、所有権・leaseはlifecycle APIの規則で保持します。
-
-`haco workspace list`、`haco plugin oci store list`、`haco snapshot list`で保持データを確認します。別のWorkspace/Store deleteは消える内容を表示し、確認または`--yes`を要求します。Workspace削除では未commit・未追跡・未pushの作業も消え得ます。必要なデータは独立snapshotやexportに保持してください。今回の変更で保持単位は再設計しません。
+`haco env delete ENV`（または`haco rm ENV`）はrootfsと自動生成したWorkspace・OCIデータを
+確認promptなしで削除します。起動中なら`-f`が必要で、停止してから削除します。
+明示Volume・独立Workspace・Snapshotは保持し、`haco volume ls`、`haco workspace list`、
+`haco snapshot ls`で確認できます。独立データの削除は各コマンドの確認規則に従います。
+自動Workspaceの未commit・未追跡・未pushの作業もEnvironmentとともに消えます。
+必要なら先にSnapshot・Volume・exportへ保存してください。cleanup失敗時は不在確認まで
+所有権を保持します。[データの寿命](../guides/data-lifetime.ja.md)を参照してください。

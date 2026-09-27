@@ -16,7 +16,7 @@ var hostHelpPages = []cliui.CommandHelp{
 	{Path: "env status", Syntax: "<environment> [--json]", Message: "command.env.status", Example: "haco-host env status dev"},
 	{Path: "env exec", Syntax: "<environment> -- <command...>", Message: "command.env.exec", Example: "haco-host env exec dev -- pwd"},
 	{Path: "env shell", Syntax: "<environment>", Message: "command.env.shell", Example: "haco-host env shell dev"},
-	{Path: "env delete", Syntax: "<environment>", Message: "command.env.delete", Example: "haco-host env delete dev"},
+	{Path: "env delete", Syntax: "[-f] <environment>", Message: "command.env.delete", Example: "haco-host env delete dev"},
 	{Path: "doctor", Syntax: "", Message: "command.host.doctor", Example: "haco-host doctor"},
 }
 
@@ -34,7 +34,7 @@ func init() {
 			page.Arguments = []cliui.HelpField{{Syntax: "<environment>", Message: "detail.env_new"}}
 			page.Options = []cliui.HelpField{
 				{Syntax: "--workspace <path>", Message: "detail.workspace_required"},
-				{Syntax: "--read-only", Message: "run.flag_readonly"},
+				{Syntax: "--read-only", Message: "host.flag_readonly"},
 				{Syntax: "--base <base>", Message: "detail.base"},
 				{Syntax: "--cpu <n|unlimited>", Message: "detail.host_cpu"},
 				{Syntax: "--memory <size|unlimited>", Message: "detail.host_memory"},
@@ -46,6 +46,9 @@ func init() {
 			page.Arguments = []cliui.HelpField{{Syntax: "<environment>", Message: "detail.env"}}
 			if page.Path == "env status" {
 				page.Options = []cliui.HelpField{{Syntax: "--json", Message: "flag.json"}}
+			}
+			if page.Path == "env delete" {
+				page.Options = []cliui.HelpField{{Syntax: "-f, --force", Message: "detail.force_delete"}}
 			}
 			if page.Path == "env exec" {
 				page.Arguments = append(page.Arguments, cliui.HelpField{Syntax: "-- <command...>", Message: "detail.command"})

@@ -38,7 +38,7 @@ func (r *Router) ExportSnapshotWorkspaces(ctx context.Context, saved core.Snapsh
 	if !ok {
 		return nil, core.ErrUnsupported
 	}
-	native, err := r.nativeRestoreSnapshot(saved, id)
+	native, err := r.nativeSavedSnapshot(saved, id)
 	if err != nil {
 		return nil, err
 	}

@@ -128,8 +128,31 @@ func run(args []string) int {
 		return runSSH(args[1:])
 	case "open":
 		return runOpen(args[1:])
-	case "run":
-		return runTemporary(args[1:])
+	case "exec":
+		return runExec(args[1:])
+	case "restart":
+		if code := runEnvironment(append([]string{"stop"}, args[1:]...)); code != 0 {
+			return code
+		}
+		return runEnvironment(append([]string{"start"}, args[1:]...))
+	case "create":
+		return runCreate(args[1:])
+	case "commit":
+		return runImageCommand("commit", args[1:])
+	case "image":
+		return runImage(args[1:])
+	case "volume":
+		return runVolume(args[1:])
+	case "images":
+		return runImage(append([]string{"ls"}, args[1:]...))
+	case "ps":
+		return runEnvironment(append([]string{"list"}, args[1:]...))
+	case "start", "stop":
+		return runEnvironment(args)
+	case "rm":
+		return runEnvironment(append([]string{"delete"}, args[1:]...))
+	case "inspect":
+		return runEnvironment(append([]string{"status"}, args[1:]...))
 	case "snapshot":
 		return runSnapshot(args[1:])
 	case "env":

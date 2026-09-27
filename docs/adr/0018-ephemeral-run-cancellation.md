@@ -1,5 +1,8 @@
 # ADR 0018: Bind ephemeral execution to its client connection
 
+Public CLI/RPC decisions are superseded by [ADR 0113](0113-unified-environment-creation.md). The original rationale below is historical.
+
+
 Status: accepted  
 Date: 2026-09-07
 

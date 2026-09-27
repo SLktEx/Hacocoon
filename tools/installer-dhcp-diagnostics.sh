@@ -12,7 +12,7 @@ created=0
 cleanup() {
   set +e
   if [[ "$created" == "1" ]]; then
-    "$haco_bin" env delete "$name" >/dev/null 2>&1 || true
+    "$haco_bin" env delete -f "$name" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }

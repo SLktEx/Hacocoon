@@ -4,7 +4,7 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and execution in running Environments. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
 
 ## Summary
 
@@ -184,7 +184,7 @@ haco-host env create --workspace <path> <environment>
 haco-host env status <environment>
 haco-host env exec <environment> -- <command...>
 haco-host env shell <environment>
-haco-host env delete <environment>
+haco-host env delete [-f] <environment>
 haco-host doctor
 ```
 
@@ -283,16 +283,13 @@ Still planned:
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
 
-## Ephemeral execution cancellation
+## Environment execution and cancellation
 
-Status: **implemented transport and product temporary-run CLI**.
-`run.execute` uses a stream handshake followed by one bounded JSON result.
-No input frames are accepted. Closing the client connection or sending unexpected
-input cancels execution. Canonical run cleanup uses its independent deadline; the
-caller must not interpret disconnection as successful cleanup. Result writes have
-a 30-second deadline. Ordinary lifecycle RPCs retain their existing semantics.
-The previous pre-1.0 call form is replaced without retrying ambiguous executions.
-See [ADR 0018](../adr/0018-ephemeral-run-cancellation.md).
+`environment.process` serves both `haco exec` and `haco env exec`. It selects an
+existing running Environment, validates generation and Workspace ownership, and
+holds the canonical lifecycle lock until execution ends. Stopped Environments
+fail without automatic start. Disconnect cancels the command; it does not stop
+or delete the Environment.
 
 ## Daily Environment inspection
 
@@ -355,14 +352,14 @@ retains server-side lifecycle ownership until the bounded operation returns.
 There is no guest endpoint registration or new management authority. See
 [setup diagnostics](trusted-host.md#setup-progress-and-failure-diagnostics).
 
-## Temporary process streams
+## Environment process streams
 
-The negotiated `run.process` stream carries bounded stdin/stdout/stderr, explicit
-input EOF/credit and a final receipt after canonical cleanup. Disconnect cancels;
-receipt/frame or session-completion failure remains unconfirmed. It reuses existing
-TTY sizing and optional provider process contracts; clients receive no Incus
-authority. See [temporary execution](temporary-execution.md) and
-[ADR 0085](../adr/0085-bounded-process-streams.md).
+The stream carries bounded stdin/stdout/stderr, explicit EOF/credit and a required
+exit receipt. `-i` selects stdin, `-t` selects a PTY, and `-it` combines them;
+`-w` selects the guest working directory. Shared terminal sizing/restoration and
+provider process contracts remain; no Incus management authority reaches guests.
+The old public temporary-execution RPCs are removed. See
+[creation semantics](environment-creation.md).
 
 ## Client TCP listeners
 

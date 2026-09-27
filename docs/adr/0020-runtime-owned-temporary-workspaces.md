@@ -1,5 +1,8 @@
 # ADR 0020: Keep temporary Workspaces inside the owned runtime
 
+Public CLI/RPC decisions are superseded by [ADR 0113](0113-unified-environment-creation.md). The original rationale below is historical.
+
+
 Status: accepted
 Date: 2026-09-07
 
@@ -37,7 +40,7 @@ next run retries the existing marked-run reconciliation.
 
 ## Consequences
 
-The product command is haco run [--rm] -- command. Removal is always enabled;
+The retired temporary-execution command always enabled removal;
 --rm is optional spelling for familiar one-shot use, and --rm=false is rejected.
 An explicit --workspace retains that Workspace and its default Store.
 There is no implicit Host home mount, optional-runtime dependency in Core,

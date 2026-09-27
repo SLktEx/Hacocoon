@@ -412,6 +412,9 @@ PYINIT
   start)
     instance="${1:-}"; echo RUNNING > "$state/instance-$instance"
     ;;
+  stop)
+    instance="${1:-}"; echo STOPPED > "$state/instance-$instance"
+    ;;
   list)
     case " $* " in *' --format json '*) printf '%s\n' '[]'; exit 0 ;; esac
     instance="${1:-}"; [ -f "$state/instance-$instance" ] || exit 0
@@ -457,11 +460,11 @@ go build -o "$controller" ./cmd/haco-controller
 haco_start_test_controller "$controller" "$root/control.sock" "$root/controller.out" "$root/controller.err"
 
 # Base catalog: logical names resolve to immutable revisions.
-"$haco" base list > "$root/bases.txt"
+"$haco" image ls > "$root/bases.txt"
 grep -Fq 'haco/ubuntu-24.04' "$root/bases.txt"
 grep -Fq 'haco/ubuntu-26.04' "$root/bases.txt"
 grep -Fq 'my-dev' "$root/bases.txt"
-base_info="$($haco base inspect my-dev --json)"
+base_info="$($haco image inspect my-dev --json)"
 python3 - "$base_info" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
@@ -506,7 +509,12 @@ if grep -Fq -- '--profile haco-sandbox' "$HACO_FAKE_INCUS_LOG"; then
   echo 'managed local orchestration unexpectedly inherited the sandbox profile' >&2
   exit 1
 fi
-"$haco_host" env delete base-demo
+if "$haco_host" env delete base-demo >"$root/delete-running.out" 2>"$root/delete-running.err"; then
+  echo 'running Environment deletion succeeded without force' >&2
+  exit 1
+fi
+[[ "$(cat "$state/instance-haco-base-demo")" == RUNNING ]]
+"$haco_host" env delete -f base-demo
 
 # Resource budgets are applied and verified before start.
 "$haco_host" env create --cpu 2 --memory 512MiB --pids 64 --root-size 8GiB --workspace "$workspace" resource-demo >/dev/null
@@ -526,31 +534,19 @@ grep -Fq 'config device set haco-resource-demo root size=8589934592B --project h
 last_limit_line="$(grep -n 'config device get haco-resource-demo root size --project hacocoon' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
 start_line="$(grep -n '^start haco-resource-demo --project hacocoon$' "$HACO_FAKE_INCUS_LOG" | tail -1 | cut -d: -f1)"
 [[ -n "$last_limit_line" && -n "$start_line" && "$last_limit_line" -lt "$start_line" ]]
-"$haco_host" env delete resource-demo
+"$haco_host" env delete -f resource-demo
 
-json="$($haco run --no-oci --workspace "$workspace" --json -- sh -c "printf 'agent-ok\\n'; printf 'from-run\\n' > /workspace/result.txt")"
-python3 - "$json" <<'PY'
-import json,sys
-r=json.loads(sys.argv[1])
-assert r['environment'].startswith('run-'), r
-assert r['execution']['exit_code'] == 0, r
-assert r['execution']['stdout'] == 'agent-ok\n', r
-assert r['execution']['stderr'] == '', r
-assert r['cleaned_up'] is True, r
-PY
-[[ "$(cat "$workspace/result.txt")" == from-run ]]
-run_name="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["environment"])' "$json")"
-grep -Fq 'image info images:ubuntu/26.04 --format json' "$HACO_FAKE_INCUS_LOG"
-grep -Fq "init images:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa haco-$run_name" "$HACO_FAKE_INCUS_LOG"
-grep -Fq "delete haco-$run_name" "$HACO_FAKE_INCUS_LOG"
-[[ ! -e "$state/instance-haco-$run_name" ]]
-
+"$haco" env create --no-oci --workspace "$workspace" exec-demo
+output="$("$haco" exec exec-demo -- sh -c "printf 'agent-ok\\n'; printf 'from-exec\\n' > /workspace/result.txt")"
+[[ "$output" == agent-ok ]]
+[[ "$(cat "$workspace/result.txt")" == from-exec ]]
 set +e
-"$haco" run --no-oci --workspace "$workspace" -- sh -c "printf 'run-error\\n' >&2; exit 17" >"$root/run.out" 2>"$root/run.err"
-run_code=$?
+"$haco" exec exec-demo -- sh -c "printf 'exec-error\\n' >&2; exit 17" >"$root/exec.out" 2>"$root/exec.err"
+exec_code=$?
 set -e
-[[ "$run_code" == 17 ]]
-grep -Fq run-error "$root/run.err"
-[[ "$(grep -c '^delete haco-run-' "$HACO_FAKE_INCUS_LOG")" -ge 2 ]]
+[[ "$exec_code" == 17 ]]
+grep -Fq exec-error "$root/exec.err"
+"$haco" rm -f exec-demo
+[[ ! -e "$state/instance-haco-exec-demo" ]]
 
 echo 'PASS: Hacocoon orchestration, Base, resource, storage, and isolated-bridge E2E'

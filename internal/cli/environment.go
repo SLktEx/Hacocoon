@@ -20,7 +20,7 @@ import (
 func runEnvironment(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if len(args) > 0 && args[0] == "tunnel" {
+	if len(args) > 0 && (args[0] == "tunnel" || args[0] == "exec") {
 		return environmentCommand(ctx, args, os.Stdout, os.Stderr)
 	}
 	timeout := 15 * time.Minute
@@ -33,6 +33,15 @@ func runEnvironment(args []string) int {
 }
 
 func environmentCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
+	if len(args) > 0 && args[0] == "exec" {
+		return execCommand(ctx, controlapi.NewDefaultClient(), args[1:], os.Stdin, out, diagnostic)
+	}
+	if len(args) > 0 && args[0] == "ls" {
+		args = append([]string{"list"}, args[1:]...)
+	}
+	if len(args) > 0 && args[0] == "inspect" {
+		args = append([]string{"status"}, args[1:]...)
+	}
 	if requestedCommandHelp(append([]string{"env"}, args...), out) {
 		return 0
 	}
@@ -68,7 +77,7 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	var workspace, keyPath, base, resource, protocol, dnsMode string
 	var targetPort int
 	var port int
-	var jsonOutput, noOCI bool
+	var jsonOutput, noOCI, force bool
 	switch args[0] {
 	case "forward":
 		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
@@ -88,13 +97,17 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 	case "ssh-config":
 	case "status", "list":
 		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
-	case "disconnect", "start", "stop", "delete":
+	case "delete":
+		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
+		flags.BoolVar(&force, "f", false, "Stop before deleting")
+		flags.BoolVar(&force, "force", false, "Stop before deleting")
+	case "disconnect", "start", "stop":
 		flags.BoolVar(&jsonOutput, "json", false, cliMessage("flag.json"))
 	default:
 		return usage()
 	}
 	flags.Usage = func() { usage() }
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := parseInterspersed(flags, args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
@@ -135,8 +148,8 @@ func environmentCommand(ctx context.Context, args []string, out, diagnostic io.W
 			}
 		}
 	case "delete":
-		err = client.DeleteEnvironment(ctx, pos[0])
-		result = "Environment deleted; Workspace and persistent resources retained"
+		err = client.RemoveEnvironment(ctx, pos[0], force)
+		result = "Environment deleted; explicit Volumes retained"
 	case "list":
 		var environments []core.Environment
 		environments, err = client.ListEnvironments(ctx)

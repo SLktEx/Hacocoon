@@ -36,7 +36,7 @@ var operationCatalog = map[string]translation{
 	"source.delete_warning":              {"This deletes the selected Host source repository and its local Git data. Remote repositories, Workspaces, OCI Stores and independent snapshots remain.", "選択したHost側の取得元リポジトリと、そのローカルGitデータを削除します。リモートリポジトリ、Workspace、OCI Store、独立したsnapshotは残ります。"},
 	"source.delete_prompt":               {"Delete this source repository? [y/N] ", "この取得元リポジトリを削除しますか？ [y=削除 / N=保持（未入力は保持）] "},
 	"source.retained":                    {"Source retained.", "取得元リポジトリを保持しました。"},
-	"source.deleted":                     {"Source repository deleted; remote and independent data retained", "取得元リポジトリを削除しました。リモートと独立したデータは保持しています。"},
+	"source.deleted":                     {"Repository unregistered; existing Environments and Git connections retained", "Repositoryの登録を解除しました。既存EnvironmentとGit接続は保持しています。"},
 	"source.columns":                     {"TYPE\tNAME\tOWNER\tSTATE\tREMOTE\tBRANCH\tWORKSPACE USERS", "種類\t名前\t所有者\t状態\tリモート\tブランチ\t使用中のWorkspace"},
 	"store.duplicate":                    {"haco: duplicate Store identity", "haco: OCI Storeの識別情報が重複しています。削除せず、一覧を確認してください。"},
 	"store.missing":                      {"haco: Store not found", "haco: OCI Storeが見つかりません。haco plugin oci store listで名前を確認してください。"},

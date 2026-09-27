@@ -56,7 +56,7 @@ func TestDailyHelpExplainsRequiredInputDefaultsAndAuthorityInBothLanguages(t *te
 			for _, expected := range map[string][]string{
 				"env create":        {"--workspace", "--no-oci"},
 				"workspace prepare": {"--path", "--repo", "auto"},
-				"repo add":          {"<id>", "<URL>", "push"},
+				"repo add":          {"<URL>", "push"},
 				"git approve":       {"ask-env", "ask-all", "main"},
 				"reclaim":           {"--status", "--review"},
 				"setup":             {"--script", "--clear-script"},

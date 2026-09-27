@@ -11,8 +11,8 @@
 サンプルのフォルダが手元にあるLinux／WSLのクライアントから実行します。
 
 ```bash
-haco base build --name my-tools --from haco/ubuntu-26.04 examples/packer
-haco base inspect my-tools
+haco image build --name my-tools --from haco/ubuntu-26.04 examples/packer
+haco image inspect my-tools
 haco env create --base my-tools --workspace managed:my-project dev
 haco ssh setup dev
 ssh haco-dev my-tool
@@ -39,14 +39,14 @@ Hacocoonが所有する同じEnvを停止し、既存のIncus Base処理でrootf
 単独の`packer build`もEnv内で動かす通常のPacker操作です。この例を独立して使う場合は、
 自分で準備したEnv内のSSHポートと秘密鍵のパスを`haco_packer_port`／`haco_packer_key`変数に
 指定します。これはEnvの内容を構築するだけで、HacocoonのBaseとして登録しません。
-管理されたBase公開の入口は`haco base build`です。Host側で単独Packerを起動する機能は設けません。
+管理されたBase公開の入口は`haco image build`です。Host側で単独Packerを起動する機能は設けません。
 
 ## 必要なツールと入力ファイル
 
 通常の通信設定をビルドEnv一つに絞って準備する場合は、名前を指定します。
 
 ```bash
-haco base build --name my-tools --builder packer-tools examples/packer
+haco image build --name my-tools --builder packer-tools examples/packer
 ```
 
 事前に[通常の設定操作](../reference/configuration.md)で必要な宛先を確認し、
@@ -102,7 +102,7 @@ Packer準備、整形、初期化、検証、構築の失敗には段階を表�
 一時SSH鍵・Packer・入力ファイルは`/run/hacocoon/packer`に置き、公開前の既存の初期化処理で
 削除します。利用者のスクリプトが別の場所へ書いた秘密情報を検出・除去する仕組みではありません。
 
-既存の`haco base build base.json`では、`name`・任意の`from`・長さを制限した`run`を使う
+既存の`haco image build base.json`では、`name`・任意の`from`・長さを制限した`run`を使う
 単純なshell定義も指定できます。HCLをこのJSONへ変換する必要はありません。非公開の制御要求では構築方式を一つだけ指定でき、
 どちらも同じライフサイクル・lease・Incusのカタログを使います。
 [ADR 0089](../adr/0089-guest-packer-provisioning.ja.md)を参照してください。

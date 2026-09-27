@@ -382,3 +382,35 @@ func (b *RepositoryBackend) WorkspaceAttachments(ctx context.Context, object git
 	}
 	return mounts, nil
 }
+
+// Repeated registration reuses only an exact owned source. An authoritative
+// empty inventory permits recreating missing, reacquirable Repository material.
+func (b *RepositoryBackend) PrepareRepository(ctx context.Context, object gitrepo.Object) error {
+	if object.Kind != "repo" {
+		return core.ErrInvalidArgument
+	}
+	if err := b.Runtime.verifyTrustedHostOwnership(ctx); err != nil {
+		return err
+	}
+	present, err := b.sourceDevice(ctx, object)
+	if err != nil {
+		return err
+	}
+	allowed := ""
+	if present {
+		allowed = "/1.0/instances/" + trustedHostName + "?project=" + b.Runtime.project
+	}
+	volume, err := b.managedVolumeForDeletion(ctx, object, allowed)
+	if err != nil {
+		return err
+	}
+	if volume == nil {
+		if present {
+			return core.ErrIncompatibleState
+		}
+		if err := b.CreateVolume(ctx, object, nil); err != nil {
+			return err
+		}
+	}
+	return b.Populate(ctx, object)
+}

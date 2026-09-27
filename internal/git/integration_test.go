@@ -298,21 +298,34 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 			refs = []string{"main"}
 		}
 		output := new(bytes.Buffer)
-		cmd := exec.Command("/usr/bin/git", append([]string{"-C", workspace, "push", "origin"}, refs...)...)
+		cmd := exec.CommandContext(ctx, "/usr/bin/git", append([]string{"-C", workspace, "push", "origin"}, refs...)...)
+		cmd.WaitDelay = time.Second
 		cmd.Stdout = output
 		cmd.Stderr = output
 		done := make(chan error, 1)
-		go func() { done <- cmd.Run() }()
+		go func() {
+			err := cmd.Run()
+			if err != nil {
+				err = fmt.Errorf("git push: %w: %s", err, output.String())
+			}
+			done <- err
+		}()
 		return done, output
 	}
-	waitProposal := func() Proposal {
+	// Preparation validates the complete pack before requesting approval. The
+	// incompressible 40 MiB fixture can take longer than ten seconds on supported
+	// hosts (especially under -race). Bound hangs without testing CPU throughput.
+	const pushTimeout = 2 * time.Minute
+	waitProposal := func(t *testing.T, done <-chan error) Proposal {
 		t.Helper()
-		deadline := time.NewTimer(10 * time.Second)
+		deadline := time.NewTimer(pushTimeout)
 		defer deadline.Stop()
 		tick := time.NewTicker(10 * time.Millisecond)
 		defer tick.Stop()
 		for {
 			select {
+			case err := <-done:
+				t.Fatalf("push exited before requesting approval: %v", err)
 			case <-deadline.C:
 				t.Fatal("push did not request approval")
 			case <-tick.C:
@@ -323,7 +336,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		}
 	}
 	done, output := push()
-	proposal := waitProposal()
+	proposal := waitProposal(t, done)
 	if proposal.Repository != "demo" || proposal.Ref != "refs/heads/main" || proposal.OldOID != upstream || proposal.NewOID != approved || proposal.Remote != repo.Remote {
 		t.Fatalf("proposal=%+v", proposal)
 	}
@@ -337,7 +350,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		t.Fatal("denial changed remote")
 	}
 	done, output = push()
-	proposal = waitProposal()
+	proposal = waitProposal(t, done)
 	// Editing the branch during approval must not change the approved content.
 	unpushed := testCommit(t, workspace, "later.txt", "retained unpushed work\n")
 	if err := broker.Decide(proposal.ID, true); err != nil {
@@ -381,12 +394,12 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 			if (err == nil) != wantSuccess {
 				t.Fatalf("push success=%v: %v", wantSuccess, err)
 			}
-		case <-time.After(15 * time.Second):
+		case <-time.After(pushTimeout):
 			t.Fatal("saved-policy push did not finish")
 		}
 	}
 	done, _ = push()
-	proposal = waitProposal()
+	proposal = waitProposal(t, done)
 	if proposal.SavedScope == nil || proposal.SavedScope.Attributes["target_ref"] != "refs/heads/main" || proposal.SavedScope.Attributes["update_kind"] != "fast-forward" ||
 		proposal.SavedScope.Attributes["new_oid"] != "*" || proposal.SavedScope.Attributes["operation_id"] != "*" {
 		t.Fatalf("incorrect reusable scope: %+v", proposal.SavedScope)
@@ -451,7 +464,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	resetPolicy()
 	testCommit(t, workspace, "ask.txt", "ask\n")
 	done, _ = push()
-	proposal = waitProposal()
+	proposal = waitProposal(t, done)
 	result, err = broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AskEnvironment})
 	if err != nil || result.SavedChoice != string(capabilityapp.AskEnvironment) {
 		t.Fatalf("save ask: %+v %v", result, err)
@@ -459,7 +472,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 	finishPush(done, true)
 	testCommit(t, workspace, "deny.txt", "denied\n")
 	done, _ = push()
-	proposal = waitProposal()
+	proposal = waitProposal(t, done)
 	result, err = broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Save: capabilityapp.DenyEnvironment})
 	if err != nil || result.SavedChoice != string(capabilityapp.DenyEnvironment) {
 		t.Fatalf("save deny: %+v %v", result, err)
@@ -497,7 +510,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		testGit(t, workspace, "checkout", "-b", "feature/work")
 		first := testCommit(t, workspace, "feature.txt", "first feature\n")
 		done, _ := push("feature/work")
-		proposal := waitProposal()
+		proposal := waitProposal(t, done)
 		if proposal.Ref != "refs/heads/feature/work" || proposal.OldOID != gitadapter.ZeroOID || proposal.NewOID != first || proposal.SavedScope == nil || proposal.SavedScope.Attributes["update_kind"] != "create" {
 			t.Fatalf("creation proposal: %+v", proposal)
 		}
@@ -509,7 +522,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 			t.Fatal("denied creation wrote a remote ref")
 		}
 		done, output := push("feature/work")
-		proposal = waitProposal()
+		proposal = waitProposal(t, done)
 		later := testCommit(t, workspace, "later-feature.txt", "not yet approved\n")
 		if _, err := broker.DecideWithDecision(ctx, proposal.ID, capabilityapp.ApprovalDecision{Approved: true, Save: capabilityapp.AllowEnvironment}); err != nil {
 			t.Fatal(err)
@@ -519,7 +532,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 			if err != nil {
 				t.Fatalf("create: %v %s", err, output)
 			}
-		case <-time.After(15 * time.Second):
+		case <-time.After(pushTimeout):
 			t.Fatal("creation timed out")
 		}
 		if got := testGit(t, remote, "rev-parse", "feature/work"); got != first {
@@ -530,7 +543,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		}
 		// Saving create does not save update. The later commit needs a new answer.
 		done, _ = push("feature/work")
-		proposal = waitProposal()
+		proposal = waitProposal(t, done)
 		if proposal.OldOID != first || proposal.NewOID != later || proposal.SavedScope.Attributes["update_kind"] != "fast-forward" {
 			t.Fatalf("update proposal: %+v", proposal)
 		}
@@ -543,7 +556,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		}
 		// Fetching all refs or saving a feature decision never grants main push.
 		done, _ = push("HEAD:refs/heads/main")
-		proposal = waitProposal()
+		proposal = waitProposal(t, done)
 		if proposal.Ref != "refs/heads/main" {
 			t.Fatalf("main proposal: %+v", proposal)
 		}
@@ -559,7 +572,7 @@ func ordinaryGitWorkflow(t *testing.T, largeBytes int64) {
 		for _, identical := range []bool{false, true} {
 			ref := fmt.Sprintf("refs/heads/race-%v", identical)
 			done, _ = push("HEAD:" + ref)
-			proposal = waitProposal()
+			proposal = waitProposal(t, done)
 			competitor := mainBefore
 			if identical {
 				competitor = proposal.NewOID

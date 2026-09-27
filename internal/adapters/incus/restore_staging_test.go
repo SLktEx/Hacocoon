@@ -12,7 +12,7 @@ import (
 )
 
 func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
-	for _, mode := range []string{"ok", "lost-reply", "foreign-owner", "host-device", "running", "duplicate", "delete-retained", "binding-drift"} {
+	for _, mode := range []string{"ok", "foreign-owner", "host-device", "running", "duplicate", "delete-retained", "binding-drift"} {
 		t.Run(mode, func(t *testing.T) {
 			p := baseSnapshotFixture()
 			sourceConfig := p.config()
@@ -21,13 +21,12 @@ func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
 			root := map[string]map[string]string{"root": {"type": "disk", "path": "/", "pool": "pool"}}
 			source := snapshotInstanceObservation{Name: p.target(), Type: "container", Status: "Stopped", Config: sourceConfig, ExpandedConfig: sourceConfig, Devices: root, ExpandedDevices: root}
 			instances := []snapshotInstanceObservation{source}
-			created, receipt, deleted := false, false, false
-			r := New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+			deleted := false
+			var r *Runtime
+			binding := restoreBinding{Version: 1, Project: "hacocoon", Owner: strings.Repeat("e", 32)}
+			r = New(&fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
 				if mode == "binding-drift" {
 					t.Fatal("provider called with invalid binding")
-				}
-				if created && !receipt {
-					t.Fatal("fallible operation before create receipt")
 				}
 				if args[0] == "delete" {
 					deleted = true
@@ -36,50 +35,11 @@ func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
 					}
 					return host.Result{}, nil
 				}
-				switch args[1] {
-				case "/1.0/instances?project=hacocoon&recursion=1":
-					raw, _ := json.Marshal(instances)
-					return host.Result{Stdout: string(raw)}, nil
-				case "/1.0/storage-pools/pool":
-					return host.Result{Stdout: `{"name":"pool","driver":"btrfs"}`}, nil
-				case "-X":
-					var req struct {
-						Name      string
-						Config    map[string]string
-						Devices   map[string]map[string]string
-						Source    map[string]any
-						Profiles  []string
-						Ephemeral bool
-					}
-					if json.Unmarshal([]byte(args[6]), &req) != nil || req.Source["type"] != "copy" || req.Source["source"] != p.target() || req.Source["instance_only"] != true || req.Source["live"] != false || req.Config["user.hacocoon.kind"] != "restore-staging" || req.Config["user.hacocoon.owner"] == p.Owner || req.Profiles == nil || len(req.Profiles) != 0 || req.Ephemeral {
-						t.Fatal("unsafe copy", req)
-					}
-					if req.Config["volatile.last_state.ready"] != "false" {
-						t.Fatal("staging copied ready state or invalid empty boolean")
-					}
-					target := snapshotInstanceObservation{Name: req.Name, Type: "container", Status: "Stopped", Config: req.Config, ExpandedConfig: req.Config, Devices: req.Devices, ExpandedDevices: req.Devices}
-					switch mode {
-					case "foreign-owner":
-						target.Config["user.hacocoon.owner"] = "foreign"
-					case "host-device":
-						target.Devices["host"] = map[string]string{"type": "disk", "source": "/", "path": "/host"}
-					case "running":
-						target.Status = "Running"
-					}
-					// The original is absent: verification/cleanup must use only the staged target.
-					instances = []snapshotInstanceObservation{target}
-					if mode == "duplicate" {
-						instances = append(instances, target)
-					}
-					created = true
-					if mode == "lost-reply" {
-						return host.Result{ExitCode: 1}, nil
-					}
-					return host.Result{}, nil
-				default:
-					t.Fatal("unexpected provider call", args)
-					return host.Result{}, nil
+				if args[0] != "query" || len(args) != 2 {
+					t.Fatal("migration cleanup attempted creation", args)
 				}
+				raw, _ := json.Marshal(instances)
+				return host.Result{Stdout: string(raw)}, nil
 			}})
 			src, err := r.snapshotComponent(snapshotBinding{Version: 1, Project: "hacocoon", Base: &p})
 			if err != nil {
@@ -93,23 +53,21 @@ func TestRestoreStagingOwnershipAndIndependentCleanup(t *testing.T) {
 			if mode == "binding-drift" {
 				c.Binding = strings.Replace(c.Binding, `"version":1`, `"version":1,"extra":true`, 1)
 			}
-			err = r.CreateRestoreComponent(context.Background(), core.Snapshot{State: "ready", Components: []core.SnapshotComponent{src}}, c)
-			if mode == "binding-drift" {
-				if err == nil {
-					t.Fatal("invalid binding accepted")
-				}
-				return
+			binding.Source = src
+			cfg := binding.config(true)
+			target := snapshotInstanceObservation{Name: binding.target(), Type: "container", Status: "Stopped", Config: cfg, ExpandedConfig: cfg, Devices: root, ExpandedDevices: root}
+			switch mode {
+			case "foreign-owner":
+				target.Config["user.hacocoon.owner"] = "foreign"
+			case "host-device":
+				target.Devices["host"] = map[string]string{"type": "disk", "source": "/", "path": "/host"}
+			case "running":
+				target.Status = "Running"
 			}
-			if mode == "lost-reply" {
-				if !errors.Is(err, core.ErrRecoveryRequired) {
-					t.Fatal(err)
-				}
-				return
+			instances = []snapshotInstanceObservation{target}
+			if mode == "duplicate" {
+				instances = append(instances, target)
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			receipt = true
 			c.State = "created"
 			err = r.VerifyRestoreComponent(context.Background(), c)
 			if mode != "ok" && mode != "delete-retained" {

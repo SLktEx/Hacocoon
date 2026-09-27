@@ -51,6 +51,40 @@ class CurrentDataTests(unittest.TestCase):
         self.assertTrue(any(x["status"] == "not-observed" for x in associations["rows"]))
         self.assertFalse(associations["authority"])
 
+    def test_creation_ownership_and_pending_cleanup_remain_visible(self):
+        data = self.fixture()
+        data["version"] = 17
+        data["environments"]["dev"].update(owned_workspace=True, volume="")
+        data["owned_workspace_cleanup"] = {"deleted-env": {
+            "id": "workspace:managed:" + "f" * 32, "path": "managed:retained-work"}}
+        original = copy.deepcopy(data)
+        report = inventory.catalog_references(data)
+        self.assertTrue(report["projection_complete"])
+        rows = {r["section"]: r for r in report["records"]}
+        self.assertTrue(rows["environments"]["owned_workspace"])
+        cleanup = rows["owned_workspace_cleanup"]
+        self.assertEqual(cleanup["workspace_id"], "workspace:managed:" + "f" * 32)
+        self.assertEqual(cleanup["workspace_source"]["source"], "managed:retained-work")
+        self.assertFalse(report["authority"])
+        self.assertEqual(data, original)
+        data["environments"]["dev"]["owned_workspace"] = "never-copy"
+        rejected = inventory.catalog_references(data)
+        self.assertFalse(rejected["projection_complete"])
+        self.assertNotIn("never-copy", json.dumps(rejected))
+
+    def test_full_repository_collection_and_excluded_sources(self):
+        member = {"kind": "work", "id": "work", "owner": "a" * 32, "state": "ready"}
+        data = {**member, "members": [{**member, "id": f"member-{i}"} for i in range(253)]}
+        self.assertTrue(inventory.repository_references(data)["projection_complete"])
+        data["members"].append({**member, "id": "overflow"})
+        self.assertFalse(inventory.repository_references(data)["projection_complete"])
+        source = {**member, "kind": "repo", "excluded": True}
+        self.assertTrue(inventory.repository_references(source)["records"][0]["excluded"])
+        source["excluded"] = "never-copy"
+        report = inventory.repository_references(source)
+        self.assertFalse(report["projection_complete"])
+        self.assertNotIn("never-copy", json.dumps(report))
+
     def test_generation_history_and_missing_producer_remain_distinct(self):
         data = self.fixture()
         source = {"id": "generation:" + "f" * 32, "owner": "a" * 32}

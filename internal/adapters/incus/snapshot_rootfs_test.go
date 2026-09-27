@@ -105,7 +105,7 @@ func TestSnapshotRootfsClearsInheritedAuthorityBeforeCopy(t *testing.T) {
 				return host.Result{Stdout: string(data), StdoutTruncated: mode == "truncated"}, nil
 			}}
 			err := New(runner).createSnapshotRootfs(context.Background(), p)
-			if mode == "ok" {
+			if mode == "ok" || mode == "running" {
 				if err != nil || posts != 1 {
 					t.Fatal(err, posts)
 				}

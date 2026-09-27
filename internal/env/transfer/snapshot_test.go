@@ -140,3 +140,21 @@ func TestWriteSnapshotPropagatesComponentReadFailure(t *testing.T) {
 		t.Fatal("incomplete native archive succeeded")
 	}
 }
+
+func TestWriteSnapshotWithImagePreservesPortableRootfs(t *testing.T) {
+	saved, archives := snapshotFixture(2, true)
+	saved.Image = &core.BaseRef{Name: "saved", Revision: "sha256:immutable"}
+	saved.Components = append(saved.Components, core.SnapshotComponent{Role: "image", Binding: "image-binding", NativeRef: "image-native", Owner: "image-owner", State: "verified"})
+	var out bytes.Buffer
+	if err := writeSnapshot(&out, saved, archives, 1<<20, snapshotWorkspaces(2)); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := Inspect(bytes.NewReader(out.Bytes()), 1<<20)
+	if err != nil || len(manifest.Components) != len(archives) {
+		t.Fatal(manifest, err)
+	}
+	saved.Image = nil
+	if _, err := snapshotComponents(saved); !errors.Is(err, ErrInvalidBundle) {
+		t.Fatal("accepted missing Image identity", err)
+	}
+}

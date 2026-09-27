@@ -94,6 +94,9 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 			retained := snapshotInstanceObservation{Name: identity.target(), Type: "container", Status: "Stopped", Config: config, ExpandedConfig: config, Devices: rootDevice, ExpandedDevices: rootDevice}
 			reads := 0
 			r := New(&fakeRunner{run: func(_ context.Context, _ int, name string, args []string) (host.Result, error) {
+				if name == "incus" && len(args) == 4 && args[0] == "query" && args[1] == "-X" && args[2] == "GET" && strings.Contains(args[3], "/images/aliases?") {
+					return host.Result{Stdout: "[]"}, nil
+				}
 				if name != "incus" || len(args) != 2 || args[0] != "query" {
 					t.Fatal("planner mutated provider", name, args)
 				}
@@ -121,18 +124,18 @@ func TestSnapshotPlanEnumeratesAggregateAndRefusesOmissions(t *testing.T) {
 				return mounts, nil
 			})
 			components, err := r.PlanSnapshot(context.Background(), source, "snap-"+strings.Repeat("e", 32))
-			if mode != "data" && mode != "data-repository" && mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
+			if mode != "running" && mode != "data" && mode != "data-repository" && mode != "ok" && mode != "no-oci" && mode != "missing-base" && mode != "missing-image" && mode != "wrong-image" && !strings.HasPrefix(mode, "retained") {
 				if err == nil || len(components) != 0 {
 					t.Fatal("incomplete aggregate accepted", err, components)
 				}
 				return
 			}
-			want := 4
+			want := 5
 			if mode == "data" || mode == "data-repository" {
 				want++
 			}
 			if mode == "no-oci" {
-				want = 3
+				want = 4
 			}
 			if err != nil || len(components) != want || reads == 0 {
 				t.Fatal(err, len(components), reads)

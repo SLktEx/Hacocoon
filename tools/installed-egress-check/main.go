@@ -99,7 +99,7 @@ func check(name string, network, lifecycle bool) (result error) {
 	defer func() {
 		cleanup, stop := context.WithTimeout(context.Background(), time.Minute)
 		defer stop()
-		if err := client.DeleteEnvironment(cleanup, name); err != nil {
+		if err := client.RemoveEnvironment(cleanup, name, true); err != nil {
 			result = errors.Join(result, fmt.Errorf("controller cleanup failed; retain workspace %s: %w", workspace, err))
 			return
 		}

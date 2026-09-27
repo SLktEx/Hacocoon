@@ -144,22 +144,11 @@ func TestSourceDeletionLocalePreservesRequestJSONAndRawFailure(t *testing.T) {
 	}
 }
 
-func TestSourceDeletionDoesNotDispatchWhenWarningOrPromptFails(t *testing.T) {
-	for _, yes := range []bool{false, true} {
-		for _, remaining := range []int{0, 1} {
-			if yes && remaining == 1 {
-				continue
-			}
-			c := &sourceClientFake{all: controlapi.RepositoryManageResponse{Sources: []gitrepo.SourceUse{{Source: gitrepo.Object{Kind: "repo", ID: "source", Owner: strings.Repeat("a", 32), State: "ready"}}}}}
-			args := []string{"delete", "source"}
-			if yes {
-				args = []string{"delete", "--yes", "source"}
-			}
-			code := sourceManageCommand(context.Background(), c, args, unexpectedConfirmationRead{t}, io.Discard, &confirmationWriter{remaining})
-			if code != 1 || len(c.calls) != 1 || c.calls[0].Operation != "list" {
-				t.Fatalf("failed display dispatched delete: code=%d calls=%+v", code, c.calls)
-			}
-		}
+func TestSourceUnregisterDoesNotPromptOrTouchWorkspace(t *testing.T) {
+	c := &sourceClientFake{all: controlapi.RepositoryManageResponse{Sources: []gitrepo.SourceUse{{Source: gitrepo.Object{Kind: "repo", ID: "source", Owner: strings.Repeat("a", 32), State: "ready"}, Workspaces: []string{"existing"}}}}}
+	code := sourceManageCommand(context.Background(), c, []string{"delete", "source"}, unexpectedConfirmationRead{t}, io.Discard, io.Discard)
+	if code != 0 || len(c.calls) != 2 || c.calls[1].Operation != "delete" {
+		t.Fatal(code, c.calls)
 	}
 }
 

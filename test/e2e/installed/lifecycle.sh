@@ -16,7 +16,7 @@ cleanup() {
     exit "$result"
   fi
   if [[ "$created" == 1 ]]; then
-    if ! haco env delete "$name"; then
+    if ! haco rm -f "$name"; then
       echo 'product cleanup failed; fixture retained' >&2
       exit 1
     fi
@@ -27,19 +27,18 @@ cleanup() {
   exit "$result"
 }
 trap cleanup EXIT
-haco run --workspace "$root/workspace" -- sh -ec 'test "$(cat /workspace/marker)" = workspace-before; printf workspace-after > /workspace/marker'
 attempted=1
 haco env create --no-oci --workspace "$root/workspace" "$name"
 created=1
+haco exec "$name" -- sh -ec 'test "$(cat /workspace/marker)" = workspace-before; printf workspace-after > /workspace/marker'
 haco env status --json "$name" | python3 -c 'import json,sys; assert json.load(sys.stdin)["state"] == "running"'
 haco env stop "$name"
 haco env status --json "$name" | python3 -c 'import json,sys; assert json.load(sys.stdin)["state"] == "stopped"'
 haco env start "$name"
 haco env status --json "$name" | python3 -c 'import json,sys; assert json.load(sys.stdin)["state"] == "running"'
-haco env delete "$name"
+haco rm -f "$name"
 created=0
 attempted=0
 [[ "$(cat "$root/workspace/marker")" == workspace-after ]]
 haco env list --json | python3 -c 'import json,sys; assert all(row["name"] != sys.argv[1] for row in json.load(sys.stdin))' "$name"
-haco run --workspace "$root/workspace" -- sh -ec 'test "$(cat /workspace/marker)" = workspace-after'
 echo 'PASS: packaged product CLI lifecycle and retained Workspace'
