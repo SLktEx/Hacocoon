@@ -1771,3 +1771,10 @@ Env再開、再収集、別Base名での独立再利用、所有するテスト�
 変更外の既存指摘を残したまま全体lint成功とは扱わない。
 
 最終のローカル検証は、日英を含むcache CLI、resource/state/cacheのrace検査、Workspace/controller API回帰、PR CIと同じ差分golangci-lint（指摘0件）が成功。`tools/check_docs.py` と `git diff --check` も成功。保守対象の `bash tools/ci-local.sh docs` も成功し、checker回帰19件が通った。リリース・巨大レポ測定・人の承認操作の成功とは扱わない。
+
+## キャッシュ統合時の通知入力
+
+PR #737のhead `90cea4a0` はquality/test/Ubuntu/Incusが成功。Windows run36260388616は通知受入job108455453249だけが失敗し、証拠ゲートも失敗した。初回の所有通知クリアは `native_progress=decode` で40,031ms経過して停止し、WinRTへ未到達。その間の処理は `ConvertFrom-Json` だが、Windows側のモジュール読込遅延の詳細原因までは断定しない。
+暗黙のコマンドレット依存を.NETで読む固定データへ置換し、制限した環境・履歴クリア・既存期限を維持する。元のCI失敗を通知成功として扱わない。
+
+ローカルWindowsで所有通知の初回クリア・日英表示・削除が34.81秒で成功。自動読込なしの入力復元、不正形式拒否、中断時の終了待ち、診断の秘匿も成功。最初の隔離テストはConstrainedLanguageによって.NET呼び出しを拒否し、通常のネイティブ実行で成功した。Windowsポリシーや製品環境は変更していない。hosted CIの失敗は修正後の結果待ちで、人の承認回答は未実施。

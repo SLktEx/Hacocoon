@@ -2118,3 +2118,16 @@ reported 61 issues, including two new Boolean-style suggestions, which were fixe
 unchanged baseline findings are not represented as a passing whole-tree lint.
 
 Final local validation passed: cache CLI (including both languages), resource/state/cache race tests, Workspace/controller API regressions, and changed-line golangci-lint (zero findings, matching PR CI scope). `tools/check_docs.py` and `git diff --check` passed. Maintained `bash tools/ci-local.sh docs` passed, including all 19 checker regressions. No release, giant-repository benchmark or human approval acceptance was claimed.
+
+## Native notification input during cache integration
+
+PR #737 head `90cea4a0` passed quality, test, Ubuntu and Incus CI. Windows run
+36260388616 failed only native notification acceptance (job 108455453249), then
+its evidence gate. The first owned-history clear stopped at `native_progress=decode`
+for 40,031 ms, before WinRT; `ConvertFrom-Json` is the intervening operation.
+The precise Windows module-loading delay is not established. Replace that implicit
+cmdlet dependency with fixed literal fields decoded through .NET; preserve the
+restricted process environment, history clearing and all existing deadlines.
+The original CI failure remains evidence, not a successful notification run.
+
+Local Windows acceptance passed native owned-history clear, English/Japanese toast display and removal (34.81 s), plus input decoding without module autoload, malformed-frame rejection, cancellation/reaping and diagnostic redaction. An initial confined test process rejected .NET calls under ConstrainedLanguage; normal native execution passed without changing Windows policy or product environment. The hosted failure remains pending the updated CI run; no human answer was submitted.
