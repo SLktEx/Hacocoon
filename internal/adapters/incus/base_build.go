@@ -98,7 +98,13 @@ func (p *BaseProvider) builtBases(ctx context.Context) (map[core.BaseName]core.B
 		if _, exists := p.sources[name]; exists {
 			return nil, core.ErrAlreadyExists
 		}
-		image, err := p.ownedBaseImage(ctx, name, a)
+		var image baseImage
+		var err error
+		if a.Description == imageTagDescription {
+			image, err = p.taggedImage(ctx, a)
+		} else {
+			image, err = p.ownedBaseImage(ctx, name, a)
+		}
 		if err != nil {
 			return nil, err
 		}

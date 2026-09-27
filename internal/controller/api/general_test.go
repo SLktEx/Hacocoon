@@ -10,7 +10,6 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 )
 
@@ -25,26 +24,6 @@ func (fakeBases) InspectBase(_ context.Context, name core.BaseName) (core.BaseIn
 		return core.BaseInfo{}, core.ErrNotFound
 	}
 	return core.BaseInfo{Name: name, Revision: "rev-1"}, nil
-}
-
-type fakeRunner struct{}
-
-func (fakeRunner) Run(_ context.Context, spec runapp.Spec) (runapp.Result, error) {
-	if spec.WorkspacePath == "" || len(spec.Argv) == 0 {
-		return runapp.Result{}, core.ErrInvalidArgument
-	}
-	if spec.Argv[0] == "fail" {
-		return runapp.Result{
-			Environment: "run-failed",
-			Execution:   runapp.ExecutionResult{ExitCode: 9, Stderr: "failed\n"},
-			CleanedUp:   false,
-		}, core.ErrRecoveryRequired
-	}
-	return runapp.Result{
-		Environment: "run-ok",
-		Execution:   runapp.ExecutionResult{ExitCode: 0, Stdout: "ok\n"},
-		CleanedUp:   true,
-	}, nil
 }
 
 type fakeEvents struct{}
@@ -120,23 +99,7 @@ func TestGeneralControllerClientRoundTrip(t *testing.T) {
 		t.Fatalf("base = %#v", base)
 	}
 
-	runResult, err := client.Run(ctx, runapp.Spec{WorkspacePath: "/work", Argv: []string{"printf", "ok"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runResult.Environment != "run-ok" || runResult.Execution.Stdout != "ok\n" || !runResult.CleanedUp {
-		t.Fatalf("run result = %#v", runResult)
-	}
-
-	partial, err := client.Run(ctx, runapp.Spec{WorkspacePath: "/work", Argv: []string{"fail"}})
 	var status *control.StatusError
-	if !errors.As(err, &status) || status.Code != "recovery_required" {
-		t.Fatalf("run error = %v, want recovery_required", err)
-	}
-	if partial.Execution.ExitCode != 9 || partial.Execution.Stderr != "failed\n" {
-		t.Fatalf("partial run result lost across controller boundary: %#v", partial)
-	}
-
 	var streamed []eventsapp.Event
 	nextOffset, err := client.StreamEvents(ctx, 0, func(event eventsapp.Event) error {
 		streamed = append(streamed, event)
@@ -253,7 +216,7 @@ func TestGeneralControllerPreservesCapabilityFailureResult(t *testing.T) {
 
 func TestRegisterGeneralRejectsIncompleteBoundary(t *testing.T) {
 	server := control.NewServer()
-	if !errors.Is(RegisterGeneral(server, nil, fakeRunner{}, fakeEvents{}, &fakeCapabilities{}), control.ErrInvalidArgument) {
+	if !errors.Is(RegisterGeneral(server, nil, fakeEvents{}, &fakeCapabilities{}), control.ErrInvalidArgument) {
 		t.Fatal("nil base service was accepted")
 	}
 }
@@ -266,7 +229,7 @@ func startGeneralControlAPITestServer(t *testing.T, capabilities *fakeCapabiliti
 		t.Fatal(err)
 	}
 	server := control.NewServer()
-	if err := RegisterGeneral(server, fakeBases{}, fakeRunner{}, fakeEvents{}, capabilities); err != nil {
+	if err := RegisterGeneral(server, fakeBases{}, fakeEvents{}, capabilities); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

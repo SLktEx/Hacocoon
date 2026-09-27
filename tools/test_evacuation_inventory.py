@@ -39,6 +39,26 @@ class InventoryTests(unittest.TestCase):
             self.assertNotIn("secret", json.dumps(result))
             self.assertNotIn("private-path", json.dumps(result))
 
+    @unittest.skipUnless(hasattr(os, "O_NOFOLLOW"), "Linux required")
+    def test_full_collection_binding_exceeds_old_size_without_losing_references(self):
+        data = self.binding(True)
+        work = data["workspace"]["members"][0]
+        repo = data["repositories"][0]
+        data["workspace"]["members"] = [{**work, "id": f"member-{i}"} for i in range(253)]
+        data["repositories"] = [{**repo, "id": f"repo-{i}"} for i in range(253)]
+        raw = json.dumps(data)
+        self.assertGreater(len(raw), 16384)
+        with tempfile.TemporaryDirectory() as directory:
+            bindings = Path(directory) / "bindings"
+            bindings.mkdir()
+            (bindings / "dev.json").write_text(raw)
+            result = subject.repository_inventory(directory)
+        self.assertTrue(result["projection_complete"], result["errors"])
+        self.assertEqual(len(result["bindings"][0]["repositories"]), 253)
+        self.assertNotIn("never-copy", json.dumps(result))
+        data["repositories"].append(repo)
+        self.assertFalse(subject.binding_references(data)["projection_complete"])
+
     def test_invalid_bindings_are_unreviewed_not_valid_or_empty(self):
         for value in (None, {}, [], {**self.binding(), "environment": {"name": "../secret"}},
                       {**self.binding(), "workspace": []},
@@ -65,7 +85,7 @@ class InventoryTests(unittest.TestCase):
             self.assertEqual(result["files"], [])
             (bindings / "link.json").symlink_to(good)
             (bindings / "wrong.json").write_text(raw)
-            (bindings / "oversized.json").write_text(" " * 16385)
+            (bindings / "oversized.json").write_text(" " * (2 * 1024 * 1024 + 1))
             (bindings / "bad.json").write_text("{}")
             (bindings / "nested").mkdir()
             result = subject.repository_inventory(root)

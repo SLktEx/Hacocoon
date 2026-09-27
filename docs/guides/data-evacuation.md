@@ -44,14 +44,17 @@ Exit 1 / `native_queries_complete: false` means incomplete observation.
 Only selected references and owner markers are projected, never arbitrary config or
 credentials. URI-shaped sources are withheld; file references are not followed.
 Images include full fingerprints, types, aliases and their native source project;
-shared project views are not separate ownership. The current catalog schema16 is
-projected without mutation; existing reference-only support for10–13 is unchanged.
+shared project views are not separate ownership. The current catalog schema17 is
+projected without mutation; existing reference-only support for 10–13 and 16 is unchanged.
 Other schemas remain unsupported. `state_validated` remains false.
 Unprojected pending restore/copy/run records remain explicit counts requiring review.
 
 The current projection includes named data placement, the exact Env child and its
 source generation, selected cache generations, publication/producer references,
-copy completion, pending import and runtime-absence flags. `catalog_links` compares
+copy completion, pending import and runtime-absence flags. Environment Workspace
+ownership, Volume names and pending owned-Workspace cleanup references remain
+visible. Repository projection includes exclusion from future creation and up to
+253 collection members. `catalog_links` compares
 these references with the observed catalog resources separately from native volume
 observations. A deleted producer or former generation can be valid history; a missing
 reference is a review item, never automatic corruption, adoption or deletion authority.
@@ -62,7 +65,7 @@ the saved Environment name, Workspace/member references and repository reference
 under `bindings`. It omits remote URLs, branches, configuration and credential
 contents. Single-repository and collection bindings share the repository reference
 projection. Files use the same no-follow/stable-read checks, with the broker's
-16 KiB per-binding limit and one shared 4,096-entry directory budget. A malformed
+2 MiB per-binding limit and one shared 4,096-entry directory budget. A malformed
 file, name mismatch, link or unexpected entry remains a gap without hiding valid
 records. These are saved associations, not proof of a currently valid connection;
 `state_validated` and `authority` remain false. Restore connections through normal

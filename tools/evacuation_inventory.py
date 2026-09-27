@@ -251,7 +251,7 @@ def catalog_references(data):
     # Schema 9 was an unpublished replacement prototype and remains unsupported.
     if isinstance(data, dict) and type(data.get("version")) is int:
         result["version"] = data["version"]
-    if result.get("version") not in (10, 11, 12, 13, 16):
+    if result.get("version") not in (10, 11, 12, 13, 16, 17):
         result["errors"].append("unsupported-catalog-schema")
         return result
     result["state_validated"] = False
@@ -264,7 +264,8 @@ def catalog_references(data):
             elif entries:
                 result["unprojected_records"].append({"section": section, "count": len(entries), "review_required": True})
     fields = {
-        "environments": ("name", "runtime_ref", "access_mode", "dns_mode"),
+        "environments": ("name", "runtime_ref", "access_mode", "dns_mode", "volume"),
+        "owned_workspace_cleanup": (),
         "persistent_resources": ("id", "owner", "kind", "native_ref", "state", "workspace_id", "restore_source", "environment_instance"),
         "base_assets": ("id", "owner", "native_ref", "state"),
         "workspace_leases": ("workspace_id", "environment_id", "owner", "instance_id", "runtime_ref", "state", "snapshot_source"),
@@ -342,15 +343,15 @@ def catalog_references(data):
                             row[field] = resource_ref(value[field])
                     if "publication_origin" in value:
                         row["publication_origin"] = generation(value["publication_origin"])
-                booleans = {"persistent_resources": ("source_only", "copy_completed", "import_pending"),
+                booleans = {"environments": ("owned_workspace",), "persistent_resources": ("source_only", "copy_completed", "import_pending"),
                             "workspace_leases": ("runtime_absent", "ephemeral")}
                 for field in booleans.get(section, ()):
                     if field in value:
                         if type(value[field]) is not bool:
                             raise ValueError("invalid lifecycle flag")
                         row[field] = value[field]
-                if section == "environments":
-                    workspace = value.get("workspace")
+                if section in ("environments", "owned_workspace_cleanup"):
+                    workspace = value if section == "owned_workspace_cleanup" else value.get("workspace")
                     if not isinstance(workspace, dict):
                         raise ValueError("invalid environment workspace")
                     row["workspace_id"] = reference(workspace["id"])
@@ -398,7 +399,7 @@ def repository_references(data):
         if not isinstance(data, dict) or data.get("kind") not in ("repo", "work"):
             raise ValueError("invalid repository record")
         members = data.get("members", [])
-        if not isinstance(members, list) or len(members) > 8:
+        if not isinstance(members, list) or len(members) > 253:
             raise ValueError("invalid members")
         for item in [data] + members:
             if not isinstance(item, dict):
@@ -410,6 +411,10 @@ def repository_references(data):
                     if value and (not re.fullmatch(r"[A-Za-z0-9_.:/-]+", value) or "://" in value):
                         raise ValueError("unreportable reference")
                     row[field] = value
+            if "excluded" in item:
+                if type(item["excluded"]) is not bool:
+                    raise ValueError("invalid registration setting")
+                row["excluded"] = item["excluded"]
             if not row.get("id") or not row.get("owner") or not row.get("state"):
                 raise ValueError("missing identity")
             if item is not data and item.get("members"):
@@ -435,7 +440,7 @@ def binding_references(data):
         if not work["projection_complete"]:
             raise ValueError("incomplete workspace")
         repos = data.get("repositories", []) if workspace.get("members") else [data["repository"]]
-        if not isinstance(repos, list) or not 1 <= len(repos) <= 8:
+        if not isinstance(repos, list) or not 1 <= len(repos) <= 253:
             raise ValueError("invalid repositories")
         projected = []
         for repo in repos:
@@ -489,7 +494,7 @@ def repository_inventory(root):
                     # Pin the directory FD even if its path is replaced.
                     record = catalog_inventory("/proc/self/fd/" + str(fd) + "/" + entry.name,
                                                binding_references if bindings else repository_references,
-                                               16384 if bindings else 16 * 1024 * 1024)
+                                               2 * 1024 * 1024 if bindings else 1024 * 1024)
                     if bindings:
                         if record.get("environment") and record["environment"] + ".json" != entry.name:
                             raise ValueError("binding filename mismatch")

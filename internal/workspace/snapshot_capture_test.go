@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -249,5 +250,60 @@ func TestSnapshotCaptureWithoutBackendDoesNotReserve(t *testing.T) {
 	snapshot, err := New(r, s).CaptureSnapshot(context.Background(), "resume")
 	if !errors.Is(err, core.ErrUnsupported) || snapshot.ID != "" {
 		t.Fatal(snapshot, err)
+	}
+}
+
+type imageCaptureRuntime struct {
+	*captureRuntime
+	image core.BaseRef
+}
+
+func (r *imageCaptureRuntime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, id string) ([]core.SnapshotComponent, error) {
+	parts, err := r.captureRuntime.PlanSnapshot(ctx, source, id)
+	r.image = core.BaseRef{Name: core.BaseName(id), Revision: core.BaseRevision("sha256:" + strings.Repeat("a", 64))}
+	return append(parts, core.SnapshotComponent{Role: "image", NativeRef: "image/" + id, Owner: "cccccccccccccccccccccccccccccccc", State: "planned"}), err
+}
+func (r *imageCaptureRuntime) SnapshotImage(context.Context, core.SnapshotComponent) (core.BaseRef, error) {
+	return r.image, nil
+}
+func TestCapturePersistsNewImageBeforePublishingSnapshot(t *testing.T) {
+	_, store, backend := captureFixture(t)
+	runtime := &imageCaptureRuntime{captureRuntime: backend}
+	svc := New(runtime, store)
+	saved, err := svc.CaptureSnapshot(context.Background(), "resume")
+	if err != nil || saved.Image == nil || saved.Image.Name != core.BaseName(saved.ID) {
+		t.Fatal(saved, err)
+	}
+	stored, err := store.GetSnapshot(context.Background(), saved.ID)
+	if err != nil || !reflect.DeepEqual(stored.Image, saved.Image) || stored.State != "ready" {
+		t.Fatal(stored, err)
+	}
+}
+
+func TestNamedSnapshotNamespaceAndSourcePreservation(t *testing.T) {
+	svc, store, _ := captureFixture(t)
+	ctx := context.Background()
+	before, _ := store.GetEnvironment(ctx, "resume")
+	svc.ConfigureSnapshotNames(func(_ context.Context, name string) error {
+		if name == "image" || name == "volume" {
+			return core.ErrAlreadyExists
+		}
+		return nil
+	})
+	for _, name := range []string{"image", "volume", "../escape"} {
+		if _, err := svc.CaptureNamedSnapshot(ctx, "resume", name); err == nil {
+			t.Fatal("collision accepted", name)
+		}
+	}
+	saved, err := svc.CaptureNamedSnapshot(ctx, "resume", "feature-x")
+	if err != nil || saved.ID != "feature-x" {
+		t.Fatal(saved, err)
+	}
+	if _, err := svc.CaptureNamedSnapshot(ctx, "resume", "feature-x"); !errors.Is(err, core.ErrAlreadyExists) {
+		t.Fatal("duplicate Snapshot accepted", err)
+	}
+	after, _ := store.GetEnvironment(ctx, "resume")
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("source Environment changed")
 	}
 }

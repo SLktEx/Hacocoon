@@ -44,6 +44,9 @@ func TestResumeValidatesNetworkBeforeStartingAndPreservesRuntime(t *testing.T) {
 					}
 				}
 				if command == "incus" && len(args) > 3 && args[0] == "config" {
+					if args[1] == "get" && args[3] == "user.hacocoon.creation" {
+						return host.Result{}, nil
+					}
 					if args[1] == "set" && args[3] == "boot.autostart=false" {
 						if scenario == "autostart-write-failure" {
 							return host.Result{}, errors.New("config write failed")

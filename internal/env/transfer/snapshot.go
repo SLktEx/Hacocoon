@@ -20,7 +20,8 @@ type snapshotArchive struct {
 
 // writeSnapshot matches every archive against the complete protected inventory
 // before emitting bytes. It neither opens provider paths nor reserves snapshots.
-// Legacy Base components stay in their catalog but are not part of rootfs transport.
+// Image and legacy Base receipts stay in the catalog. Rootfs transport already
+// carries their filesystem; publishing host aliases is not part of a portable bundle.
 // A failed return must never publish the output, including underlying write errors.
 func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []snapshotArchive, limit int64, workspaces []Workspace) error {
 	ordered, err := snapshotComponents(saved)
@@ -65,7 +66,7 @@ func writeSnapshot(dst io.Writer, saved core.Snapshot, archives []snapshotArchiv
 // Validate the full inventory before a producer creates any transport resource.
 func snapshotComponents(saved core.Snapshot) ([]core.SnapshotComponent, error) {
 	if saved.State != "ready" || !core.ValidEnvironmentAttachments(saved.Source.Environment.Attachments) || !core.ValidEnvironmentInstanceID(saved.Source.InstanceID) || !sourceName.MatchString(saved.Source.Environment.Name) ||
-		len(saved.Components) < 2 || len(saved.Components) > maxComponents+1 {
+		len(saved.Components) < 2 || len(saved.Components) > maxComponents+2 {
 		return nil, ErrInvalidBundle
 	}
 	var root, oci *core.SnapshotComponent
@@ -86,6 +87,11 @@ func snapshotComponents(saved core.Snapshot) ([]core.SnapshotComponent, error) {
 		case c.Role == "oci":
 			value := c
 			oci = &value
+		case c.Role == "image":
+			// The independent Image duplicates the saved rootfs, not another payload.
+			if saved.Image == nil || saved.Image.Name == "" || saved.Image.Revision == "" {
+				return nil, ErrInvalidBundle
+			}
 		case c.Role == "base":
 			if baseSeen {
 				return nil, ErrInvalidBundle

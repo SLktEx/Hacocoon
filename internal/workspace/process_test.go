@@ -73,3 +73,51 @@ func TestRunProcessPinsCreationThroughConcurrentDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type ordinaryProcessRuntime struct {
+	processRuntimeFixture
+	state core.EnvironmentState
+}
+
+func (r *ordinaryProcessRuntime) InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error) {
+	return core.EnvironmentRuntimeStatus{State: r.state}, nil
+}
+func TestExecRequiresRunningAndPinsExistingEnvironment(t *testing.T) {
+	ctx := context.Background()
+	catalog := state.NewEnvironmentJSONStore(filepath.Join(t.TempDir(), "state.json"))
+	runtime := &ordinaryProcessRuntime{processRuntimeFixture: processRuntimeFixture{fakeEnvironmentRuntime: fakeEnvironmentRuntime{createResult: core.EnvironmentRuntime{Ref: "owned-process"}}, started: make(chan struct{}), finish: make(chan struct{})}, state: core.EnvironmentStopped}
+	service := New(runtime, catalog)
+	env, err := service.Create(ctx, core.EnvironmentSpec{Name: "dev", WorkspacePath: t.TempDir(), DeferStart: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := core.ProcessRequest{WorkingDirectory: "/workspace", Argv: []string{"cat"}}
+	if _, err := service.ExecStream(ctx, env.Name, request, strings.NewReader(""), io.Discard, io.Discard); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatal("stopped execution accepted", err)
+	}
+	if _, err := service.ExecUser(ctx, env.Name, core.ExecutionRequest{Argv: []string{"true"}}); !errors.Is(err, core.ErrIncompatibleState) {
+		t.Fatal("captured exec bypassed stopped policy", err)
+	}
+	runtime.state = core.EnvironmentRunning
+	done := make(chan error, 1)
+	go func() {
+		_, err := service.ExecStream(ctx, env.Name, request, strings.NewReader(""), io.Discard, io.Discard)
+		done <- err
+	}()
+	<-runtime.started
+	bounded, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
+	defer cancel()
+	if err := service.Delete(bounded, env.Name); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("delete raced exec", err)
+	}
+	close(runtime.finish)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.deleteRefs) != 0 {
+		t.Fatal("exec changed lifecycle")
+	}
+	if got, err := catalog.GetEnvironment(ctx, env.Name); err != nil || got.RuntimeRef != env.RuntimeRef {
+		t.Fatal("exec changed Environment", err)
+	}
+}

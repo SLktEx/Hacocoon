@@ -34,7 +34,7 @@ func TestApprovalResponsesCannotTurnTransportFailureIntoConsent(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			service := &approvalResponseService{finished: make(chan approvalResponseOutcome, 1)}
 			path := doctorTestSocket(t, func(s *control.Server) {
-				if err := RegisterGeneral(s, fakeBases{}, fakeRunner{}, fakeEvents{}, service); err != nil {
+				if err := RegisterGeneral(s, fakeBases{}, fakeEvents{}, service); err != nil {
 					t.Fatal(err)
 				}
 			})

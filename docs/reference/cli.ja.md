@@ -11,7 +11,7 @@ help・versionにコントローラーは不要です。
 
 | 目的 | 構文・既定値 | 詳細 |
 |---|---|---|
-| 通常の開発 | `haco repo add <id> <URL>` → `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [通常の環境を自動準備](../design/default-development-session.ja.md)。JSONには`--client none`が必要 |
+| 通常の開発 | `haco repo add <URL>` → `haco open [--client vscode\|ssh\|none] [--json]` | [通常の環境を自動準備](../design/default-development-session.ja.md)。JSONには`--client none`が必要 |
 | Workspaceパス | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [所有者を固定した再開と独立データfork](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [詳細オプション・ゲスト待受・管理権限](../design/network-connections.md) |
 | ビルド情報 | `haco version [--json]`, `haco --version` | [ビルド情報](build-release-identity.ja.md) |
@@ -21,34 +21,63 @@ help・versionにコントローラーは不要です。
 | ポリシー | `haco config`, `--edit` or `--file <json>` | [設定](configuration.ja.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [サブツリー編集とEnvへの反映](experimental-vscode.ja.md) |
 | 承認 | `haco approve [--json] [request-id]`; `haco approve --list` | [承認確認](../design/pending-approval-review.ja.md)。対話選択・範囲保存 |
-| 元リポジトリ | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.ja.md)。登録時のbranch指定は不要。任意の`--branch`は単一取得元の`workspace create`で指定 |
-| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Git・データの独立コピー |
+| 元リポジトリ | `haco repo add <URL>`; `list [--json]`; `delete <id>` | [Git](../guides/git-workflow.ja.md)。ブランチを指定せず登録 |
+| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete <id>` | Git・データの独立コピー。`--branch` は単一取得元のみ、省略時はリモートの既定値 |
 | Env作成 | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | 既定Base、任意に設定されたOCI初期化 |
 | 状態の参照 | `haco env list [--json]`; `haco env status [--json] <name>` | 既定はテキスト |
 | 開始・停止・削除 | `haco env start <name>`, `stop <name>`, `delete <name>` | [データの寿命](../guides/data-lifetime.ja.md) |
-| デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開。`open --select`や`ssh setup`で既存環境を選択 |
+| デスクトップ接続 | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | 既定はVS Code。停止Envを再開し、省略時は最後に開いたEnv |
 | 手動SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | 永続targetをProxyCommandで使用。`haco stream <target>`はraw stdio接続。[SSH詳細](windows-environment-ssh.md) |
 | プレビュー | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTPプレビュー](../design/development-preview.ja.md)。Env内ループバックポート |
-| 一時実行 | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [一時実行](../design/temporary-execution.ja.md)。`--rm`の既定はtrue。`-i`で入力を逐次転送、`-it`で端末を使用。JSONは通常出力のみ |
-| Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md)。通常のlist/inspectはJSON |
-| Git仲介 | `haco git pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git承認](../guides/git-workflow.ja.md) |
-| OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |
+| Image | `haco image list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md)。通常のlist/inspectはJSON |
+| Git仲介 | `haco git connect <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git承認](../guides/git-workflow.ja.md) |
+| OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete <id>` | [Store](../design/persistent-oci-store.md)。`--from`は対象名の前にも指定可能 |
 | OCIイメージ一覧 | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [イメージ参照](../design/oci-image-deletion.ja.md)。既定はnerdctl。`--host`時は対象引数なし |
 | OCIイメージ削除 | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused`時はイメージ引数なし。タグ付きでも未使用候補になる場合あり |
-| スナップショット | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] [--latest] <id\|source-env> [new-env]`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
+| スナップショット | `haco snapshot create [--name NAME] [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `delete <id>` | [スナップショット](../design/environment-snapshots.md) |
 | コピー | `haco env copy [--json] <stopped-env> [new-env]` | 既定名は`<source>-copy`。[コピー](../design/environment-copy.md) |
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.ja.md)。プロファイルの既定は`default`。ゲストでは`--env`禁止 |
 
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の
-`create/exec/shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
-`env create`・`run`のCPU・memory・PID・root容量フラグはありません。
+`shell/events/connections/forward`、`plugin git`、`plugin oci seed/docker`、
+`env create`のCPU・memory・PID・root容量フラグはありません。
 旧インターフェースの廃止判断は [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)に記録しています。
 
-通常の失敗は非ゼロ、構文誤りは多くの場合2です。一時実行は後始末確認後にゲストの終了値を返し、
-クライアントキャンセル時は130、後始末不明は失敗です。`reclaim`の開始受付は完了ではありません。
+通常の失敗は非ゼロ、構文誤りは多くの場合2です。`exec`はゲストの終了値を返し、
+クライアントキャンセル時は130です。Environmentの起動・停止は行いません。
+`reclaim`の開始受付は完了ではありません。
 JSONは明示したコマンドだけに使え、全体共通の`--json`はありません。
+
+## 作成と再開
+
+```sh
+haco repo add https://github.com/example/project.git
+haco open
+haco open --new
+haco open --new tools --volume work
+haco open --new --snapshot SNAPSHOT
+haco create --name later tools
+haco start later
+haco exec -it later -- bash
+haco commit later saved-tools
+haco image tag saved-tools next
+haco snapshot create --name checkpoint later
+haco image default
+haco image default tools
+haco volume create work
+haco volume create saved-work --container ENV
+haco volume ls
+haco volume inspect work
+haco volume rm work
+```
+
+`create`はIMAGE必須で、起動・接続は行いません。`open --new`でIMAGEを省略すると
+設定済み既定Imageを使い、明示Imageを使っても既定設定は変わりません。Snapshotは
+保存時のImageとデータを使います。Volumeは作成時に固定し排他利用するため、
+作成後の接続・切断コマンドはありません。`haco ps`・`start`・`stop`・`inspect`・
+`rm [-f]`は同じEnvironmentを操作します。[意味仕様](../design/environment-creation.ja.md)を参照してください。
 
 ## 階層別のヘルプ
 
@@ -69,7 +98,7 @@ controllerやIncusを必要とせずstdoutへ表示して終了0、不正引数�
 ## Packerでひな形を作る
 
 ```sh
-haco base build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
+haco image build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
 ```
 
 画像サイズとbuild/import全体の時間に既定の固定上限はありません。`--max-image-size unlimited`で既定動作を明示し、有限の値でサイズを制限できます。キャンセルとarchive検証は維持します。
@@ -94,7 +123,7 @@ Env作成時に`--dns host|backend|disabled`を選べます（通常は`host`）
 
 ## Baseのアーカイブ取り込み
 
-`haco base import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
+`haco image import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` は非圧縮のIncusコンテナイメージを、一時Envで整理してBaseとして公開する。元ファイルは保持する。
 
 [入力・上限・失敗時の扱い](../design/base-images-and-custom-environments.md#import-a-container-image-archive)。
 

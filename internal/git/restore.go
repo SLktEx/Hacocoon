@@ -7,7 +7,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/adapters/git"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -35,7 +34,7 @@ type savedWorkspaceBackend interface {
 }
 
 func validSavedID(id string) bool {
-	return strings.HasPrefix(id, "snap-") && len(id) == 37 && core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: strings.TrimPrefix(id, "snap-")})
+	return len(id) <= 41 && core.ValidateEnvironmentName(id) == nil
 }
 
 // RestoreWorkspace registers independent normal Workspace copies. The caller
@@ -74,7 +73,7 @@ func (s *RepositoryService) RestoreWorkspaceSelectionWithData(ctx context.Contex
 	if err != nil {
 		return Object{}, err
 	}
-	if len(sources) < 1 || len(sources) > 8 {
+	if len(sources) < 1 || len(sources) > core.MaxWorkspaceRepositories {
 		return Object{}, core.ErrIncompatibleState
 	}
 	object := Object{Kind: "work", ID: id, Owner: randomID(), State: "creating", RestoredFrom: saved.ID}

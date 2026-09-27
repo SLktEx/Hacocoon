@@ -11,11 +11,10 @@
 通常の `haco setup` 後、trusted `haco-host` で実行します。
 
 ```bash
-haco base build --name my-tools examples/packer
-haco base inspect my-tools
-haco env create --base my-tools --workspace managed:my-project dev
-haco ssh setup dev
-ssh haco-dev my-tool
+haco image build --name my-tools examples/packer
+haco image inspect my-tools
+haco open --new my-tools --name dev --client none
+haco exec dev my-tool
 ```
 
 ツールは `hello-from-packer` を返します。オプションはディレクトリの前に置きます。
@@ -57,7 +56,7 @@ templateには `HACO_PACKER_BUILD_ID` を渡します。出力imageの
 1個だけ生成します。変数と `auto.pkrvars.hcl` は通常のPacker仕様です。
 元imageはHCLで選びます。`--from` と `--builder` はJSON定義専用です。
 
-画像サイズと操作全体の固定上限は既定ではありません。`--max-image-size 2TiB` で任意の上限を設けられ、`--max-image-size unlimited` は既定動作を明示します。`haco base import` も同じ指定に対応します。明示上限はexport、転送、controller検証に適用します。整数のファイルoffset表現とfilesystem／storageの容量制約は残ります。転送メモリは一定で、画像全体を読み込みません。import Envのroot disk quotaは実artifactの2倍（最低64 GiB）とし、Coreの有限quota表現を超える場合だけ既存のdisk unlimitedを使います。CPU・メモリ・PID予算は有限のままです。容量不足は既存の失敗・復旧処理へ戻します。TB規模の実画像の所要時間・ディスク使用量は未検証です。
+画像サイズと操作全体の固定上限は既定ではありません。`--max-image-size 2TiB` で任意の上限を設けられ、`--max-image-size unlimited` は既定動作を明示します。`haco image import` も同じ指定に対応します。明示上限はexport、転送、controller検証に適用します。整数のファイルoffset表現とfilesystem／storageの容量制約は残ります。転送メモリは一定で、画像全体を読み込みません。import Envのroot disk quotaは実artifactの2倍（最低64 GiB）とし、Coreの有限quota表現を超える場合だけ既存のdisk unlimitedを使います。CPU・メモリ・PID予算は有限のままです。容量不足は既存の失敗・復旧処理へ戻します。TB規模の実画像の所要時間・ディスク使用量は未検証です。
 
 ## artifactと公開
 
@@ -80,7 +79,7 @@ immutable revisionとaliasの契約を維持します。再buildしても既存E
 `/var/lib/hacocoon-packer/builds/<build-id>/receipt.json` に、正確なnested project、
 Base名、image fingerprint、artifact hash/size、段階、controller側の `build-<build-id>` を永続記録します。
 公開するnative imageにもbuilder名を記録し、import完了後の応答喪失でも
-`haco base list --all --json` の `build_environment` と照合できます。これは診断情報であり、
+`haco image list --all --json` の `build_environment` と照合できます。これは診断情報であり、
 削除の所有権確認は既存のfingerprintとimmutable build-instance identityで行います。
 `--json` は状態と保持identityを返します。source・子process出力・認証情報を
 controllerのログには入れません。
@@ -98,4 +97,4 @@ native公開結果が不明なら既存のimage/build証拠を維持します。
 Packer各段階とimage exportにwrapperの固定timeoutは設けません。
 worker終了時はcgroup内の子processも停止し、CLI中断はその操作のserviceだけを停止要求します。
 管理操作・通信停滞・cleanupの待ち時間は有限のままです。CLIの強制終了ではworkerが継続する場合があるため、
-正確なreceiptとserviceを確認し、必要ならそのserviceを停止します。永続記録を保持し、推測cleanupはしません。[ADR 0113](../adr/0113-trusted-host-nested-packer.ja.md)がADR 0089を置き換えます。
+正確なreceiptとserviceを確認し、必要ならそのserviceを停止します。永続記録を保持し、推測cleanupはしません。[ADR 0114](../adr/0114-trusted-host-nested-packer.ja.md)がADR 0089を置き換えます。

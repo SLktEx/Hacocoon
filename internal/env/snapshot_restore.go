@@ -7,14 +7,11 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-type restoreProvider interface {
-	PlanSnapshotRestore(context.Context, core.Snapshot, string) ([]core.SnapshotComponent, error)
-	CreateRestoreComponent(context.Context, core.Snapshot, core.SnapshotComponent) error
-	VerifyRestoreComponent(context.Context, core.SnapshotComponent) error
+type legacyRestoreCleanupProvider interface {
 	DeleteRestoreComponent(context.Context, core.SnapshotComponent) error
 }
 
-func (r *Router) nativeRestoreSnapshot(s core.Snapshot, expected string) (core.Snapshot, error) {
+func (r *Router) nativeSavedSnapshot(s core.Snapshot, expected string) (core.Snapshot, error) {
 	_, native, id, err := r.resolveWithID(s.Source.Environment.RuntimeRef)
 	if err != nil {
 		return s, err
@@ -36,33 +33,7 @@ func (r *Router) nativeRestoreSnapshot(s core.Snapshot, expected string) (core.S
 	}
 	return s, nil
 }
-func (r *Router) PlanSnapshotRestore(ctx context.Context, s core.Snapshot, id string) ([]core.SnapshotComponent, error) {
-	p, _, provider, err := r.resolveWithID(s.Source.Environment.RuntimeRef)
-	if err != nil {
-		return nil, err
-	}
-	backend, ok := p.(restoreProvider)
-	if !ok {
-		return nil, core.ErrUnsupported
-	}
-	s, err = r.nativeRestoreSnapshot(s, provider)
-	if err != nil {
-		return nil, err
-	}
-	cs, err := backend.PlanSnapshotRestore(ctx, s, id)
-	if err != nil {
-		return nil, err
-	}
-	out := append([]core.SnapshotComponent(nil), cs...)
-	for i, c := range out {
-		if c.NativeRef == "" || strings.HasPrefix(c.NativeRef, refPrefix) {
-			return nil, core.ErrIncompatibleState
-		}
-		out[i].NativeRef = encodeRouteRef(provider, c.NativeRef)
-	}
-	return out, nil
-}
-func (r *Router) restoreBackend(c core.SnapshotComponent) (restoreProvider, core.SnapshotComponent, string, error) {
+func (r *Router) restoreBackend(c core.SnapshotComponent) (legacyRestoreCleanupProvider, core.SnapshotComponent, string, error) {
 	if !strings.HasPrefix(c.NativeRef, refPrefix) {
 		return nil, c, "", core.ErrIncompatibleState
 	}
@@ -73,30 +44,12 @@ func (r *Router) restoreBackend(c core.SnapshotComponent) (restoreProvider, core
 	if c.NativeRef != encodeRouteRef(id, native) {
 		return nil, c, "", core.ErrIncompatibleState
 	}
-	backend, ok := p.(restoreProvider)
+	backend, ok := p.(legacyRestoreCleanupProvider)
 	if !ok {
 		return nil, c, "", core.ErrUnsupported
 	}
 	c.NativeRef = native
 	return backend, c, id, nil
-}
-func (r *Router) CreateRestoreComponent(ctx context.Context, s core.Snapshot, c core.SnapshotComponent) error {
-	backend, c, id, err := r.restoreBackend(c)
-	if err != nil {
-		return err
-	}
-	s, err = r.nativeRestoreSnapshot(s, id)
-	if err != nil {
-		return err
-	}
-	return backend.CreateRestoreComponent(ctx, s, c)
-}
-func (r *Router) VerifyRestoreComponent(ctx context.Context, c core.SnapshotComponent) error {
-	backend, c, _, err := r.restoreBackend(c)
-	if err != nil {
-		return err
-	}
-	return backend.VerifyRestoreComponent(ctx, c)
 }
 func (r *Router) DeleteRestoreComponent(ctx context.Context, c core.SnapshotComponent) error {
 	backend, c, _, err := r.restoreBackend(c)

@@ -2,9 +2,99 @@
 
 [English](acceptance-evidence.md) | 日本語
 
-状態: 検証記録。ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+状態: 検証記録。明示したローカル候補を除き、ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
+
+<a id="unified-creation-local"></a>
+
+## 作成経路統合：Issue #728のローカル候補
+
+2026-09-26、`9d63f193`を基点とするIssue #728の未commit作業ツリーで、
+`TestRealIncusSnapshotAggregateE2E`がWindows/WSL2、Ubuntu 26.04.1、Incus 7.0.1、
+Btrfs上で成功しました。CLIバイナリと専用のテストcontroller/catalogを使い、
+running/stoppedからの新Image付きSnapshot作成、export/import、`open --new --snapshot`、
+rootfs・Git・Workspace・OCIデータの独立性、新しい権限世代、元の稼働状態の保持、
+生成データ削除、所有資源のcleanupを確認しました。未commit・未追跡ファイルと未push commitも
+保持しました。最初はimport後にfixtureの20分上限へ達しましたが、テスト上限を45分にした
+再実行は1,754秒で成功しました。最初のfixtureも所有者を検証する正規APIでcleanupしました。
+既存ユーザーEnvironmentは試験対象にしていません。
+
+ローカルCIではGo 1.26.7によるtests/vet/race、CLI・orchestration E2E、隔離kernelの
+forwarding、文書・workflow検査、Linux/Windowsのsnapshot配布物生成を実行しました。
+Windowsネイティブの導入component試験ではファイルロック・所有者・junctionの拒否、
+PowerShell 5.1から実WSLへのリテラル引数転送、WSL停止待ちも成功しました。
+公開releaseやhosted CIの結果ではなく、ローカル作業ツリーの証拠です。標準Imageの新規導入、
+VS Code・SSH GUI、認証付きGit通信、稼働中OCIの整合性は今回再検証していません。
+native aggregateでは既存cache Imageの削除、live containerd転送、別gateの導入済みcontroller
+によるimportを明示的にskipしました。
+
+### 更新された main との統合
+
+2026-09-27、候補 `f2a2b78f` に main `4cbe853f` を統合し、Repository の再試行・進捗表示と
+Windows の再開処理を維持しました。文書、workflow policy、通常コマンド・orchestrator の
+E2E、隔離した kernel forwarding の試験に成功しました。実 Incus と試験専用の設定 catalog で
+通常 bootstrap の Image 取得経路も成功し、取得済み標準 Image が initial default として永続化され、
+再 setup も成功しました。既存 Image cache を利用した確認で、新規 Host 導入ではありません。
+Windows native component 試験では GUID・名前による停止対象の選択と、元の失敗・再開失敗の
+保持を確認しました。実 VHD の容量回収は実行していません。
+
+Go の全 package の通常・race 試験、vet、通知クライアントの JavaScript 32 件、VS Code
+packaging 2 件に成功しました。maintained `test`・`race` の初回実行では、Windows マウント上の
+ソースを使う既存 checkpoint black-box package が10分上限に達しました。その package だけ
+`go test [-race] -v -count=1 -timeout=30m ./tools/milestone` で再実行し、それぞれ1,060秒・
+1,032秒で成功しました。製品の時間制限は変更していません。
+
+同じ製品コードで maintained `release-config` もローカル Ubuntu 26.04 container 上で成功し、
+Linux/Windows の amd64・arm64 snapshot 配布物、installer bundle、全 checksum を検証しました。
+最初の最小 container には fixture が使う `/usr/bin/python3` が不足していましたが、試験の前提を
+追加して解消しました。installer コードは変更していません。
+
+最初の実 containerd aggregate 試験は書き込みデータの保存と export に成功した後、Host 側の
+Git 確認が Incus による UID 変換を拒否しました。既存の import・copy 確認と同様、provider が
+所有確認したパスだけをその Git 呼び出しで許可するよう試験を修正しました。製品の所有確認と
+global Git 設定は変更していません。失敗 fixture の保存・コピー資源は canonical cleanup で削除し、
+元・復元 Volume の不在を独立した一覧確認でも検証しました。
+これに先立つ旧 cache fingerprint 指定の実行は、Image の自動更新による不在を検出し、
+fixture 資源を作る前に拒否しました。
+
+次の実機試験では、実 CLI の export/import 後に containerd Image の同一性と停止済み container の
+書き込みデータを確認し、起動中の元 Environment から保存した Snapshot で新 Environment の作成にも
+成功しました。ただし JSON 判定が stderr の進捗を stdout に混ぜていました。修正 `5b5336cd` で
+出力を分離し、追加した回帰は race 付きでも成功しました。保全した専用 catalog だけを使う一時的な
+継続テストで元の残りの判定を繰り返し、619秒で成功しました。Snapshot open、独立コピー、
+Git・rootfs・OCI の保持、元 Environment の不変、使用中データの削除拒否、canonical cleanup を
+確認しています。一時ソースはコンパイル後に削除しました。独立した Incus inventory でも既存ユーザーの
+全 instance・Volume の保持と両 fixture 名の不在を確認し、完了した catalog には lifecycle lock の
+識別情報だけが残っています。
+
+これは分割したローカル実機検証で、修正後の aggregate 全体を一度に通した結果ではありません。
+既存 cache Image の削除と別 gate の導入済み controller による import は引き続き skip しました。
+保存した containerd 作業の明示 start は成功しましたが、稼働 task の移送、任意アプリケーションの
+整合性、復元後の SSH・VS Code GUI、認証付き Git の受入はこの試験では証明していません。
+
+### 作成経路統合の hosted 検証とプレビューのタイムアウト
+
+2026-09-27、`f43b9f7095cd1c6ad977326d5dd02876880acebc` は
+[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/36299877273)、
+[品質検査](https://github.com/SLktEx/Hacocoon/actions/runs/36299877282)、
+[実 Incus](https://github.com/SLktEx/Hacocoon/actions/runs/36299877261)、
+[Ubuntu 配布物の導入](https://github.com/SLktEx/Hacocoon/actions/runs/36299877263)に成功しました。
+Incus では Snapshot aggregate 全体の連続実行と導入済み controller の転送経路も確認しました。
+SonarCloud の新規コードカバレッジは80.9%で、品質ゲートに成功しました。
+
+[Windows 実行](https://github.com/SLktEx/Hacocoon/actions/runs/36299877270)では、
+導入、lifecycle、egress、interop、customization、通知、容量回収に成功しました。
+最初の access ジョブは、既存の Edge headless プロセスの30秒上限
+（`test_windows_environment_ssh.ps1:470`）で失敗しました。その前の Windows HTTP 接続と
+Workspace marker の完全一致は成功し、独立した SSH、VS Code、転送、トンネルの確認も
+成功しました。同じコードで失敗ジョブを再実行すると、Edge 描画、preview 再利用・拒否を含む
+access ジョブ全体に成功しました。再実行のために時間制限・判定・製品動作を変更していません。
+
+証跡ゲートは再実行成功後も初回失敗を正しく保持しました。Edge タイムアウトの根本原因は
+未確認で、後続の成功がその解決や取り消しを意味するわけではありません。ゲートを緩和せず、
+次の候補でもこの制約を保持するために記録しています。これらの hosted 構成だけで認証付き Git、
+private registry、稼働 workload 移送、全ての物理 Host 構成を検証したとは扱いません。
 
 <a id="portless-ssh"></a>
 

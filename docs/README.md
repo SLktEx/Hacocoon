@@ -15,7 +15,7 @@ Hacocoon is pre-1.0; check [available scope and limits](IMPLEMENTATION_STATUS.md
 - [Stop, delete, recreate and understand retained data](guides/data-lifetime.md)
 - [Transfer an Environment](design/environment-transfer.md#commands) and [review data evacuation/migration](guides/data-evacuation.md)
 - [Reclaim allocation and inspect results](design/storage-reclamation.md#public-dispatch-and-result-inspection)
-- [Host/project setup](design/project-setup.md), [Web preview](design/development-preview.md), [temporary execution](design/temporary-execution.md)
+- [Host/project setup](design/project-setup.md), [Web preview](design/development-preview.md)
 
 - [Daily development and setup diagnostics](reference/daily-workflow.md)
 - [Prepare, reopen and fork Workspaces](design/workspace-workflow.md)

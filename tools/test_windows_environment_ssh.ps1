@@ -572,7 +572,7 @@ fi
     $EnvironmentGone = -not $EnvironmentAttempted
     if ($EnvironmentAttempted) {
         try {
-            [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'delete', $EnvironmentName) 'Delete acceptance Environment')
+            [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'delete', '-f', $EnvironmentName) 'Delete acceptance Environment')
             $EnvironmentGone = $true
         } catch {
             $CleanupFailed = $true; Write-Warning $_

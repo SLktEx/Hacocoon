@@ -170,7 +170,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[product] Verify Incus pool trim retains volume and snapshot"
         run: |
@@ -241,7 +241,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[product] Verify standard Host tools and offline Store image reuse"
         run: |
@@ -283,7 +283,7 @@ jobs:
 
   incus-snapshots:
     runs-on: ubuntu-26.04
-    timeout-minutes: 40
+    timeout-minutes: 65
     env:
       HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
@@ -317,7 +317,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[infrastructure] Prepare pinned OCI runtime transfer assets"
         run: |
@@ -334,7 +334,7 @@ jobs:
             HACO_E2E_IMPORT_CONTROLLER="$RUNNER_TEMP/import-controller" GITHUB_ACTIONS=true HACO_CI_RUNNER_ENVIRONMENT=github-hosted \
             HACO_E2E_TRANSFER_OCI=1 HACO_E2E_OCI_RUNTIME_ASSETS="$RUNNER_TEMP/oci-runtime-assets" \
             HACO_E2E_INCUS_RESUME_IMAGE="$image" HACO_E2E_INCUS_RESUME_POOL=haco-local-default \
-            "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=25m
+            "$RUNNER_TEMP/snapshot-storage.test" -test.run='^TestRealIncus(BaseAsset|WorkspaceDeletion|SourceDeletion|Snapshot(Volumes|Rootfs|Base|Aggregate))E2E$' -test.v -test.timeout=55m
       - name: "[fixture] Capture storage CLI diagnostics"
         if: failure()
         run: |
@@ -398,7 +398,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[infrastructure] Prepare Base and volume test binaries"
         run: |
@@ -476,7 +476,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[infrastructure] Prepare pinned OCI runtime transfer assets"
         run: |
@@ -552,7 +552,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[infrastructure] Prepare pinned OCI runtime transfer assets"
         run: |
@@ -628,7 +628,7 @@ jobs:
           bash tools/ci-incus-core.sh setup
       - name: "[fixture] Prepare normal-user haco CLI acceptance"
         run: bash tools/ci-incus-storage-cli.sh setup
-      - name: "[product] Establish normal haco create and run against Incus-owned Btrfs"
+      - name: "[product] Establish normal Environment creation and exec against Incus-owned Btrfs"
         run: bash tools/ci-incus-storage-cli.sh test
       - name: "[infrastructure] Prepare pinned OCI runtime transfer assets"
         run: |

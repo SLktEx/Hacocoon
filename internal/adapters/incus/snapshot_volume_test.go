@@ -105,7 +105,7 @@ func TestSnapshotVolumeCopyBindsSourceAndIndependentTarget(t *testing.T) {
 					return host.Result{}, nil
 				}}
 				err := New(runner).createSnapshotVolume(context.Background(), p)
-				if mode == "ok" {
+				if mode == "ok" || mode == "running" {
 					if err != nil || posts != 1 {
 						t.Fatal(err, posts)
 					}

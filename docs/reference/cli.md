@@ -11,7 +11,7 @@ help and version require no controller.
 
 | Purpose | Syntax and defaults | Details |
 |---|---|---|
-| Normal development | `haco repo add <id> <URL>`, then `haco open [--client vscode\|ssh\|none] [--base <base>] [--oci auto\|none\|oci:ID] [--json]` | [Automatic default session](../design/default-development-session.md); JSON requires `--client none` |
+| Normal development | `haco repo add <URL>`, then `haco open [--client vscode\|ssh\|none] [--json]` | [Automatic default session](../design/default-development-session.md); JSON requires `--client none` |
 | Workspace path | `haco workspace prepare --path <dir> --repo <id[,id...]> [--name <name>] [--oci auto\|none\|oci:ID]`; `haco workspace fork --path <new-dir> [--name <name>] <source-dir>`; `haco open [--repo <ids>] [--client vscode\|ssh\|none] <dir>` | [Owner-pinned entry and independent data forks](../design/workspace-workflow.md) |
 | TCP/UDP | `haco network tcp\|udp`, `host add\|remove`, `rule`, `list`, `revoke`; `haco env forward --protocol tcp\|udp --target-port <port> <env>` | [Exact options, guest listeners and management authority](../design/network-connections.md) |
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
@@ -20,35 +20,64 @@ help and version require no controller.
 | Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
-| Source | `haco repo add <id> <URL>`; `list [--json]`; `delete [--yes] <id>` | [Git](../guides/git-workflow.md); branch-independent registration; optional `--branch` belongs to single-source `workspace create` |
-| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete [--yes] <id>` | Independent Git/data copies |
+| Source | `haco repo add <URL>`; `list [--json]`; `delete <id>` | [Git](../guides/git-workflow.md); branch-independent registration |
+| Workspace | `haco workspace create --repo <id[,id...]> [--branch <branch>] <workspace>`; `list [--json]`; `delete <id>` | Independent Git/data copies; `--branch` for one source, otherwise remote defaults |
 | Create | `haco env create --workspace <path-or-managed:id> [--base <base>] [--resource oci:<store> \| --no-oci] <name>` | Default Base; optional configured OCI initialization |
 | Inspect | `haco env list [--json]`; `haco env status [--json] <name>` | Text by default |
 | Lifecycle | `haco env start <name>`, `stop <name>`, `delete <name>` | [Data lifetime](../guides/data-lifetime.md) |
-| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; `open --select` or `ssh setup` offers existing-Env selection |
+| Desktop | `haco ssh setup [environment]`; `haco ssh cleanup`; `haco open [--client vscode\|ssh] [environment]` | VS Code default; stopped Env resumes; last-opened Environment when omitted |
 | Manual SSH | `haco env ssh --key <public-key-file> <name>`; `ssh-config <name>`; `disconnect <name> <connection-id>` | ProxyCommand uses a durable target; `haco stream <target>` exposes raw stdio; [SSH](windows-environment-ssh.md) |
 | Preview | `haco open --port <port> [--close \| --no-browser] [environment]` | [HTTP preview](../design/development-preview.md); Env loopback port |
-| Temporary command | `haco run [-i \| -it] [--workspace <workspace>] [--base <base>] [--no-oci] [--read-only] [--json] -- <command...>` | [Temporary execution](../design/temporary-execution.md); `--rm` defaults true; `-i` streams input, `-it` uses a terminal; JSON is captured-output only |
-| Base | `haco base list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
-| Git broker | `haco git pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
-| OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete [--yes] <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
+| Image | `haco image list`; `list --all [--json]`; `inspect <base>`; `build <definition.json>`; `delete [--yes] <name-or-fingerprint>` | [Base](../design/base-images-and-custom-environments.md); ordinary list/inspect return JSON |
+| Git broker | `haco git connect <env>`; `pending`; `approve [--save env\|all\|ask-env\|ask-all] <id>`; `deny [--save ...] <id>` | [Git approvals](../guides/git-workflow.md) |
+| OCI Store | `haco plugin oci store create <id> [--from <id>]`; `inspect <id>`; `list [--json]`; `delete <id>` | [Store](../design/persistent-oci-store.md); `--from` also accepted before target |
 | OCI images | `haco plugin oci image list [--unused] [--runtime nerdctl\|docker] [--json] [--host] [<env-or-store-id>]` | [Image reference](../design/oci-image-deletion.md); nerdctl default; `--host` replaces target |
 | Image removal | `haco plugin oci image delete [--unused] [--runtime nerdctl\|docker] [--yes] [--host] [<env-or-store-id>] [<image-id-or-tag>]` | `--unused` replaces image selector; reviewed candidates may include tagged images |
-| Snapshot | `haco snapshot create [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `restore [--json] [--latest] <id\|source-env> [new-env]`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
+| Snapshot | `haco snapshot create [--name NAME] [--json] <env>`; `list [--json] [env]`; `inspect [--json] [--details] <id>`; `delete <id>` | [Snapshots](../design/environment-snapshots.md) |
 | Copy | `haco env copy [--json] <stopped-env> [new-env]` | Default `<source>-copy`; [copy](../design/environment-copy.md) |
 | Transfer | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux; defaults `<env>.haco` / `<source>-imported`; [transfer](../design/environment-transfer.md) |
 | Disk allocation | `haco reclaim [--yes \| --status \| --review [--yes]]` | Managed Windows/WSL only; [reclamation](../design/storage-reclamation.md) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.md); profile default `default`; guest forbids `--env` |
 
 `haco env switch-base` is explicitly disabled. Product `haco` has no top-level
-`create/exec/shell/events/connections/forward`, no `plugin git` or `plugin oci seed/docker`,
-and no CPU/memory/PID/root-size flags on `env create` or `run`.
+`shell/events/connections/forward`, no `plugin git` or `plugin oci seed/docker`,
+and no CPU/memory/PID/root-size flags on `env create`.
 Retired interfaces are recorded in [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md).
 
-Ordinary failure exits nonzero; usage usually exits 2. Temporary execution returns
-the guest exit code after confirmed cleanup, 130 after client cancellation, and
-failure for uncertain cleanup. A dispatch receipt (`reclaim`) is not completion.
+Ordinary failure exits nonzero; usage usually exits 2. `exec` preserves the guest
+exit code and returns 130 on client cancellation. It neither starts nor stops an
+Environment. A dispatch receipt (`reclaim`) is not completion.
 Use JSON only on commands that explicitly provide it; there is no global `--json`.
+
+## Create and continue
+
+```sh
+haco repo add https://github.com/example/project.git
+haco open
+haco open --new
+haco open --new tools --volume work
+haco open --new --snapshot SNAPSHOT
+haco create --name later tools
+haco start later
+haco exec -it later -- bash
+haco commit later saved-tools
+haco image tag saved-tools next
+haco snapshot create --name checkpoint later
+haco image default
+haco image default tools
+haco volume create work
+haco volume create saved-work --container ENV
+haco volume ls
+haco volume inspect work
+haco volume rm work
+```
+
+`create` requires IMAGE and neither starts nor opens. `open --new` uses the
+configured default when IMAGE is omitted. Explicit Image does not change that
+setting. A Snapshot supplies its saved Image and data. Volume binding is fixed at
+creation and exclusive; there are no attach/detach commands. `haco ps`, `start`,
+`stop`, `restart`, `exec`, `inspect`, and `rm [-f]` route to the same Environment operations.
+See [creation semantics](../design/environment-creation.md).
 
 ## Hierarchical help
 
@@ -70,7 +99,7 @@ On the trusted Host, `haco cache settings` displays configured areas, `haco cach
 ## Build a Base with Packer
 
 ```sh
-haco base build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
+haco image build --name my-tools [--max-image-size 2TiB] [--output] [--json] <directory>
 ```
 
 Image size and total build/import duration have no configured cap by default. `--max-image-size unlimited` states the default explicitly; a finite value imposes a size cap. Cancellation and archive validation remain active.
@@ -96,7 +125,7 @@ Environment creation accepts `--dns host|backend|disabled` (default `host`); ord
 
 ## Base archive input
 
-`haco base import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
+`haco image import --name <base> [--max-image-size 2TiB] [--json] <image.tar>` imports an uncompressed Incus container image through an isolated temporary Env and publishes an immutable Base. The source file remains.
 
 See [input, limits and failure handling](../design/base-images-and-custom-environments.md#import-a-container-image-archive).
 

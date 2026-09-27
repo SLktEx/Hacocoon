@@ -16,10 +16,10 @@ import (
 	controlapi "github.com/SLktEx/Hacocoon/internal/controller/api"
 	control "github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/env/creation"
 	gitrepo "github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/state"
 	workspaceapp "github.com/SLktEx/Hacocoon/internal/workspace"
-	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
 // Native Git, volumes and runtime are fixtures. The shipped CLI process, Unix
@@ -41,11 +41,21 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 	native.repos = repos
 	catalog := state.NewEnvironmentJSONStore(filepath.Join(root, "state.json"))
 	envs := workspaceapp.NewWithProvider(native, catalog, native)
-	server := control.NewServer()
-	if err := controlapi.RegisterRepositories(server, repos, nil); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	broker := gitrepo.NewBroker(repos, catalog, filepath.Join(root, "git-sockets"))
+	if err := broker.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := controlapi.RegisterWorkflow(server, &workflow.Service{Repositories: repos, Environments: envs}); err != nil {
+	defer broker.Close()
+	server := control.NewServer()
+	if err := controlapi.RegisterRepositories(server, repos, broker); err != nil {
+		t.Fatal(err)
+	}
+	if err := catalog.SetDefaultImage(context.Background(), "fixture-default", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := controlapi.RegisterCreation(server, &creation.Service{Catalog: catalog, Images: native, Workspaces: repos, Environments: envs}); err != nil {
 		t.Fatal(err)
 	}
 	socket := filepath.Join(root, "control.sock")
@@ -53,7 +63,7 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(ctx, listener) }()
 	defer func() { cancel(); <-done }()
@@ -69,26 +79,26 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%v: %v\n%s", args, err, &diagnostic)
 		}
-		if args[0] == "open" && !strings.Contains(diagnostic.String(), "Preparing project files") {
+		if args[0] == "open" && !strings.Contains(diagnostic.String(), "Preparing or resuming") {
 			t.Fatal("missing progress")
 		}
 		return out
 	}
 	runCLI("repo", "add", "api", "https://github.com/example/api.git")
 	runCLI("repo", "add", "web", "https://github.com/example/web.git")
-	open := func() workflow.OpenResult {
+	open := func() core.Environment {
 		t.Helper()
-		var result workflow.OpenResult
+		var result core.Environment
 		if err := json.Unmarshal(runCLI("open", "--client", "none", "--json"), &result); err != nil {
 			t.Fatal(err)
 		}
 		return result
 	}
 	first := open()
-	if !first.Created || first.Environment.Base == nil || first.Environment.Base.Name != "fixture-default" {
+	if first.Base == nil || first.Base.Name != "fixture-default" {
 		t.Fatal("default Base not selected", first)
 	}
-	work, err := repos.Get("work", first.Name)
+	work, err := repos.Get("work", strings.TrimPrefix(first.Workspace.Path, "managed:"))
 	if err != nil || len(work.Members) != 2 {
 		t.Fatal("collection absent", work, err)
 	}
@@ -104,11 +114,11 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := envs.Stop(ctx, first.Environment.Name); err != nil {
+	if err := envs.Stop(ctx, first.Name); err != nil {
 		t.Fatal(err)
 	}
 	second := open()
-	if second.Created || second.Reference != first.Reference || second.Environment.RuntimeRef != first.Environment.RuntimeRef {
+	if second.Name != first.Name || second.Workspace != first.Workspace || second.RuntimeRef != first.RuntimeRef {
 		t.Fatal("resume replaced work", second)
 	}
 	for _, member := range work.Members {
@@ -119,7 +129,7 @@ func TestDefaultWorkflowE2E(t *testing.T) {
 	}
 	native.mu.Lock()
 	defer native.mu.Unlock()
-	if native.creates != 1 || native.starts != 1 || !native.running {
+	if native.creates != 1 || native.starts != 2 || !native.running {
 		t.Fatal("reopen did not reuse lifecycle", native.creates, native.starts)
 	}
 	if native.resolves != 2 {
@@ -196,7 +206,7 @@ func (f *defaultNativeFixture) CreateEnvironment(_ context.Context, spec core.En
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.creates++
-	f.running = true
+	f.running = !spec.DeferStart
 	return core.EnvironmentRuntime{Ref: "fixture-runtime", Base: &core.BaseRef{Name: "fixture-default"}, Resources: spec.Resources}, nil
 }
 func (f *defaultNativeFixture) StartEnvironment(context.Context, string) error {
@@ -220,4 +230,8 @@ func (*defaultNativeFixture) ExecEnvironment(context.Context, string, core.Execu
 }
 func (*defaultNativeFixture) ShellEnvironment(context.Context, string) error {
 	return core.ErrUnsupported
+}
+
+func (*defaultNativeFixture) InspectBase(_ context.Context, name core.BaseName) (core.BaseInfo, error) {
+	return core.BaseInfo{Name: name}, nil
 }

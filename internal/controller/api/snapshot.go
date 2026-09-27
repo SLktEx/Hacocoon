@@ -15,10 +15,11 @@ import (
 
 const MethodSnapshot = "snapshot.manage"
 
-var publicSnapshotID = regexp.MustCompile(`^snap-[a-f0-9]{32}$`)
+var publicSnapshotID = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,39}[a-z0-9])?$`)
 
 type SnapshotRequest struct {
 	Operation   string `json:"operation"`
+	Name        string `json:"name,omitempty"`
 	Environment string `json:"environment,omitempty"`
 	ID          string `json:"id,omitempty"`
 }
@@ -57,13 +58,24 @@ func RegisterSnapshots(server *control.Server, service snapshotService) error {
 		}
 		response := SnapshotResponse{Snapshots: []SnapshotSummary{}}
 		var err error
+		if req.Name != "" && (req.Operation != "create" || !publicSnapshotID.MatchString(req.Name)) {
+			return nil, translateError(core.ErrInvalidArgument)
+		}
 		switch req.Operation {
 		case "create":
 			if req.ID != "" || strings.TrimSpace(req.Environment) == "" {
 				return nil, translateError(core.ErrInvalidArgument)
 			}
 			var saved core.Snapshot
-			saved, err = service.CaptureSnapshot(ctx, req.Environment)
+			if req.Name == "" {
+				saved, err = service.CaptureSnapshot(ctx, req.Environment)
+			} else if named, ok := service.(interface {
+				CaptureNamedSnapshot(context.Context, string, string) (core.Snapshot, error)
+			}); ok {
+				saved, err = named.CaptureNamedSnapshot(ctx, req.Environment, req.Name)
+			} else {
+				err = core.ErrUnsupported
+			}
 			if saved.ID != "" {
 				response.Snapshots = append(response.Snapshots, summarizeSnapshot(saved))
 			}

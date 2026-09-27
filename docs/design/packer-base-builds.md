@@ -12,11 +12,10 @@ images remain unverified (amd64 acceptance scope). Evidence is recorded separate
 Run in trusted `haco-host` after normal `haco setup`:
 
 ```bash
-haco base build --name my-tools examples/packer
-haco base inspect my-tools
-haco env create --base my-tools --workspace managed:my-project dev
-haco ssh setup dev
-ssh haco-dev my-tool
+haco image build --name my-tools examples/packer
+haco image inspect my-tools
+haco open --new my-tools --name dev --client none
+haco exec dev my-tool
 ```
 
 The tool prints `hello-from-packer`. Options precede the directory.
@@ -60,7 +59,7 @@ output image property `user.hacocoon.packer-build`; exactly one private containe
 image must match. Packer variables retain ordinary HCL/`auto.pkrvars.hcl` semantics.
 Choose the source image in HCL. `--from` and `--builder` belong to JSON definitions.
 
-There is no configured image-size cap or overall deadline by default. Use `--max-image-size 2TiB` to impose an optional cap, or `--max-image-size unlimited` to state the default explicitly; `haco base import` accepts the same option. Explicit caps apply to export, upload and controller validation. Signed file-offset representation and filesystem/storage capacity still apply. Transfers use bounded memory and do not load the image all at once. The import Env root disk quota scales to twice the artifact size with a 64 GiB minimum; if that exceeds Core's finite quota representation, only the disk uses its existing unlimited mode. CPU, memory and PID budgets remain finite. Disk-full errors retain the existing failure/recovery semantics. TB-scale image duration and disk consumption remain unverified.
+There is no configured image-size cap or overall deadline by default. Use `--max-image-size 2TiB` to impose an optional cap, or `--max-image-size unlimited` to state the default explicitly; `haco image import` accepts the same option. Explicit caps apply to export, upload and controller validation. Signed file-offset representation and filesystem/storage capacity still apply. Transfers use bounded memory and do not load the image all at once. The import Env root disk quota scales to twice the artifact size with a 64 GiB minimum; if that exceeds Core's finite quota representation, only the disk uses its existing unlimited mode. CPU, memory and PID budgets remain finite. Disk-full errors retain the existing failure/recovery semantics. TB-scale image duration and disk consumption remain unverified.
 
 ## Artifact and publication
 
@@ -88,7 +87,7 @@ Each attempt has a durable private receipt under
 `/var/lib/hacocoon-packer/builds/<build-id>/receipt.json`. It records the exact
 Base name, nested project, image fingerprint, artifact digest/size, stage and controller
 import builder `build-<build-id>`. Native publication records this builder name as
-`build_environment` in `haco base list --all --json`, retaining correlation even when a
+`build_environment` in `haco image list --all --json`, retaining correlation even when a
 completed import loses its reply and removes its temporary Env. This is diagnostic
 metadata; deletion still requires the existing fingerprint and immutable build-instance identity. `--json` reports state and retained identity.
 No source, subprocess output or credentials enter controller logs.
@@ -112,4 +111,4 @@ management, stalled-I/O and cleanup waits remain. If the caller is killed abrupt
 may continue: inspect the exact receipt and service, and stop that service if
 needed. Durable evidence does not authorize speculative resource deletion.
 
-[ADR 0113](../adr/0113-trusted-host-nested-packer.md) supersedes ADR 0089.
+[ADR 0114](../adr/0114-trusted-host-nested-packer.md) supersedes ADR 0089.

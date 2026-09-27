@@ -69,7 +69,7 @@ func (s *Service) List(ctx context.Context) ([]Image, error) {
 			}
 		}
 		for _, snap := range snapshots {
-			if matches(snap.Source.Environment.Base, v.Identity) {
+			if matches(snap.Source.Environment.Base, v.Identity) || matches(snap.Image, v.Identity) {
 				v.IndependentSnapshots = append(v.IndependentSnapshots, snap.ID)
 			}
 		}
@@ -92,7 +92,17 @@ func (s *Service) Delete(ctx context.Context, id Identity) error {
 				return core.ErrStorageBusy
 			}
 		}
-		// Snapshot BaseRef is provenance. Saved rootfs never depends on this image.
+		// Original BaseRef remains provenance. A generated Snapshot Image is
+		// part of its saved aggregate and is removed by Snapshot deletion only.
+		snapshots, err := s.Catalog.ListSnapshots(ctx)
+		if err != nil {
+			return err
+		}
+		for _, saved := range snapshots {
+			if matches(saved.Image, id) {
+				return core.ErrStorageBusy
+			}
+		}
 		return nil
 	})
 }

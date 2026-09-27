@@ -21,10 +21,10 @@ die() {
 cleanup() {
   set +e
   if [[ "$created_a" == "1" ]]; then
-    "$haco_bin" env delete "$env_a" >/dev/null 2>&1 || true
+    "$haco_bin" env delete -f "$env_a" >/dev/null 2>&1 || true
   fi
   if [[ "$created_b" == "1" ]]; then
-    "$haco_bin" env delete "$env_b" >/dev/null 2>&1 || true
+    "$haco_bin" env delete -f "$env_b" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }
@@ -194,7 +194,7 @@ ping -4 -n -c 1 -W 3 "$ip_b" >/dev/null || die "Physical Host cannot reach $env_
 printf '==> Network security: deletion removes only that Environment network authority\n'
 python3 "$(dirname "${BASH_SOURCE[0]}")/forward.py" --haco "${HACO_PRODUCT_BIN:-haco}" --env "$env_b" --ref "$ref_b" --project "$project"
 
-"$haco_bin" env delete "$env_a"
+"$haco_bin" env delete -f "$env_a"
 created_a=0
 if incus network show "$bridge_a" --project "$network_project" >/dev/null 2>&1; then
   die "deleted Environment bridge $bridge_a still exists"
@@ -205,7 +205,7 @@ fi
 incus network show "$bridge_b" --project "$network_project" >/dev/null || die "deleting $env_a damaged $env_b bridge"
 nft list table inet "$guard_b" >/dev/null || die "deleting $env_a damaged $env_b anti-spoofing guard"
 
-"$haco_bin" env delete "$env_b"
+"$haco_bin" env delete -f "$env_b"
 created_b=0
 if incus network show "$bridge_b" --project "$network_project" >/dev/null 2>&1; then
   die "deleted Environment bridge $bridge_b still exists"

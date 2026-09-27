@@ -22,7 +22,7 @@ Physical Host: controller, Policy, Incus, storage authority
 | Exit SSH/editor | Retained, runtime may keep running | Retained | Retained | Retained |
 | `haco env stop dev` | Retained; processes stop | Retained | Retained | Lease retained |
 | `haco env start dev` / `haco open dev` | Same runtime resumes | Same data | Same data | Ownership/network rechecked |
-| `haco env delete dev` | Removed | Retained | Retained | Released only after positive runtime absence |
+| `haco env delete dev` | Removed (running requires `-f`) | Automatic Workspace removed; explicit Volume retained | Automatic owned data removed; Volume data retained | Released only after positive runtime absence |
 | `haco workspace delete work` | Refused while referenced by an Env | All managed files and Git metadata removed | Retained | Active/intermediate leases block deletion |
 | `haco plugin oci store delete store` | Refused while Store is reserved | Retained | Entire selected Store removed | Stopped Envs also block deletion |
 
@@ -37,47 +37,36 @@ External Workspaces remain at their explicit **controller-side** paths.
 Guest `/tmp` may be cleared at boot. None of these mechanisms protects writable
 Workspace files from an agent's edits.
 
-## Recreate while keeping project files
-
-First save needed Environment-only files into the Workspace or create a snapshot.
-To deliberately discard packages/rootfs changes:
+## Keep data independently of an Environment
 
 ```bash
+haco volume create saved-work --container dev
 haco env stop dev
 haco env delete dev
-haco env create --workspace managed:work --base haco/ubuntu-26.04 dev
-haco doctor --fix dev
-haco open dev
+haco open --new --volume saved-work
 ```
 
-Use the original Workspace ID. Its associated default Store is reused; if you
-previously selected an independent Store explicitly, pass the same
-`--resource oci:<store>`. Repeat `--no-oci` if you intend no OCI attachment.
-The new Env gets a new creation/SSH identity and does not inherit old
-Environment-specific approvals. `switch-base` is disabled.
-See [Workspace ownership](../design/workspace-abstraction-and-lease.md).
+The Volume is an independent copy. It survives deletion of either Environment.
+Automatic Workspace data is deleted with its Environment, including uncommitted,
+unpushed and untracked work. Existing Volume bindings cannot be changed. Legacy
+explicit managed Workspaces retain their existing independent lifetime.
+See [creation and ownership](../design/environment-creation.md).
 
 ## Save or copy the whole development state
 
 ```bash
 haco snapshot create dev
 haco snapshot list
-haco snapshot restore <snapshot-id> restored-dev
+haco open --new --snapshot <snapshot-id> --name restored-dev
 haco env stop dev
 haco env copy dev independent-dev
 ```
 
-Use `haco snapshot restore --latest dev restored-dev` to restore the newest complete
-save by environment name. If the recorded dates cannot establish a unique newest
-save, select its ID from `haco snapshot list`. Failed/incomplete saves are excluded;
-restoring creates independent data and never replaces the source Environment.
+Select a ready Snapshot ID from `haco snapshot list`. New creation uses its Image,
+Workspace and OCI metadata, ignoring current defaults and Repository registrations.
+Capture leaves the source running/stopped state unchanged. Copy still requires a
+stopped source. Neither operation overwrites an existing Environment.
 
-
-Snapshots include independent rootfs, all managed Workspace members, optional OCI
-and metadata. Capture stops a running source and restarts it only after a ready save.
-Copy requires a stopped source. Restore/copy create new resources and security
-identities; they do not overwrite an existing Environment. A default restore name
-is `<source>-restored`; the copy default is documented in the [copy contract](../design/environment-copy.md).
 Stop application writers first when consistency matters. Byte retention is not
 proof of arbitrary database consistency.
 
@@ -93,12 +82,10 @@ Inspect before deleting:
 haco workspace list
 haco plugin oci store list
 haco repo list
-haco base list --all
+haco image list --all
 ```
 
-Each delete previews and confirms its exact managed target; `--yes` is for
-intentional automation. Delete a source repository only after no Workspace record
-needs its Git route. Never delete valuable work just to clear a dependency.
+Environment deletion does not prompt. Other advanced storage deletion commands retain their target review. Repository deletion unregisters future input while preserving existing Git routes. Never delete valuable work just to clear a dependency.
 Remote repositories, credentials and independent saves are not deleted by
 `haco repo delete <id>`.
 

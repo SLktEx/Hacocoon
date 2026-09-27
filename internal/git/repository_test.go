@@ -60,6 +60,9 @@ func (b *ownershipBackend) Populate(_ context.Context, object Object) error {
 	b.populated = true
 	return nil
 }
+func (b *ownershipBackend) RunGit(_ context.Context, req gitadapter.AgentRequest) (gitadapter.Response, error) {
+	return gitadapter.Response{Ref: "refs/heads/main", OID: strings.Repeat("a", 40)}, nil
+}
 func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 	for _, failure := range []string{"", "create", "inspect", "populate"} {
 		t.Run(failure, func(t *testing.T) {
@@ -103,6 +106,7 @@ func TestVolumeOwnershipPrecedesFallibleWork(t *testing.T) {
 			if _, err := service.Add(context.Background(), "demo", "https://github.com/example/other.git"); !errors.Is(err, core.ErrAlreadyExists) {
 				t.Fatalf("different remote adopted existing identity: %v", err)
 			}
+
 		})
 	}
 }
@@ -145,7 +149,7 @@ func TestResumePreparedFailsClosedBeforeProviderWork(t *testing.T) {
 }
 
 func TestInvalidRepositoryInputHasNoProviderEffects(t *testing.T) {
-	for _, id := range []string{"../escape", "/absolute", "--option", "", "a\nb", strings.Repeat("a", 49)} {
+	for _, id := range []string{"../escape", "/absolute", "--option", "a\nb", strings.Repeat("a", 49)} {
 		service := NewRepositoryService(t.TempDir(), nil)
 		if _, err := service.Add(context.Background(), id, "https://github.com/example/repo.git"); !errors.Is(err, core.ErrInvalidArgument) {
 			t.Fatalf("id=%q err=%v", id, err)

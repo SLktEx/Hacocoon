@@ -10,7 +10,6 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
 )
@@ -18,7 +17,6 @@ import (
 const (
 	MethodBaseList          = "base.list"
 	MethodBaseInspect       = "base.inspect"
-	MethodRun               = "run.execute"
 	MethodEventsStream      = "events.stream"
 	MethodCapabilityRequest = "capability.request"
 
@@ -74,11 +72,6 @@ type eventStreamFrame struct {
 	Error      *responseStatus  `json:"error,omitempty"`
 }
 
-type runResponse struct {
-	Result runapp.Result   `json:"result"`
-	Error  *responseStatus `json:"error,omitempty"`
-}
-
 type capabilityServerFrame struct {
 	SavedChoices bool                    `json:"saved_choices,omitempty"`
 	Type         string                  `json:"type"`
@@ -105,10 +98,6 @@ type baseService interface {
 	InspectBase(context.Context, core.BaseName) (core.BaseInfo, error)
 }
 
-type runService interface {
-	Run(context.Context, runapp.Spec) (runapp.Result, error)
-}
-
 type eventService interface {
 	Stream(context.Context, int64, func(eventsapp.Event) error) (int64, error)
 }
@@ -125,8 +114,8 @@ type capabilityService interface {
 // separate from the initial Environment lifecycle registration. The split lets
 // the controller grow typed APIs without changing the stable Environment
 // registration contract used by older tests and callers.
-func RegisterGeneral(server *control.Server, bases baseService, runner runService, events eventService, capabilities capabilityService) error {
-	if server == nil || bases == nil || runner == nil || events == nil || capabilities == nil {
+func RegisterGeneral(server *control.Server, bases baseService, events eventService, capabilities capabilityService) error {
+	if server == nil || bases == nil || events == nil || capabilities == nil {
 		return control.ErrInvalidArgument
 	}
 	if err := server.Register(MethodBaseList, func(ctx context.Context, _ json.RawMessage) (any, error) {
@@ -152,12 +141,6 @@ func RegisterGeneral(server *control.Server, bases baseService, runner runServic
 		}
 		return result, nil
 	}); err != nil {
-		return err
-	}
-	if err := registerRun(server, runner); err != nil {
-		return err
-	}
-	if err := registerRunProcess(server, runner); err != nil {
 		return err
 	}
 	if err := server.RegisterStream(MethodCapabilityRequest, func(ctx context.Context, payload json.RawMessage) (control.Stream, error) {

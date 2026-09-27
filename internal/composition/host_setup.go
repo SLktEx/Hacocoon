@@ -47,6 +47,9 @@ func (a *App) setupHost(ctx context.Context, update recipes.Update, wait bool) e
 	if err := a.Runtime.SetupTrustedHost(ctx, filepath.Dir(executable)); err != nil {
 		return err
 	}
+	if err := a.initializeDefaultImage(ctx); err != nil {
+		return err
+	}
 	return hostsetup.Step(ctx, "customization", func() error { return a.HostCustomization.Apply(ctx, update) })
 }
 
@@ -90,4 +93,22 @@ func (a *App) PrepareTrustedHostShellStream(ctx context.Context) (func(context.C
 		return nil, err
 	}
 	return a.Runtime.PrepareTrustedHostShellStream(ctx)
+}
+
+func (a *App) initializeDefaultImage(ctx context.Context) error {
+	if a.InitialImage == nil || a.Creation == nil {
+		return nil
+	}
+	current, err := a.Creation.Catalog.DefaultImage(ctx)
+	if err != nil {
+		return err
+	}
+	if current != "" {
+		return nil
+	}
+	image, err := a.InitialImage(ctx)
+	if err != nil {
+		return err
+	}
+	return a.Creation.Catalog.SetDefaultImage(ctx, image, true)
 }
