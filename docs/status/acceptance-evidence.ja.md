@@ -73,6 +73,29 @@ Git・rootfs・OCI の保持、元 Environment の不変、使用中データの
 保存した containerd 作業の明示 start は成功しましたが、稼働 task の移送、任意アプリケーションの
 整合性、復元後の SSH・VS Code GUI、認証付き Git の受入はこの試験では証明していません。
 
+### 作成経路統合の hosted 検証とプレビューのタイムアウト
+
+2026-09-27、`f43b9f7095cd1c6ad977326d5dd02876880acebc` は
+[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/36299877273)、
+[品質検査](https://github.com/SLktEx/Hacocoon/actions/runs/36299877282)、
+[実 Incus](https://github.com/SLktEx/Hacocoon/actions/runs/36299877261)、
+[Ubuntu 配布物の導入](https://github.com/SLktEx/Hacocoon/actions/runs/36299877263)に成功しました。
+Incus では Snapshot aggregate 全体の連続実行と導入済み controller の転送経路も確認しました。
+SonarCloud の新規コードカバレッジは80.9%で、品質ゲートに成功しました。
+
+[Windows 実行](https://github.com/SLktEx/Hacocoon/actions/runs/36299877270)では、
+導入、lifecycle、egress、interop、customization、通知、容量回収に成功しました。
+最初の access ジョブは、既存の Edge headless プロセスの30秒上限
+（`test_windows_environment_ssh.ps1:470`）で失敗しました。その前の Windows HTTP 接続と
+Workspace marker の完全一致は成功し、独立した SSH、VS Code、転送、トンネルの確認も
+成功しました。同じコードで失敗ジョブを再実行すると、Edge 描画、preview 再利用・拒否を含む
+access ジョブ全体に成功しました。再実行のために時間制限・判定・製品動作を変更していません。
+
+証跡ゲートは再実行成功後も初回失敗を正しく保持しました。Edge タイムアウトの根本原因は
+未確認で、後続の成功がその解決や取り消しを意味するわけではありません。ゲートを緩和せず、
+次の候補でもこの制約を保持するために記録しています。これらの hosted 構成だけで認証付き Git、
+private registry、稼働 workload 移送、全ての物理 Host 構成を検証したとは扱いません。
+
 <a id="portless-ssh"></a>
 
 ## ポート不要 SSH とエディターの cold reconnect

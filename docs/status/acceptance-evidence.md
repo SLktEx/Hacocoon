@@ -83,6 +83,31 @@ import remained skipped. Explicitly starting saved containerd work passed; runni
 task migration, arbitrary application consistency, restored SSH/VS Code GUI and
 authenticated Git acceptance are not established by these tests.
 
+### Hosted unified-creation acceptance and preview timeout
+
+On 2026-09-27, `f43b9f7095cd1c6ad977326d5dd02876880acebc` passed
+[repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/36299877273),
+[quality checks](https://github.com/SLktEx/Hacocoon/actions/runs/36299877282),
+[real Incus](https://github.com/SLktEx/Hacocoon/actions/runs/36299877261) and
+[packaged Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/36299877263).
+Incus included the uninterrupted aggregate Snapshot and installed-controller
+transfer paths. SonarCloud reported 80.9% new-code coverage and a passing gate.
+
+The [Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/36299877270)
+passed installation, lifecycle, egress, interop, customization, notification and
+reclamation. Its first access job failed at the existing 30-second Edge headless
+process deadline (`test_windows_environment_ssh.ps1:470`). Windows HTTP access
+and the exact Workspace marker had already passed; independent SSH, VS Code,
+transfer and tunnel probes also passed. The failed-job retry on the same code
+passed the full access job, including Edge rendering and preview reuse/refusal.
+No timeout, assertion or product behavior changed for that retry.
+
+The evidence gate correctly retained the initial failure after the successful
+retry. The Edge timeout's root cause remains unproven; a later pass does not fix
+or erase it. This record preserves that limitation for the next candidate rather
+than weakening the gate. These hosted substrates do not establish authenticated
+Git, private-registry, live-workload migration or every physical Host configuration.
+
 <a id="portless-ssh"></a>
 
 ## Portless SSH and cold editor reconnect
