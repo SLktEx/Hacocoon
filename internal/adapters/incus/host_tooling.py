@@ -264,8 +264,6 @@ def verify_docker_config():
     required = {"data-root": "/var/lib/hacocoon-oci/docker", "exec-root": "/run/docker"}
     if any(config.get(key) != value for key, value in required.items()):
         raise ValueError("conflicting Docker storage configuration")
-    if "storage-driver" in config:
-        raise ValueError("Docker storage driver is managed by Hacocoon")
 
 
 def services():
