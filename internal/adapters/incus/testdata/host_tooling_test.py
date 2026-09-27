@@ -82,10 +82,8 @@ class HostToolingTests(unittest.TestCase):
                     tooling.publish(target, b"keep", 0o755)
                 self.assertEqual(Path(outside).read_bytes(), b"keep")
 
-    def archive(self, mutation):
+    def archive_fixture(self, names, mutation, ignored):
         result = io.BytesIO()
-        names = ["bin/" + name for name in tooling.BINARIES]
-        names += ["libexec/cni/" + name for name in tooling.CNI]
         with tarfile.open(fileobj=result, mode="w") as archive:
             for index, name in enumerate(names):
                 entry = tarfile.TarInfo(name)
@@ -101,37 +99,22 @@ class HostToolingTests(unittest.TestCase):
                 archive.addfile(entry, io.BytesIO(b"test") if entry.isfile() else None)
                 if index == 0 and mutation == "duplicate":
                     archive.addfile(entry, io.BytesIO(b"test"))
-            for name in ("../../escape", "/etc/passwd", "bin/docker"):
+            for name in ignored:
                 entry = tarfile.TarInfo(name)
                 entry.size = 4
                 archive.addfile(entry, io.BytesIO(b"evil"))
         result.seek(0)
         return tarfile.open(fileobj=result, mode="r")
 
+    def archive(self, mutation):
+        names = ["bin/" + name for name in tooling.BINARIES]
+        names += ["libexec/cni/" + name for name in tooling.CNI]
+        return self.archive_fixture(names, mutation, ("../../escape", "/etc/passwd", "bin/docker"))
+
     def docker_archive(self, mutation):
-        result = io.BytesIO()
         names = ["docker/docker"]
         names += ["docker/" + name for name in tooling.DOCKER_ENGINE_BINARIES]
-        with tarfile.open(fileobj=result, mode="w") as archive:
-            for index, name in enumerate(names):
-                entry = tarfile.TarInfo(name)
-                entry.size, entry.mode = 4, 0o755
-                if index == 0:
-                    if mutation == "missing":
-                        continue
-                    if mutation in ("symlink", "hardlink"):
-                        entry.type = tarfile.SYMTYPE if mutation == "symlink" else tarfile.LNKTYPE
-                        entry.linkname, entry.size = "/etc/passwd", 0
-                    if mutation == "setuid":
-                        entry.mode = 0o4755
-                archive.addfile(entry, io.BytesIO(b"test") if entry.isfile() else None)
-                if index == 0 and mutation == "duplicate":
-                    archive.addfile(entry, io.BytesIO(b"test"))
-            entry = tarfile.TarInfo("../../escape")
-            entry.size = 4
-            archive.addfile(entry, io.BytesIO(b"evil"))
-        result.seek(0)
-        return tarfile.open(fileobj=result, mode="r")
+        return self.archive_fixture(names, mutation, ("../../escape",))
 
     def test_only_complete_regular_allowlisted_payloads(self):
         for kind in ("ok", "missing", "symlink", "hardlink", "duplicate", "setuid"):
