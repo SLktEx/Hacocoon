@@ -165,58 +165,42 @@ def packages():
     run(["/usr/bin/gh", "--version"])
 
 
-def download(arch):
+def download_archive(cache_name, url, digest, redirect_prefix, label):
     cache = "/var/cache/hacocoon/host-tooling"
     directory(cache)
-    name = "nerdctl-full-" + VERSION + "-linux-" + arch + ".tar.gz"
-    path = cache + "/" + name
-    try:
-        data = read_file(path, MAX_ARCHIVE)
-        if hashlib.sha256(data).hexdigest() != DIGESTS[arch]:
-            raise ValueError("cached tooling digest mismatch")
-        return path
-    except FileNotFoundError:
-        pass
-    request = urllib.request.Request("https://github.com/containerd/nerdctl/releases/download/v"
-                                     + VERSION + "/" + name)
-    # No proxy credentials or user configuration are inherited by downloads.
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open(request, timeout=60) as response:
-        if not response.url.startswith("https://"):
-            raise ValueError("insecure tooling redirect")
-        data = response.read(MAX_ARCHIVE + 1)
-    if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != DIGESTS[arch]:
-        raise ValueError("tooling archive digest mismatch")
-    publish(path, data, 0o644)
-    return path
-
-
-def docker_download(arch):
-    cache = "/var/cache/hacocoon/host-tooling"
-    directory(cache)
-    cache_name = "docker-" + DOCKER_VERSION + "-linux-" + arch + ".tgz"
     path = cache + "/" + cache_name
     try:
         data = read_file(path, MAX_ARCHIVE)
-        if hashlib.sha256(data).hexdigest() != DOCKER_DIGESTS[arch]:
-            raise ValueError("cached Docker digest mismatch")
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise ValueError("cached " + label + " digest mismatch")
         return path
     except FileNotFoundError:
         pass
-    upstream_arch = DOCKER_ARCH[arch]
-    name = "docker-" + DOCKER_VERSION + ".tgz"
-    request = urllib.request.Request("https://download.docker.com/linux/static/stable/"
-                                     + upstream_arch + "/" + name)
+    request = urllib.request.Request(url)
+    # No proxy credentials or user configuration are inherited by downloads.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=60) as response:
-        if not response.url.startswith("https://download.docker.com/"):
-            raise ValueError("insecure Docker redirect")
+        if not response.url.startswith(redirect_prefix):
+            raise ValueError("insecure " + label + " redirect")
         data = response.read(MAX_ARCHIVE + 1)
-    if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != DOCKER_DIGESTS[arch]:
-        raise ValueError("Docker archive digest mismatch")
+    if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError(label + " archive digest mismatch")
     publish(path, data, 0o644)
     return path
 
+
+def download(arch):
+    name = "nerdctl-full-" + VERSION + "-linux-" + arch + ".tar.gz"
+    url = "https://github.com/containerd/nerdctl/releases/download/v" + VERSION + "/" + name
+    return download_archive(name, url, DIGESTS[arch], "https://", "tooling")
+
+
+def docker_download(arch):
+    cache_name = "docker-" + DOCKER_VERSION + "-linux-" + arch + ".tgz"
+    name = "docker-" + DOCKER_VERSION + ".tgz"
+    url = ("https://download.docker.com/linux/static/stable/" + DOCKER_ARCH[arch] + "/" + name)
+    return download_archive(cache_name, url, DOCKER_DIGESTS[arch],
+                            "https://download.docker.com/", "Docker")
 
 def select_files(archive, wanted):
     selected = {}
