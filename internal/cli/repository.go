@@ -87,7 +87,7 @@ func repositoryCommand(ctx context.Context, namespace string, args []string, out
 		return 2
 	}
 	pos := flags.Args()
-	if (len(pos) != n && !(operation == "repo add" && len(pos) == 1)) || (operation == "workspace create" && (repo == "" || (branch != "" && strings.Contains(repo, ",")))) {
+	if (len(pos) != n && (operation != "repo add" || len(pos) != 1)) || (operation == "workspace create" && (repo == "" || (branch != "" && strings.Contains(repo, ",")))) {
 		return usage()
 	}
 	var choice capabilityapp.SavedChoice

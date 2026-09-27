@@ -78,7 +78,7 @@ func createCommand(ctx context.Context, client creationClient, args []string, ou
 	}
 	environment, err := client.Create(ctx, creation.Request{Name: *name, Image: core.BaseName(flags.Arg(0)), Volume: *volume})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
 	}
 	if *machine {
@@ -86,7 +86,9 @@ func createCommand(ctx context.Context, client creationClient, args []string, ou
 			return 1
 		}
 	} else {
-		fmt.Fprintln(out, environment.Name)
+		if _, err := fmt.Fprintln(out, environment.Name); err != nil {
+			return 1
+		}
 	}
 	return 0
 }
@@ -141,7 +143,9 @@ func runImage(args []string) int {
 		fmt.Fprintln(os.Stderr, "No default Image configured; run haco setup.")
 		return 1
 	}
-	fmt.Fprintln(os.Stdout, selected)
+	if _, err := fmt.Fprintln(os.Stdout, selected); err != nil {
+		return 1
+	}
 	return 0
 }
 

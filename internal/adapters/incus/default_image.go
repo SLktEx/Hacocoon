@@ -15,7 +15,9 @@ func (p *BaseProvider) EnsureStandardImage(ctx context.Context) (core.BaseName, 
 	if err != nil {
 		return "", err
 	}
-	result, err := p.runner.Run(ctx, "incus", "image", "copy", resolved.pinnedSource, "local:", "--project", p.project)
+	// An empty target selects the configured remote, including on Incus 6,
+	// which requires a second positional argument. Keep the destination project explicit.
+	result, err := p.runner.Run(ctx, "incus", "image", "copy", resolved.pinnedSource, "", "--target-project", p.project)
 	if err != nil {
 		return "", err
 	}

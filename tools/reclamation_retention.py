@@ -77,8 +77,12 @@ def verify(record, host, guest):
     before = saved()
     restored = "reclaim-saved-" + record["nonce"]
     current = "reclaim-current-" + record["nonce"]
-    result = json.loads(host("snapshot", "restore", "--json", record["snapshot"], restored))
-    if result.get("environment") != restored or result.get("state") != "running" or not result.get("workspace") or not result.get("oci") or result["workspace"] == record["workspace"] or result["oci"] == record["oci"]:
+    result = json.loads(host("open", "--new", "--client", "none", "--json", "--snapshot", record["snapshot"], "--name", restored))
+    if (not isinstance(result, dict) or result.get("name") != restored or
+            not isinstance(result.get("workspace"), dict) or not result["workspace"].get("path") or
+            not isinstance(result.get("persistent_resource"), dict) or not result["persistent_resource"].get("id") or
+            result["workspace"]["path"] == "managed:" + record["workspace"] or
+            result["persistent_resource"]["id"] == record["oci"]):
         raise RuntimeError("Snapshot restore independence unproven")
     check = ('set -eu; cd /workspace; test "$(cat .git/refs/heads/main)" = ' + record["commit"] +
              '; test "$(cat committed-locally)" = unpushed; test "$(cat tracked)" = uncommitted; '

@@ -108,7 +108,9 @@ func openCreationCommand(ctx context.Context, client creationClient, args []stri
 			return 1
 		}
 	} else {
-		fmt.Fprintf(out, "Environment %q ready.\n", environment.Name)
+		if _, err := fmt.Fprintf(out, "Environment %q ready.\n", environment.Name); err != nil {
+			return 1
+		}
 	}
 	return launch(environment, *selected)
 }

@@ -45,7 +45,9 @@ func TestExecStreamPreservesIOExitAndCancellation(t *testing.T) {
 			if _, err := io.Copy(out, in); err != nil {
 				return core.ExecutionResult{}, err
 			}
-			io.WriteString(diagnostic, "stderr")
+			if _, err := io.WriteString(diagnostic, "stderr"); err != nil {
+				return core.ExecutionResult{}, err
+			}
 			return core.ExecutionResult{ExitCode: 17}, &control.SessionExitError{Code: 17}
 		}}
 		client := processTestClient(t, service)
@@ -104,7 +106,7 @@ func TestExecRejectsMalformedRequestAndReceipt(t *testing.T) {
 	for _, request := range []any{ExecStreamRequest{Environment: "dev", Process: core.ProcessRequest{Argv: []string{"bash"}, TTY: true}}, ExecStreamRequest{Environment: "dev", Process: core.ProcessRequest{Argv: []string{"bad\x00"}}}, ExecStreamRequest{Environment: "../dev", Process: core.ProcessRequest{Argv: []string{"true"}}}, map[string]any{"unreviewed": true}, "wrong type"} {
 		conn, err := client.wire.OpenSession(context.Background(), MethodExecStream, request)
 		if conn != nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 		if err == nil || service.calls.Load() != 0 {
 			t.Fatal("accepted invalid request", err)

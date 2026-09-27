@@ -160,7 +160,7 @@ PY
   assert_incus_managed_storage
   [[ "$(cat "$WORKSPACE/from-environment.txt")" == "from-environment" ]] || fail "workspace data changed during pool reuse"
   [[ "$("$HOST_BIN" env exec "$ENV_NAME" -- cat /root/storage-reuse-sentinel)" == "rootfs-retained" ]] || fail "existing rootfs data changed during policy reconciliation"
-  "$HOST_BIN" env delete "$ENV_NAME"
+  "$HOST_BIN" env delete -f "$ENV_NAME"
   haco_stop_test_controller
   local remaining
   remaining="$(incus list "$INSTANCE" --project "$PROJECT" --format csv -c n)" || fail "instance absence is unknown"

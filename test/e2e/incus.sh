@@ -44,7 +44,7 @@ cleanup() {
     incus delete "$client_runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$created" == "1" ]]; then
-    "$haco_host" env delete "$environment" >/dev/null 2>&1 || \
+    "$haco_host" env delete -f "$environment" >/dev/null 2>&1 || \
       incus delete "$runtime_ref" --project hacocoon --force >/dev/null 2>&1 || true
   fi
   if [[ "$trusted_host_created" == "1" ]]; then
@@ -311,7 +311,7 @@ grep -q "client-err" "$client_stderr" || {
   exit 1
 }
 
-incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_client" env delete "$client_environment"
+incus exec "$trusted_host_ref" --project hacocoon -- "$trusted_client" env delete -f "$client_environment"
 client_created=0
 if incus info "$client_runtime_ref" --project hacocoon >/dev/null 2>&1; then
   echo "controller-created client Environment remained after trusted-host haco-host env delete" >&2
@@ -386,7 +386,7 @@ for forbidden in \
   fi
 done
 
-"$haco_host" env delete "$environment"
+"$haco_host" env delete -f "$environment"
 created=0
 
 if incus info "$runtime_ref" --project hacocoon >/dev/null 2>&1; then

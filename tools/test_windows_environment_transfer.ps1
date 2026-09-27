@@ -86,7 +86,7 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         $windowsDigest = (Get-FileHash -LiteralPath $windowsBundle -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($windowsDigest -cne $exported.result.sha256 -or (Get-Item -LiteralPath $windowsBundle).Length -ne [long]$exported.result.bytes) { throw 'Windows bundle does not match export receipt' }
         $phase = 'source-delete'
-        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete',$source) 'Delete source Env while retaining data and bundle')
+        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete','-f',$source) 'Delete source Env while retaining data and bundle')
         Update-SSHTestPolicy 'remove' $source
         $policyAdded = $false
 
@@ -116,7 +116,7 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
             if ($savedRows.Count -ne 1 -or $savedRows[0].id -notmatch '^snap-[a-f0-9]{32}$' -or $savedRows[0].state -ne 'ready') { throw 'Reclamation snapshot incomplete' }
             $savedForReclaim = [string]$savedRows[0].id
         }
-        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete',$destination) 'Delete imported Env while retaining resumed work')
+        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete','-f',$destination) 'Delete imported Env while retaining resumed work')
         [void](Invoke-HacoHost @('/usr/local/bin/haco','env','create','--workspace',('managed:' + $imported.workspace),'--resource',[string]$imported.oci,'--base',$BaseName,$resume) 'Reattach imported Workspace and OCI to a fresh Env')
         $read = Invoke-Wsl @('-u','root','--exec','incus','exec',('haco-' + $resume),'--project','hacocoon','--','/bin/sh','-ec','test "$(cat /workspace/continued)" = continued-over-ssh; test "$(cat /var/lib/hacocoon-oci/transfer-marker)" = oci-kept; printf retained') 'Verify SSH work survived Env deletion and recreation'
         if ($read.Stdout -cne 'retained') { throw 'Retained data not confirmed' }
@@ -124,7 +124,7 @@ with open(sys.argv[1], 'rb') as source, open(sys.argv[2], 'xb') as target:
         if ((Get-FileHash -LiteralPath $windowsBundle -Algorithm SHA256).Hash.ToLowerInvariant() -cne $windowsDigest) { throw 'Import changed Windows bundle' }
         Write-Host 'WINDOWS BUNDLE FILE / HASH / PROJECTED IMPORT / IMMUTABILITY: PASS'
         $phase = 'owned-cleanup'
-        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete',$resume) 'Delete transfer recreation fixture')
+        [void](Invoke-HacoHost @('/usr/local/bin/haco','env','delete','-f',$resume) 'Delete transfer recreation fixture')
         $storesToDelete = @($sourceStore)
         if (-not $retainForReclaim) { $storesToDelete += [string]$imported.oci }
         foreach ($id in $storesToDelete) {

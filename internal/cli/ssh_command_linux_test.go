@@ -79,7 +79,7 @@ func desktopCommandFixture(t *testing.T, defaultWorkflow ...bool) (*desktopComma
 			if err := json.Unmarshal(raw, &request); err != nil {
 				return nil, err
 			}
-			if request.Environment != state.environment.Name && !(method == controlapi.MethodOpen && request.Environment == "") {
+			if request.Environment != state.environment.Name && (method != controlapi.MethodOpen || request.Environment != "") {
 				return nil, control.NewStatusError("not_found", "Environment absent")
 			}
 			switch method {

@@ -18,7 +18,7 @@ cleanup() {
   local result=$?
   trap - EXIT
   if [[ "$created" == 1 ]]; then
-    if ! "$haco" env delete "$environment"; then
+    if ! "$haco" env delete -f "$environment"; then
       echo "FAIL: fixture cleanup needs recovery; retained $root" >&2
       exit 1
     fi

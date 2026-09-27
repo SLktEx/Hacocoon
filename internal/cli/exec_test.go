@@ -21,8 +21,12 @@ func (f *execCLIStub) ExecStream(_ context.Context, name string, r core.ProcessR
 	f.request = r
 	data, _ := io.ReadAll(in)
 	f.input = string(data)
-	io.WriteString(out, "stdout")
-	io.WriteString(errout, "stderr")
+	if _, err := io.WriteString(out, "stdout"); err != nil {
+		return core.ExecutionResult{}, err
+	}
+	if _, err := io.WriteString(errout, "stderr"); err != nil {
+		return core.ExecutionResult{}, err
+	}
 	return core.ExecutionResult{ExitCode: 17}, nil
 }
 func TestExecCLIParsesOnlyItsOwnFlags(t *testing.T) {
