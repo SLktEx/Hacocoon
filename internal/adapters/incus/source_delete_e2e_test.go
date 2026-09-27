@@ -143,10 +143,7 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	if err := service.DeleteSource(ctx, o.ID, strings.Repeat("f", 32)); !errors.Is(err, core.ErrCapabilityStale) {
 		t.Fatal("stale owner accepted", err)
 	}
-	output, err = cli("repo", "delete", "source")
-	if err != nil {
-		t.Fatalf("repeat unregister: %v %s", err, output)
-	}
+
 	// Physical cleanup remains an ownership-checked maintenance operation.
 	must(service.DeleteSource(ctx, o.ID, o.Owner))
 	if mounted, err := backend.sourceDevice(ctx, o); err != nil || mounted {

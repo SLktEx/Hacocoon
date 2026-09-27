@@ -44,7 +44,7 @@ func runVolume(args []string) int {
 	defer cancel()
 	result, err := controlapi.NewDefaultClient().Volume(ctx, controlapi.VolumeRequest{Operation: op, Name: flags.Arg(0), Container: source})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
 	if *machine {
@@ -53,7 +53,9 @@ func runVolume(args []string) int {
 		}
 	} else {
 		for _, v := range result {
-			fmt.Fprintln(os.Stdout, v.Name)
+			if _, err := fmt.Fprintln(os.Stdout, v.Name); err != nil {
+				return 1
+			}
 		}
 	}
 	return 0
