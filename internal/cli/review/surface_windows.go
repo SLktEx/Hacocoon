@@ -1,12 +1,10 @@
 package reviewcli
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,16 +19,28 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/client/review"
 )
 
-// Constant script only on argv. Literal JSON/XML travels over stdin; raw native
+// Constant script only on argv. Framed UTF-8 fields travel over stdin; raw native
 // output never becomes a product diagnostic or an authorization receipt.
-const nativeToastScript = `$ErrorActionPreference='Stop';$stage='runtime';try{
+// A fixed four-field base64 frame avoids PowerShell cmdlet/module autoload at
+// cold startup. Data remains literal, including quotes, newlines and XML.
+const nativeToastInputScript = `function Read-NativeToastInput([string]$raw){
+ $parts=$raw.Split([char]10)
+ if($parts.Length -ne 4){throw 'Invalid native toast frame'}
+ $utf8=[Text.UTF8Encoding]::new($false,$true)
+ $values=[string[]]::new(4)
+ for($i=0;$i -lt 4;$i++){$values[$i]=$utf8.GetString([Convert]::FromBase64String($parts[$i]))}
+ return @{operation=$values[0];appID=$values[1];tag=$values[2];xml=$values[3]}
+}
+`
+
+const nativeToastScript = nativeToastInputScript + `$ErrorActionPreference='Stop';$stage='runtime';try{
 function Write-NativeStage([string]$value){[Console]::Error.WriteLine('HACO_TOAST_STAGE:'+$value)}
 Write-NativeStage 'runtime'
 [Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
 Write-NativeStage 'input'
 $raw=[Console]::In.ReadToEnd()
 Write-NativeStage 'decode'
-$data=$raw|ConvertFrom-Json
+$data=Read-NativeToastInput $raw
 Write-NativeStage 'winrt'
 [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]>$null
 [Windows.UI.Notifications.ToastNotification,Windows.UI.Notifications,ContentType=WindowsRuntime]>$null
@@ -119,6 +129,14 @@ func encodeNativeScript(s string) string {
 	}
 	return base64.StdEncoding.EncodeToString(data)
 }
+func encodeNativeToastInput(operation, appID, tag, xml string) string {
+	fields := []string{operation, appID, tag, xml}
+	for i := range fields {
+		fields[i] = base64.StdEncoding.EncodeToString([]byte(fields[i]))
+	}
+	return strings.Join(fields, "\n")
+}
+
 func (s *nativeToastSurface) invoke(ctx context.Context, operation, id, xml string) error {
 	// Cold Windows PowerShell/WinRT startup has reached the previous 30-second
 	// child ceiling on hosted Windows while the owning startup context still had
@@ -126,20 +144,12 @@ func (s *nativeToastSurface) invoke(ctx context.Context, operation, id, xml stri
 	// review/read/cleanup parent deadlines still win.
 	ctx, cancel := context.WithTimeout(ctx, nativeToastProcessTimeout)
 	defer cancel()
-	data, err := json.Marshal(struct {
-		Operation string `json:"operation"`
-		AppID     string `json:"appID"`
-		Tag       string `json:"tag"`
-		XML       string `json:"xml"`
-	}{operation, s.appID, id, xml})
-	if err != nil {
-		return err
-	}
+	data := encodeNativeToastInput(operation, s.appID, id, xml)
 	root := s.plan.Env[0][len("SystemRoot="):]
 	cmd := exec.CommandContext(ctx, root+`\System32\WindowsPowerShell\v1.0\powershell.exe`, "-NoProfile", "-NonInteractive", "-EncodedCommand", encodeNativeScript(nativeToastScript))
 	cmd.Env = s.plan.Env
 	cmd.Dir = root
-	cmd.Stdin = bytes.NewReader(data)
+	cmd.Stdin = strings.NewReader(data)
 	cmd.Stderr = io.Discard
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 	cmd.WaitDelay = time.Second

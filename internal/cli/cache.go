@@ -138,7 +138,7 @@ func runCacheWith(args []string, client cacheClient, out, diagnostic io.Writer) 
 		for _, a := range response.Areas {
 			state := a.State
 			switch state {
-			case "enrolled", "published", "skipped", "recovery-required", "cleanup-required", "failed":
+			case "cleaned", "enrolled", "published", "skipped", "recovery-required", "cleanup-required", "failed":
 			default:
 				state = "failed"
 			}
@@ -161,6 +161,9 @@ func runCacheWith(args []string, client cacheClient, out, diagnostic io.Writer) 
 			key = "cache.recovery"
 		case "not_found":
 			key = "cache.not_found"
+		}
+		if len(response.Areas) > 0 && response.Areas[len(response.Areas)-1].State == "cleaned" {
+			key = "cache.cleaned_retry"
 		}
 		_, _ = fmt.Fprintln(diagnostic, cliMessage(key))
 		return 1

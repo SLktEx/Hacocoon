@@ -39,6 +39,10 @@ type PersistentResource struct {
 	// CopyCompleted is a durable receipt recorded only after provider completion
 	// and verification, before restoring source writers or publishing the copy.
 	CopyCompleted bool `json:"copy_completed,omitempty"`
+	// CopyOperation identifies the provider request for an unfinished cache
+	// generation. CopyCleanup fences completion before waiting for its stop.
+	CopyOperation string `json:"copy_operation,omitempty"`
+	CopyCleanup   bool   `json:"copy_cleanup,omitempty"`
 }
 
 func (r PersistentResource) Ref() PersistentResourceRef {

@@ -50,6 +50,7 @@ func (s *Service) RecoverCopy(ctx context.Context, ref core.PersistentResourceRe
 		expected.State = "ready"
 		expected.CopySource = core.PersistentResourceRef{}
 		expected.CopyCompleted = false
+		expected.CopyOperation = ""
 		if readErr == nil && current == expected {
 			return current, nil
 		}
@@ -58,5 +59,6 @@ func (s *Service) RecoverCopy(ctx context.Context, ref core.PersistentResourceRe
 	target.State = "ready"
 	target.CopySource = core.PersistentResourceRef{}
 	target.CopyCompleted = false
+	target.CopyOperation = ""
 	return target, nil
 }

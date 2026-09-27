@@ -49,3 +49,5 @@ exact-owner deletion and completed-copy recovery remain canonical. Names from
 existing Env receipts are display observations; missing names never infer
 ownership. All-group review binds every source/candidate and visible membership,
 then each group keeps its own partial outcome. Ordinary output needs no opaque ID.
+
+Interrupted collection cleanup is now defined by [ADR 0112](0112-interrupted-cache-copy-cleanup.md). Creation-time-only enrollment is intentional; the earlier incomplete list is historical.

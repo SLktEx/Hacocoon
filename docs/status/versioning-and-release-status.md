@@ -17,6 +17,10 @@ Hacocoon is pre-1.0. Checkpoints mark progress; they are separate from compatibi
 
 ## Checkpoint history
 
+PR #737 keeps creation-only enrollment and adds interrupted collection cleanup within
+the current checkpoint. This completes an existing M4 failure path; no tag or release.
+
+
 The private Windows review descendant cleanup fix remains within v0.68; it repairs
 the existing startup-coordination contract. See [ADR 0110](../adr/0110-private-windows-process-ownership.md).
 No tag or release is created by this fix.

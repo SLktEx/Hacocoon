@@ -31,12 +31,15 @@ func (w *Workflow) recoverReviewed(ctx context.Context, history History, candida
 	var failures []error
 	for i, r := range candidates {
 		entry := history.Entries[i]
-		if r.State == "deleting" {
+		if r.State == "deleting" && !r.CopyCleanup {
 			entry.State = "cleanup-required"
 			failures = append(failures, core.ErrRecoveryRequired)
 		} else {
 			recovered, err := w.Recoverer.RecoverEnvironmentGeneration(ctx, r.Ref())
 			entry.State = recovered.State
+			if entry.State == "cleaned" {
+				entry.State = "deleted"
+			}
 			if entry.State == "published" {
 				entry.State = "current"
 			}
