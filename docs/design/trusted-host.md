@@ -387,8 +387,9 @@ inspect the conflict rather than deleting image data.
 `containerd.service`, `buildkit.service` and `docker.service` are enabled and
 checked for readiness. The default nerdctl namespace is `default`, with the `native`
 snapshotter and a matching containerd transfer unpack configuration. Docker uses its
-own bundled engine dependencies, the managed `/etc/docker/daemon.json` data/exec roots,
-and the `vfs` storage driver required by the unprivileged nested Host. Inside trusted
+own bundled engine dependencies and the managed `/etc/docker/daemon.json` data/exec roots.
+Hacocoon does not force a Docker storage driver; Docker selects a supported driver
+for the available backing filesystem and kernel. Inside trusted
 `haco-host`, after successful setup:
 
 ```bash
