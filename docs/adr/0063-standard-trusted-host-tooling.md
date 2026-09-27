@@ -19,8 +19,8 @@ Native snapshots and containerd's transfer unpack configuration must agree, so a
 ordinary pull works without special flags. BuildKit cache and Docker's managed
 data root remain inside that area; process state and sockets remain Host-local.
 Docker's official static archive is digest-pinned per architecture, its engine
-dependencies are isolated from the standard containerd binaries, and the trusted
-Host service uses the vfs driver required by the unprivileged nested Host. The
+dependencies are isolated from the standard containerd binaries, and Hacocoon does
+not force a Docker storage driver; the daemon selects a supported driver at startup. The
 receiving Environment supplies its own runtime. Registry credentials stay outside
 the copied area and the existing authenticated-registry credential lifecycle is
 unchanged.
