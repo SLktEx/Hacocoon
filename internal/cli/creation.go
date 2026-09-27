@@ -109,7 +109,7 @@ func runImage(args []string) int {
 			return 0
 		}
 		if !isUnsupportedControllerError(err) {
-			fmt.Fprintln(os.Stderr, "haco:", err)
+			_, _ = fmt.Fprintln(os.Stderr, "haco:", err)
 			return 1
 		}
 		return runBase(append([]string{"delete", "--yes"}, args[1:]...))
@@ -136,11 +136,11 @@ func runImage(args []string) int {
 	defer cancel()
 	selected, err := controlapi.NewDefaultClient().DefaultImage(ctx, image)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
 	if selected == "" {
-		fmt.Fprintln(os.Stderr, "No default Image configured; run haco setup.")
+		_, _ = fmt.Fprintln(os.Stderr, "No default Image configured; run haco setup.")
 		return 1
 	}
 	if _, err := fmt.Fprintln(os.Stdout, selected); err != nil {
@@ -151,16 +151,18 @@ func runImage(args []string) int {
 
 func runImageCommand(operation string, args []string) int {
 	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "Usage: haco image tag SOURCE TARGET | haco commit ENV IMAGE")
+		_, _ = fmt.Fprintln(os.Stderr, "Usage: haco image tag SOURCE TARGET | haco commit ENV IMAGE")
 		return 2
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	result, err := controlapi.NewDefaultClient().ImageCommand(ctx, controlapi.ImageCommandRequest{Operation: operation, Source: args[0], Target: core.BaseName(args[1])})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "haco:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "haco:", err)
 		return 1
 	}
-	fmt.Fprintln(os.Stdout, result.Name)
+	if _, err := fmt.Fprintln(os.Stdout, result.Name); err != nil {
+		return 1
+	}
 	return 0
 }

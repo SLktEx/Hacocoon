@@ -42,7 +42,7 @@ func runOpen(args []string) int {
 	return openCreationCommand(ctx, client, args, os.Stdout, os.Stderr, func(env core.Environment, selected string) int {
 		if strings.HasPrefix(env.Workspace.Path, "managed:") {
 			if err := client.ConnectGit(ctx, env.Name); err != nil && !isUnsupportedControllerError(err) {
-				fmt.Fprintln(os.Stderr, "haco:", err)
+				_, _ = fmt.Fprintln(os.Stderr, "haco:", err)
 				return 1
 			}
 		}
@@ -100,7 +100,7 @@ func openCreationCommand(ctx context.Context, client creationClient, args []stri
 		return err
 	})
 	if err != nil {
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
 	}
 	if *machine {

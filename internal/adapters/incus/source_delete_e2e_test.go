@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -104,8 +105,27 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	work.NativeRef = pool + "/haco-work-reserved"
 	work.State = "creating"
 	write("work-reserved.json", work)
-	if output, err := cli("repo", "delete", "--yes", "source"); err == nil || !strings.Contains(string(output), "referenced") {
-		t.Fatalf("Workspace reference refusal: %v %s", err, output)
+	output, err = cli("repo", "delete", "source")
+	if err != nil {
+		t.Fatalf("unregister referenced source: %v %s", err, output)
+	}
+	output, err = cli("repo", "list", "--json")
+	must(err)
+	must(json.Unmarshal(output, &listed))
+	if len(listed.Sources) != 0 {
+		t.Fatal("unregistered source remains selected for future Environments")
+	}
+	if got, err := service.Get("repo", o.ID); err != nil || !reflect.DeepEqual(got, o) {
+		t.Fatal("unregister changed existing Git authority", got, err)
+	}
+	if got, err := service.Get("work", work.ID); !errors.Is(err, core.ErrRecoveryRequired) || !reflect.DeepEqual(got, work) {
+		t.Fatal("unregister changed reserved Workspace", got, err)
+	}
+	if mounted, err := backend.sourceDevice(ctx, o); err != nil || !mounted {
+		t.Fatal("unregister detached Host source", err)
+	}
+	if err := service.DeleteSource(ctx, o.ID, o.Owner); !errors.Is(err, core.ErrStorageBusy) {
+		t.Fatal("physical source deletion ignored Workspace reference", err)
 	}
 	must(os.Remove(filepath.Join(dir, "work-reserved.json")))
 	command("storage", "volume", "snapshot", "create", pool, "haco-repo-source", "keep", "--project", project)
@@ -123,10 +143,12 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	if err := service.DeleteSource(ctx, o.ID, strings.Repeat("f", 32)); !errors.Is(err, core.ErrCapabilityStale) {
 		t.Fatal("stale owner accepted", err)
 	}
-	output, err = cli("repo", "delete", "--yes", "source")
+	output, err = cli("repo", "delete", "source")
 	if err != nil {
-		t.Fatalf("public delete: %v %s", err, output)
+		t.Fatalf("repeat unregister: %v %s", err, output)
 	}
+	// Physical cleanup remains an ownership-checked maintenance operation.
+	must(service.DeleteSource(ctx, o.ID, o.Owner))
 	if mounted, err := backend.sourceDevice(ctx, o); err != nil || mounted {
 		t.Fatal("Host mount remains", err)
 	}
@@ -139,5 +161,5 @@ func TestRealIncusSourceDeletionE2E(t *testing.T) {
 	must(r.verifyTrustedHostOwnership(ctx))
 	command("delete", trustedHostName, "--project", project)
 	command("project", "delete", project)
-	t.Log("PASS public source list/delete, Workspace reservation refusal, native child and Host mount retention, stale owner refusal, exact mount removal/native absence; shared image/pool retained")
+	t.Log("PASS public source list/unregister preserves Workspace and Git authority; physical cleanup refuses Workspace/native children/stale owner and proves exact mount/native absence; shared image/pool retained")
 }

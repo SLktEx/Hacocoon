@@ -66,7 +66,7 @@ func execCommand(ctx context.Context, client execClient, args []string, input io
 	}
 	request := core.ProcessRequest{Argv: command, TTY: *tty, WorkingDirectory: *work}
 	if core.ValidateEnvironmentName(name) != nil || core.ValidateProcessRequest(request) != nil {
-		fmt.Fprintln(diagnostic, "Usage: haco exec [-i] [-t] [-w DIR] ENV -- COMMAND [ARG...]")
+		_, _ = fmt.Fprintln(diagnostic, "Usage: haco exec [-i] [-t] [-w DIR] ENV -- COMMAND [ARG...]")
 		return 2
 	}
 	if !*interactive {
@@ -88,7 +88,7 @@ func execCommand(ctx context.Context, client execClient, args []string, input io
 		if errors.As(err, &code) && code.ExitCode() > 0 {
 			return code.ExitCode()
 		}
-		fmt.Fprintln(diagnostic, "haco:", err)
+		_, _ = fmt.Fprintln(diagnostic, "haco:", err)
 		return 1
 	}
 	return result.ExitCode
