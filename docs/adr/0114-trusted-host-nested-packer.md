@@ -1,7 +1,7 @@
 # Trusted Host Packer with nested Incus
 
 Status: accepted; replaces [ADR 0089](0089-guest-packer-provisioning.md).
-[日本語](0113-trusted-host-nested-packer.ja.md)
+[日本語](0114-trusted-host-nested-packer.ja.md)
 
 Packer/HCL/plugins are trusted build code and execute in `haco-host`.
 The native Incus plugin creates instances/images in a fresh owned project of a

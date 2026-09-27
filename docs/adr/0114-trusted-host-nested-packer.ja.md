@@ -1,7 +1,7 @@
 # trusted HostのPackerとnested Incus
 
 状態: 採用。[ADR 0089](0089-guest-packer-provisioning.ja.md)を置き換えます。
-[English](0113-trusted-host-nested-packer.md)
+[English](0114-trusted-host-nested-packer.md)
 
 Packer・HCL・pluginは信頼済みビルドコードとして `haco-host` 上で実行します。
 実Incus pluginがHost内nested daemonの新規所有projectにinstanceとimageを作ります。
