@@ -65,7 +65,7 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHNerdctlAndDockerBu
 		!strings.Contains(setup.content, "/usr/local/bin/docker --version") ||
 		!strings.Contains(setup.content, "/usr/local/lib/hacocoon/docker/dockerd --version") ||
 		!strings.Contains(setup.content, "ExecStart=/usr/local/lib/hacocoon/docker/dockerd") ||
-		strings.Contains(setup.content, "--storage-driver=vfs") ||
+		strings.Contains(setup.content, "--storage-driver=") ||
 		!strings.Contains(setup.content, "systemctl enable containerd.service buildkit.service docker.service") ||
 		!strings.Contains(setup.content, "rm -rf /var/lib/apt/lists/*") {
 		t.Fatalf("unexpected setup script: mode=%q content=%q", setup.mode, setup.content)
