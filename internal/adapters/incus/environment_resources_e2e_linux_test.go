@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,6 +125,26 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 	// Stop-triggered client access must use the same complete resource binding.
 	must(svc.Stop(ctx, name))
 	must(svc.WithClientAccess(ctx, name, nil, true, nil, func(core.Environment, string) error { return nil }))
+	must(svc.Stop(ctx, name))
+	// Lose one real operation-wait reply, after submission has been durably
+	// recorded. Use the normal provider/store deletion path, never raw removal.
+	originalRunner := r.runner
+	lostReply := &cacheCopyLostWaitRunner{Runner: originalRunner}
+	r.runner = lostReply
+	interrupted, interruptedErr := workflow.Collect(ctx, name, "compiler")
+	r.runner = originalRunner
+	if !lostReply.lost || interruptedErr == nil || len(interrupted) != 1 || interrupted[0].State != "cleaned" {
+		t.Fatal("interrupted collection did not clean destination", interrupted, interruptedErr)
+	}
+	history, err := workflow.History(ctx, name, "compiler")
+	must(err)
+	if len(history.Entries) != 0 {
+		t.Fatal("unfinished generation survived", history)
+	}
+	must(svc.Start(ctx, name))
+	if got := run("exec", env.RuntimeRef, "--project", r.project, "--", "cat", "/root/.cache/haco-e2e-compiler/probe", "/workspace/probe"); got != "compiler-datakeep-work" {
+		t.Fatal("cleanup changed source or Workspace")
+	}
 	must(svc.Stop(ctx, name))
 	collected, err := workflow.Collect(ctx, name, "")
 	must(err)
@@ -247,4 +268,20 @@ func TestRealIncusEnvironmentDataPlacementE2E(t *testing.T) {
 		t.Fatal("Workspace was not retained")
 	}
 	t.Log("PASS ordinary creation, two writable rootfs areas, exact resume/client resume, native target drift refusal, disposable cleanup, Host settings, stopped collection, data-bearing independent reuse with another Base name, and Workspace retention")
+}
+
+// Fault injection is limited to the fixture transport, after a real daemon
+// request. It grants no permissions and changes no production provider checks.
+type cacheCopyLostWaitRunner struct {
+	host.Runner
+	lost bool
+}
+
+func (r *cacheCopyLostWaitRunner) Run(ctx context.Context, name string, args ...string) (host.Result, error) {
+	result, err := r.Runner.Run(ctx, name, args...)
+	if !r.lost && err == nil && result.ExitCode == 0 && name == "incus" && len(args) == 3 && args[0] == "query" && args[1] == "--raw" && strings.HasPrefix(args[2], "/1.0/operations/") && strings.Contains(args[2], "/wait?") {
+		r.lost = true
+		return host.Result{}, errors.New("fixture lost operation wait reply")
+	}
+	return result, err
 }

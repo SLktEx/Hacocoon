@@ -61,6 +61,20 @@ func (s *Service) PublishEnvironmentGeneration(ctx context.Context, lease core.W
 	result.Candidate, err = s.copyReserved(ctx, source, target)
 	if err != nil {
 		result.State = "recovery-required"
+		// Re-read durable state: a failed receipt write may actually have
+		// committed. Never turn a completed copy into failed-copy cleanup.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		held, readErr := s.Store.GetPersistentResource(cleanupCtx, target.ID)
+		if readErr == nil && held.Ref() == target.Ref() && held.CopyOperation != "" && !held.CopyCompleted {
+			cleaned, cleanupErr := s.cleanupCacheCopy(cleanupCtx, held)
+			result.Candidate = cleaned
+			if cleanupErr == nil {
+				result.State = "cleaned"
+				return result, errors.New("cache copy failed; unfinished destination removed; source retained")
+			}
+			err = errors.Join(err, cleanupErr)
+		}
 		return result, errors.Join(err, core.ErrRecoveryRequired)
 	}
 	return s.adoptGeneration(ctx, area.Origin, result)

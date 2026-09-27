@@ -168,6 +168,8 @@ var commandCatalog = map[string]translation{
 	"cache.state.published":                 {"published", "収集済み"},
 	"cache.state.skipped":                   {"a newer generation already exists; local data retained", "新しい世代があるため見送り・環境内のデータは保持"},
 	"cache.state.recovery-required":         {"recovery required; data retained", "復旧が必要・データは保持"},
+	"cache.cleaned_retry":                   {"The source cache is unchanged. You can resume this Environment or run haco cache collect <env> <area> again while it is stopped.", "元のキャッシュは変更されていません。環境を再開するか、停止したまま haco cache collect <env> <area> で再収集できます。"},
+	"cache.state.cleaned":                   {"copy failed; unfinished destination removed; source kept", "コピー失敗・未完了のコピー先を削除済み。元のキャッシュは保持"},
 	"cache.state.failed":                    {"failed", "失敗"},
 	"cache.stop_first":                      {"Stop the Environment with haco env stop <env>, then collect again.", "haco env stop <env> で環境を停止してから収集してください。"},
 	"cache.recovery":                        {"Collection is incomplete. Source and candidate remain owned; keep this Environment stopped. Automatic retry cannot confirm an unknown copy outcome.", "収集が未完了です。元データと収集中のデータを保持しています。環境は停止したままにしてください。結果が不明なコピーは自動再試行で完了扱いにできません。"},

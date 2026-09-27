@@ -35,7 +35,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。非圧縮のコンテナarchive取り込みも共通の公開・後始末を利用。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
 | [PackerによるBase作成](design/packer-base-builds.ja.md) | 部分実装 | 通常builder内で実Packer 1.16.0がHCL2と外部shellを評価し、公開・後始末を共通化。導入後の実ビルドは通常の依存取得権限で停止。独自plugin・arm64・再利用の実機確認は残る。 |
-| [キャッシュ世代管理](design/cache-generations.ja.md) | 部分実装 | Host設定による作成時の登録、停止中の領域単位収集、独立CoW再利用、履歴・完了証明による復旧・共通元削除・確認付きEnv内掃除を実装。snapshot/copy/transferで未収集データも保持。既存Envの追加登録、結果不明コピーの中止は未完了。巨大性能は後続。 |
+| [キャッシュ世代管理](design/cache-generations.ja.md) | 部分実装 | Host設定による作成時の登録、停止中の領域単位収集、独立CoW再利用、履歴・完了証明による復旧・共通元削除・確認付きEnv内掃除を実装。snapshot/copy/transferで未収集データも保持。登録は仕様としてEnv作成時のみ。PR #737で失敗・中断した収集コピーの終了確認・コピー先削除・recover再試行を実装。元データを保持し、操作記録不明なら所有を維持。巨大性能は後続。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 停止した管理Workspace/OCI、名前付き使い捨てデータと独立保存rootfsを対象に、新しいEnvと権限を作成。削除失敗時の構成要素・存在・参照・次の操作を表示。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
 | [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体、元リポジトリを確認して削除。参照とnative childが保持対象を保護。所有記録は不存在確認後のみ解放。 |
 | [OCIイメージ単位の操作](design/oci-image-deletion.ja.md) | 部分実装 | 接続中・Host・非接続nerdctlの一覧・削除、未使用候補の確認付き削除。非接続ツール配備はLinux amd64のみ。導入済みコントローラー全体の確認と非接続Dockerは未完了。 |
@@ -172,3 +172,5 @@ M2・M3の実利用確認はユーザー担当とし、報告されるまで未�
 この作業ツリーでは、環境のdoctorでGit接続を診断し、明示した`--fix`で既存の接続処理を再利用します。リモートへのアクセスや承認ルールの変更は行いません。利用者向け`haco git connect`は削除しました。Gitなし・オフライン、停止中、状態不明を区別します。[Gitの契約](design/git-and-github-capability.md#local-git-diagnosis-and-repair)に範囲と制限を記載しています。本人認証付きGit・GUI回答の確認は未完了です。
 
 容量回収では、圧縮失敗後のWindows再開失敗も固定分類と数値コードで別途保存し、通常の状態表示とCIから両方を確認できます。診断の改善であり、既存の実機`compact_attached`失敗の解決を意味しません。
+
+PR #737で通知入力の読み取りからPowerShell JSONコマンドレット自動読込への依存を除去。通知の所有権・制限した環境・期限は維持し、導入済み確認は検証証拠で管理します。

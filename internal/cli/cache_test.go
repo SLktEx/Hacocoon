@@ -43,7 +43,7 @@ func TestCacheCommandsShowActionableResultsAndStableJSON(t *testing.T) {
 	}
 	out.Reset()
 	f.response.Failure = "recovery_required"
-	if code := runCacheWith([]string{"collect", "--json", "dev"}, f, &out, &diagnostic); code != 1 || !strings.Contains(out.String(), `"state":"published"`) || !strings.Contains(diagnostic.String(), "停止したまま") {
+	if code := runCacheWith([]string{"collect", "--json", "dev"}, f, &out, &diagnostic); code != 1 || !strings.Contains(out.String(), `"state":"published"`) || !strings.Contains(diagnostic.String(), "環境は停止したままにしてください") {
 		t.Fatal(code, out.String(), diagnostic.String())
 	}
 }
@@ -63,5 +63,25 @@ func TestCacheSettingsValidateBeforeCallingController(t *testing.T) {
 	}
 	if code := runCacheWith([]string{"configure", path}, f, &out, &diagnostic); code != 2 || f.calls != 0 {
 		t.Fatal(code, f.calls)
+	}
+}
+
+func TestCacheCleanedFailureKeepsFailureAndExplainsSourceRetention(t *testing.T) {
+	for _, lang := range []string{"en", "ja"} {
+		t.Run(lang, func(t *testing.T) {
+			t.Setenv("HACO_UI_LANGUAGE", lang)
+			f := &fakeCacheClient{response: controlapi.CacheResponse{Areas: []cache.AreaStatus{{Name: "compiler", State: "cleaned"}}, Failure: "failed"}}
+			var out, diagnostic bytes.Buffer
+			if code := runCacheWith([]string{"collect", "dev"}, f, &out, &diagnostic); code != 1 {
+				t.Fatal(code)
+			}
+			want := "source kept"
+			if lang == "ja" {
+				want = "元のキャッシュは保持"
+			}
+			if !strings.Contains(out.String(), want) || strings.Contains(diagnostic.String(), "環境は停止したままにしてください") {
+				t.Fatal(out.String(), diagnostic.String())
+			}
+		})
 	}
 }

@@ -225,3 +225,5 @@ new peer without starting WSL or answering/replaying approval. Existing requests
 remain subject to the controller's normal expiry and identity checks. Reopen
 review after reclamation finishes. [ADR 0108](../adr/0108-background-wsl-start-coordination.md)
 records the race and the limits of this coordination.
+
+Native toast fields use a fixed four-field base64/UTF-8 frame over private stdin. Decoding uses .NET methods directly, avoiding PowerShell JSON-cmdlet autoload before WinRT startup. Literal XML, Unicode and line breaks remain data; malformed frames fail closed. No user environment, timeout extension, approval answer or data-bearing command argument is added.
