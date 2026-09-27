@@ -4,7 +4,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、実行中のEnvironment内でのコマンド実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
 
 ## 概要
 

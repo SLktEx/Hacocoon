@@ -53,7 +53,7 @@ Workspace・Env・Base・ストレージ・通信・設定を明示的に操作�
 
 明示的なlifecycle操作には名前を指定します。ssh setupは端末の番号一覧から選択でき、空入力なら接続変更前にキャンセルします。Envが一つだけなら自動選択できます。scriptでは常に名前を指定してください。非対話で選択が曖昧な場合は入力待ちにしません。オプションは対象より前に置き、各commandの`--help`で書式を確認します。
 
-結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json <environment>`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。一時実行は別契約で時間制限付きcleanupを要求し、その確認結果を返します。
+結果はstdout、進捗・診断はstderrです。scriptには`haco env list --json`、`haco env status --json <environment>`を使います。createの既存JSON結果も維持します。保持データの削除は端末確認か明示的な`--yes`が必要で、pipe/FIFOで入力待ちにしません。Ctrl+Cで観測が終わってもcontrollerの変更処理が終わったとは限らないため、再実行前にstatusを確認します。端末終了をcleanup成功と解釈しません。作成失敗時は新たに所有したresourceをcleanupし、既存の作業環境は自動再作成しません。
 
 ## 失敗後の操作
 

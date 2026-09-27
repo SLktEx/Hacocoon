@@ -4,7 +4,7 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and execution in running Environments. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
 
 ## Summary
 

@@ -119,3 +119,38 @@ func TestExecRejectsMalformedRequestAndReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestExecEndpointRejectsRetiredRunRPCs(t *testing.T) {
+	service := &processTestLifecycle{execute: func(context.Context, io.Reader, io.Writer, io.Writer) (core.ExecutionResult, error) {
+		return core.ExecutionResult{}, nil
+	}}
+	path := doctorTestSocket(t, func(server *control.Server) {
+		if err := RegisterGeneral(server, fakeBases{}, fakeEvents{}, &fakeCapabilities{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := RegisterExec(server, service); err != nil {
+			t.Fatal(err)
+		}
+	})
+	client, err := NewClient(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, method := range []string{"run.execute", "run.process"} {
+		t.Run(method, func(t *testing.T) {
+			conn, err := client.wire.OpenStream(ctx, method, map[string]any{"spec": map[string]any{"argv": []string{"true"}}})
+			if conn != nil {
+				_ = conn.Close()
+			}
+			var status *control.StatusError
+			if !errors.As(err, &status) || status.Code != "not_found" {
+				t.Fatalf("retired RPC must be unavailable: %v", err)
+			}
+		})
+	}
+	if service.calls.Load() != 0 {
+		t.Fatal("retired RPC reached Environment execution")
+	}
+}
