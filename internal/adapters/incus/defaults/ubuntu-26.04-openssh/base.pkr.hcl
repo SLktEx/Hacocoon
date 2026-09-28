@@ -1,26 +1,47 @@
-variable "haco_packer_port" {
-  type    = string
-  default = env("HACO_PACKER_PORT")
+packer {
+  required_version = "= 1.16.0"
+  required_plugins {
+    incus = {
+      source  = "github.com/bketelsen/incus"
+      version = "= 1.0.5"
+    }
+  }
 }
 
-variable "haco_packer_key" {
+variable "build_id" {
   type    = string
-  default = env("HACO_PACKER_KEY")
+  default = env("HACO_PACKER_BUILD_ID")
 }
 
-source "null" "base" {
-  ssh_host                     = "127.0.0.1"
-  ssh_port                     = tonumber(var.haco_packer_port)
-  ssh_username                 = "root"
-  ssh_private_key_file         = var.haco_packer_key
-  ssh_agent_auth               = false
-  ssh_disable_agent_forwarding = true
+variable "image" {
+  type    = string
+  default = "images:ubuntu/26.04"
+}
+
+source "incus" "base" {
+  image          = var.image
+  output_image   = "haco-packer-${var.build_id}"
+  container_name = "haco-packer-${var.build_id}"
+  profile        = "default"
+
+  launch_config = {
+    "user.hacocoon.packer-build" = var.build_id
+    "limits.cpu"                = "2"
+    "limits.memory"             = "4GiB"
+    "limits.processes"          = "1024"
+  }
+
+  publish_properties = {
+    "user.hacocoon.packer-build" = var.build_id
+  }
 }
 
 build {
-  sources = ["source.null.base"]
+  sources = ["source.incus.base"]
 
   provisioner "shell" {
-    script = "setup.sh"
+    # The guest may still mount/clear /tmp after Incus reports it running.
+    remote_folder = "/root"
+    script        = "setup.sh"
   }
 }

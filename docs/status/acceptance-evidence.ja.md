@@ -1868,3 +1868,144 @@ PR #737のhead `90cea4a0` はquality/test/Ubuntu/Incusが成功。Windows run362
 暗黙のコマンドレット依存を.NETで読む固定データへ置換し、制限した環境・履歴クリア・既存期限を維持する。元のCI失敗を通知成功として扱わない。
 
 ローカルWindowsで所有通知の初回クリア・日英表示・削除が34.81秒で成功。自動読込なしの入力復元、不正形式拒否、中断時の終了待ち、診断の秘匿も成功。最初の隔離テストはConstrainedLanguageによって.NET呼び出しを拒否し、通常のネイティブ実行で成功した。Windowsポリシーや製品環境は変更していない。hosted CIの失敗は修正後の結果待ちで、人の承認回答は未実施。
+
+<a id="nested-packer"></a>
+
+## nested IncusによるPacker置換
+
+初回記録: main `d2bdbdff` からのIssue #566候補で、当時の実nested Packer受入は未完了だった。
+従来方式の失敗・未検証記録は履歴として維持し、新方式への変更を過去の成功証拠にはしません。
+
+2026-09-27のローカル検証は Go 1.26.7 と golangci-lint 2.13.2 を使用した。
+Packer、Base build/import/manage、Incus、controller API、CLIのテストと関連race検査は成功。
+変更行のlintは指摘0件。全体 `go vet ./...`、文書検査（19件の回帰検査を含む）、
+workflow-policy、`git diff --check` も成功した。
+標準の全体テストは `TestOrdinaryLargeGitFetchAndApprovedPush` の承認要求timeoutで失敗し、
+未変更main `d2bdbdff` でも同じ失敗が再現した。Windows共有パスでの最初の実行では
+milestone black-boxもtimeoutしたが、WSLネイティブの検証checkoutでは成功した。
+全体race実行では既存transportの `TestClientCannotSendInvalidRequests` の時間依存失敗も
+観測した。候補の関連packageのraceは別途成功した。全体成功とは記録しない。
+
+実Incus Packer E2Eは通常のtrusted Hostネットワーク準備で失敗した。
+既存 `haco-host0` が別projectの導入済みHostに使われているため、所有検査が再利用を拒否した。
+Packerの各段階には到達していない。保持したfixtureの正確なproject/poolは
+`haco-packer-e2e-b17070ddb4eaf6f0`。
+続いて独立した非特権の検証基盤 `haco-566-physical` と専用所有bridge
+`haco-566-test`（`10.71.201.0/24`）を作成したが、既存Docker forwarding設定下で
+外向きpackage取得がtimeoutした。当時はfixture限定のfirewall変更の明示承認待ちで、未適用だった。
+
+このためfresh nested daemon setup、実Packer/plugin取得・実行、export/stream/import、
+immutable revision再利用、cleanup、追加した実失敗ケースは当時**未受入**だった。
+CIは `ci_required_tests.py` により `TestRealIncusPackerBaseBuildE2E` を必須にしたが、
+この候補のhosted CIは未実行。SKIPや途中までの実行をPacker build成功に数えない。
+
+2026-09-27の続行確認: ユーザー承認により`haco-566-test`の送信と接続済み応答だけに
+限定した一時ルール2本を適用し、独立した検証基盤でIncus 7.0.1の導入・起動に成功した。
+fresh Hostの初回試行で`nftables`不足と、余分にnestedした検証基盤のID委譲範囲超過が
+判明した。製品Host setupに`nftables`を追加し、build profileのID範囲を65,536に限定した。
+検証基盤の委譲範囲も親から割り当てられた範囲に収めた。
+
+fixture `haco-packer-e2e-fbe80b3c42466d65`で通常のfresh Host setup、Packer 1.16.0の
+実導入、nested daemon初期化、Incus plugin 1.0.5の実取得・読み込み、validate、
+一時instance作成まで通った。build `228843315a966b96e64b545df11a7078`は起動中の
+`/tmp`初期化で転送済みscriptを見失い、shell provisionerで失敗した。build成功ではない。
+停止したHost、nested instance、receiptを保持し、検証bridge解放のためNICだけを外した。
+templateの転送先を標準Packer属性`remote_folder = "/root"`へ変更した。
+別の実Incus確認でdefault profileの単独削除は禁止と判明し、projectと一緒に削除するよう
+workerと回帰fixtureを修正した。
+
+archiveの64 GiB固定上限を既定1 TiBと`--max-image-size`指定へ変更した。
+サイズ計算、bounded stream超過拒否、65 GiB sparse fileのCLI確認、関連race、vet、
+変更箇所lint、docs、workflow確認は通った。TB規模の実画像の受入ではない。
+全体のlocal test再実行は既にmainでも再現済みのGit承認timeout
+（`TestOrdinaryLargeGitFetchAndApprovedPush`、89.81秒）で失敗した。
+
+修正後の`haco-packer-e2e-ff391d7466b03e08`では実shell script実行、image公開、
+native export（561,748,480 bytes、nested image
+`19964f9c33ccaa6344e485a2f9e1fe1689f6bb0f1bf2621250d26dc01b3cdf34`）まで到達した。
+build `d057e6789fdd9c195abd8ca75026b4c9`は既存import Envのroot disk quotaで失敗した。
+非特権のPhysical Host役fixtureではBtrfs quotaを適用できなかった。
+controller転送・検証は実行されたが、canonical Base revisionや通常Envの成功は未成立である。
+artifactとreceiptはrecovery-requiredで保持する。製品のresource limitは無効化せず、
+別のprivileged Physical Host役fixtureを準備した。その中の製品haco-hostと通常Envは
+通常の非特権設定とtrust boundaryを維持する。
+
+2026-09-27の最終実行: `TestRealIncusPackerBaseBuildE2E` は **PASS（2302.13秒）**。
+正確なproject/poolは `haco-packer-e2e-5405bbdd220ba630`。独立したWSLのPhysical Host役
+fixture `haco-566-physical-root` でIncus 7.0.1を使用した。通常のfresh Host setupで
+Packer 1.16.0とnested Incusを準備し、実plugin 1.0.5の取得・読み込み、HCL検証、
+別instanceでの`setup.sh`実行が成功した。native image export、上限付きcontroller API
+stream、既存archive import、immutable Base公開まで成功し、通常Envで
+`hello-from-packer`が返った。再build後の新Envは`hello-from-packer-two`を返し、
+旧Envは元のrevisionと出力を維持した。成功した両buildでnested一時instance・image・
+project・artifact・contextが残らないことを確認した。テストEnvと公開したテストBaseも
+既存lifecycle APIで削除した。
+
+実invalid HCL、plugin初期化失敗、provisioner失敗でも現在のBase pointerと旧Envを維持した。
+診断用receiptは `7a666170a99a7cdc54b2a17af9437f0c`、
+`0e5b22a4938be0e81d0aee2c0e1e0b5f`、`f29e7a76901f05b296049d0d597a941f`。
+export、stream中断、import／応答不明、cleanup、cancelは別のcomponent回帰でも検証した。
+これらの注入失敗を実providerの失敗受入と混同しない。
+
+最初の公開はIncus既定圧縮を使用した。WSL上の遅い圧縮を減らすため、2回目はfixtureだけを
+標準設定`images.compression_algorithm=none`へ変更した。運用中daemonの設定は変更していない。
+実Btrfs quotaを検証するPhysical Host役fixtureだけをprivilegedとし、製品Host・build・
+通常instanceは非特権のままである。controller endpointは標準transport/API/serviceと
+fixture専用stateを使い、運用中catalogは使用していない。承認されたbridgeルール2本は削除し、
+不在を確認し、Physical Host役fixture 2台は停止した。失敗時resourceは診断用に保持し、
+推測による削除はしていない。
+
+保守対象CIは実テストを必須とし、Packer stepの削除・条件付き化、test消失、SKIPを拒否する。
+約38分の実測を受け、有限の実行時間枠に余裕を追加した。workflow policyとcontract回帰は成功。
+hosted CI、arm64、TB規模の性能、導入済みproduction controllerでの受入は未検証。
+既に記録した全体テストのGit承認timeoutは失敗として残す。
+
+2026-09-28の続行変更: ユーザー指定でBase build/importの画像サイズと操作全体の固定上限を
+既定では外し、任意の`--max-image-size`は維持した。共通転送にEnvironment由来の64 GiB
+wire上限とclient/serverの30分deadlineが残っていたと判明した。先の1 TiB CLI設定と
+sparse file確認は、その全経路を証明していなかった。Baseの転送予算・deadlineを独立して
+指定し、Environment/Workspaceの既存制限は維持した。
+以前の2302.13秒の実Packer PASSは当時の版の証拠であり、今回の無制限設定や巨大画像の
+再受入とは扱わない。短命の実systemd probeで`RuntimeMaxUSec=infinity`と
+`LimitFSIZE=infinity`を確認し、終了後のinactiveも確認した。Physical HostでPacker/HCLは
+実行していない。巨大画像は未検証で、arm64は今回の依頼範囲外とする。
+
+続行変更の関連Goテスト（Incusを含む）、Base/Packer/CLI/controllerのrace、全体vet、変更箇所lint（指摘0件）、docs整合性、diff空白検査は成功した。2 TiB超のsparse fileでCLIのサイズ処理を確認し、実socketでdeadline方針、フレーム計数境界で旧64 GiB wire上限をまたぐ処理を確認した。その容量を実転送したという意味ではない。今回の上限方針変更では実Packer E2E全体を再実行していない。
+
+### 最新 main との統合と初回 hosted 検証
+
+候補 `8584817d22025204e91f3c83bb98d86d2d9f822e` は現在の Image/Environment
+作成契約を統合しています。hosted の Go 1.26/1.27 テスト、race、vet、lint、
+docs、Ubuntu installer は成功しました。追加した必須 Packer step は
+[run 36360380538](https://github.com/SLktEx/Hacocoon/actions/runs/36360380538) で、
+fresh Host setup、固定版 tooling、nested daemon 初期化の成功後、Packer build
+段階で失敗しました。80.32 秒で失敗しており、image build/import の acceptance
+ではありません。初回 Sonar 新規コード coverage も 61.7% で不合格でした。
+後続の回帰テスト追加と固定分類による診断で対応し、生の subprocess 出力の
+公開や必須テストの緩和は行いません。
+
+### fresh Ubuntu hosted Packerの受入
+
+候補 `dced0b45eb83349cd107d51614891b9ae68f3b83` は2026-09-28、必須の実Packer E2Eを
+**250.81秒でPASS**しました。[run 36363265837 / job 108744536151](https://github.com/SLktEx/Hacocoon/actions/runs/36363265837/job/108744536151)。
+fixtureの正確なproject/poolは `haco-packer-e2e-c9f0f66fdab2131f` です。
+初回hosted失敗は、対象Hostに限定したAppArmor namespace拒否を伴って再現しました。
+fresh Hostが起動後にnestingを有効化していたため、初回起動前の設定へ変更して
+Incusのnesting用mountとAppArmor namespaceの初期化を可能にしました。
+Hostの特権化やAppArmor回避は追加していません。作成時設定を回帰テストで検証します。
+
+通常のfresh setup、固定版Packer/pluginの取得とload、validate/build、実shell provisioner、
+nested image生成とnative export、controllerへのstream・検証・import・immutable公開が成功しました。
+通常Envで `hello-from-packer` が返り、再build後もそのEnvのrevisionと出力を維持しました。
+新規Envは新revisionから `hello-from-packer-two` を返しました。成功した両buildで
+nested temporary instance/image/project、transport artifact、build contextの不在を確認しました。
+実HCL不正・plugin init失敗・provisioner失敗でもcurrent Baseと既存Envを維持し、
+診断用receiptの所有権を保持しました。
+
+同じ候補でhosted Go 1.26/1.27、race、vet、lint/Sonar品質ゲート、docs、Ubuntu installer、
+全Incus jobが成功しました。JSON Base build、snapshot、Workspace/OCI transfer、cleanupも含みます。
+統合したnative WSLで `ci-local.sh test` と `ci-local.sh race` は最終的なsetup順序修正より前に
+成功し、修正後にはHost作成・所有権・診断のraceテストと変更箇所lintが成功しました。
+統合コードについては以前の全体テスト失敗を解消しています。この観測時点ではWindows jobは実行中です。
+過去の失敗は履歴として維持します。E2Eは通常のcontroller API/serviceと独立fixture stateを使い、
+導入済みproduction controllerの受入ではありません。64 GiB超/TBの実転送とarm64の受入は主張しません。

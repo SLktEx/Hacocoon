@@ -39,7 +39,8 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHAndNerdctlBuild(t 
 	}
 
 	packer := published[trustedHostOpenSSHBaseBuildDir+"/base.pkr.hcl"]
-	if packer.mode != "0644" || !strings.Contains(packer.content, `source "null" "base"`) || !strings.Contains(packer.content, `script = "setup.sh"`) {
+	packerText := strings.Join(strings.Fields(packer.content), " ")
+	if packer.mode != "0644" || !strings.Contains(packerText, `source "incus" "base"`) || !strings.Contains(packerText, `script = "setup.sh"`) || !strings.Contains(packerText, `remote_folder = "/root"`) {
 		t.Fatalf("unexpected Packer template: mode=%q content=%q", packer.mode, packer.content)
 	}
 	setup := published[trustedHostOpenSSHBaseBuildDir+"/setup.sh"]
@@ -61,7 +62,7 @@ func TestProvisionTrustedHostBaseBuildDefaultsPublishesOpenSSHAndNerdctlBuild(t 
 		t.Fatalf("unexpected setup script: mode=%q content=%q", setup.mode, setup.content)
 	}
 	build := published[trustedHostOpenSSHBaseBuildDir+"/build.sh"]
-	if build.mode != "0755" || !strings.Contains(build.content, "haco base build --name ubuntu-26.04-openssh --from haco/ubuntu-26.04") {
+	if build.mode != "0755" || !strings.Contains(build.content, "haco base build --name ubuntu-26.04-openssh") {
 		t.Fatalf("unexpected build helper: mode=%q content=%q", build.mode, build.content)
 	}
 	readme := published[trustedHostOpenSSHBaseBuildDir+"/README.md"]

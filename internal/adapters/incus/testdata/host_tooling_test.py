@@ -150,6 +150,16 @@ class HostToolingTests(unittest.TestCase):
                 tooling.packages()
             self.assertEqual(run.call_count, 1)
 
+    def test_fresh_packages_include_nested_firewall_backend(self):
+        absent = subprocess.CompletedProcess([], 1, b"")
+        with mock.patch.object(tooling.subprocess, "run", return_value=absent), \
+                mock.patch.object(tooling, "run") as run:
+            tooling.packages()
+        installs = [c.args[0] for c in run.call_args_list if "install" in c.args[0]]
+        self.assertEqual(len(installs), 1)
+        self.assertIn("nftables", installs[0])
+        self.assertIn("uidmap", installs[0])
+
     def test_native_config_both_supported_architectures(self):
         import tomllib
         for machine, arch in (("x86_64", "amd64"), ("aarch64", "arm64")):

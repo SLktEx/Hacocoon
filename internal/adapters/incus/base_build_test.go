@@ -89,7 +89,7 @@ func TestPublishBaseRecordsOwnershipBeforeVerificationAndPreservesImages(t *test
 						Properties map[string]string `json:"properties"`
 						Source     map[string]string `json:"source"`
 					}
-					if json.Unmarshal([]byte(args[5]), &body) != nil || body.Public || body.Properties["user.hacocoon.build-instance"] != id || body.Source["name"] != env.RuntimeRef {
+					if json.Unmarshal([]byte(args[5]), &body) != nil || body.Public || body.Properties["user.hacocoon.build-instance"] != id || body.Properties["user.hacocoon.build-environment"] != env.Name || body.Source["name"] != env.RuntimeRef {
 						t.Fatal("ownership not atomic", joined)
 					}
 					ownerRecorded = true

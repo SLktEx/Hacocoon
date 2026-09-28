@@ -1,6 +1,6 @@
 # Guest-only Packer provisioning
 
-Status: accepted; implementation candidate. [日本語](0089-guest-packer-provisioning.ja.md)
+Status: historical; superseded by [ADR 0114](0114-trusted-host-nested-packer.md). The decision below describes the retired implementation. [日本語](0089-guest-packer-provisioning.ja.md)
 
 ## Decision
 

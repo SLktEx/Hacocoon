@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/SLktEx/Hacocoon/internal/base/build"
-	"github.com/SLktEx/Hacocoon/internal/controller/api"
-	"github.com/SLktEx/Hacocoon/internal/core"
 	"io"
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
+
+	packerplugin "github.com/SLktEx/Hacocoon/internal/adapters/packer"
+	"github.com/SLktEx/Hacocoon/internal/base/build"
+	"github.com/SLktEx/Hacocoon/internal/controller/api"
+	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
 func readBaseDefinition(path string) (basebuild.Definition, error) {
@@ -58,6 +61,7 @@ func runBaseBuild(args []string) int {
 	name := flags.String("name", "", cliMessage("base.packer_name"))
 	from := flags.String("from", "", cliMessage("base.packer_from"))
 	builder := flags.String("builder", "", cliMessage("base.builder_name"))
+	maxSize := flags.String("max-image-size", "", cliMessage("base.max_image_size"))
 	output := flags.Bool("output", false, cliMessage("base.packer_output"))
 	flags.Usage = func() { commandHelp(os.Stderr, "base build", cliLanguage()) }
 	if err := flags.Parse(clean); err != nil {
@@ -71,17 +75,18 @@ func runBaseBuild(args []string) int {
 		return 2
 	}
 	var d basebuild.Definition
+	var template *basebuild.PackerTemplate
 	var err error
 	if *name == "" && *from == "" && strings.HasSuffix(flags.Arg(0), ".json") {
 		d, err = readBaseDefinition(flags.Arg(0))
 	} else {
 		d.Name, d.From = core.BaseName(*name), core.BaseName(*from)
-		d.Packer, err = readPackerContext(flags.Arg(0))
+		template, err = readPackerContext(flags.Arg(0))
 		if err == nil {
-			err = d.Validate()
+			err = (basebuild.ImportRequest{Name: d.Name}).Validate()
 		}
 	}
-	if err == nil {
+	if err == nil && template == nil {
 		if *builder != "" {
 			d.BuilderName = *builder
 		}
@@ -91,12 +96,26 @@ func runBaseBuild(args []string) int {
 		fmt.Fprintln(os.Stderr, "haco:", err)
 		return 2
 	}
+	if template != nil && (*from != "" || *builder != "") {
+		fmt.Fprintln(os.Stderr, "haco:", cliMessage("base.packer_hcl_source"))
+		return 2
+	}
+	limit, limitErr := baseArchiveLimit(*maxSize)
+	if limitErr != nil || (template == nil && *maxSize != "") {
+		fmt.Fprintln(os.Stderr, "haco:", core.ErrInvalidArgument)
+		return 2
+	}
 	client := controlapi.NewDefaultClient()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
-	result, err := client.BuildBase(ctx, d)
+	var result controlapi.BaseBuildResponse
+	if template != nil {
+		result.Result, err = packerplugin.Build(ctx, *template, basebuild.ImportRequest{Name: d.Name, MaxBytes: limit}, client)
+	} else {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		defer cancel()
+		result, err = client.BuildBase(ctx, d)
+	}
 	if !*output {
 		result.Result.Execution = nil
 	}
@@ -111,7 +130,7 @@ func runBaseBuild(args []string) int {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "haco:", err)
-		if d.Packer != nil && result.Result.Stage != "" {
+		if template != nil && result.Result.Stage != "" {
 			fmt.Fprintln(os.Stderr, cliMessage("base.packer_failed"))
 		}
 		return 1

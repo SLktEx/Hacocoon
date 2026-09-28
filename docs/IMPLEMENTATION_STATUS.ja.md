@@ -35,7 +35,7 @@ doctorは非対応版を報告し、6.0互換はベストエフォートで保�
 | [セットアップ手順・プレビュー](design/project-setup.ja.md) | 部分実装 | Host実体ごとの自動設定、明示的なscriptのみの再適用と非公開出力・終了値の記録、EnvのWorkspaceセットアップ、承認付きの限定HTTPプレビュー、対象を絞ったdoctorを実装。再作成・キャンセル、既定ブラウザー、広いアプリの検証は残る。 |
 | [永続OCI](design/persistent-oci-store.md) | 部分実装 | Workspace単位のStore自動初期化・再利用、排他的接続、停止中の独立コピー。`--no-oci`で省略可能。Host領域のコピー境界と完了証明による復旧を実装。導入構成・実行基盤バージョン全体の確認とDocker Store互換は残る。 |
 | [Baseの作成](design/base-images-and-custom-environments.md) | 実装済み | 定義からのビルド、論理ID・revisionの参照、確認付きイメージ削除。非圧縮のコンテナarchive取り込みも共通の公開・後始末を利用。Baseは初期rootfsの選択と由来を表し、スナップショットが保持する実体の依存先ではない。 |
-| [PackerによるBase作成](design/packer-base-builds.ja.md) | 部分実装 | 通常builder内で実Packer 1.16.0がHCL2と外部shellを評価し、公開・後始末を共通化。導入後の実ビルドは通常の依存取得権限で停止。独自plugin・arm64・再利用の実機確認は残る。 |
+| [PackerによるBase作成](design/packer-base-builds.ja.md) | 実装済み | trusted haco-hostのPacker 1.16.0とIncus plugin 1.0.5がnested Incusで構築し、native exportと既存Base importへ接続。結果不明はreceiptを保持。実WSL/IncusとfreshなUbuntu hosted CIでbuild、import、immutable再build、Env実行、失敗E2Eが成功。TB規模は未検証。サイズ・時間の既定固定上限なし、任意サイズ上限を維持。受入対象はamd64。 |
 | [キャッシュ世代管理](design/cache-generations.ja.md) | 部分実装 | Host設定による作成時の登録、停止中の領域単位収集、独立CoW再利用、履歴・完了証明による復旧・共通元削除・確認付きEnv内掃除を実装。snapshot/copy/transferで未収集データも保持。登録は仕様としてEnv作成時のみ。PR #737で失敗・中断した収集コピーの終了確認・コピー先削除・recover再試行を実装。元データを保持し、操作記録不明なら所有を維持。巨大性能は後続。 |
 | [スナップショット・復元・コピー](design/environment-snapshots.md) | 実装済み | 稼働・停止中の管理Workspace/OCIと新しいImageを保存し、`open --new --snapshot`で新しいEnvと権限を作成。削除失敗時の構成要素・存在・参照・次の操作を表示。外部Workspace取得、その場での置換、任意の稼働アプリの整合性は非対応。 |
 | [保持対象の削除](guides/data-lifetime.ja.md) | 実装済み | Workspace、作成Base、Store全体、元リポジトリを確認して削除。参照とnative childが保持対象を保護。所有記録は不存在確認後のみ解放。 |
@@ -90,8 +90,7 @@ CIはリポジトリの試験、実Incusの基盤試験、パッケージ導入�
 main統合は[#705](https://github.com/SLktEx/Hacocoon/pull/705)で追跡する。
 通常の管理者用通信規則でbuild対象を事前に指定できる。正規の新規作成で既存Envを拒否し、
 毎回新しい一時所有情報を使う。名前の検証は共通処理へ集めた。
-Policyの編集や暗黙の承認は追加しない。[Packerの依存取得と導入済みbuild・再利用](design/packer-base-builds.ja.md)は
-別の確認として残す。
+Policyの編集や暗黙の承認は追加しない。名前付きbuilderはJSON定義に適用し、[Packer](design/packer-base-builds.ja.md)の元画像はnested Incus用HCLで指定する。実build・再利用の受入範囲は設計文書の記録を参照する。
 
 現行データの対象選択（[#703](https://github.com/SLktEx/Hacocoon/issues/703)）は
 **このcheckoutに実装済み**。main統合は[#704](https://github.com/SLktEx/Hacocoon/pull/704)で追跡する。

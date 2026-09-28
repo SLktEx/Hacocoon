@@ -9,9 +9,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"time"
+	"syscall"
 
 	"github.com/SLktEx/Hacocoon/internal/base/build"
+	"github.com/SLktEx/Hacocoon/internal/cli/bytesize"
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
@@ -21,10 +22,8 @@ type baseImportClient interface {
 }
 
 func runBaseImport(args []string) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
 	return baseImportCommand(ctx, args, os.Stdout, os.Stderr)
 }
 func baseImportCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
@@ -32,6 +31,7 @@ func baseImportCommand(ctx context.Context, args []string, out, diagnostic io.Wr
 	flags.SetOutput(diagnostic)
 	flags.Usage = func() { commandHelp(diagnostic, "base import", cliLanguage()) }
 	name := flags.String("name", "", cliMessage("base.packer_name"))
+	maxSize := flags.String("max-image-size", "", cliMessage("base.max_image_size"))
 	machine := flags.Bool("json", false, cliMessage("flag.json"))
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -39,8 +39,9 @@ func baseImportCommand(ctx context.Context, args []string, out, diagnostic io.Wr
 		}
 		return 2
 	}
-	req := basebuild.ImportRequest{Name: core.BaseName(*name)}
-	if flags.NArg() != 1 || req.Validate() != nil {
+	limit, limitErr := baseArchiveLimit(*maxSize)
+	req := basebuild.ImportRequest{Name: core.BaseName(*name), MaxBytes: limit}
+	if limitErr != nil || flags.NArg() != 1 || req.Validate() != nil {
 		flags.Usage()
 		return 2
 	}
@@ -65,4 +66,12 @@ func baseImportCommand(ctx context.Context, args []string, out, diagnostic io.Wr
 		}
 	}
 	return 0
+}
+
+func baseArchiveLimit(raw string) (int64, error) {
+	if raw == "" || raw == "unlimited" {
+		return 0, nil
+	}
+	value, err := bytesize.Parse(raw, uint64(basebuild.MaxArchiveLimitBytes))
+	return int64(value), err
 }

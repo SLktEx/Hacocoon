@@ -1,7 +1,6 @@
 package basebuild
 
 import (
-	"fmt"
 	"path"
 	"regexp"
 	"strings"
@@ -73,15 +72,3 @@ func (p PackerTemplate) Validate() error {
 	}
 	return nil
 }
-
-// Stage is selected by the trusted orchestration, never guest output. Execution
-// is a separate private result so it cannot leak through Error/log wrapping.
-type ProvisionFailure struct {
-	Stage     string
-	Execution core.ExecutionResult
-}
-
-func (e *ProvisionFailure) Error() string {
-	return fmt.Sprintf("Packer %s failed (exit %d)", e.Stage, e.Execution.ExitCode)
-}
-func (e *ProvisionFailure) Unwrap() error { return core.ErrRuntimeUnavailable }

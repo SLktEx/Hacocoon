@@ -18,7 +18,7 @@ func RegisterBaseImport(server *control.Server, receive func(context.Context, io
 	if receive == nil {
 		return core.ErrInvalidArgument
 	}
-	return registerImportStream(server, MethodBaseImport, func(payload json.RawMessage) (func(context.Context, io.Reader) (basebuild.Result, error), error) {
+	return registerImportStream(server, MethodBaseImport, basebuild.MaxArchiveLimitBytes, 0, func(payload json.RawMessage) (func(context.Context, io.Reader) (basebuild.Result, error), error) {
 		var req basebuild.ImportRequest
 		if decodeExportJSON(payload, &req) != nil || req.Validate() != nil {
 			return nil, control.ErrInvalidArgument
@@ -47,7 +47,7 @@ func (c *Client) ImportBase(ctx context.Context, source io.Reader, req basebuild
 	if source == nil || req.Validate() != nil {
 		return basebuild.Result{}, core.ErrInvalidArgument
 	}
-	return uploadInput(ctx, c, source, MethodBaseImport, req, validBaseImportResult, func(r basebuild.Result) bool {
+	return uploadInput(ctx, c, source, MethodBaseImport, req, req.ArchiveLimit(), 0, validBaseImportResult, func(r basebuild.Result) bool {
 		return r.State == "ready" && r.Base.Name == req.Name && importedBaseRevision.MatchString(string(r.Base.Revision)) && r.Builder == ""
 	})
 }

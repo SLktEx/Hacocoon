@@ -82,7 +82,7 @@ func RegisterEnvironmentImport(server *control.Server, receive func(context.Cont
 	if receive == nil {
 		return core.ErrInvalidArgument
 	}
-	return registerImportStream(server, MethodEnvironmentImport, func(payload json.RawMessage) (func(context.Context, io.Reader) (environmenttransfer.ImportResult, error), error) {
+	return registerImportStream(server, MethodEnvironmentImport, environmentExportWireLimit, 30*time.Minute, func(payload json.RawMessage) (func(context.Context, io.Reader) (environmenttransfer.ImportResult, error), error) {
 		var req EnvironmentImportRequest
 		if decodeExportJSON(payload, &req) != nil || req.Validate() != nil {
 			return nil, control.ErrInvalidArgument
@@ -95,18 +95,18 @@ func RegisterEnvironmentImport(server *control.Server, receive func(context.Cont
 
 // registerImportStream shares framing, cancellation and exact upload receipts.
 // Each domain validates its own request/result and owns staging and publication.
-func registerImportStream[T any](server *control.Server, method string, prepare func(json.RawMessage) (func(context.Context, io.Reader) (T, error), error), successful func(T) bool) error {
+func registerImportStream[T any](server *control.Server, method string, limit int64, timeout time.Duration, prepare func(json.RawMessage) (func(context.Context, io.Reader) (T, error), error), successful func(T) bool) error {
 	return server.RegisterStream(method, func(_ context.Context, payload json.RawMessage) (control.Stream, error) {
 		receive, err := prepare(payload)
 		if err != nil {
 			return nil, err
 		}
 		return func(ctx context.Context, conn net.Conn) error {
-			ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+			ctx, cancel := importStreamContext(ctx, timeout)
 			defer cancel()
 			stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 			defer stop()
-			reader := &environmentImportReader{reader: bufio.NewReaderSize(conn, 128<<10), hash: sha256.New(), conn: conn, limit: environmentExportWireLimit}
+			reader := &environmentImportReader{reader: bufio.NewReaderSize(conn, 128<<10), hash: sha256.New(), conn: conn, limit: limit}
 			disconnected := make(chan struct{})
 			reader.complete = func() {
 				// After the explicit upload end, any further byte or disconnect cancels
@@ -197,14 +197,22 @@ func (c *Client) ImportEnvironment(ctx context.Context, source io.Reader, name s
 	if source == nil || req.Validate() != nil {
 		return environmenttransfer.ImportResult{}, core.ErrInvalidArgument
 	}
-	return uploadInput(ctx, c, source, MethodEnvironmentImport, req, validImportResult, func(r environmenttransfer.ImportResult) bool {
+	return uploadInput(ctx, c, source, MethodEnvironmentImport, req, environmentExportWireLimit, 30*time.Minute, validImportResult, func(r environmenttransfer.ImportResult) bool {
 		return r.State == "running" && exportSourcePattern.MatchString(r.Environment) && r.Workspace != "" && (name == "" || r.Environment == name)
 	})
 }
 
-func uploadInput[T any](ctx context.Context, c *Client, source io.Reader, method string, req any, valid func(T) bool, successful func(T) bool) (T, error) {
+// Framing and cancellation are shared; each domain selects its own limits.
+func importStreamContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout > 0 {
+		return context.WithTimeout(ctx, timeout)
+	}
+	return context.WithCancel(ctx)
+}
+
+func uploadInput[T any](ctx context.Context, c *Client, source io.Reader, method string, req any, limit int64, timeout time.Duration, valid func(T) bool, successful func(T) bool) (T, error) {
 	var result T
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := importStreamContext(ctx, timeout)
 	defer cancel()
 	conn, err := c.wire.OpenStream(ctx, method, req)
 	if err != nil {
@@ -267,7 +275,7 @@ func uploadInput[T any](ctx context.Context, c *Client, source io.Reader, method
 	for {
 		n, readErr := source.Read(buffer)
 		if n > 0 {
-			if int64(n) > environmentExportWireLimit-count {
+			if int64(n) > limit-count {
 				err = core.ErrInvalidArgument
 				break
 			}

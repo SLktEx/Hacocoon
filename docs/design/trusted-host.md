@@ -351,8 +351,10 @@ automatic replay. See [ADR 0019](../adr/0019-trusted-host-customization.md).
 
 ## Nested OCI runtimes
 
-The maintained OCI setup integration enables `security.nesting=true` only after
-verifying the unprivileged owned Host and its canonical ready source area.
+New trusted Hosts set `security.nesting=true` before their first boot so Incus
+can initialize nesting mounts and AppArmor namespaces. The maintained OCI setup
+integration verifies the unprivileged owned Host and its canonical ready source area
+before enabling or reusing nested tooling.
 Missing ownership, inherited profiles, paused/pending copies or ambiguous
 provider results refuse setup. The setting persists; repeated setup revalidates
 and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
@@ -517,3 +519,11 @@ Host setup completion, saved-script results and recovery guidance follow the
 client's English/Japanese presentation. Diagnostic state/reason tokens and request
 correlation remain stable; explicit `--script-result` output remains verbatim.
 Localization does not change the explicit replay contract.
+
+## Packer and nested Incus
+
+Normal Host tooling setup also installs pinned Packer 1.16.0 and the shared signed
+Incus 7.0 LTS package policy inside haco-host. The nested daemon owns separate local
+state, an owned directory pool and NAT bridge; existing security.nesting=true is
+reused. No Physical Host Incus/state mount is added. See
+[Packer builds](packer-base-builds.md) for trusted HCL, artifact import and recovery.

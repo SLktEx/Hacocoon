@@ -24,9 +24,8 @@ type Definition struct {
 	// BuilderName scopes ordinary policy by an operator-selected name. Ownership
 	// still uses a fresh temporary Workspace and the canonical Env lease.
 	BuilderName string `json:"builder_name,omitempty"`
-	// Run is the simple guest shell definition; exactly one engine is selected.
-	Run    string          `json:"run,omitempty"`
-	Packer *PackerTemplate `json:"packer,omitempty"`
+	// Run executes only inside the ordinary JSON-definition builder.
+	Run string `json:"run,omitempty"`
 }
 
 func (d Definition) Validate() error {
@@ -37,12 +36,6 @@ func (d Definition) Validate() error {
 	}
 	if !NamePattern.MatchString(string(d.Name)) || d.Name == d.From {
 		return core.ErrInvalidArgument
-	}
-	if d.Packer != nil {
-		if d.Run != "" {
-			return core.ErrInvalidArgument
-		}
-		return d.Packer.Validate()
 	}
 	if strings.TrimSpace(d.Run) == "" || len(d.Run) > MaxScriptBytes || strings.ContainsRune(d.Run, 0) {
 		return core.ErrInvalidArgument
@@ -57,13 +50,9 @@ type Environments interface {
 	DeleteTemporary(context.Context, string, core.Workspace) error
 	PublishTemporaryBase(context.Context, string, core.Workspace, core.BaseName) (core.BaseInfo, error)
 }
-type Execute func(context.Context, core.ExecutionRequest) (core.ExecutionResult, error)
-type PackerProvisioner interface {
-	Provision(context.Context, PackerTemplate, Execute) error
-}
+type executeGuest func(context.Context, core.ExecutionRequest) (core.ExecutionResult, error)
 type Service struct {
 	Environments Environments
-	Packer       PackerProvisioner
 }
 type Result struct {
 	Base    core.BaseInfo `json:"base"`
@@ -83,26 +72,12 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 	if err = d.Validate(); err != nil {
 		return result, err
 	}
-	if d.Packer != nil && s.Packer == nil {
-		return result, core.ErrUnsupported
-	}
 	return s.build(ctx, d.Name, d.BuilderName, func(ctx context.Context, name string, work core.Workspace) (core.Environment, error) {
 		return s.Environments.Create(ctx, core.EnvironmentSpec{Name: name, Base: d.From, TemporaryWorkspace: &work, SkipDefaultResource: true, Resources: builderResources()})
-	}, func(execute Execute, result *Result) error {
-		if d.Packer != nil {
-			if err = s.Packer.Provision(ctx, *d.Packer, execute); err != nil {
-				var failure *ProvisionFailure
-				if errors.As(err, &failure) {
-					result.Stage = failure.Stage
-					result.Execution = &failure.Execution
-				}
-				return err
-			}
-		} else {
-			execution, runErr := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
-			if runErr != nil || execution.ExitCode != 0 {
-				return fmt.Errorf("base build script failed (exit %d): %w", execution.ExitCode, core.ErrRuntimeUnavailable)
-			}
+	}, func(execute executeGuest) error {
+		execution, runErr := execute(ctx, core.ExecutionRequest{WorkingDirectory: "/", Argv: []string{"/bin/sh", "-eu", "-s"}, Stdin: []byte(d.Run)})
+		if runErr != nil || execution.ExitCode != 0 {
+			return fmt.Errorf("base build script failed (exit %d): %w", execution.ExitCode, core.ErrRuntimeUnavailable)
 		}
 		return nil
 	})
@@ -110,7 +85,7 @@ func (s *Service) Build(ctx context.Context, d Definition) (result Result, err e
 
 // build owns the single execution/publication/cleanup sequence for definitions
 // and archive inputs. The creator always uses canonical Environment ownership.
-func (s *Service) build(ctx context.Context, base core.BaseName, name string, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(Execute, *Result) error) (result Result, err error) {
+func (s *Service) build(ctx context.Context, base core.BaseName, name string, create func(context.Context, string, core.Workspace) (core.Environment, error), provision func(executeGuest) error) (result Result, err error) {
 	work := core.NewTemporaryWorkspace()
 	if name == "" {
 		var nonce [16]byte
@@ -145,7 +120,7 @@ func (s *Service) build(ctx context.Context, base core.BaseName, name string, cr
 		return s.Environments.ExecForWorkspace(ctx, env.Name, work.ID, request)
 	}
 	if provision != nil {
-		if err = provision(execute, &result); err != nil {
+		if err = provision(execute); err != nil {
 			return result, err
 		}
 	}
