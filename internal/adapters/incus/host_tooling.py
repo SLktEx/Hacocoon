@@ -4,6 +4,7 @@ Only selected regular files from the authenticated upstream archive are installe
 No archive paths, links, ownership, services or installation scripts are applied.
 """
 import hashlib
+import json
 import os
 import platform
 import stat
@@ -19,9 +20,17 @@ DIGESTS = {
     "amd64": "b697295c623639734aaab737523c808fd3cc8d3046039fd94fff1744e4c317aa",
     "arm64": "6e4b687f1d138e750a3c8372abc0f81d3d7490b6359c48c0562fc7dfe98859b2",
 }
+DOCKER_VERSION = "28.5.2"
+DOCKER_DIGESTS = {
+    "amd64": "ea90cfd12e1eeb12aa1c971741adb8bd4ed88e2a574eaac13f5029a1dbc6300d",
+    "arm64": "9e4f82996ab790724094475ebed33a736434bfe5d45231b676fef22ffb80044d",
+}
+DOCKER_ARCH = {"amd64": "x86_64", "arm64": "aarch64"}
 MAX_ARCHIVE = 512 << 20
 BINARIES = ("containerd", "containerd-shim-runc-v2", "ctr", "runc", "nerdctl", "buildkitd", "buildctl")
 CNI = ("bridge", "host-local", "loopback", "portmap", "firewall", "tuning")
+DOCKER_ENGINE_BINARIES = ("containerd", "containerd-shim-runc-v2", "ctr", "docker-init",
+                          "docker-proxy", "dockerd", "runc")
 ENV = {"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
        "HOME": "/root", "LANG": "C.UTF-8", "DEBIAN_FRONTEND": "noninteractive"}
 CONTAINERD = '''version = 2
@@ -42,6 +51,19 @@ After=network.target
 Type=notify
 ExecStart=/usr/local/bin/containerd --config /etc/containerd/config.toml
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Delegate=yes
+KillMode=process
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+'''
+DOCKER_UNIT = '''[Unit]
+Description=Hacocoon trusted Host Docker Engine
+After=network.target
+[Service]
+Type=notify
+ExecStart=/usr/local/lib/hacocoon/docker/dockerd
+Environment=PATH=/usr/local/lib/hacocoon/docker:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Delegate=yes
 KillMode=process
 Restart=on-failure
@@ -143,35 +165,44 @@ def packages():
     run(["/usr/bin/gh", "--version"])
 
 
-def download(arch):
+def download_archive(cache_name, url, digest, redirect_prefix, label):
     cache = "/var/cache/hacocoon/host-tooling"
     directory(cache)
-    name = "nerdctl-full-" + VERSION + "-linux-" + arch + ".tar.gz"
-    path = cache + "/" + name
+    path = cache + "/" + cache_name
     try:
         data = read_file(path, MAX_ARCHIVE)
-        if hashlib.sha256(data).hexdigest() != DIGESTS[arch]:
-            raise ValueError("cached tooling digest mismatch")
+        if hashlib.sha256(data).hexdigest() != digest:
+            raise ValueError("cached " + label + " digest mismatch")
         return path
     except FileNotFoundError:
         pass
-    request = urllib.request.Request("https://github.com/containerd/nerdctl/releases/download/v"
-                                     + VERSION + "/" + name)
+    request = urllib.request.Request(url)
     # No proxy credentials or user configuration are inherited by downloads.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=60) as response:
-        if not response.url.startswith("https://"):
-            raise ValueError("insecure tooling redirect")
+        if not response.url.startswith(redirect_prefix):
+            raise ValueError("insecure " + label + " redirect")
         data = response.read(MAX_ARCHIVE + 1)
-    if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != DIGESTS[arch]:
-        raise ValueError("tooling archive digest mismatch")
+    if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError(label + " archive digest mismatch")
     publish(path, data, 0o644)
     return path
 
 
-def selected_files(archive):
-    wanted = {"bin/" + name: "/usr/local/bin/" + name for name in BINARIES}
-    wanted.update({"libexec/cni/" + name: "/usr/local/libexec/cni/" + name for name in CNI})
+def download(arch):
+    name = "nerdctl-full-" + VERSION + "-linux-" + arch + ".tar.gz"
+    url = "https://github.com/containerd/nerdctl/releases/download/v" + VERSION + "/" + name
+    return download_archive(name, url, DIGESTS[arch], "https://", "tooling")
+
+
+def docker_download(arch):
+    cache_name = "docker-" + DOCKER_VERSION + "-linux-" + arch + ".tgz"
+    name = "docker-" + DOCKER_VERSION + ".tgz"
+    url = ("https://download.docker.com/linux/static/stable/" + DOCKER_ARCH[arch] + "/" + name)
+    return download_archive(cache_name, url, DOCKER_DIGESTS[arch],
+                            "https://download.docker.com/", "Docker")
+
+def select_files(archive, wanted):
     selected = {}
     total = 0
     # Never extractall: absolute paths, links, special files and unknown archive
@@ -191,26 +222,59 @@ def selected_files(archive):
     return [(wanted[name], selected[name]) for name in wanted]
 
 
-def tooling():
-    path = download(architecture())
+def selected_files(archive):
+    wanted = {"bin/" + name: "/usr/local/bin/" + name for name in BINARIES}
+    wanted.update({"libexec/cni/" + name: "/usr/local/libexec/cni/" + name for name in CNI})
+    return select_files(archive, wanted)
+
+
+def selected_docker_files(archive):
+    wanted = {"docker/docker": "/usr/local/bin/docker"}
+    wanted.update({"docker/" + name: "/usr/local/lib/hacocoon/docker/" + name
+                   for name in DOCKER_ENGINE_BINARIES})
+    return select_files(archive, wanted)
+
+
+def publish_archive(path, selector):
     with tarfile.open(path, "r:gz") as archive:
-        for target, member in selected_files(archive):
+        for target, member in selector(archive):
             with archive.extractfile(member) as stream:
                 data = stream.read(member.size + 1)
             if len(data) != member.size:
                 raise ValueError("truncated tooling payload")
             publish(target, data, 0o755)
+
+
+def tooling():
+    arch = architecture()
+    publish_archive(download(arch), selected_files)
+    publish_archive(docker_download(arch), selected_docker_files)
     for name in BINARIES:
         run(["/usr/local/bin/" + name, "--version"])
+    run(["/usr/local/bin/docker", "--version"])
+    run(["/usr/local/lib/hacocoon/docker/dockerd", "--version"])
+    run(["/usr/local/lib/hacocoon/docker/containerd", "--version"])
+    run(["/usr/local/lib/hacocoon/docker/runc", "--version"])
+
+
+def verify_docker_config():
+    config = json.loads(read_file("/etc/docker/daemon.json", 8192))
+    if not isinstance(config, dict):
+        raise ValueError("invalid Docker configuration")
+    required = {"data-root": "/var/lib/hacocoon-oci/docker", "exec-root": "/run/docker"}
+    if any(config.get(key) != value for key, value in required.items()):
+        raise ValueError("conflicting Docker storage configuration")
 
 
 def services():
     # This known configuration was installed before the managed source became
     # ready. Updating only that exact form preserves existing data and Docker.
+    verify_docker_config()
     publish("/etc/containerd/config.toml", native_config(architecture()).encode(),
             0o644, previous=CONTAINERD.encode())
     publish("/etc/nerdctl/nerdctl.toml", NERDCTL.encode(), 0o644)
     publish("/etc/systemd/system/containerd.service", CONTAINERD_UNIT.encode(), 0o644)
+    publish("/etc/systemd/system/docker.service", DOCKER_UNIT.encode(), 0o644)
     publish("/etc/systemd/system/buildkit.service.d/10-hacocoon-readiness.conf",
             b"[Service]\nType=notify\n", 0o644)
     # persistentOCIConfiguration already owns buildkit.service and its cache
@@ -228,11 +292,13 @@ WantedBy=multi-user.target
     run(["/usr/bin/systemctl", "daemon-reload"])
     # enable --now is idempotent and does not interrupt existing containers or
     # builds on repeat setup. Fresh publication precedes first service start.
-    run(["/usr/bin/systemctl", "enable", "--now", "containerd.service", "buildkit.service"])
+    run(["/usr/bin/systemctl", "enable", "--now", "containerd.service", "buildkit.service",
+         "docker.service"])
     for attempt in range(60):
         try:
             run(["/usr/local/bin/ctr", "version"], 5)
             run(["/usr/local/bin/buildctl", "debug", "workers"], 5)
+            run(["/usr/local/bin/docker", "info"], 5)
             return
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             time.sleep(1)
