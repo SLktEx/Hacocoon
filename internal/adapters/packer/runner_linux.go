@@ -58,6 +58,12 @@ func Build(ctx context.Context, template basebuild.PackerTemplate, request baseb
 		_ = exec.CommandContext(cleanup, "/usr/bin/systemctl", "stop", unit+".service").Run()
 		return result, fmt.Errorf("packer canceled; inspect receipt %s: %w", directory, errors.Join(ctx.Err(), core.ErrRecoveryRequired))
 	}
+	return finishBuild(ctx, directory, id, request, client, runErr)
+}
+
+// Interpret only the durable worker receipt; a process exit is not publication.
+func finishBuild(ctx context.Context, directory, id string, request basebuild.ImportRequest, client Importer, runErr error) (result basebuild.Result, err error) {
+	result = basebuild.Result{Base: core.BaseInfo{Name: request.Name}, Builder: "haco-packer-" + id, State: "recovery-required"}
 	record, e := readReceipt(directory)
 	if e != nil {
 		return result, fmt.Errorf("packer did not produce a confirmed receipt %s: %w", directory, core.ErrRecoveryRequired)

@@ -60,7 +60,7 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 	for _, lang := range []string{"en", "ja"} {
 		t.Setenv("HACO_UI_LANGUAGE", lang)
 		code, out, diagnostic := captureRun(t, "base", "import", "--name", "tools", "--max-image-size", "2TiB", file)
-		if code != 0 || diagnostic != "" || !strings.Contains(out, "--base tools") {
+		if code != 0 || diagnostic != "" || !strings.Contains(out, "haco open --new tools") {
 			t.Fatal(code, out, diagnostic)
 		}
 		want := "is ready"

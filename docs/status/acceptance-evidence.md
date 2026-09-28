@@ -2353,3 +2353,15 @@ A real short-lived systemd probe confirmed `RuntimeMaxUSec=infinity` and
 Large-image acceptance remains unverified; arm64 is outside the requested scope.
 
 Follow-up validation passed: related Go tests (including Incus), Base/Packer/CLI/controller race checks, whole-repository vet, changed-code lint (zero findings), docs consistency and diff whitespace checks. A 2 TiB-plus sparse file exercised metadata-only CLI streaming; real socket tests verified deadline policy, and frame-counter boundary tests crossed the former 64 GiB wire cap without claiming that volume of transferred data. The full Packer E2E was not rerun for this limit-policy change.
+
+### Main integration and first hosted attempt
+
+Candidate `8584817d22025204e91f3c83bb98d86d2d9f822e` integrates the current
+Image/Environment creation contract. Its hosted Go 1.26/1.27 tests, race, vet,
+lint, documentation and Ubuntu installer jobs passed. The new required Packer
+step in [run 36360380538](https://github.com/SLktEx/Hacocoon/actions/runs/36360380538)
+failed at Packer build after fresh Host setup, pinned tooling and nested daemon
+initialization succeeded. The test failed after 80.32 seconds; this is not image
+build/import acceptance. The first Sonar new-code coverage gate also failed
+(61.7%). Follow-up regression coverage and fixed-category diagnostics address
+these gaps without publishing raw subprocess output or weakening required tests.

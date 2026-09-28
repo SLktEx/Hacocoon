@@ -131,9 +131,14 @@ func TestRealIncusPackerBaseBuildE2E(t *testing.T) {
 	base := core.BaseName("packer-tools")
 	build := func() basebuild.Result {
 		t.Helper()
-		raw := guest("/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build", "--name", string(base), "--json", "/root/packer-example")
+		out, runErr := runner.Run(ctx, "incus", "exec", trustedHostName, "--project", project, "--",
+			"/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build", "--name", string(base), "--json", "--output", "/root/packer-example")
 		var result basebuild.Result
-		must(json.Unmarshal([]byte(raw), &result))
+		must(json.Unmarshal([]byte(out.Stdout), &result))
+		if runErr != nil || out.ExitCode != 0 {
+			// Never log subprocess text. Emit only fixed allowlisted categories.
+			t.Fatalf("Packer fixture failed; categories=%v", packerFailureCategories(result.Execution))
+		}
 		if result.State != "ready" || result.Base.Name != base || result.Base.Revision == "" || result.Builder != "" {
 			t.Fatal("incomplete Packer result", result)
 		}
@@ -242,4 +247,47 @@ print("clean")`)
 	// Keep the exactly named outer fixture for provider diagnostics; it contains
 	// no user data. Successful-build resources and imported Bases are gone;
 	// failed-attempt receipts and their exact nested resources remain diagnosable.
+}
+
+// External error text is untrusted even in synthetic E2E. Only these fixed
+// categories may cross into CI logs; no matching substring or value is emitted.
+func packerFailureCategories(execution *core.ExecutionResult) []string {
+	if execution == nil {
+		return []string{"no-execution-result"}
+	}
+	text := strings.ToLower(execution.Stdout + execution.Stderr)
+	var categories []string
+	for _, item := range []struct{ needle, category string }{
+		{"error creating container", "instance-create"}, {"error publishing container", "image-publish"},
+		{"error stopping container", "instance-stop"}, {"error uploading", "upload"},
+		{"error executing", "provisioner-exec"}, {"idmap", "idmap"}, {"uid_map", "uid-map"},
+		{"uid/gid", "uid-gid"}, {"apparmor", "apparmor"}, {"operation not permitted", "operation-not-permitted"},
+		{"permission denied", "permission-denied"}, {"no space left", "disk-full"},
+		{"failed to mount", "mount"}, {"failed to start", "start"}, {"failed to run", "run"},
+		{"no root device", "root-device"}, {"failed to connect", "connect"},
+		{"no such file", "missing-file"}, {"not found", "not-found"},
+		{"network", "network"}, {"dhcp", "dhcp"}, {"timeout", "timeout"},
+		{"timed out", "timed-out"}, {"unknown configuration", "unknown-config"},
+		{"not supported", "unsupported"}, {"failed to set", "set-config"},
+		{"subuid", "subuid"}, {"subgid", "subgid"}, {"exit status", "child-exit"},
+		{"x509", "tls-certificate"}, {"connection refused", "connection-refused"},
+		{"device", "device"}, {"resource temporarily unavailable", "resource-unavailable"},
+	} {
+		if strings.Contains(text, item.needle) {
+			categories = append(categories, item.category)
+		}
+	}
+	if len(categories) == 0 {
+		return []string{"unclassified"}
+	}
+	return categories
+}
+func TestPackerFailureCategoriesNeverExposeSubprocessText(t *testing.T) {
+	got := packerFailureCategories(&core.ExecutionResult{Stdout: "secret-token\x1b[2J Error creating container", Stderr: "Permission denied /private/user-data"})
+	if strings.Join(got, ",") != "instance-create,permission-denied" {
+		t.Fatal("unexpected diagnostic categories")
+	}
+	if strings.Join(packerFailureCategories(&core.ExecutionResult{Stderr: "private unmatched text"}), ",") != "unclassified" {
+		t.Fatal("unrecognized text exposed")
+	}
 }

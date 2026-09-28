@@ -1971,3 +1971,15 @@ sparse file確認は、その全経路を証明していなかった。Baseの�
 実行していない。巨大画像は未検証で、arm64は今回の依頼範囲外とする。
 
 続行変更の関連Goテスト（Incusを含む）、Base/Packer/CLI/controllerのrace、全体vet、変更箇所lint（指摘0件）、docs整合性、diff空白検査は成功した。2 TiB超のsparse fileでCLIのサイズ処理を確認し、実socketでdeadline方針、フレーム計数境界で旧64 GiB wire上限をまたぐ処理を確認した。その容量を実転送したという意味ではない。今回の上限方針変更では実Packer E2E全体を再実行していない。
+
+### 最新 main との統合と初回 hosted 検証
+
+候補 `8584817d22025204e91f3c83bb98d86d2d9f822e` は現在の Image/Environment
+作成契約を統合しています。hosted の Go 1.26/1.27 テスト、race、vet、lint、
+docs、Ubuntu installer は成功しました。追加した必須 Packer step は
+[run 36360380538](https://github.com/SLktEx/Hacocoon/actions/runs/36360380538) で、
+fresh Host setup、固定版 tooling、nested daemon 初期化の成功後、Packer build
+段階で失敗しました。80.32 秒で失敗しており、image build/import の acceptance
+ではありません。初回 Sonar 新規コード coverage も 61.7% で不合格でした。
+後続の回帰テスト追加と固定分類による診断で対応し、生の subprocess 出力の
+公開や必須テストの緩和は行いません。

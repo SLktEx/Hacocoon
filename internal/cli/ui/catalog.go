@@ -39,7 +39,7 @@ var catalog = map[string]translation{
 	"base.import.archive":            {"Uncompressed Incus container image tar with metadata.yaml and rootfs; no size cap unless requested. Source files stay unchanged.", "metadata.yamlとrootfsを含む非圧縮のIncusコンテナイメージtar。サイズ上限は任意指定。元ファイルは変更しません。"},
 	"base.import.failed":             {"Base import did not complete. Check the archive, available storage and reported builder before retrying. A retry starts a new builder.", "Baseの取り込みは完了していません。アーカイブ、空き容量、表示された作成環境を確認してください。再試行は新しい作成環境から始まります。"},
 	"base.import.retained":           {"Builder retained: %s (%s). Inspect haco env status before explicit cleanup.\n", "作成環境を保持: %s（%s）。haco env statusで確認してから明示的に整理してください。\n"},
-	"base.import.ready":              {"Base %s is ready (%s). Create an Environment with --base %s.\n", "Base %sを取り込みました（%s）。--base %sで開発環境を作成できます。\n"},
+	"base.import.ready":              {"Base %s is ready (%s). Create an Environment with haco open --new %s.\n", "Base %sを取り込みました（%s）。haco open --new %s で開発環境を作成できます。\n"},
 	"base.packer_context":            {"Packer HCL2 directory with external scripts (requires --name), or a current JSON shell definition.", "外部スクリプトを含むPacker HCL2ディレクトリ（--nameが必要）、または現行のJSON shell定義。"},
 	"base.max_image_size":            {"Optional image archive cap, e.g. 2TiB (default unlimited).", "画像archiveの任意上限。例: 2TiB（既定unlimited）。"},
 	"base.packer_name":               {"Name of the Base to publish.", "作成するひな形の名前。"},
