@@ -3,8 +3,9 @@
 [日本語](packer-base-builds.ja.md) | English
 
 Status: implemented. The nested Incus implementation replaces the historical
-ordinary-Environment Packer adapter. The real Incus E2E passed on a dedicated WSL fixture; hosted CI and TB-scale
-images remain unverified (amd64 acceptance scope). Evidence is recorded separately in
+ordinary-Environment Packer adapter. The real Incus E2E passed on a dedicated WSL fixture
+and fresh Ubuntu hosted CI (amd64 acceptance scope). TB-scale images remain
+unverified. Evidence is recorded separately in
 [acceptance evidence](../status/acceptance-evidence.md#nested-packer).
 
 ## Build a reusable tool
@@ -44,6 +45,8 @@ The nested daemon is local-only and uses its own `/var/lib/incus`. Setup creates
 an owned directory storage pool `haco-packer` and NAT bridge `haco-packer0`;
 both survive builds and repeated setup. Existing trusted-Host
 `security.nesting=true` is reused without privileged mode or Physical Host mounts.
+New Hosts configure it before first boot so Incus initializes nesting mounts and
+AppArmor namespaces; setting it only after boot is insufficient.
 Host setup also installs `nftables` for nested networking. The build profile sets `security.idmap.size=65536` to bound the UID/GID range delegated to its unprivileged nested instance.
 Image compression is `none` for the existing uncompressed archive import contract.
 Each build creates an exclusive, randomly identified Incus project with private

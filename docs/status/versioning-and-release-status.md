@@ -17,6 +17,10 @@ Hacocoon is pre-1.0. Checkpoints mark progress; they are separate from compatibi
 
 ## Checkpoint history
 
+Issue #566 replaces the existing Packer backend and adds real nested Incus
+acceptance within v0.69. It creates no tag or release. See the
+[scoped evidence](acceptance-evidence.md#nested-packer).
+
 PR #737 keeps creation-only enrollment and adds interrupted collection cleanup within
 the current checkpoint. This completes an existing M4 failure path; no tag or release.
 

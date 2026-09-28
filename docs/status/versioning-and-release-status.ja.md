@@ -15,6 +15,9 @@ Hacocoonはpre-1.0です。checkpointは進捗の節目であり、互換性保�
 
 ## checkpoint履歴
 
+Issue #566は既存Packer backendの置換と実nested Incusの受入をv0.69内で扱います。
+タグ・リリースは作成しません。[受入範囲](acceptance-evidence.ja.md#nested-packer)を参照してください。
+
 PR #737は作成時だけの登録と、中断した収集の後片付けを現在のcheckpoint内で扱います。既存M4の失敗経路の完成であり、タグ・リリースは作成しません。
 
 

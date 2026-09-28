@@ -3,7 +3,8 @@
 日本語 | [English](packer-base-builds.md)
 
 状態: 実装済み。従来の通常Env内Packerアダプターをnested Incus方式へ置き換えます。
-専用WSL fixtureで実Incus E2Eは成功しました。hosted CIとTB規模の画像は未検証です。受入対象はamd64です。
+専用WSL fixtureとfreshなUbuntu hosted CIで実Incus E2Eは成功しました。
+TB規模の画像は未検証です。受入対象はamd64です。
 実機結果は[受入記録](../status/acceptance-evidence.ja.md#nested-packer)で区別します。
 
 ## ツールを含むBaseを作る
@@ -42,6 +43,8 @@ Pythonやpackage管理、IncusはHost側の依存で、ビルド対象Baseの前
 nested daemonはHost内だけで待ち受け、Host自身の `/var/lib/incus` を使います。
 所有属性付きdir pool `haco-packer` とNAT bridge `haco-packer0` を再利用します。
 既存の `security.nesting=true` を使い、privileged化やPhysical Hostマウントは追加しません。
+新規Hostでは初回起動前に設定し、Incusのnesting用mountとAppArmor namespaceを初期化します。
+起動後の設定変更だけではこの準備を完了できません。
 Host setupはnestedネットワーク用の`nftables`も導入します。build専用profileは`security.idmap.size=65536`を設定し、非特権のnested instanceへ渡すUID/GID範囲を限定します。
 既存archive importに合わせimage圧縮は `none` です。
 buildごとにランダムID、所有属性、独立image/profileを持つ専用projectを作ります。

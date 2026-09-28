@@ -51,7 +51,7 @@ func TestRealIncusPackerBaseBuildE2E(t *testing.T) {
 		t.Helper()
 		result, err := runner.Run(ctx, "incus", args...)
 		if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-			t.Fatalf("Incus fixture command failed: %v: %v %s", args, err, result.Stderr)
+			t.Fatalf("Incus fixture command failed; exit=%d categories=%v", result.ExitCode, packerFailureCategories(&core.ExecutionResult{Stdout: result.Stdout, Stderr: result.Stderr}))
 		}
 		return result.Stdout
 	}

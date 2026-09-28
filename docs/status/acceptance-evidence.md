@@ -2365,3 +2365,34 @@ initialization succeeded. The test failed after 80.32 seconds; this is not image
 build/import acceptance. The first Sonar new-code coverage gate also failed
 (61.7%). Follow-up regression coverage and fixed-category diagnostics address
 these gaps without publishing raw subprocess output or weakening required tests.
+
+### Fresh Ubuntu hosted Packer acceptance
+
+Candidate `dced0b45eb83349cd107d51614891b9ae68f3b83` passed the mandatory real
+Packer E2E in **250.81 seconds**, [run 36363265837 / job 108744536151](https://github.com/SLktEx/Hacocoon/actions/runs/36363265837/job/108744536151),
+on 2026-09-28. Exact fixture project/pool: `haco-packer-e2e-c9f0f66fdab2131f`.
+The initial hosted failure was reproduced with scoped AppArmor namespace denials.
+The fresh Host had enabled nesting only after boot. Configuring nesting before
+first boot lets Incus initialize its nesting mounts and AppArmor namespaces;
+no privileged Host or AppArmor bypass was added. The creation regression requires
+that configuration in the initial instance request.
+
+Fresh normal setup, pinned Packer/plugin download and loading, validate/build,
+actual shell provisioning, nested image generation/native export, controller
+stream/validation/import and immutable publication passed. A normal Env returned
+`hello-from-packer`. Rebuilding preserved that Env's revision and output while a
+new Env used the new revision and returned `hello-from-packer-two`. Both successful
+builds left no nested temporary instance/image/project, transport artifact or
+build context. Real invalid HCL, plugin-init and provisioner failures preserved
+the current Base and old Env; their diagnostic receipts remained owned.
+
+The same candidate passed hosted Go 1.26/1.27, race, vet, lint/Sonar quality gate,
+docs, Ubuntu installer and all Incus jobs, including JSON Base builds, snapshots,
+Workspace/OCI transfer and cleanup. Integrated native WSL `ci-local.sh test` and
+`ci-local.sh race` passed before the final setup-order fix; focused Host creation,
+ownership and diagnostic race tests and changed-code lint passed after it. These
+results supersede the earlier full-suite failures only for the integrated code.
+Windows jobs were still running at this observation.
+The earlier failures above remain historical failures. The E2E uses the standard
+controller API/service with isolated fixture state; it is not installed production
+controller acceptance. No >64 GiB/TB payload transfer or arm64 acceptance is claimed.

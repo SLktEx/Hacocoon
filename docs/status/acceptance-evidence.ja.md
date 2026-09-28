@@ -1983,3 +1983,29 @@ fresh Host setup、固定版 tooling、nested daemon 初期化の成功後、Pac
 ではありません。初回 Sonar 新規コード coverage も 61.7% で不合格でした。
 後続の回帰テスト追加と固定分類による診断で対応し、生の subprocess 出力の
 公開や必須テストの緩和は行いません。
+
+### fresh Ubuntu hosted Packerの受入
+
+候補 `dced0b45eb83349cd107d51614891b9ae68f3b83` は2026-09-28、必須の実Packer E2Eを
+**250.81秒でPASS**しました。[run 36363265837 / job 108744536151](https://github.com/SLktEx/Hacocoon/actions/runs/36363265837/job/108744536151)。
+fixtureの正確なproject/poolは `haco-packer-e2e-c9f0f66fdab2131f` です。
+初回hosted失敗は、対象Hostに限定したAppArmor namespace拒否を伴って再現しました。
+fresh Hostが起動後にnestingを有効化していたため、初回起動前の設定へ変更して
+Incusのnesting用mountとAppArmor namespaceの初期化を可能にしました。
+Hostの特権化やAppArmor回避は追加していません。作成時設定を回帰テストで検証します。
+
+通常のfresh setup、固定版Packer/pluginの取得とload、validate/build、実shell provisioner、
+nested image生成とnative export、controllerへのstream・検証・import・immutable公開が成功しました。
+通常Envで `hello-from-packer` が返り、再build後もそのEnvのrevisionと出力を維持しました。
+新規Envは新revisionから `hello-from-packer-two` を返しました。成功した両buildで
+nested temporary instance/image/project、transport artifact、build contextの不在を確認しました。
+実HCL不正・plugin init失敗・provisioner失敗でもcurrent Baseと既存Envを維持し、
+診断用receiptの所有権を保持しました。
+
+同じ候補でhosted Go 1.26/1.27、race、vet、lint/Sonar品質ゲート、docs、Ubuntu installer、
+全Incus jobが成功しました。JSON Base build、snapshot、Workspace/OCI transfer、cleanupも含みます。
+統合したnative WSLで `ci-local.sh test` と `ci-local.sh race` は最終的なsetup順序修正より前に
+成功し、修正後にはHost作成・所有権・診断のraceテストと変更箇所lintが成功しました。
+統合コードについては以前の全体テスト失敗を解消しています。この観測時点ではWindows jobは実行中です。
+過去の失敗は履歴として維持します。E2Eは通常のcontroller API/serviceと独立fixture stateを使い、
+導入済みproduction controllerの受入ではありません。64 GiB超/TBの実転送とarm64の受入は主張しません。
