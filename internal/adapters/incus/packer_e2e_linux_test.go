@@ -304,12 +304,27 @@ func packerNestedFailureDiagnostics(t *testing.T, ctx context.Context, runner ho
 	if _, err := hex.DecodeString(identity); err != nil {
 		return
 	}
+	// Kernel events are filtered to this exact test-owned Host before fixed
+	// category classification. No paths, command lines or raw events are logged.
+	kernel, kernelErr := runner.Run(ctx, "journalctl", "-k", "-n", "500", "--no-pager", "-o", "cat")
+	if kernelErr == nil {
+		var ownedEvents strings.Builder
+		for _, line := range strings.Split(kernel.Stdout, "\n") {
+			if strings.Contains(line, outerProject) || strings.Contains(line, project) {
+				ownedEvents.WriteString(line)
+			}
+		}
+		if ownedEvents.Len() > 0 {
+			t.Logf("owned kernel failure categories=%v", packerFailureCategories(&core.ExecutionResult{Stderr: ownedEvents.String()}))
+		}
+	}
 	query := func(args ...string) (host.Result, error) {
 		argv := []string{"exec", trustedHostName, "--project", outerProject, "--", "incus"}
 		return runner.Run(ctx, "incus", append(argv, args...)...)
 	}
 	owner, err := query("query", "/1.0/projects/"+project)
 	if err != nil || owner.StdoutTruncated {
+		t.Log("nested diagnostic: project observation unavailable")
 		return
 	}
 	var observed struct {
@@ -317,10 +332,12 @@ func packerNestedFailureDiagnostics(t *testing.T, ctx context.Context, runner ho
 		Config map[string]string `json:"config"`
 	}
 	if json.Unmarshal([]byte(owner.Stdout), &observed) != nil || observed.Name != project || observed.Config["user.hacocoon.packer-build"] != identity {
+		t.Log("nested diagnostic: project ownership unconfirmed")
 		return
 	}
 	listed, err := query("query", "/1.0/instances?recursion=1&project="+project)
 	if err != nil || listed.StdoutTruncated {
+		t.Log("nested diagnostic: instance observation unavailable")
 		return
 	}
 	var instances []struct {
@@ -328,14 +345,18 @@ func packerNestedFailureDiagnostics(t *testing.T, ctx context.Context, runner ho
 		Config map[string]string `json:"config"`
 	}
 	if json.Unmarshal([]byte(listed.Stdout), &instances) != nil {
+		t.Log("nested diagnostic: invalid instance response")
 		return
 	}
+	t.Logf("owned nested project retained instances=%d", len(instances))
 	for _, instance := range instances {
 		if core.ValidateEnvironmentName(instance.Name) != nil || instance.Config["user.hacocoon.packer-build"] != identity {
+			t.Log("nested diagnostic: instance ownership unconfirmed")
 			continue
 		}
 		log, err := query("info", instance.Name, "--project", project, "--show-log")
 		if err != nil {
+			t.Log("nested diagnostic: instance log unavailable")
 			continue
 		}
 		t.Logf("owned nested instance failure categories=%v", packerFailureCategories(&core.ExecutionResult{Stdout: log.Stdout, Stderr: log.Stderr}))
