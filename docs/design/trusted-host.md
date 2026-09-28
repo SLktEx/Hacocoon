@@ -351,8 +351,10 @@ automatic replay. See [ADR 0019](../adr/0019-trusted-host-customization.md).
 
 ## Nested OCI runtimes
 
-The maintained OCI setup integration enables `security.nesting=true` only after
-verifying the unprivileged owned Host and its canonical ready source area.
+New trusted Hosts set `security.nesting=true` before their first boot so Incus
+can initialize nesting mounts and AppArmor namespaces. The maintained OCI setup
+integration verifies the unprivileged owned Host and its canonical ready source area
+before enabling or reusing nested tooling.
 Missing ownership, inherited profiles, paused/pending copies or ambiguous
 provider results refuse setup. The setting persists; repeated setup revalidates
 and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).

@@ -356,8 +356,7 @@ func packerNestedFailureDiagnostics(t *testing.T, ctx context.Context, runner ho
 		}
 		log, err := query("info", instance.Name, "--project", project, "--show-log")
 		if err != nil {
-			t.Log("nested diagnostic: instance log unavailable")
-			continue
+			t.Log("nested diagnostic: instance log command failed")
 		}
 		t.Logf("owned nested instance failure categories=%v", packerFailureCategories(&core.ExecutionResult{Stdout: log.Stdout, Stderr: log.Stderr}))
 	}

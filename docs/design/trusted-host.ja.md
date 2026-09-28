@@ -334,8 +334,10 @@ process終了値がない状態です。controller crashでは出力なしのrun
 
 ## ネストした OCI runtime
 
-通常の OCI setup は、非特権の所有確認済み Host と正規の ready 元データ
-領域を検証してから `security.nesting=true` を設定します。所有権の欠落、継承
+新規 trusted Host は初回起動前に `security.nesting=true` を設定し、Incus が
+nesting 用 mount と AppArmor namespace を初期化できるようにします。通常の OCI setup は、
+非特権の所有確認済み Host と正規の ready 元データ領域を検証してから nested tooling を
+有効化・再利用します。所有権の欠落、継承
 プロファイル、pause 中・コピー未完了の状態、曖昧なプロバイダー応答は setup を拒否します。
 設定は永続化され、再 setup で確認して再利用します。
 [ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。

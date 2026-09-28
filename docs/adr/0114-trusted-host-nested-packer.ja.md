@@ -8,6 +8,12 @@ Packer・HCL・pluginは信頼済みビルドコードとして `haco-host` 上�
 既存Hostのnesting設定と署名検証付きIncus LTS installerを再利用し、
 Physical Hostのsocket、storage、管理状態は公開しません。
 
+新規 Host について ADR 0032 の設定時期を変更し、初回起動前に nesting を設定します。
+Incus は起動時に nesting 用 mount と AppArmor namespace を初期化するため、
+起動後の設定変更だけでは fresh な nested daemon の準備が整いません。
+OCI 元データの検証は引き続きツール導入より前に行います。初期化の不備を補うために
+AppArmor を無効化したり Host を特権化したりしません。
+
 native container archiveだけを既存Base importへ渡します。
 Physical Hostはbytes検証と公開を担当し、HCL解釈、Packer実行、別Baseカタログを持ちません。
 JSON buildは通常Env内の構築を維持し、immutable revisionと公開契約を保ちます。
