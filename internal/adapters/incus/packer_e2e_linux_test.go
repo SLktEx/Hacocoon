@@ -137,6 +137,7 @@ func TestRealIncusPackerBaseBuildE2E(t *testing.T) {
 		must(json.Unmarshal([]byte(out.Stdout), &result))
 		if runErr != nil || out.ExitCode != 0 {
 			// Never log subprocess text. Emit only fixed allowlisted categories.
+			packerNestedFailureDiagnostics(t, ctx, runner, project, result.Builder)
 			t.Fatalf("Packer fixture failed; categories=%v", packerFailureCategories(result.Execution))
 		}
 		if result.State != "ready" || result.Base.Name != base || result.Base.Revision == "" || result.Builder != "" {
@@ -260,7 +261,7 @@ func packerFailureCategories(execution *core.ExecutionResult) []string {
 	for _, item := range []struct{ needle, category string }{
 		{"error creating container", "instance-create"}, {"error publishing container", "image-publish"},
 		{"error stopping container", "instance-stop"}, {"error uploading", "upload"},
-		{"error executing", "provisioner-exec"}, {"idmap", "idmap"}, {"uid_map", "uid-map"},
+		{"error executing", "provisioner-exec"}, {"idmap", "idmap"}, {"cgroup", "cgroup"}, {"bpf", "bpf"}, {"hook", "hook"}, {"autodev", "autodev"}, {"namespace", "namespace"}, {"denied", "denied"}, {"invalid argument", "invalid-argument"}, {"failed to setup", "setup"}, {"lxc.conf", "lxc-config"}, {"failed to allocate", "allocation"}, {"failed to create", "create"}, {"failed to load", "load"}, {"uid_map", "uid-map"},
 		{"uid/gid", "uid-gid"}, {"apparmor", "apparmor"}, {"operation not permitted", "operation-not-permitted"},
 		{"permission denied", "permission-denied"}, {"no space left", "disk-full"},
 		{"failed to mount", "mount"}, {"failed to start", "start"}, {"failed to run", "run"},
@@ -284,10 +285,59 @@ func packerFailureCategories(execution *core.ExecutionResult) []string {
 }
 func TestPackerFailureCategoriesNeverExposeSubprocessText(t *testing.T) {
 	got := packerFailureCategories(&core.ExecutionResult{Stdout: "secret-token\x1b[2J Error creating container", Stderr: "Permission denied /private/user-data"})
-	if strings.Join(got, ",") != "instance-create,permission-denied" {
+	if strings.Join(got, ",") != "instance-create,denied,permission-denied" {
 		t.Fatal("unexpected diagnostic categories")
 	}
 	if strings.Join(packerFailureCategories(&core.ExecutionResult{Stderr: "private unmatched text"}), ",") != "unclassified" {
 		t.Fatal("unrecognized text exposed")
+	}
+}
+
+func packerNestedFailureDiagnostics(t *testing.T, ctx context.Context, runner host.Runner, outerProject, project string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	identity := strings.TrimPrefix(project, "haco-packer-")
+	if len(identity) != 32 {
+		return
+	}
+	if _, err := hex.DecodeString(identity); err != nil {
+		return
+	}
+	query := func(args ...string) (host.Result, error) {
+		argv := []string{"exec", trustedHostName, "--project", outerProject, "--", "incus"}
+		return runner.Run(ctx, "incus", append(argv, args...)...)
+	}
+	owner, err := query("query", "/1.0/projects/"+project)
+	if err != nil || owner.StdoutTruncated {
+		return
+	}
+	var observed struct {
+		Name   string            `json:"name"`
+		Config map[string]string `json:"config"`
+	}
+	if json.Unmarshal([]byte(owner.Stdout), &observed) != nil || observed.Name != project || observed.Config["user.hacocoon.packer-build"] != identity {
+		return
+	}
+	listed, err := query("query", "/1.0/instances?recursion=1&project="+project)
+	if err != nil || listed.StdoutTruncated {
+		return
+	}
+	var instances []struct {
+		Name   string            `json:"name"`
+		Config map[string]string `json:"config"`
+	}
+	if json.Unmarshal([]byte(listed.Stdout), &instances) != nil {
+		return
+	}
+	for _, instance := range instances {
+		if core.ValidateEnvironmentName(instance.Name) != nil || instance.Config["user.hacocoon.packer-build"] != identity {
+			continue
+		}
+		log, err := query("info", instance.Name, "--project", project, "--show-log")
+		if err != nil {
+			continue
+		}
+		t.Logf("owned nested instance failure categories=%v", packerFailureCategories(&core.ExecutionResult{Stdout: log.Stdout, Stderr: log.Stderr}))
 	}
 }
