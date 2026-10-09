@@ -87,19 +87,19 @@ func TestWorkspaceMeasurementSelectsOnlyOneReadyMember(t *testing.T) {
 	}
 }
 
-func TestWorkspaceMeasurementPayloadIsBoundedAndRejectsLinks(t *testing.T) {
+func TestStorageMeasurementPayloadIsBoundedAndRejectsLinks(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hashes, err := workspaceMeasurementHashes(root); err != nil || len(hashes) != 0 {
+	if hashes, err := storageMeasurementHashes(root); err != nil || len(hashes) != 0 {
 		t.Fatal("empty payload after unlink must remain observable", err)
 	}
 	file := filepath.Join(root, "base")
-	if err := os.WriteFile(file, []byte(strings.Repeat("a", workspaceMeasurementFileBytes)), 0600); err != nil {
+	if err := os.WriteFile(file, []byte(strings.Repeat("a", storageMeasurementFileBytes)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if hashes, err := workspaceMeasurementHashes(root); err != nil || len(hashes) != 1 || len(hashes["base"]) != 64 {
+	if hashes, err := storageMeasurementHashes(root); err != nil || len(hashes) != 1 || len(hashes["base"]) != 64 {
 		t.Fatal("exact bounded payload rejected", err)
 	}
 	for _, tc := range []struct {
@@ -112,7 +112,7 @@ func TestWorkspaceMeasurementPayloadIsBoundedAndRejectsLinks(t *testing.T) {
 		{"short", func(path string) error { return os.WriteFile(filepath.Join(path, "base"), []byte("short"), 0600) }},
 		{"extra_file", func(path string) error { return os.WriteFile(filepath.Join(path, "other"), nil, 0600) }},
 		{"oversized", func(path string) error {
-			return os.WriteFile(filepath.Join(path, "base"), make([]byte, workspaceMeasurementFileBytes+1), 0600)
+			return os.WriteFile(filepath.Join(path, "base"), make([]byte, storageMeasurementFileBytes+1), 0600)
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestWorkspaceMeasurementPayloadIsBoundedAndRejectsLinks(t *testing.T) {
 			if err := tc.alter(path); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := workspaceMeasurementHashes(path); err == nil {
+			if _, err := storageMeasurementHashes(path); err == nil {
 				t.Fatal("accepted unsafe payload")
 			}
 		})
@@ -129,12 +129,12 @@ func TestWorkspaceMeasurementPayloadIsBoundedAndRejectsLinks(t *testing.T) {
 
 func TestWorkspaceMeasurementRequiresExtentsNotOnlyMatchingBytes(t *testing.T) {
 	hash := strings.Repeat("a", 64)
-	sample := workspaceStorageSample{Hashes: map[string]string{"base": hash}, Payload: storageByteSample{LogicalBytes: workspaceMeasurementFileBytes, AllocatedBytes: workspaceMeasurementFileBytes, ExtentTotalBytes: workspaceMeasurementFileBytes, ExtentSetSharedBytes: workspaceMeasurementFileBytes}}
+	sample := workspaceStorageSample{Hashes: map[string]string{"base": hash}, Payload: storageByteSample{LogicalBytes: storageMeasurementFileBytes, AllocatedBytes: storageMeasurementFileBytes, ExtentTotalBytes: storageMeasurementFileBytes, ExtentSetSharedBytes: storageMeasurementFileBytes}}
 	if err := requireSharedWorkspacePayload(sample, hash); err != nil {
 		t.Fatal("rejected measured sharing", err)
 	}
 	sample.Payload.ExtentSetSharedBytes = 0
-	sample.Payload.ExtentExclusiveBytes = workspaceMeasurementFileBytes
+	sample.Payload.ExtentExclusiveBytes = storageMeasurementFileBytes
 	if requireSharedWorkspacePayload(sample, hash) == nil {
 		t.Fatal("identical bytes incorrectly established extent sharing")
 	}

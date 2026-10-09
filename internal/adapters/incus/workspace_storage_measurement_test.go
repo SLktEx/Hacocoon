@@ -8,15 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -27,7 +23,6 @@ import (
 )
 
 const workspaceMeasurementDirectory = "haco-storage-measurement"
-const workspaceMeasurementFileBytes = 8 << 20
 
 // Only the selected fixture repository is measured. A saved area carries the
 // complete canonical Snapshot; a live area carries its Workspace and generation.
@@ -252,54 +247,6 @@ func (m workspaceStorageObserver) guest(area workspaceStorageArea, script string
 	m.path(area, 103)
 }
 
-// All measured inputs are fixed fixture files. Refuse links, extra files and
-// unexpected sizes before recursive counters; hash only bounded regular files.
-func workspaceMeasurementHashes(path string) (result map[string]string, resultErr error) {
-	if err := storageMeasurementDirectory(path); err != nil {
-		return nil, err
-	}
-	root, err := os.OpenRoot(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { resultErr = errors.Join(resultErr, root.Close()) }()
-	directory, err := root.Open(".")
-	if err != nil {
-		return nil, err
-	}
-	defer func() { resultErr = errors.Join(resultErr, directory.Close()) }()
-	entries, err := directory.ReadDir(3)
-	if err != nil && err != io.EOF || len(entries) > 2 {
-		return nil, fmt.Errorf("unexpected measurement payload inventory")
-	}
-	hashes := map[string]string{}
-	for _, entry := range entries {
-		if entry.Name() != "base" && entry.Name() != "delta" {
-			return nil, fmt.Errorf("unexpected measurement payload")
-		}
-		info, err := root.Lstat(entry.Name())
-		if err != nil || !info.Mode().IsRegular() || info.Size() != workspaceMeasurementFileBytes {
-			return nil, fmt.Errorf("invalid measurement payload type or size")
-		}
-		if stat, ok := info.Sys().(*syscall.Stat_t); !ok || stat.Nlink != 1 {
-			return nil, fmt.Errorf("measurement payload must have one link")
-		}
-		file, err := root.Open(entry.Name())
-		if err != nil {
-			return nil, err
-		}
-		opened, statErr := file.Stat()
-		digest := sha256.New()
-		count, readErr := io.Copy(digest, io.LimitReader(file, workspaceMeasurementFileBytes+1))
-		closeErr := file.Close()
-		if statErr != nil || !os.SameFile(info, opened) || readErr != nil || closeErr != nil || count != workspaceMeasurementFileBytes {
-			return nil, fmt.Errorf("measurement payload changed")
-		}
-		hashes[entry.Name()] = hex.EncodeToString(digest.Sum(nil))
-	}
-	return hashes, nil
-}
-
 // observe holds the same Environment-then-Workspace locks as lifecycle operations.
 // Only exact running fixture consumers are paused; stopped consumers stay stopped.
 // Ambiguous ownership/state or failed observation retains the fixture in its
@@ -337,22 +284,7 @@ func (m workspaceStorageObserver) observe(phase string, areas ...workspaceStorag
 			defer unlock()
 		}
 	}
-	backing := filepath.Join("/var/lib/incus/disks", m.pool+".img")
-	var pool struct {
-		Name, Driver string
-		Config       map[string]string
-	}
-	if !safeIncusRef(m.pool) || json.Unmarshal([]byte(m.command("incus", "query", "/1.0/storage-pools/"+m.pool)), &pool) != nil || pool.Name != m.pool || pool.Driver != "btrfs" || pool.Config["source"] != backing {
-		m.t.Fatal("measurement pool identity unavailable")
-	}
-	if matches, known := m.runtime.inspectLiveStorage(m.ctx, m.pool, backing); !known || !matches {
-		m.t.Fatal("measurement pool mount identity or policy unavailable")
-	}
-	resolved, err := filepath.EvalSymlinks(backing)
-	backingBefore, statErr := os.Lstat(backing)
-	if err != nil || resolved != backing || statErr != nil || !backingBefore.Mode().IsRegular() {
-		m.t.Fatal("measurement backing identity unavailable")
-	}
+	pool := storageMeasurementPool(m.t, m.ctx, m.runtime, m.pool, m.command)
 	statuses := map[string]int{}
 	paths := map[string]bool{}
 	consumers := map[string]bool{}
@@ -379,7 +311,7 @@ func (m workspaceStorageObserver) observe(phase string, areas ...workspaceStorag
 	for _, area := range areas {
 		path, identity, _ := m.path(area, statuses[area.label])
 		payload := filepath.Join(path, workspaceMeasurementDirectory)
-		hashes, err := workspaceMeasurementHashes(payload)
+		hashes, err := storageMeasurementHashes(payload)
 		if err != nil {
 			m.t.Fatal(err)
 		}
@@ -404,24 +336,7 @@ func (m workspaceStorageObserver) observe(phase string, areas ...workspaceStorag
 		m.t.Logf("storage_measurement fixture=managed-workspace-lifecycle phase=%s area=%s identity_sha256=%s bytes=%s", phase, area.label, identity, encoded)
 		m.path(area, statuses[area.label])
 	}
-	info, err := os.Lstat(backing)
-	if err != nil || !info.Mode().IsRegular() || !os.SameFile(info, backingBefore) || info.Size() != backingBefore.Size() {
-		m.t.Fatal("measurement pool backing identity or capacity changed")
-	}
-	allocation, err := parseStorageDU(m.command("du", "--summarize", "--block-size=1", "--", backing), backing)
-	if err != nil {
-		m.t.Fatal(err)
-	}
-	if matches, known := m.runtime.inspectLiveStorage(m.ctx, m.pool, backing); !known || !matches {
-		m.t.Fatal("measurement pool identity changed")
-	}
-	backingAfter, err := os.Lstat(backing)
-	if err != nil || !backingAfter.Mode().IsRegular() || !os.SameFile(backingAfter, backingBefore) || backingAfter.Size() != backingBefore.Size() {
-		m.t.Fatal("measurement pool backing identity or capacity changed during reads")
-	}
-	// Other fixture rootfs/images and trusted Host activity use this pool. These
-	// counters are contextual observations, never isolated workload attribution.
-	m.t.Logf("storage_measurement fixture=managed-workspace-lifecycle phase=%s pool_scope=whole_shared_pool pool_logical_bytes=%d pool_allocated_bytes=%d", phase, info.Size(), allocation)
+	pool.finish(phase, "managed-workspace-lifecycle")
 	for _, area := range areas {
 		if statuses[area.label] == 110 {
 			m.path(area, 110)
@@ -434,7 +349,7 @@ func (m workspaceStorageObserver) observe(phase string, areas ...workspaceStorag
 
 // Identical hashes are content evidence, not extent-sharing evidence.
 func requireSharedWorkspacePayload(sample workspaceStorageSample, hash string) error {
-	if hash == "" || len(sample.Hashes) != 1 || sample.Hashes["base"] != hash || sample.Payload.LogicalBytes < workspaceMeasurementFileBytes || sample.Payload.ExtentTotalBytes == 0 || sample.Payload.ExtentSetSharedBytes == 0 || sample.Payload.ExtentExclusiveBytes >= sample.Payload.ExtentTotalBytes {
+	if hash == "" || len(sample.Hashes) != 1 || sample.Hashes["base"] != hash || sample.Payload.LogicalBytes < storageMeasurementFileBytes || sample.Payload.ExtentTotalBytes == 0 || sample.Payload.ExtentSetSharedBytes == 0 || sample.Payload.ExtentExclusiveBytes >= sample.Payload.ExtentTotalBytes {
 		return fmt.Errorf("Workspace payload content or extent sharing unproven")
 	}
 	return nil

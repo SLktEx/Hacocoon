@@ -117,6 +117,23 @@ storage/pluginの失敗を区別できるようにします。試験は人間向
 秘密・任意出力の混入、項目の安定性を確認します。
 新しい秘匿ルール、項目契約、形式、失敗報告境界には対象を絞った回帰試験を追加します。
 
+## rootfs ストレージ計測の記録
+
+Snapshot 集約 E2E の `storage_measurement` は試験専用の記録であり、製品用 logger の
+追加ではありません。`fixture=snapshot-rootfs-image-lifecycle`、`phase`、`area` は
+固定のラベルを使います。`identity_sha256` は確認済みの project・pool と型付きの
+runtime/owner または Image 識別のハッシュで、元の所有記録は出力しません。
+`bytes` は型付きの `rootfs`、`payload`、`payload_sha256` だけを含み、
+[計測の契約](../design/btrfs-storage-layout.ja.md#rootfs-の保存と通常-image-の再利用の計測)で
+定義した容量と、固定・上限付きの試験ファイルのハッシュを記録します。
+
+メタデータは選択したツール・基盤の版、`image_fingerprint`、
+`origin=snapshot-generated-image` を記録します。プールの記録は固定の
+`pool_scope=whole_shared_pool` と `pool_logical_bytes`、`pool_allocated_bytes` を
+使います。パス、生の Incus/API 応答、任意のゲスト内容、設定、子プロセス出力は
+含めません。既存の非公開の障害復旧用 catalog は別に扱います。この記録は削除権限を
+与えず、正確な試験結果なしに実機受入の成功を証明しません。
+
 ## 監査の追加field
 
 `environment_instance`は再利用可能な表示名と別に、正規のEnv作成を識別するランダムな公開IDです。

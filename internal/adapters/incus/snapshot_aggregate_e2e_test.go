@@ -446,12 +446,20 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// Exercise the shipped CLI through a private real controller socket, with
 	// real Incus independent copies without stopping the running source.
 	binary := os.Getenv("HACO_E2E_SNAPSHOT_CLI")
-	var cliSavedID, measurementHash string
+	var cliSavedID, measurementHash, rootfsHash string
 	measurement := workspaceStorageObserver{t: t, ctx: ctx, runtime: r, catalog: reopened, pool: pool}
 	measurementSource := workspaceStorageArea{label: "source", work: reloadedWork, env: resumedEnv, generation: resumedID}
+	rootfsMeasurement := rootfsStorageObserver{t: t, ctx: ctx, runtime: r, catalog: reopened, pool: pool}
+	rootfsSource := rootfsStorageArea{label: "source", live: &rootfsLiveIdentity{env: resumedEnv, generation: resumedID}}
 	if binary != "" {
 		// Earlier synthetic setup writes are outside this interval. Every new
 		// measurement payload mutation goes through this exact owned guest.
+		rootfsMeasurement.guest(rootfsSource, `test ! -e "$1"; mkdir -- "$1"; dd if=/dev/urandom of="$1/base" bs=1048576 count=8 status=none conv=fsync`)
+		rootBefore := rootfsMeasurement.observe("before_snapshot", rootfsSource)["source"]
+		rootfsHash = rootBefore.Hashes["base"]
+		if len(rootBefore.Hashes) != 1 || rootfsHash == "" || rootBefore.Payload.AllocatedBytes == 0 || rootBefore.Payload.ExtentTotalBytes == 0 || rootBefore.Payload.ExtentExclusiveBytes != rootBefore.Payload.ExtentTotalBytes || rootBefore.Payload.ExtentSetSharedBytes != 0 {
+			t.Fatal("rootfs measurement payload allocation unavailable")
+		}
 		measurement.metadata(image)
 		measurement.guest(measurementSource, `test ! -e "$1"; mkdir -- "$1"; dd if=/dev/urandom of="$1/base" bs=1048576 count=8 status=none conv=fsync`)
 		before := measurement.observe("before_snapshot", measurementSource)["source"]
@@ -498,6 +506,20 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			measurementSaved, err := reopened.GetSnapshot(ctx, cliSavedID)
 			must(err)
 			savedArea := workspaceStorageArea{label: "saved", saved: &measurementSaved}
+			rootfsSaved := rootfsStorageArea{label: "saved", saved: &measurementSaved}
+			if measurementSaved.Image == nil {
+				t.Fatal("Snapshot-generated Image missing")
+			}
+			rootfsMeasurement.metadata(*measurementSaved.Image)
+			rootCaptured := rootfsMeasurement.observe("after_snapshot", rootfsSource, rootfsSaved)
+			must(requireSharedRootfsPayload(rootCaptured["source"], rootfsHash))
+			must(requireSharedRootfsPayload(rootCaptured["saved"], rootfsHash))
+			rootfsMeasurement.guest(rootfsSource, `rm -- "$1/base"; sync`)
+			rootUnlinked := rootfsMeasurement.observe("source_unlink_snapshot_retained", rootfsSource, rootfsSaved)
+			if len(rootUnlinked["source"].Hashes) != 0 || rootUnlinked["source"].Payload.ExtentTotalBytes != 0 || rootUnlinked["saved"].Hashes["base"] != rootfsHash {
+				t.Fatal("logical rootfs unlink or saved retention unproven")
+			}
+			measureSnapshotImageReuse(rootfsMeasurement, binary, measurementSaved, rootfsHash, resumedService, restoredRepositories)
 			copied := measurement.observe("after_snapshot", measurementSource, savedArea)
 			must(requireSharedWorkspacePayload(copied["source"], measurementHash))
 			must(requireSharedWorkspacePayload(copied["saved"], measurementHash))
@@ -700,6 +722,11 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(err)
 		measurementRestored := workspaceStorageArea{label: "restored", work: publicWork, env: publicEnv, generation: publicGeneration}
 		measurementSaved := workspaceStorageArea{label: "saved", saved: &saved}
+		rootfsSaved := rootfsStorageArea{label: "saved", saved: &saved}
+		rootfsRestored := rootfsStorageArea{label: "restored", live: &rootfsLiveIdentity{env: publicEnv, generation: publicGeneration}}
+		rootRestored := rootfsMeasurement.observe("after_public_restore", rootfsSaved, rootfsRestored)
+		must(requireSharedRootfsPayload(rootRestored["saved"], rootfsHash))
+		must(requireSharedRootfsPayload(rootRestored["restored"], rootfsHash))
 		restoredBytes := measurement.observe("after_public_restore", measurementSaved, measurementRestored)
 		must(requireSharedWorkspacePayload(restoredBytes["saved"], measurementHash))
 		must(requireSharedWorkspacePayload(restoredBytes["restored"], measurementHash))
@@ -752,6 +779,16 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatal("copy retained temporary save")
 		}
 		measurementCopy := workspaceStorageArea{label: "copy", work: copiedWork, env: copiedEnv, generation: copiedGeneration}
+		rootfsCopy := rootfsStorageArea{label: "copy", live: &rootfsLiveIdentity{env: copiedEnv, generation: copiedGeneration}}
+		rootBeforeWrite := rootfsMeasurement.observe("after_public_copy", rootfsSaved, rootfsRestored, rootfsCopy)
+		for _, area := range []string{"saved", "restored", "copy"} {
+			must(requireSharedRootfsPayload(rootBeforeWrite[area], rootfsHash))
+		}
+		rootfsMeasurement.guest(rootfsCopy, `test ! -e "$1/delta"; dd if=/dev/urandom of="$1/delta" bs=1048576 count=8 status=none conv=fsync`)
+		rootAfterWrite := rootfsMeasurement.observe("after_copy_write", rootfsSaved, rootfsRestored, rootfsCopy)
+		must(requireIndependentRootfsWrite(rootBeforeWrite["copy"], rootAfterWrite["copy"], rootfsHash))
+		must(requireSharedRootfsPayload(rootAfterWrite["saved"], rootfsHash))
+		must(requireSharedRootfsPayload(rootAfterWrite["restored"], rootfsHash))
 		beforeWrite := measurement.observe("after_public_copy", measurementSaved, measurementRestored, measurementCopy)
 		for _, area := range []string{"saved", "restored", "copy"} {
 			must(requireSharedWorkspacePayload(beforeWrite[area], measurementHash))
@@ -788,8 +825,18 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if _, err := reopened.GetSnapshot(ctx, cliSavedID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("save not deleted", err)
 		}
+		rootfsMeasurement.observe("snapshot_deleted_restored_and_copy_retained", rootfsRestored, rootfsCopy)
 		measurement.observe("snapshot_deleted_restored_and_copy_retained", measurementRestored, measurementCopy)
 		must(resumedService.Delete(ctx, publicEnv.Name))
+		rootLast := rootfsMeasurement.observe("source_and_snapshot_deleted_copy_retained", rootfsCopy)["copy"]
+		if rootLast.Hashes["base"] != rootfsHash || rootLast.Hashes["delta"] != rootAfterWrite["copy"].Hashes["delta"] {
+			t.Fatal("logical reference deletion changed surviving rootfs")
+		}
+		rootfsMeasurement.guest(rootfsCopy, `rm -- "$1/base" "$1/delta"; sync`)
+		rootUnlinked := rootfsMeasurement.observe("last_live_payload_unlinked", rootfsCopy)["copy"]
+		if len(rootUnlinked.Hashes) != 0 || rootUnlinked.Payload.ExtentTotalBytes != 0 || rootUnlinked.Payload.LogicalBytes >= rootLast.Payload.LogicalBytes {
+			t.Fatal("last live rootfs payload unlink unproven")
+		}
 		lastCopy := measurement.observe("source_and_snapshot_deleted_copy_retained", measurementCopy)["copy"]
 		if lastCopy.Hashes["base"] != measurementHash || lastCopy.Hashes["delta"] != afterWrite["copy"].Hashes["delta"] {
 			t.Fatal("logical reference deletion changed surviving Workspace")

@@ -157,9 +157,9 @@ OS/kernel、Go、Incus、Btrfs-progs、
 nerdctl/containerd/BuildKit の版、native snapshotter、ビルド済みイメージの識別子を
 報告します。記録した変更のない checkout からビルドしてください。現在のリビジョン
 だけでは、古いバイナリーの由来は証明できません。実機の測定値を[受入記録](../status/acceptance-evidence.ja.md#storage)に
-残すまでは、計測による受入を完了したと主張しません。Base と複数 Env、管理
-Workspace、snapshot restore、archive/publish の増幅、Docker の各 driver、最後の
-参照を除いた後の回収、大規模負荷の計測は
+残すまでは、計測による受入を完了したと主張しません。管理 Workspace と rootfs/Image は
+以下の節で別々に定義します。一般的な Base ビルド負荷、archive/publish の増幅、
+Docker driver、最後の参照を除いた後の回収、大規模負荷の計測は
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。Btrfs の観測を
 他のファイルシステムや Windows VHDX の割当量へ一般化しません。
 
@@ -225,8 +225,70 @@ sudo env HACO_E2E_SNAPSHOT_AGGREGATE=1 \
 既存の `incus-snapshots` ジョブがこの試験を必須として CLI を渡すため、新しいワークフローや
 計測用の有効化フラグは追加しません。リソース作成前に障害復旧用 catalog を表示し、
 成功時は正確に所有するリソースだけを削除します。全記録とビルドしたコミットを保持してください。
-Base と複数 Env の計測、archive/publish の増幅、物理的な回収の完了、大規模負荷は
+これは Workspace データの計測で、以下の rootfs/Image の経路とは別です。
+一般的な Base ビルドの計測、archive/publish の増幅、物理的な回収の完了、大規模負荷は
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+
+## rootfs の保存と通常 Image の再利用の計測
+
+同じ必須試験 `TestRealIncusSnapshotAggregateE2E` に、独立した rootfs 観測処理を
+加えます。小規模な合成 rootfs 負荷を次の二経路で計測し、内容の一致だけから物理的な
+共有を推定しません。
+
+1. 稼働中の Snapshot 取得前に、元のゲストから rootfs へ 8 MiB の乱数ファイルを
+   書き込みます。元と独立した保存済み rootfs を計測し、元のファイルを unlink しても
+   保存済みの内容が残ることを確認します。公開コマンド `open --new --snapshot` は
+   保存済み rootfs から直接コピーし、停止後の `env copy` はさらに独立した rootfs を
+   作ります。保存・復元・コピーでは、実際の共有 extent を要求します。コピー先だけに
+   8 MiB を追加し、参照割当量と排他的 extent の増加、保存済み・復元元の内容不変を
+   確認します。
+2. Snapshot が生成した通常の Image を完全な不変 fingerprint で固定します。
+   通常の `open --new IMAGE` を既存の作成コントローラーで二回実行します。
+   読み取り専用の Incus API 観測で、最適化されたイメージキャッシュを fingerprint・
+   project・pool に結び付け、実際の cache subvolume が読み取り専用であることも
+   確認します。cache と Env のファイルには共有 extent を要求します。一方の Env だけに
+   8 MiB を追加し、その参照割当量と排他的 extent の増加、他方と cache の内容不変を
+   確認します。
+
+保存済み rootfs と通常 Image の経路は基準値を分けます。Image の公開、export、cache の
+展開でデータが書き直される可能性があるため、保存済み rootfs から image cache への
+共有は**要求も主張もしません**。cache は Incus の所有物であり、観測によって Hacocoon に
+編集権限が生じるわけではありません。この Image は Snapshot が生成したもので、一般的な
+Base ビルドや Packer の負荷ではありません。既存試験の合成 OCI データの準備も、
+実際の OCI イメージコンテンツの受入確認とは扱いません。
+
+固定された各段階で rootfs 全体と計測用ディレクトリを分け、前述の論理容量・参照割当量・
+FIEMAP の値を記録します。SHA-256 は既知の 8 MiB、リンク数一の通常ファイルだけを
+上限付きで読み取ります。領域の識別には、確認済みの project・pool と型付きの
+runtime/owner または Image 識別のハッシュを使い、正確な所有対象は永続 catalog に
+保持します。通常 Image の fingerprint と生成元も明記します。
+
+観測は正規のライフサイクルロックを保持し、rootfs の正確な所有権と現在の状態を確認して、
+稼働中の試験用インスタンスだけを Incus で一時停止します。停止済みの保存インスタンスは
+起動しません。観測側 Host のマウント名前空間をカーネルの平坦な一覧で確認し、上限を超えた
+一覧やプールのマウントが一意でない状態を拒否します。計測 rootfs と重なる追加マウントは、
+親・同一パス・子孫のどれでも再帰読み取りの前後に拒否します。同じファイルシステムの
+bind mount も対象です。ゲストのデバイス設定を Host のマウント構成の証拠にはしません。
+rootfs と親ディレクトリの識別も観測中は固定します。
+読み取りと再開の前にも識別・一時停止状態を再確認します。観測失敗や不明な
+状態では、一時停止したインスタンスも含めて調査用に残します。ファイルの書き込みと unlink は
+所有するゲスト内だけで実行し、backing rootfs/cache subvolume、loop デバイス、mount、
+製品の導入処理は変更しません。
+
+元の削除と残るコピーの最後の unlink は論理的な削除の観測です。一回の同期と計測では
+extent の回収完了を待ちません。プールの値は `pool_scope=whole_shared_pool` のままで、
+他の rootfs、Image、メタデータ、Host の活動を含みます。領域ごとの割当量を足して固有の
+使用量を求めたり、プール差分を一操作へ帰属させたりしません。FIEMAP の長さは圧縮後の
+バイト数、デバイス書き込み量、公開・export の増幅、discard、Windows VHDX の回収量を
+意味しません。
+
+実行には前節と同じ、変更のないコミットからのビルドと集約試験のコマンドを使います。
+新しいワークフロー、導入経路、計測フラグは追加しません。成功を主張する前に、実機の値と
+正確な試験コミット・run を[受入記録](../status/acceptance-evidence.ja.md#rootfs-image-sharing)に
+残す必要があります。リポジトリの検査や従来の Workspace/Host の証拠は rootfs/Image の
+受入成功を証明しません。一般的な Base ビルド・Packer の効率、実 OCI 負荷、物理的な
+回収完了、大規模負荷、他のファイルシステムは
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)の今回の限定範囲外です。
 
 ## Workspace の境界
 
