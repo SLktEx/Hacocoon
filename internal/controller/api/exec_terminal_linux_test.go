@@ -87,3 +87,57 @@ func TestExecTerminalPreservesDimensionsInputAndRestoresLocalState(t *testing.T)
 		t.Fatal("terminal without dimensions created an Environment", lifecycle.calls.Load(), err)
 	}
 }
+
+func TestExecTerminalSizePreservesCallerFileFlags(t *testing.T) {
+	master, err := os.OpenFile("/dev/ptmx", os.O_RDWR|unix.O_NOCTTY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = master.Close() }()
+	if err := unix.IoctlSetPointerInt(int(master.Fd()), unix.TIOCSPTLCK, 0); err != nil {
+		t.Fatal(err)
+	}
+	number, err := unix.IoctlGetInt(int(master.Fd()), unix.TIOCGPTN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slave, err := os.OpenFile(fmt.Sprintf("/dev/pts/%d", number), os.O_RDWR|unix.O_NOCTTY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = slave.Close() }()
+	raw, err := slave.SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var before, after int
+	var controlErr error
+	if err := raw.Control(func(fd uintptr) {
+		controlErr = unix.IoctlSetWinsize(int(fd), unix.TIOCSWINSZ, &unix.Winsize{Col: 83, Row: 29})
+		if controlErr == nil {
+			before, controlErr = unix.FcntlInt(fd, unix.F_GETFL, 0)
+		}
+	}); err != nil || controlErr != nil {
+		t.Fatal(err, controlErr)
+	}
+	if before&unix.O_NONBLOCK == 0 {
+		t.Fatal("fixture must be a Go-pollable terminal before metadata inspection")
+	}
+	columns, rows, err := execTerminalSize(slave)
+	if err != nil || columns != 83 || rows != 29 {
+		t.Fatal("terminal metadata changed", columns, rows, err)
+	}
+	if err := raw.Control(func(fd uintptr) { after, controlErr = unix.FcntlInt(fd, unix.F_GETFL, 0) }); err != nil || controlErr != nil {
+		t.Fatal(err, controlErr)
+	}
+	if before != after {
+		t.Fatalf("metadata inspection changed caller flags: %x -> %x", before, after)
+	}
+	if _, _, err := execTerminalSize(bytes.NewReader(nil)); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal("non-terminal reader accepted", err)
+	}
+	_ = slave.Close()
+	if _, _, err := execTerminalSize(slave); err == nil {
+		t.Fatal("closed terminal accepted")
+	}
+}

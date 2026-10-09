@@ -18,11 +18,7 @@ func (c *Client) ExecStream(ctx context.Context, environment string, process cor
 	request := ExecStreamRequest{Environment: environment, Process: process}
 	prepare := terminalbridge.TerminalPreparer(func(io.Reader) (func() error, error) { return nil, nil })
 	if process.TTY {
-		input, ok := stdin.(interface{ Fd() uintptr })
-		if !ok || !term.IsTerminal(int(input.Fd())) {
-			return core.ExecutionResult{}, core.ErrInvalidArgument
-		}
-		columns, rows, err := term.GetSize(int(input.Fd()))
+		columns, rows, err := execTerminalSize(stdin)
 		if err != nil || columns <= 0 || rows <= 0 {
 			return core.ExecutionResult{}, core.ErrInvalidArgument
 		}
@@ -46,4 +42,30 @@ func (c *Client) ExecStream(ctx context.Context, environment string, process cor
 		return core.ExecutionResult{}, err
 	}
 	return decodeExecResult(payload)
+}
+
+// Fd can switch an os.File back to blocking mode. Read terminal metadata through
+// its pinned raw descriptor instead, without changing caller-owned file flags.
+func execTerminalSize(stdin io.Reader) (columns, rows int, err error) {
+	readSize := func(fd uintptr) {
+		if !term.IsTerminal(int(fd)) {
+			err = core.ErrInvalidArgument
+			return
+		}
+		columns, rows, err = term.GetSize(int(fd))
+	}
+	if file, ok := stdin.(*os.File); ok {
+		raw, rawErr := file.SyscallConn()
+		if rawErr != nil {
+			return 0, 0, rawErr
+		}
+		if rawErr = raw.Control(readSize); rawErr != nil {
+			return 0, 0, rawErr
+		}
+	} else if input, ok := stdin.(interface{ Fd() uintptr }); ok {
+		readSize(input.Fd())
+	} else {
+		err = core.ErrInvalidArgument
+	}
+	return
 }
