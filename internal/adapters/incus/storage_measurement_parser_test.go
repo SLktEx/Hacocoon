@@ -159,3 +159,24 @@ func TestStorageMeasurementBtrfsVersionIgnoresFeatureBanner(t *testing.T) {
 		}
 	}
 }
+
+func TestStorageMeasurementParserErrorsExcludeRawNumericTokens(t *testing.T) {
+	const path = "/owned/volume"
+	const sentinel = "PRIVATE-NUMERIC-PROBE"
+	du := "4096 " + path
+	extents := "Total Exclusive Set shared Filename\n4096 0 4096 " + path
+	for _, tc := range []struct{ name, logical, allocated, extents string }{
+		{"logical", sentinel + " " + path, du, extents},
+		{"allocated", du, sentinel + " " + path, extents},
+		{"extent_total", du, du, "Total Exclusive Set shared Filename\n" + sentinel + " 0 4096 " + path},
+		{"extent_exclusive", du, du, "Total Exclusive Set shared Filename\n4096 " + sentinel + " 4096 " + path},
+		{"extent_shared", du, du, "Total Exclusive Set shared Filename\n4096 0 " + sentinel + " " + path},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseStorageByteSample(tc.logical, tc.allocated, tc.extents, path)
+			if err == nil || strings.Contains(err.Error(), sentinel) || strings.Contains(err.Error(), path) {
+				t.Fatalf("parser must return only a fixed failure classification: %v", err)
+			}
+		})
+	}
+}

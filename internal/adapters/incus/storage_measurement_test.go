@@ -91,27 +91,35 @@ func (m hostStorageObserver) path(resource core.PersistentResource, consumer str
 // receipt identifies the exact tested commit; no root Git trust override is used.
 func (m hostStorageObserver) metadata(guest func(string, string) string, imageID string) {
 	m.t.Helper()
-	serverVersion, err := storageMeasurementIncusVersion(m.command("incus", "query", "/1.0"))
+	values := storageMeasurementVersions(m.t, m.command)
+	values["nerdctl"] = strings.TrimSpace(guest(trustedHostName, "nerdctl --version"))
+	values["containerd"] = strings.TrimSpace(guest(trustedHostName, "containerd --version"))
+	values["buildkit"] = strings.TrimSpace(guest(trustedHostName, "buildctl --version"))
+	values["image_id"] = imageID
+	guest(trustedHostName, `grep -Fx 'snapshotter = "native"' /etc/nerdctl/nerdctl.toml >/dev/null`)
+	values["snapshotter"] = "native"
+	logStorageMeasurementVersions(m.t, "standard-host-busybox-buildkit", values)
+}
+
+func storageMeasurementVersions(t *testing.T, command func(string, ...string) string) map[string]string {
+	t.Helper()
+	serverVersion, err := storageMeasurementIncusVersion(command("incus", "query", "/1.0"))
 	if err != nil {
-		m.t.Fatal(err)
+		t.Fatal(err)
 	}
-	btrfsVersion, err := storageMeasurementBtrfsVersion(m.command("btrfs", "--version"))
+	btrfsVersion, err := storageMeasurementBtrfsVersion(command("btrfs", "--version"))
 	if err != nil {
-		m.t.Fatal(err)
+		t.Fatal(err)
 	}
 	values := map[string]string{
 		"go":          runtime.Version(),
-		"kernel":      strings.TrimSpace(m.command("uname", "-srmo")),
+		"kernel":      strings.TrimSpace(command("uname", "-srmo")),
 		"btrfs_progs": btrfsVersion,
 		"incus":       serverVersion,
-		"nerdctl":     strings.TrimSpace(guest(trustedHostName, "nerdctl --version")),
-		"containerd":  strings.TrimSpace(guest(trustedHostName, "containerd --version")),
-		"buildkit":    strings.TrimSpace(guest(trustedHostName, "buildctl --version")),
-		"image_id":    imageID,
 	}
 	osRelease, err := os.ReadFile("/etc/os-release")
 	if err != nil || len(osRelease) > 64*1024 {
-		m.t.Fatal("OS version unavailable")
+		t.Fatal("OS version unavailable")
 	}
 	for _, line := range strings.Split(string(osRelease), "\n") {
 		key, value, ok := strings.Cut(line, "=")
@@ -119,19 +127,22 @@ func (m hostStorageObserver) metadata(guest func(string, string) string, imageID
 			values["os_"+strings.ToLower(key)] = strings.Trim(value, `"`)
 		}
 	}
-	guest(trustedHostName, `grep -Fx 'snapshotter = "native"' /etc/nerdctl/nerdctl.toml >/dev/null`)
-	values["snapshotter"] = "native"
+	return values
+}
+
+func logStorageMeasurementVersions(t *testing.T, fixture string, values map[string]string) {
+	t.Helper()
 	safeIdentity := regexp.MustCompile(`^[a-zA-Z0-9 ._+:/()\n-]+$`)
 	for key, value := range values {
 		if len(value) == 0 || len(value) > 512 || !safeIdentity.MatchString(value) {
-			m.t.Fatal("invalid measurement identity", key)
+			t.Fatal("invalid measurement identity", key)
 		}
 	}
 	data, err := json.Marshal(values)
 	if err != nil {
-		m.t.Fatal(err)
+		t.Fatal(err)
 	}
-	m.t.Logf("storage_measurement fixture=standard-host-busybox-buildkit identity=%s", data)
+	t.Logf("storage_measurement fixture=%s identity=%s", fixture, data)
 }
 
 // observe freezes only the already verified disposable consumers through Incus.
@@ -247,7 +258,11 @@ func parseStorageDU(output, path string) (uint64, error) {
 	if len(fields) != 2 || fields[1] != path {
 		return 0, fmt.Errorf("expected one exact du path")
 	}
-	return strconv.ParseUint(fields[0], 10, 64)
+	value, err := strconv.ParseUint(fields[0], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid du byte count")
+	}
+	return value, nil
 }
 
 // btrfs-progs v6.17: cmds/filesystem-du.c, du_add_file (summary rows) and
@@ -273,7 +288,7 @@ func parseStorageByteSample(logical, allocated, extents, path string) (storageBy
 	}
 	for i, value := range []*uint64{&sample.ExtentTotalBytes, &sample.ExtentExclusiveBytes, &sample.ExtentSetSharedBytes} {
 		if *value, err = strconv.ParseUint(fields[i], 10, 64); err != nil {
-			return sample, err
+			return sample, fmt.Errorf("invalid Btrfs extent count")
 		}
 	}
 	if sample.ExtentExclusiveBytes > sample.ExtentTotalBytes || sample.ExtentSetSharedBytes > sample.ExtentTotalBytes-sample.ExtentExclusiveBytes {
