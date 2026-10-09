@@ -936,6 +936,46 @@ the dedicated test binary was used, not the installed CLI. No Policy relaxation
 or guest management authority was added. Authenticated Git, human GUI answers,
 installed input and giant-repository measurements were not exercised.
 
+### Installed Linux input gate
+
+The test-only candidate based on main `7a3a6b8b` adds
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py) to the existing
+mandatory Ubuntu installed lifecycle journey. It uses ordinary `repo add`,
+`workspace import`, path `open`, `exec`, stop/reopen, explicit Environment/Workspace
+deletion and source unregistration against the installed controller. The upstream
+is the public Hacocoon repository; input
+is a small local checkout and an actual linked worktree. No credential, private
+registry, replacement controller, catalog edit or Policy relaxation is needed.
+Freshness is an execution precondition: this fixture runs only in that disposable
+GitHub-hosted installer journey. It refuses execution without both `GITHUB_ACTIONS=true`
+and `HACO_CI_RUNNER_ENVIRONMENT=github-hosted`; those markers do not prove freshness.
+The empty `repo list --json` check is additional protection only. The public list
+hides excluded sources, and registration can reuse equivalent HTTPS/SSH/scp
+remotes. Do not run it against an existing installation. Unexpected registration
+receipts are not adopted or unregistered; the requested identity and local receipts
+remain for inspection. No test claims to detect records hidden by the public API.
+Import/open observations are saved separately before validation; only validated
+responses enter cleanup ownership. Nonzero import JSON can carry a recovery
+reference, while the current open command emits JSON only on success. Records
+retain bounded public identity/status fields, never raw command output or secrets.
+On handled failures, an `INSTALLED_INPUT_FAILURE` JSON line preserves that bounded
+report in the existing Actions logs after runner teardown. Local source trees
+are not uploaded; abrupt runner termination may prevent the failure report.
+
+Assertions distinguish selected HEAD, staged/dirty/untracked files, independent
+guest commits, another managed Workspace and unchanged client/common Git state.
+Repeated open and stopped resume must retain the same Environment/Workspace
+identity; a mismatched path reference must be refused. Environment/Workspace
+cleanup checks exact recorded owners and positive absence, preserving unconfirmed
+creation receipts. `repo delete` only unregisters the exact owned source from
+active selection. Its absence from `repo list` does not prove physical deletion:
+native source data is intentionally retained until the disposable runner is torn
+down. No purge or older repository-deletion behavior is used.
+Fixture/cleanup regressions are repository evidence only. Installed execution of
+this added slice is pending; it does not complete issue #344's Linux SSH,
+connection-enumeration/forwarding or editor requirements. Existing Windows
+acceptance remains separate and is not rerun or replaced by this fixture.
+
 
 ## Retained cache catalog maintenance
 

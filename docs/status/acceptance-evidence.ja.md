@@ -811,6 +811,40 @@ fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state
 専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
 認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。
 
+### 導入済みLinuxの入力ゲート
+
+main `7a3a6b8b`を基にした試験のみの候補で、既存の必須Ubuntu導入済みlifecycle経路に
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py)を追加しました。
+導入済みcontrollerへ通常の`repo add`、`workspace import`、パス指定の`open`、
+`exec`、停止・再開、Env/Workspaceの明示的な削除、sourceの登録解除を実行します。
+接続元は公開Hacocoonレポジトリで、
+入力は小さなローカルcheckoutと実際のlinked worktreeです。認証情報、private registry、
+controllerの差し替え、台帳編集、Policy緩和は不要です。
+新規導入であることが実行の前提条件です。このfixtureは使い捨てのGitHub-hosted導入経路専用で、
+`GITHUB_ACTIONS=true`と`HACO_CI_RUNNER_ENVIRONMENT=github-hosted`の両方がなければ実行を拒否します。
+ただし、この目印自体が新規導入を証明するわけではありません。`repo list --json`が空であることの
+検査は追加の保護に限ります。公開一覧は除外済みsourceを表示せず、登録処理は同一のHTTPS/SSH/scp
+接続先を再利用するため、既存の導入環境では実行しないでください。想定と異なる登録結果は
+所有対象として扱わず、登録解除もせず、要求した識別情報とローカルの記録を調査用に保持します。
+公開APIが隠している記録を試験で検出したとは主張しません。
+import/openの応答は検証前に別の観測記録へ保存し、検証済みの応答だけをcleanupの所有対象にします。
+importは失敗時にも復旧用参照をJSONで返す場合がありますが、現在のopenは成功時だけJSONを返します。
+保存するのは上限付きの公開識別情報と状態だけで、生のコマンド出力や秘密情報は含めません。
+処理できた失敗では`INSTALLED_INPUT_FAILURE`のJSON行を既存のActionsログへ出し、runner破棄後も
+この限定した報告を残します。ローカルのsourceツリーはアップロードせず、runnerの突然の終了では
+失敗報告を出せない場合があります。
+
+選択したHEAD、stage/dirty/untrackedファイル、guest内の独立commit、別の管理Workspace、
+client側と共通Git管理情報が不変であることを区別して検証します。
+繰り返しopenと停止後の再開ではEnv/Workspaceの同一性を保持し、所有先の異なるパス参照は拒否します。
+Env/Workspaceのcleanupは記録した所有者と削除後の不在を確認し、結果不明の作成記録を保持します。
+`repo delete`は所有者を確認したsourceを選択対象から登録解除するだけです。
+`repo list`からの非表示は物理削除の証拠ではなく、native sourceデータは使い捨てrunnerの破棄まで
+意図的に保持します。purgeや以前のレポジトリ削除動作は追加しません。
+fixture/cleanupの回帰はリポジトリ内の証拠に限ります。追加経路の導入済み実行は未実施で、
+issue #344のLinux SSH、接続一覧・forwarding、editor受入の完了は意味しません。
+既存のWindows受入とは分け、このfixtureで再実行や代替はしません。
+
 
 ## 保持キャッシュ台帳の整理
 
