@@ -1381,6 +1381,32 @@ Linux/Windowsパッケージ生成が45.49秒で成功した。導入・WSL停�
 待機時間・接続中ディスクの拒否・WSL全体設定は緩和していない。
 人の操作が必要な受入確認はリリース後の項目として維持する。
 
+<a id="tcp-listener-cancellation-close"></a>
+
+## TCP待受のキャンセルで終了完了を待つ
+
+2026-10-09、PR #748のhead `9172e2bbe3337e85c53a25187e154d7bdd1568ec`の
+[test run 37935376919 / Go 1.26 job 113835981590](https://github.com/SLktEx/Hacocoon/actions/runs/37935376919/job/113835981590)で、
+`TestNetworkListenerValidatesLoopbackAndClosesOnCancellation`が失敗しました。
+コマンド終了直後、同じTCPアドレスへ再度bindすると`address already in use`になりました。
+同じjobのWorkspace packageと新しいプロセス回復試験は成功しています。
+この失敗を保持し、同じheadの再実行で成功に置き換えていません。
+
+別の修正候補を`7a3a6b8b33b0265f2e79d46015836739542680c6`から作成し、
+channelで制御する待受とGoの`testing/synctest`で所有処理の不具合を再現しました。
+`Accept`は非同期の`Close`完了前に戻る場合があります。従来の`ServeTCP`は
+キャンセル処理の停止だけを試み、実行中の`Close`の完了を待っていませんでした。
+呼び出し元が重ねて`Close`しても、最初の処理がsocketを保持したまま戻る場合があります。
+決定的な3条件は変更前のmainで失敗し、実行中のキャンセル処理を待つか、開始前に
+キャンセルした場合に同期的に閉じる修正で成功しました。キャンセルを伴わないacceptの
+失敗と不正な待受の拒否では、呼び出し元の所有を維持します。
+sleepや実socketのタイミングで失敗点を選んでいません。
+
+ローカル候補はGo 1.26.7と1.27.2でnetwork package全体と変更していないCLIの
+待受・再bind試験に成功し、対象race、全体vet、差分lintも成功しました。
+即時再bindの厳密な判定、製品の期限、再試行方針は変更していません。
+これはcomponentの証拠であり、修正後の公開headと実provider・Windows受入は別に確認します。
+
 ## 通信コマンドの日英表示
 
 `0387258d`は通信結果と次の操作を共通の日英案内へ揃える。

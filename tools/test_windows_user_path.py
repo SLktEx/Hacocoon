@@ -1,16 +1,184 @@
 #!/usr/bin/env python3
 """Component regressions for read-only Windows user-path assertions."""
 import importlib.util
+from contextlib import contextmanager, ExitStack, redirect_stdout
+import io
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location("windows_user_path", Path(__file__).resolve().parents[1] / "test/e2e/windows/install.py")
 gate = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = gate
 spec.loader.exec_module(gate)
+
+tunnel_spec = importlib.util.spec_from_file_location("windows_tunnel_path", Path(__file__).resolve().parents[1] / "test/e2e/windows/tunnel.py")
+tunnel = importlib.util.module_from_spec(tunnel_spec)
+tunnel_spec.loader.exec_module(tunnel)
+
+
+class TunnelExitTest(unittest.TestCase):
+    @contextmanager
+    def journey(self, chunks):
+        self.application = Mock(stdin=io.BytesIO(), stdout=io.BytesIO(b"12345\n"))
+        self.application.poll.return_value = None
+        def wait(*, timeout):
+            self.assertEqual(timeout, 15)
+            self.application.poll.return_value = 0
+            return 0
+        self.application.wait.side_effect = wait
+        self.terminal = SimpleNamespace(proc=Mock(), write=Mock(), output="", run=Mock(side_effect=self.drive))
+        self.terminal.proc.isalive.return_value = True
+        self.driver = SimpleNamespace(TerminalProcess=Mock(return_value=self.terminal),
+                                      cmd_prompt_count=gate.cmd_prompt_count)
+        driver_spec = SimpleNamespace(name="tunnel_terminal", loader=Mock())
+        self.output = io.StringIO()
+        self.chunks = chunks
+        self.observations = []
+        self.native_owner = Mock()
+        self.exchange = Mock()
+        self.cleanup = Mock(side_effect=OSError("closed"))
+        replacements = (
+            patch.object(tunnel, "os", SimpleNamespace(name="nt")),
+            patch.object(tunnel.shutil, "which", return_value="pwsh"),
+            patch.object(tunnel.subprocess, "Popen", return_value=self.application),
+            patch.object(tunnel.importlib.util, "spec_from_file_location", return_value=driver_spec),
+            patch.object(tunnel.importlib.util, "module_from_spec", return_value=self.driver),
+            patch.object(tunnel, "assert_native_owner", self.native_owner),
+            patch.object(tunnel, "exchange", self.exchange),
+            patch.object(tunnel.socket, "create_connection", self.cleanup),
+            patch.object(sys, "argv", ["tunnel.py", "--env", "fixture"]),
+            patch.dict(sys.modules),
+        )
+        with ExitStack() as stack:
+            for replacement in replacements:
+                stack.enter_context(replacement)
+            yield
+
+    def drive(self, *, on_output, timeout):
+        self.assertEqual(timeout, 180)
+        def consume(chunk):
+            # Exercise the maintained terminal's accumulation and normalization,
+            # including CRLF/OSC and read boundaries, before the real callback.
+            gate.TerminalProcess._consume(self.terminal, chunk, [], on_output)
+        consume("C:\\runner> ")
+        consume("\r\nroot@haco-host:~# ")
+        command = self.terminal.write.call_args.args[0].rstrip("\r")
+        consume(command + "\r\nListening at 127.0.0.1:45678 (TCP)\r\n")
+        self.assertEqual(self.terminal.write.call_args.args, ("\x03",))
+        self.native_owner.assert_called_once_with(45678)
+        self.assertEqual(self.exchange.call_count, 8)
+        self.application.wait.assert_called_once_with(timeout=15)
+        for chunk in self.chunks:
+            consume(chunk)
+            self.observations.append(self.terminal.write.call_count)
+        if self.terminal.write.call_args.args != ("exit\r",):
+            raise AssertionError("waited past the reported tunnel failure")
+        consume("\r\nC:\\runner> ")
+        self.terminal.proc.isalive.return_value = False
+
+    def run_tunnel(self):
+        with redirect_stdout(self.output):
+            tunnel.main()
+
+    def assert_failed_cleanup(self):
+        self.terminal.proc.terminate.assert_called_once_with(force=True)
+        self.driver.TerminalProcess.assert_called_once_with()
+        self.terminal.run.assert_called_once()
+        self.assertTrue(self.application.stdin.closed)
+        self.assertTrue(self.application.stdout.closed)
+        self.assertNotIn("CTRL+C CLEANUP: PASS", self.output.getvalue())
+
+    def test_nonzero_exit_fails_on_complete_marker_without_waiting(self):
+        for code in (1, 17, 130, 255):
+            with self.subTest(code=code), self.journey([f"\r\nTUNNEL-EXIT:{code}\r\n", "unreachable"]):
+                # A failure must interrupt this call, not wait for another read
+                # or for the 180-second terminal timeout.
+                with self.assertRaisesRegex(RuntimeError, f"exited with code {code} after Ctrl\\+C"):
+                    self.run_tunnel()
+                self.cleanup.assert_not_called()
+                self.assertEqual(self.terminal.write.call_count, 3)
+                self.assert_failed_cleanup()
+
+    def test_every_marker_chunk_boundary_preserves_the_complete_status(self):
+        for code in (0, 1, 130, 255):
+            marker = f"TUNNEL-EXIT:{code}\r\n"
+            for split in range(len(marker) + 1):
+                chunks = ["\r\n" + marker[:split], marker[split:]]
+                with self.subTest(code=code, split=split), self.journey(chunks):
+                    if code:
+                        with self.assertRaisesRegex(RuntimeError, f"exited with code {code} after Ctrl\\+C"):
+                            self.run_tunnel()
+                        self.assertEqual(self.observations, [] if split == len(marker) else [3])
+                        self.cleanup.assert_not_called()
+                        self.assert_failed_cleanup()
+                    else:
+                        self.run_tunnel()
+                        self.assertEqual(self.observations, [4, 4] if split == len(marker) else [3, 4])
+                        self.cleanup.assert_called_once_with(("127.0.0.1", 45678), timeout=2)
+
+    def test_split_nonzero_marker_waits_for_all_digits_and_newline(self):
+        chunks = ["\r\nTUNNEL-EX", "IT:1", "30", "\r", "\n", "unreachable"]
+        with self.journey(chunks):
+            with self.assertRaisesRegex(RuntimeError, "exited with code 130 after Ctrl\\+C"):
+                self.run_tunnel()
+            self.assertEqual(self.observations, [3, 3, 3, 3])
+            self.cleanup.assert_not_called()
+            self.assert_failed_cleanup()
+
+    def test_only_complete_ascii_zero_output_allows_normal_exit(self):
+        chunks = [
+            "\r\nroot@haco-host:~# printf 'TUNNEL-EXIT:0\\n'\r\n",
+            " TUNNEL-EXIT:0\r\n",
+            "TUNNEL-EXIT:0 unexpected\r\n",
+            "TUNNEL-EXIT:00\r\n",
+            "TUNNEL-EXIT:+0\r\n",
+            "TUNNEL-EXIT:-1\r\n",
+            "TUNNEL-EXIT:０\r\n",
+            "TUNNEL-EXIT:١\r\n",
+            "TUNNEL-EXIT:256\r\n",
+            "TUNNEL-EXIT:999\r\n",
+            "TUNNEL-EXIT:1234\r\n",
+            "TUNNEL-EXIT:0\x00\r\n",
+            "\x1b]3008;type=command\x07TUNNEL-EX", "IT:0", "\r", "\n",
+        ]
+        with self.journey(chunks):
+            self.run_tunnel()
+            self.assertEqual(self.observations, [3] * (len(chunks) - 1) + [4])
+            self.cleanup.assert_called_once_with(("127.0.0.1", 45678), timeout=2)
+            self.assertEqual([call.args[0] for call in self.terminal.write.call_args_list][-3:],
+                             ["\x03", "exit\r", "exit\r\n"])
+            self.terminal.proc.terminate.assert_not_called()
+            self.assertIn("CTRL+C CLEANUP: PASS", self.output.getvalue())
+
+    def test_delayed_suffix_cannot_turn_a_partial_marker_into_a_receipt(self):
+        for prefix in ("0", "1"):
+            for suffix in ("23", "234", "unexpected", "\x00", "０"):
+                chunks = [f"\r\nTUNNEL-EXIT:{prefix}", suffix, "\r\n", "TUNNEL-EXIT:0\r\n"]
+                with self.subTest(prefix=prefix, suffix=suffix), self.journey(chunks):
+                    if prefix == "1" and suffix == "23":
+                        with self.assertRaisesRegex(RuntimeError, "exited with code 123 after Ctrl\\+C"):
+                            self.run_tunnel()
+                        self.assertEqual(self.observations, [3, 3])
+                        self.cleanup.assert_not_called()
+                        self.assert_failed_cleanup()
+                    else:
+                        self.run_tunnel()
+                        self.assertEqual(self.observations, [3, 3, 3, 4])
+
+    def test_zero_still_fails_if_listener_survives(self):
+        with self.journey(["\r\nTUNNEL-EXIT:0\r\n"]):
+            connection = Mock()
+            self.cleanup.side_effect = None
+            self.cleanup.return_value = connection
+            with self.assertRaisesRegex(RuntimeError, "Windows listener survived Ctrl\\+C"):
+                self.run_tunnel()
+            connection.close.assert_called_once_with()
+            self.assertEqual(self.terminal.write.call_count, 3)
+            self.assert_failed_cleanup()
 
 
 class EnvironmentBoundaryTest(unittest.TestCase):
