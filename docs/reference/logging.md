@@ -151,6 +151,25 @@ JSON output is available for automation, but tests must not depend on the human-
 
 Enabling DEBUG in CI must not weaken redaction or secret handling.
 
+## Rootfs storage measurement receipts
+
+The Snapshot aggregate E2E's `storage_measurement` receipt is test-only, not a
+new production logger. `fixture=snapshot-rootfs-image-lifecycle`, `phase` and
+`area` use fixed labels. `identity_sha256` hashes the verified project, pool and
+typed runtime/owner or Image identity; it never emits the underlying ownership
+record. `bytes` contains only typed `rootfs`, `payload` and `payload_sha256`
+objects: the byte counters defined in the
+[measurement contract](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement)
+and hashes of the fixed, bounded fixture files.
+
+Metadata records selected tool/substrate versions, `image_fingerprint` and
+`origin=snapshot-generated-image`. Pool receipts retain the fixed
+`pool_scope=whole_shared_pool`, `pool_logical_bytes` and `pool_allocated_bytes`
+fields. Paths, raw Incus/API responses, arbitrary guest content, config and
+subprocess output are excluded from these records. The existing private fixture
+recovery catalog remains separate; these receipts neither grant cleanup
+authority nor prove native acceptance without the exact test result.
+
 ## Adding or changing logs
 
 Before adding a log event, check:

@@ -345,6 +345,8 @@ capture/restore/copy measurements. Base/multiple-Env and saved-rootfs restore by
 accounting, archive/publish amplification, Docker drivers, completed physical
 reclamation and large-workload measurements remain open under
 [#241](https://github.com/SLktEx/Hacocoon/issues/241).
+The [rootfs/Image candidate below](#rootfs-image-sharing) defines a further
+bounded slice; it does not extend this Host OCI receipt.
 
 <a id="workspace-sharing"></a>
 
@@ -422,6 +424,33 @@ physical-retirement fence. The full job receipt retains 17 area samples, nine
 pool samples, exact ownership-identity hashes and successful cleanup. This
 bounded Workspace-data result leaves saved-rootfs byte accounting, Base/multiple
 Env, archive/publish amplification, completed reclamation and large workloads open.
+
+<a id="rootfs-image-sharing"></a>
+
+### Rootfs and ordinary Image measurement acceptance boundary
+
+The candidate extends the existing required Snapshot aggregate fixture with
+[separate synthetic rootfs measurements](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement):
+running capture, source-payload unlink, direct saved-rootfs restore, stopped copy,
+copy-only writes and logical deletion, plus two ordinary Environments created
+from the same Snapshot-generated immutable Image. The latter branch observes
+Incus's read-only optimized image cache independently. It does not require
+saved-rootfs-to-cache sharing across publication/materialization.
+
+**Native acceptance is pending.** No real Incus/Btrfs or Windows execution of
+this candidate is available locally, and no native values or exact-commit CI
+receipt for this slice are recorded here yet. Repository compilation, parser and
+ownership regressions are not physical-sharing evidence. Earlier Host OCI and
+Workspace passes above remain limited to their recorded commits and areas.
+
+Record the full aggregate receipt, exact compiled/tested commit, substrate
+versions, ordinary Image fingerprint and origin, rootfs/payload counters,
+bounded payload hashes, whole-shared-pool counters and cleanup result before
+claiming acceptance. Pool allocation is contextual, FIEMAP lengths are not
+compressed-byte or write-amplification measurements, and logical deletion does
+not prove completed reclamation. General Base-build/Packer workloads, real OCI
+acceptance, archive/publish amplification, large workloads and Windows VHDX
+effects remain outside this slice of [#241](https://github.com/SLktEx/Hacocoon/issues/241).
 
 <a id="transfer"></a>
 

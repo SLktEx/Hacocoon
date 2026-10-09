@@ -320,6 +320,9 @@ Base と複数 Env、保存 rootfs の復元時の容量、archive/publish の�
 物理的な回収の完了、大規模負荷の計測は
 [#241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
 
+[後述の rootfs/Image 候補](#rootfs-image-sharing)は別の限定範囲を定義するもので、
+この Host OCI の実測記録を拡張するものではありません。
+
 <a id="workspace-sharing"></a>
 
 ### 管理 Workspace の共有容量と論理削除
@@ -395,6 +398,31 @@ FIEMAP と参照割当量は分け、コピー間で足し合わせません。
 ハッシュと後片付けの成功が残っています。この限定的な Workspace データの結果でも、
 保存 rootfs の容量、Base と複数 Env、archive/publish の増幅、物理回収の完了、大規模負荷は
 未完了です。
+
+<a id="rootfs-image-sharing"></a>
+
+### rootfs と通常 Image の計測の受入境界
+
+候補版は既存の必須 Snapshot 集約試験に、
+[独立した合成 rootfs 計測](../design/btrfs-storage-layout.ja.md#rootfs-の保存と通常-image-の再利用の計測)を
+追加します。稼働中の保存、元ファイルの unlink、保存済み rootfs からの直接復元、
+停止中のコピー、コピー先だけの書き込み、論理削除を対象とします。別の経路では、
+Snapshot が生成した同一の不変 Image から通常の Env を二つ作り、Incus が所有する
+読み取り専用の最適化 image cache を独立に観測します。公開・展開をまたいだ
+保存済み rootfs と cache の共有は要求しません。
+
+**実機での受入は未完了です。** ローカルにはこの候補を実行する実 Incus/Btrfs や
+Windows がなく、この範囲の実測値や正確なコミットに結び付く CI 記録はまだありません。
+コンパイル、解析処理、所有権の回帰試験は物理的な共有の証拠ではありません。
+前述の Host OCI と Workspace の成功は、それぞれ記録したコミットと領域だけの証拠です。
+
+成功を主張する前に、集約試験の全記録、正確なビルド・試験コミット、基盤の各版、
+通常 Image の fingerprint と生成元、rootfs・計測ファイルの容量、上限付きで取得した
+ファイルのハッシュ、共有プール全体の容量、後片付けの結果を記録してください。
+プール割当量は周辺状況の観測であり、FIEMAP の長さは圧縮後のバイト数や書き込み増幅を
+表しません。論理削除も物理回収の完了を証明しません。一般的な Base ビルド・Packer の
+負荷、実 OCI の受入、archive/publish の増幅、大規模負荷、Windows VHDX への影響は
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)の今回の範囲外です。
 
 <a id="transfer"></a>
 
