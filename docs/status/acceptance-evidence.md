@@ -6,6 +6,40 @@ Status: recorded acceptance evidence. Except for explicitly marked local candida
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="incus-vm-hosted"></a>
+## Optional Incus VM on GitHub-hosted Ubuntu
+
+On 2026-10-09, source `19ceda9ecd17a77f6512da276e5cfce2397bf632`
+([#744](https://github.com/SLktEx/Hacocoon/pull/744), checked PR merge
+`035d5c16d810c9c1ce0c38c772fd2cbe94d1015e`) passed the new
+[VM discovery job](https://github.com/SLktEx/Hacocoon/actions/runs/37927938220/job/113811304884),
+run `37927938220`, attempt 1. The result is **supported on this runner**:
+Ubuntu 26.04.1, image `ubuntu26/20260927.149.1`, x86_64 kernel
+`7.0.0-1012-azure`, Incus 7.0.1 package `1:7.0.1-ubuntu26.04-202609250211`
+and QEMU 11.1.1. AMD `svm` was exposed. `/dev/kvm` was a character device
+owned by root, mode 0660; the ordinary client lacked direct access (errno 13),
+while the root Incus daemon successfully ran the VM. Client access was correctly
+kept separate from daemon capability.
+
+The ordinary repository probe launched an Ubuntu 26.04 VM with 2 CPUs,
+1 GiB memory and only a root disk on the initialized `dir` pool. No inherited
+profile, NIC, Host bind mount or management socket was supplied. Its immutable
+image fingerprint was
+`4d2727c7480d2f54d916a18bb092af876dd089df2fdc9de69beda9248b434f25`.
+Agent exec confirmed systemd PID 1 and readiness, then repeated after verified
+stop/start. Exact nonce-owned deletion passed, the always-run cleanup check
+passed, and the final independent instance inventory was empty.
+
+Artifact `incus-vm-probe-1` (`11614369907`) contains `status=supported`,
+`guest_systemd=ready_after_restart` and `cleanup=verified_absent`, plus the
+runner/SHA receipt. The downloaded archive SHA256 is
+`788285fa59881ac978fdf848e54357e9037d2d835b0759718fc47b0f08900cd6`.
+This is evidence that a future optional Incus VM backend is practical on the
+sampled GitHub-hosted runner; it is not a Hacocoon VM implementation, guest
+network/storage-policy acceptance, a universal runner guarantee or the complete
+PR gate. Unsupported-KVM classification was covered by repository regressions,
+not a native no-KVM runner. See the [discovery contract](../reliability/ci-contracts.md#optional-incus-vm-capability).
+
 <a id="unified-creation-local"></a>
 
 ## Unified creation: local Issue #728 candidate

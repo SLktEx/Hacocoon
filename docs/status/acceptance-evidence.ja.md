@@ -6,6 +6,38 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="incus-vm-hosted"></a>
+## GitHub-hosted Ubuntuでの任意Incus VM
+
+2026-10-09、source `19ceda9ecd17a77f6512da276e5cfce2397bf632`
+（[#744](https://github.com/SLktEx/Hacocoon/pull/744)、検証対象のPR mergeは
+`035d5c16d810c9c1ce0c38c772fd2cbe94d1015e`）で
+[VM実行能力の調査ジョブ](https://github.com/SLktEx/Hacocoon/actions/runs/37927938220/job/113811304884)
+が成功しました。run `37927938220`、attempt 1の結果は**このrunnerでは実行可能**です。
+Ubuntu 26.04.1、イメージ`ubuntu26/20260927.149.1`、x86_64 kernel
+`7.0.0-1012-azure`、Incus 7.0.1 package `1:7.0.1-ubuntu26.04-202609250211`、
+QEMU 11.1.1を使用しました。AMDの`svm`が見えていました。`/dev/kvm`はroot所有・
+mode 0660の文字デバイスで、通常クライアントには直接のアクセス権がありませんでした
+（errno 13）。それでもrootのIncus daemonはVMを実行でき、両者を正しく区別しました。
+
+通常のリポジトリー内probeで、CPU 2個・メモリー1 GiB・初期化済み`dir`プール上の
+rootディスクだけを持つUbuntu 26.04 VMを起動しました。profile継承・NIC・Hostの
+bind mount・管理socketはありません。イメージの固定fingerprintは
+`4d2727c7480d2f54d916a18bb092af876dd089df2fdc9de69beda9248b434f25`です。
+agent経由のexecでPID 1がsystemdで動作準備済みであることを確認し、停止の観測・
+再起動後にも確認しました。所有マーカーを照合したVM削除、常時実行するcleanup確認が
+成功し、最後の独立したinstance一覧も空でした。
+
+artifact `incus-vm-probe-1`（`11614369907`）には`status=supported`、
+`guest_systemd=ready_after_restart`、`cleanup=verified_absent`とrunner/SHA記録を
+保存しました。取得したarchiveのSHA256は
+`788285fa59881ac978fdf848e54357e9037d2d835b0759718fc47b0f08900cd6`です。
+これは調査したGitHub-hosted runnerで将来の任意Incus VMバックエンドを検討できる
+根拠です。HacocoonのVM実装、guestのネットワーク・ストレージポリシー受入、全runnerの
+保証、PR全体のgate成功ではありません。KVM非対応の分類はリポジトリー内回帰試験で
+確認しており、KVMのない実runnerでの受入ではありません。
+[調査契約](../reliability/ci-contracts.ja.md#任意のincus-vm実行能力)も参照してください。
+
 <a id="unified-creation-local"></a>
 
 ## 作成経路統合：Issue #728のローカル候補
