@@ -341,48 +341,58 @@ nesting 用 mount と AppArmor namespace を初期化できるようにします
 プロファイル、pause 中・コピー未完了の状態、曖昧なプロバイダー応答は setup を拒否します。
 設定は永続化され、再 setup で確認して再利用します。
 [ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。
-標準のローカル連携が Host ツールを導入します。Docker と Environment の実行基盤の
-選択は任意のままで、イメージの復旧は実行基盤ごとの受け入れ確認が必要です。
+標準のローカル連携が Host ツールを導入し、信頼済み Host には管理対象の Docker
+Engine/CLI も含めます。Environment の実行基盤選択は独立したままで、イメージの復旧は
+実行基盤ごとの受け入れ確認が必要です。
 
 ## Host の標準ツール
 
 通常の `haco setup` は、保存済みのユーザースクリプトを実行する前に Git、GitHub CLI、
-containerd、nerdctl、BuildKit を導入します。Windows/WSL インストーラーから呼ぶ共通の
-Ubuntu setup も同じ経路です。利用者ごとの導入スクリプトは不要です。ツールは所有権を
-確認した非特権の `haco-host` 内で root として動作し、Physical Host では実行しません。
+containerd、nerdctl、BuildKit、Docker を導入します。Windows/WSL インストーラーから呼ぶ
+共通の Ubuntu setup も同じ経路です。利用者ごとの導入スクリプトは不要です。ツールは
+所有権を確認した非特権の `haco-host` 内で root として動作し、Physical Host では実行しません。
 
 | 構成要素 | 対応する導入元・バージョン |
 |---|---|
 | Git、GitHub CLI (`gh`) | Ubuntu 26.04 以降の設定済み署名付きパッケージリポジトリ（universe を含む）。初回は候補版を導入し、再 setup は導入済みパッケージを再利用 |
 | nerdctl | 公式 `nerdctl-full` 2.3.5。Linux amd64/arm64 ごとに SHA-256 を固定 |
 | containerd / runc / BuildKit / CNI | 同じ配布物から必要な実行ファイルだけを導入。2.3.3 / 1.5.1 / 0.31.2 / 1.9.1 |
+| Docker Engine / CLI | 公式 static 28.5.2。Linux amd64/arm64 ごとに SHA-256 を固定。CLI は `/usr/local/bin/docker`、engine bundle は `/usr/local/lib/hacocoon/docker` に分離 |
 
-構成要素の出所は[公式配布物](https://github.com/containerd/nerdctl/releases/tag/v2.3.5)を
-参照してください。HTTPS で取得して固定ダイジェストを検証し、許可した通常ファイルだけを
-導入します。検証済みアーカイブは `/var/cache/hacocoon/host-tooling` に保持し、再 setup
-で再取得しません。既存の実行ファイル・設定との衝突、不正なリンク・権限は上書きせず拒否します。
-既存データの移行と任意の独自実行基盤の引継ぎは未対応です。イメージを削除して回避せず、衝突を確認してください。
+構成要素の出所は[nerdctl の公式配布物](https://github.com/containerd/nerdctl/releases/tag/v2.3.5)
+と Docker の公式 Linux static 配布物です。HTTPS で取得してアーキテクチャごとの固定
+ダイジェストを検証し、許可した通常ファイルだけを導入します。検証済みアーカイブは
+`/var/cache/hacocoon/host-tooling` に保持し、再 setup で再取得しません。既存の実行
+ファイル・設定との衝突、不正なリンク・権限は上書きせず拒否します。既存データの移行と
+任意の独自実行基盤の引継ぎは未対応です。イメージを削除して回避せず、衝突を確認してください。
 
-`containerd.service` と `buildkit.service` を有効化し、利用可能になるまで確認します。
-nerdctl は既定で `default` 名前空間と `native` snapshotter を使い、containerd の
-ダウンロード後の展開設定も一致させます。setup 成功後、信頼済み `haco-host` 内で実行します。
+`containerd.service`、`buildkit.service`、`docker.service` を有効化し、利用可能に
+なるまで確認します。nerdctl は既定で `default` 名前空間と `native` snapshotter を使い、
+containerd のダウンロード後の展開設定も一致させます。Docker は専用の bundle 依存と、管理対象の `/etc/docker/daemon.json` にある data/exec root を使います。
+Hacocoon は Docker の storage driver を強制せず、利用可能な backing filesystem と kernel に
+対応する driver の選択は Docker に任せます。setup 成功後、信頼済み `haco-host`
+内で実行します。
 
 ```bash
 git --version
 gh --version
 nerdctl pull docker.io/library/busybox:latest
 nerdctl run --rm docker.io/library/busybox:latest echo ready
+docker pull docker.io/library/busybox:latest
+docker run --rm docker.io/library/busybox:latest echo ready
 # Dockerfile があるディレクトリで実行:
 nerdctl build -t example:local .
+docker build -t example-docker:local .
 ```
 
-イメージと BuildKit キャッシュは `/var/lib/hacocoon-oci/containerd` と
-`/var/lib/hacocoon-oci/buildkit` に残り、ソケットは Host 内の `/run` に置きます。
-停止・再開・再 setup は管理領域を保持します。既存の
+イメージと BuildKit キャッシュは `/var/lib/hacocoon-oci/containerd`、
+`/var/lib/hacocoon-oci/buildkit`、`/var/lib/hacocoon-oci/docker` に残り、ソケットと
+runtime process state は Host 内の `/run` に置きます。停止・再開・再 setup は管理領域を
+保持します。既存の
 [独立 Store コピー](persistent-oci-store.md#default-environment-creation-flow)の所有権と
-pause/copy/resume の契約は維持します。受け取り側 Environment/Base は対応する実行基盤を
-別途用意する必要があります。Host のソケット、レジストリ認証情報、管理権限はコピーしません。
-Docker は導入せず、既存の管理対象設定とデータを保持します。
+pause/copy/resume の契約は維持します。受け取り側 Environment/Base の runtime は引き続き
+別途用意する必要があり、信頼済み `haco-host` に Docker を導入しても通常 Environment へ
+socket や engine を投影しません。Host のソケット、レジストリ認証情報、管理権限はコピーしません。
 
 失敗は `host_packages`、`host_tooling`、`host_services` の段階で表示し、導入処理の生の
 出力は診断に含めません。時間制限付きの一時サービスはコントローラー終了後も重複導入を

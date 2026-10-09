@@ -82,10 +82,8 @@ class HostToolingTests(unittest.TestCase):
                     tooling.publish(target, b"keep", 0o755)
                 self.assertEqual(Path(outside).read_bytes(), b"keep")
 
-    def archive(self, mutation):
+    def archive_fixture(self, names, mutation, ignored):
         result = io.BytesIO()
-        names = ["bin/" + name for name in tooling.BINARIES]
-        names += ["libexec/cni/" + name for name in tooling.CNI]
         with tarfile.open(fileobj=result, mode="w") as archive:
             for index, name in enumerate(names):
                 entry = tarfile.TarInfo(name)
@@ -101,16 +99,26 @@ class HostToolingTests(unittest.TestCase):
                 archive.addfile(entry, io.BytesIO(b"test") if entry.isfile() else None)
                 if index == 0 and mutation == "duplicate":
                     archive.addfile(entry, io.BytesIO(b"test"))
-            for name in ("../../escape", "/etc/passwd", "bin/docker"):
+            for name in ignored:
                 entry = tarfile.TarInfo(name)
                 entry.size = 4
                 archive.addfile(entry, io.BytesIO(b"evil"))
         result.seek(0)
         return tarfile.open(fileobj=result, mode="r")
 
+    def archive(self, mutation):
+        names = ["bin/" + name for name in tooling.BINARIES]
+        names += ["libexec/cni/" + name for name in tooling.CNI]
+        return self.archive_fixture(names, mutation, ("../../escape", "/etc/passwd", "bin/docker"))
+
+    def docker_archive(self, mutation):
+        names = ["docker/docker"]
+        names += ["docker/" + name for name in tooling.DOCKER_ENGINE_BINARIES]
+        return self.archive_fixture(names, mutation, ("../../escape",))
+
     def test_only_complete_regular_allowlisted_payloads(self):
         for kind in ("ok", "missing", "symlink", "hardlink", "duplicate", "setuid"):
-            with self.subTest(kind=kind), self.archive(kind) as archive:
+            with self.subTest(runtime="nerdctl", kind=kind), self.archive(kind) as archive:
                 if kind != "ok":
                     with self.assertRaises(ValueError):
                         tooling.selected_files(archive)
@@ -119,11 +127,21 @@ class HostToolingTests(unittest.TestCase):
                     self.assertEqual(len(selected), len(tooling.BINARIES) + len(tooling.CNI))
                     self.assertTrue(all(path.startswith("/usr/local/") for path, _ in selected))
                     self.assertFalse(any(path.endswith("/docker") for path, _ in selected))
+            with self.subTest(runtime="docker", kind=kind), self.docker_archive(kind) as archive:
+                if kind != "ok":
+                    with self.assertRaises(ValueError):
+                        tooling.selected_docker_files(archive)
+                else:
+                    selected = tooling.selected_docker_files(archive)
+                    self.assertEqual(len(selected), 1 + len(tooling.DOCKER_ENGINE_BINARIES))
+                    self.assertIn("/usr/local/bin/docker", [path for path, _ in selected])
+                    self.assertTrue(all(path == "/usr/local/bin/docker" or
+                                        path.startswith("/usr/local/lib/hacocoon/docker/")
+                                        for path, _ in selected))
 
     def test_download_rejects_bad_digest_before_publication(self):
         response = mock.MagicMock()
         response.__enter__.return_value = response
-        response.url = "https://release-assets.githubusercontent.com/fixture"
         response.read.return_value = b"tampered"
         opener = mock.Mock()
         opener.open.return_value = response
@@ -131,9 +149,14 @@ class HostToolingTests(unittest.TestCase):
                 mock.patch.object(tooling, "read_file", side_effect=FileNotFoundError), \
                 mock.patch.object(tooling.urllib.request, "build_opener", return_value=opener), \
                 mock.patch.object(tooling, "publish") as publish:
+            response.url = "https://release-assets.githubusercontent.com/fixture"
             for arch in tooling.DIGESTS:
                 with self.assertRaises(ValueError):
                     tooling.download(arch)
+            response.url = "https://download.docker.com/fixture"
+            for arch in tooling.DOCKER_DIGESTS:
+                with self.assertRaises(ValueError):
+                    tooling.docker_download(arch)
             publish.assert_not_called()
 
     def test_packages_do_not_upgrade_on_repeat_and_failure_stops(self):
@@ -182,6 +205,7 @@ class HostToolingTests(unittest.TestCase):
         for relative, data in {
             "/etc/containerd/config.toml": tooling.CONTAINERD.encode(),
             "/etc/systemd/system/buildkit.service": buildkit.encode(),
+            "/etc/docker/daemon.json": b'{"data-root":"/var/lib/hacocoon-oci/docker","exec-root":"/run/docker"}\n',
             "/var/lib/hacocoon-oci/containerd/image": b"retained-image",
             "/var/lib/hacocoon-oci/buildkit/cache": b"retained-cache",
             "/var/lib/hacocoon-oci/docker/image": b"retained-docker",
@@ -206,7 +230,12 @@ class HostToolingTests(unittest.TestCase):
             tooling.services()
             self.assertEqual(unit.stat().st_ino, inode)
             self.assertIn("Type=notify\n", unit.read_text())
+            docker_unit = Path(self.root + "/etc/systemd/system/docker.service").read_text()
+            self.assertIn("ExecStart=/usr/local/lib/hacocoon/docker/dockerd\n", docker_unit)
+            self.assertNotIn("--storage-driver=", docker_unit)
             self.assertIn("Type=notify\n", Path(self.root + "/etc/systemd/system/buildkit.service.d/10-hacocoon-readiness.conf").read_text())
+            self.assertTrue(any(call.args[0] == ["/usr/local/bin/docker", "info"]
+                                for call in run.call_args_list))
             self.assertFalse(any("restart" in call.args[0] for call in run.call_args_list))
             run.side_effect = RuntimeError("service start failure")
             with self.assertRaises(RuntimeError):

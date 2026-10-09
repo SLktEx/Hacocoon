@@ -148,7 +148,7 @@ cat > /etc/systemd/system/area-docker.service <<'UNIT'
 Description=Owned offline test fixture Docker
 [Service]
 Environment=PATH=/opt/docker:/usr/local/bin:/usr/bin:/bin
-ExecStart=/opt/docker/dockerd --iptables=false --ip6tables=false --bridge=none --storage-driver=vfs
+ExecStart=/opt/docker/dockerd --iptables=false --ip6tables=false --bridge=none
 Delegate=yes
 KillMode=process
 [Install]

@@ -358,53 +358,64 @@ before enabling or reusing nested tooling.
 Missing ownership, inherited profiles, paused/pending copies or ambiguous
 provider results refuse setup. The setting persists; repeated setup revalidates
 and reuses it. See [ADR 0032](../adr/0032-owned-host-nested-runtime.md).
-Standard Host tooling is supplied by the maintained local integration. Docker
-and Environment runtime selection remain optional; actual image recovery requires
-runtime-specific acceptance.
+Standard Host tooling is supplied by the maintained local integration, including
+a managed Docker Engine/CLI in the trusted Host. Environment runtime selection
+remains independent; actual image recovery requires runtime-specific acceptance.
 
 ## Standard Host tools
 
 Ordinary `haco setup`, including the common Ubuntu setup called by the Windows/WSL
-installer, installs Git, GitHub CLI, containerd, nerdctl and BuildKit before replaying
-a saved user recipe. No per-user install script is required. The tools run rootfully
-inside the owned, unprivileged `haco-host`; they do not run on the Physical Host.
+installer, installs Git, GitHub CLI, containerd, nerdctl, BuildKit and Docker before
+replaying a saved user recipe. No per-user install script is required. The tools run
+rootfully inside the owned, unprivileged `haco-host`; they do not run on the Physical
+Host.
 
 | Component | Supported source/version |
 |---|---|
 | Git, GitHub CLI (`gh`) | Ubuntu 26.04+ configured signed package repositories, including universe; distro candidate on first installation, installed package reused on repeat setup |
 | nerdctl | Official `nerdctl-full` 2.3.5 release, SHA-256 pinned separately for Linux amd64/arm64 |
 | containerd / runc / BuildKit / CNI | Selected binaries from that same release: 2.3.3 / 1.5.1 / 0.31.2 / 1.9.1 |
+| Docker Engine / CLI | Official Docker static 28.5.2 release, SHA-256 pinned separately for Linux amd64/arm64; CLI published as `/usr/local/bin/docker`, engine bundle isolated under `/usr/local/lib/hacocoon/docker` |
 
-The [official distribution](https://github.com/containerd/nerdctl/releases/tag/v2.3.5)
-owns upstream component provenance. Setup downloads through HTTPS, verifies the
-fixed digest and installs only allowlisted regular files. The verified archive
-is cached in `/var/cache/hacocoon/host-tooling` for offline repeat setup. Conflicting
-existing binaries/configuration, unsafe links or permissions fail instead of being
-overwritten. Existing data migration and arbitrary custom runtime installations
-remain unsupported; inspect the conflict rather than deleting image data.
+The [official nerdctl distribution](https://github.com/containerd/nerdctl/releases/tag/v2.3.5)
+and Docker's official static Linux distribution own upstream component provenance.
+Setup downloads through HTTPS, verifies fixed per-architecture digests and installs
+only allowlisted regular files. The verified archives are cached in
+`/var/cache/hacocoon/host-tooling` for offline repeat setup. Conflicting existing
+binaries/configuration, unsafe links or permissions fail instead of being overwritten.
+Existing data migration and arbitrary custom runtime installations remain unsupported;
+inspect the conflict rather than deleting image data.
 
-`containerd.service` and `buildkit.service` are enabled and checked for readiness.
-The default nerdctl namespace is `default`, with the `native` snapshotter and a
-matching containerd transfer unpack configuration. Inside trusted `haco-host`,
-after successful setup:
+`containerd.service`, `buildkit.service` and `docker.service` are enabled and
+checked for readiness. The default nerdctl namespace is `default`, with the `native`
+snapshotter and a matching containerd transfer unpack configuration. Docker uses its
+own bundled engine dependencies and the managed `/etc/docker/daemon.json` data/exec roots.
+Hacocoon does not force a Docker storage driver; Docker selects a supported driver
+for the available backing filesystem and kernel. Inside trusted
+`haco-host`, after successful setup:
 
 ```bash
 git --version
 gh --version
 nerdctl pull docker.io/library/busybox:latest
 nerdctl run --rm docker.io/library/busybox:latest echo ready
+docker pull docker.io/library/busybox:latest
+docker run --rm docker.io/library/busybox:latest echo ready
 # Run in a directory containing a Dockerfile:
 nerdctl build -t example:local .
+docker build -t example-docker:local .
 ```
 
-Image data and BuildKit cache remain under `/var/lib/hacocoon-oci/containerd` and
-`/var/lib/hacocoon-oci/buildkit`; sockets stay under `/run` inside this Host.
-Stop/start and repeat setup preserve the managed area. The existing
+Image data and BuildKit cache remain under `/var/lib/hacocoon-oci/containerd`,
+`/var/lib/hacocoon-oci/buildkit` and `/var/lib/hacocoon-oci/docker`; sockets and
+runtime process state stay under `/run` inside this Host. Stop/start and repeat
+setup preserve the managed area. The existing
 [independent Store copy](persistent-oci-store.md#default-environment-creation-flow)
 retains its ownership and pause/copy/resume contract. Runtime binaries still need
-to be supplied by the receiving Environment/Base integration. No Host socket,
-registry credential or management authority is delivered with that copy. Docker
-is not installed and its existing managed configuration/data is left intact.
+to be supplied independently by a receiving Environment/Base integration; installing
+Docker in trusted `haco-host` does not project its socket or engine into ordinary
+Environments. No Host socket, registry credential or management authority is
+delivered with a Store copy.
 
 Setup reports `host_packages`, `host_tooling` and `host_services` failures without
 raw installer output. Each bounded transient service excludes overlapping installs
