@@ -345,7 +345,7 @@ capture/restore/copy measurements. Base/multiple-Env and saved-rootfs restore by
 accounting, archive/publish amplification, Docker drivers, completed physical
 reclamation and large-workload measurements remain open under
 [#241](https://github.com/SLktEx/Hacocoon/issues/241).
-The [rootfs/Image candidate below](#rootfs-image-sharing) defines a further
+The [rootfs/Image receipt below](#rootfs-image-sharing) covers a further
 bounded slice; it does not extend this Host OCI receipt.
 
 <a id="workspace-sharing"></a>
@@ -427,30 +427,100 @@ Env, archive/publish amplification, completed reclamation and large workloads op
 
 <a id="rootfs-image-sharing"></a>
 
-### Rootfs and ordinary Image measurement acceptance boundary
+### Saved-rootfs sharing and ordinary Image reuse
 
-The candidate extends the existing required Snapshot aggregate fixture with
-[separate synthetic rootfs measurements](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement):
-running capture, source-payload unlink, direct saved-rootfs restore, stopped copy,
-copy-only writes and logical deletion, plus two ordinary Environments created
-from the same Snapshot-generated immutable Image. The latter branch observes
-Incus's read-only optimized image cache independently. It does not require
-saved-rootfs-to-cache sharing across publication/materialization.
+PR #752 head `de3817208964ab0c0d0cbdb4123567b4a9e59bd2`, checked out and
+built as merge `031d0a7b9996a661f7b9dda6e54a748320ccda5b` into
+`932790322bcd54d8b8aa6fda5a13eaec030c0f67`, passed
+[`TestRealIncusSnapshotAggregateE2E` in 272.24 s on its first attempt](https://github.com/SLktEx/Hacocoon/actions/runs/37992973385/job/114031637967).
+The [tested fixture](https://github.com/SLktEx/Hacocoon/blob/de3817208964ab0c0d0cbdb4123567b4a9e59bd2/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L886)
+used `haco-aggregate-b632059ba14ffa2d`, Ubuntu 26.04.1 (OS identity 26.04),
+Linux `7.0.0-1012-azure` x86_64, Go 1.27.0, Incus 7.0.1 and
+Btrfs-progs 6.17.1. The input cached image fingerprint was
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`;
+the independently published ordinary Image had
+`origin=snapshot-generated-image` and fingerprint
+`d26206bc2cb3722868879881e882fbe8169178548a1883f3aab276aae35de4a4`.
 
-**Native acceptance is pending.** No real Incus/Btrfs or Windows execution of
-this candidate is available locally, and no native values or exact-commit CI
-receipt for this slice are recorded here yet. Repository compilation, parser and
-ownership regressions are not physical-sharing evidence. Earlier Host OCI and
-Workspace passes above remain limited to their recorded commits and areas.
+The [measurement contract](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement)
+keeps two paths separate: native saved-rootfs capture/restore/copy, and normal
+positional `open --new IMAGE` initialization from the immutable optimized cache.
+Exact ownership, canonical locks, verified pause/resume, read-only cache identity,
+root/parent identity and Host mount-scope checks passed. Whole-rootfs samples
+below are in bytes; they include runtime files, not only the controlled payload:
 
-Record the full aggregate receipt, exact compiled/tested commit, substrate
-versions, ordinary Image fingerprint and origin, rootfs/payload counters,
-bounded payload hashes, whole-shared-pool counters and cleanup result before
-claiming acceptance. Pool allocation is contextual, FIEMAP lengths are not
-compressed-byte or write-amplification measurements, and logical deletion does
-not prove completed reclamation. General Base-build/Packer workloads, real OCI
-acceptance, archive/publish amplification, large workloads and Windows VHDX
-effects remain outside this slice of [#241](https://github.com/SLktEx/Hacocoon/issues/241).
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source before capture | 671,568,712 | 731,987,968 | 672,321,536 | 12,496,896 | 275,742,720 |
+| Saved after capture (source identical) | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 288,100,352 |
+| Image cache after two ordinary Envs | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 281,776,128 |
+| Ordinary Image Env A | 680,050,419 | 740,478,976 | 680,804,352 | 8,486,912 | 281,776,128 |
+| Ordinary Image Env B before write | 679,957,417 | 740,384,768 | 680,710,144 | 8,388,608 | 281,776,128 |
+| Ordinary Image Env B after write | 688,441,496 | 748,871,680 | 689,197,056 | 16,879,616 | 281,776,128 |
+| Cache after both Image Envs deleted | 671,568,712 | 731,987,968 | 672,321,536 | 672,321,536 | 0 |
+| Restored from saved rootfs | 680,047,008 | 740,474,880 | 680,800,256 | 8,482,816 | 288,096,256 |
+| Copy before independent write | 680,142,757 | 740,564,992 | 680,894,464 | 4,083,712 | 292,585,472 |
+| Copy after independent write | 688,531,365 | 748,953,600 | 689,283,072 | 12,472,320 | 292,585,472 |
+| Copy after source/Snapshot deletion | 688,531,355 | 748,953,600 | 689,283,072 | 29,458,432 | 275,742,720 |
+| Copy after final payload unlink | 671,754,139 | 732,176,384 | 672,505,856 | 12,681,216 | 275,742,720 |
+
+The original rootfs payload was exactly 8,388,608 logical, referenced and extent
+bytes, wholly exclusive before capture. After capture, saved-rootfs restore and
+copy, each corresponding payload had zero exclusive and 8,388,608 set-shared
+bytes. The same shared-payload counts were independently observed in the generated
+Image cache and both ordinary Envs. Its SHA-256 stayed
+`b7c7e4e6f5421e7f8ecec0aded73211eeafc25e52e6db5a00d84512f4c103618`.
+After unlinking the source file, the saved payload was intact and wholly exclusive,
+even while the separately materialized Image cache/Envs shared their payload.
+This does not establish sharing across Image publication.
+
+Each independent 8 MiB write added exactly 8,388,608 payload referenced/exclusive
+bytes: once in ordinary Env B and once in the restored copy. Peer, cache and
+saved payloads remained unchanged. Env B's whole-rootfs allocation increased
+8,486,912 bytes and exclusive extents 8,491,008 bytes; runtime activity makes
+these different from the fixed payload change. The restored copy's whole-rootfs
+allocation and exclusive extents each increased 8,388,608 bytes.
+After deleting both ordinary Image Envs, this run observed the retained cache's
+entire rootfs exclusive. After deleting the Snapshot and restored source, the
+surviving copy's 16,777,216 payload extent bytes were exclusive. Final guest
+unlink reduced all payload counters to zero while other rootfs data remained.
+These exclusive transitions are observations, not a required retirement fence.
+
+The shared sparse backing file remained 137,438,953,472 bytes long:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before capture | 748,027,904 |
+| After capture | 760,381,440 |
+| Source unlink, Snapshot retained | 761,937,920 |
+| After two ordinary Image Envs | 1,108,312,064 |
+| After Image Env B write | 1,118,994,432 |
+| Both Image Envs deleted, cache retained | 1,119,551,488 |
+| After public restore | 1,816,449,024 |
+| After public copy | 1,824,456,704 |
+| After copy-only write | 1,833,926,656 |
+| Snapshot deleted, restored source/copy retained | 1,845,264,384 |
+| Source/Snapshot deleted, copy retained | 1,847,066,624 |
+| After final live payload unlink | 1,848,442,880 |
+
+Other rootfs, Image, Workspace, metadata and Host activity share this pool.
+Aggregate transfer/import also intervenes before the restore sample. No pool
+delta is attributed to one operation. Final live unlink removed 16 MiB of payload
+references while pool allocation increased 1,376,256 bytes; no completed physical
+reclamation was observed. FIEMAP lengths are not compressed-byte or device-write
+counters, and per-area values are never summed as unique storage.
+
+The full receipt retains 27 rootfs/payload area samples, 12 whole-pool samples,
+identity hashes and the existing 17 Workspace area/nine pool samples. Exact-owned
+Env/automatic Workspace cleanup, saved aggregate cleanup and final fixture
+absence passed; the job then deleted its pool and project. Persistent catalog
+lock identities were intentionally retained. Original cached input-image deletion
+was explicitly skipped because dedicated-image permission was not enabled.
+No retry was used. Local sandbox failures remain distinct from this hosted pass.
+General Base-build/Packer efficiency, archive/publish amplification, broader OCI
+workloads, restored SSH/live application consistency, completed reclamation,
+large workloads and Windows VHDX effects remain outside this bounded result for
+[#241](https://github.com/SLktEx/Hacocoon/issues/241).
 
 <a id="transfer"></a>
 
