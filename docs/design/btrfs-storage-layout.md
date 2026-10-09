@@ -355,13 +355,15 @@ in the implementation. Their peak allocated bytes, peak memory and device-write
 amplification are not measured here. Retained output and destination allocation
 must not be summed into a transient-peak or unique-physical-storage claim.
 
-Use the same aggregate build/invocation above. Native acceptance of this added
-archive interval is pending until its exact commit/run and values are recorded
-in [acceptance evidence](../status/acceptance-evidence.md#storage). Earlier
-rootfs/Image results do not establish it. Representative materialization and the
-distinction between logical deletion and capacity recovery are the issue's scope;
-universal scaling, every builder and successful physical reclamation are not
-additional requirements.
+Use the [same aggregate build/invocation](#managed-workspace-lifecycle-measurement).
+The added archive interval passed in PR #753's first native run at tested merge
+`c9ba3ac33323c091c1c2450beafc3515dc65b1e1`; the
+[exact-run acceptance evidence](../status/acceptance-evidence.md#archive-materialization)
+records retained bytes, source/imported counters, separate delta materialization
+and logical cleanup without a physical-reclaim claim. Representative
+materialization and the distinction between logical deletion and capacity recovery
+are the issue's scope; universal scaling, every builder and successful physical
+reclamation are not additional requirements.
 
 ## Workspace boundary
 
