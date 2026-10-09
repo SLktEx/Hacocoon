@@ -1595,6 +1595,34 @@ One failed-jobs rerun was requested for this exact head to check reproducibility
 it cannot erase the first attempt. No timeout, disk-attachment check or WSL-wide
 setting was relaxed. Person-dependent acceptance remains post-release.
 
+<a id="tcp-listener-cancellation-close"></a>
+
+## TCP listener cancellation waits for closure
+
+PR #748 head `9172e2bbe3337e85c53a25187e154d7bdd1568ec` failed
+[test run 37935376919 / Go 1.26 job 113835981590](https://github.com/SLktEx/Hacocoon/actions/runs/37935376919/job/113835981590)
+on 2026-10-09. `TestNetworkListenerValidatesLoopbackAndClosesOnCancellation`
+returned from the command, then failed the immediate exact-address TCP rebind
+with `address already in use`. The Workspace package, including the new
+process-recovery cases, passed in that same job. This failure is retained;
+the head was not rerun to obtain a pass.
+
+A separate local follow-up based on `7a3a6b8b33b0265f2e79d46015836739542680c6`
+reproduced the ownership gap with a channel-backed listener and Go `testing/synctest`:
+`Accept` can unblock before an asynchronous `Close` finishes. The previous
+`ServeTCP` stopped the callback without joining it; another caller's `Close`
+could return while the first still held the socket. Three deterministic cases
+failed on unchanged main and passed after joining the callback or closing
+synchronously when cancellation preceded its start. Non-canceled accept errors
+and invalid-listener refusal preserve caller ownership. No timing sleeps or
+real sockets select the injected failure.
+
+The local candidate passed the complete network package and unchanged CLI
+listener/rebind tests on Go 1.26.7 and 1.27.2, plus focused race, repository vet
+and differential lint. The strict immediate-rebind assertions, product deadlines
+and retry policy are unchanged. This is component evidence; the corrected
+published head and native provider/Windows acceptance remain separate.
+
 ## Network command language
 
 `0387258d` adds shared English/Japanese network result and next-action messages.

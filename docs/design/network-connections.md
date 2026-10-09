@@ -64,6 +64,11 @@ separate from the uncached Hacocoon resolver.
 
 ## Lifetime and failure
 
+Cancellation of a local TCP listener waits for its owned close to finish before
+returning. An already-running cancellation callback is joined; cancellation before
+that callback starts closes synchronously. Invalid listeners and non-canceled
+accept failures leave closure to the caller.
+
 TCP sessions have an absolute lifetime of 1–3600 seconds. UDP associations have
 an absolute lifetime of 1–300 seconds and a shared 30-second idle lifetime and preserve datagram boundaries and one exact response
 peer. Unrelated response sources are never forwarded. Expiry closes both relay
