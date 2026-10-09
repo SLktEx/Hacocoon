@@ -166,6 +166,7 @@ run_test() {
   python3 tools/test_evacuation_selection.py
   python3 tools/test_cleanup_ci_base_asset.py
   python3 tools/test_forward_application.py
+  python3 tools/test_installed_workspace_input.py
   section "test"
   go test -count=1 -shuffle=615 ./...
   go vet ./...

@@ -42,3 +42,4 @@ attempted=0
 [[ "$(cat "$root/workspace/marker")" == workspace-after ]]
 haco env list --json | python3 -c 'import json,sys; assert all(row["name"] != sys.argv[1] for row in json.load(sys.stdin))' "$name"
 echo 'PASS: packaged product CLI lifecycle and retained Workspace'
+python3 "$(dirname "${BASH_SOURCE[0]}")/workspace_input.py"

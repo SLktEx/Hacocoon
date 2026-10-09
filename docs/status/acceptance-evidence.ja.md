@@ -900,6 +900,82 @@ fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state
 専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
 認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。
 
+### 導入済みLinuxの入力ゲート
+
+main `7a3a6b8b`を基にした候補で、既存の必須Ubuntu導入済みlifecycle経路に
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py)を追加しました。
+導入済みcontrollerへ通常の`repo add`、`workspace import`、パス指定の`open`、
+`exec`、停止・再開、Env/Workspaceの明示的な削除、sourceの登録解除を実行します。
+接続元は公開Hacocoonレポジトリで、
+入力は小さなローカルcheckoutと実際のlinked worktreeです。認証情報、private registry、
+controllerの差し替え、台帳編集、製品側の準備の修繕は不要です。
+Gitは[利用開始手順](../guides/getting-started.ja.md)に記載された、選択Imageの任意の前提ツールです。
+fixtureが所有する2つのEnvに限り、公開`config`と`exec`コマンドを使って、通常のUbuntuパッケージ経路で
+未導入のGitを入れます。各Envの一時ルールは`archive.ubuntu.com`と`security.ubuntu.com`への
+HTTP/80・HTTPS/443の4件だけで、有効期限は15分です。ワイルドカード・全Env・DNSの許可は追加しません。
+管理者許可は名前を対象とし、新規の単一runnerで生成した一意な名前だけに範囲を限定します。
+記録済み応答と設定前・`exec`直前の状態を照合します。instance単位の許可や名前指定実行の原子性は主張しません。
+各パッケージ操作の`finally`で完全一致するルールだけを消し、無関係のPolicyは保持します。
+変更済み・所有不明のルールは削除せず失敗し、runner破棄までEnvの削除・名前の再利用にも進みません。設定はrevision付きの公開snapshotで更新し、
+保護ファイルの直接編集や保存の自動再実行はしません。追加保存が未確認なら、snapshotにルールがなくても
+完了とは扱いません。遅れた保存が成立し得るため、保留記録とEnv名を保持します。削除保存が未確認なら、
+追加完了を確認済みであることと、その後の不在観測でのみ解決し、保存を再送しません。
+パッケージ失敗は失敗のまま扱い、Git・データの検証条件は変えません。すべてのBaseへのGit導入を要求せず、既定Imageも変えません。
+
+新規導入であることが実行の前提条件です。このfixtureは使い捨てのGitHub-hosted導入経路専用で、
+`GITHUB_ACTIONS=true`と`HACO_CI_RUNNER_ENVIRONMENT=github-hosted`の両方がなければ実行を拒否します。
+ただし、この目印自体が新規導入を証明するわけではありません。`repo list --json`が空であることの
+検査は追加の保護に限ります。公開一覧は除外済みsourceを表示せず、登録処理は同一のHTTPS/SSH/scp
+接続先を再利用するため、既存の導入環境では実行しないでください。想定と異なる登録結果は
+所有対象として扱わず、登録解除もせず、要求した識別情報とローカルの記録を調査用に保持します。
+公開APIが隠している記録を試験で検出したとは主張しません。
+import/openの応答は検証前に別の観測記録へ保存し、検証済みの応答だけをcleanupの所有対象にします。
+importは失敗時にも復旧用参照をJSONで返す場合がありますが、現在のopenは成功時だけJSONを返します。
+保存するのは上限付きの公開識別情報と状態だけで、生のコマンド出力や秘密情報は含めません。
+処理できた失敗では`INSTALLED_INPUT_FAILURE`のJSON行を既存のActionsログへ出し、runner破棄後も
+この限定した報告を残します。ローカルのsourceツリーはアップロードせず、runnerの突然の終了では
+失敗報告を出せない場合があります。
+
+選択したHEAD、stage/dirty/untrackedファイル、guest内の独立commit、別の管理Workspace、
+client側と共通Git管理情報が不変であることを区別して検証します。
+繰り返しopenと停止後の再開ではEnv/Workspaceの同一性を保持し、所有先の異なるパス参照は拒否します。
+Env/Workspaceのcleanupは記録した所有者と削除後の不在を確認し、結果不明の作成記録を保持します。
+`repo delete`は所有者を確認したsourceを選択対象から登録解除するだけです。
+`repo list`からの非表示は物理削除の証拠ではなく、native sourceデータは使い捨てrunnerの破棄まで
+意図的に保持します。purgeや以前のレポジトリ削除動作は追加しません。
+fixture/cleanupの回帰はリポジトリ内の証拠に限ります。下記の導入済み成功は追加経路だけの証拠で、
+issue #344のLinux SSH、接続一覧・forwarding、editor受入の完了は意味しません。
+既存のWindows受入とは分け、このfixtureで再実行や代替はしません。
+
+`be032d9f`の[Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)は
+導入と従来のlifecycleに成功後、最初のWorkspace importで接続がresetされ失敗しました。
+recovery-requiredの識別情報は限定した報告としてジョブログに残り、取り込んだEnvのopenには進んでいません。
+実際のreceiver、`net.Pipe`経由のupload framing、native archive stagingを通す構成要素回帰で、
+`$HACO_ROOT/transfers`が未作成の場合の失敗を再現しました。
+receiverは他のimport handlerと同じく、この非公開ディレクトリを初期化するようになりました。
+未作成・既存のディレクトリ、不安全な既存パス、失敗時の識別情報保持はローカルのrace付き回帰で成功しましたが、
+この時点では修正後の導入済み受入は未実施でした。最初の実機失敗を成功に言い換えず、fixture側の準備で回避もしません。
+
+`4e8f9464`の[Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)では、
+2つの独立importと初回openが成功しました。続くguest内Git検証は`git: not found`で失敗し、
+所有者を確認した対象のcleanupが完了し、限定した応答記録が残りました。これは記載済みの任意のGit前提で、
+import失敗やすべてのBaseを変更する要件ではありません。修正fixtureは上記のパッケージ許可経路を使います。
+ローカル回帰は以前の前提不足を再現し、Gitの検証条件を維持したまま、限定許可・cleanup・保存結果不明・
+Policy同時編集を確認します。この修正の導入済み実行を下記に記録します。別の既定・独自root登録回帰では、
+既定rootに触れずserviceを呼び出さずに、staging初期化がimport実行時まで行われないことを確認します。
+
+
+`23241a4`の[Ubuntu run 37954236509](https://github.com/SLktEx/Hacocoon/actions/runs/37954236509)と
+証拠ゲートが成功しました。導入済みlinked-worktree試験は、選択HEAD/index/作業ファイル、通常のguest commit、
+別Workspaceとclient/common Gitからの独立性、所有者不一致の拒否、再open、停止・再開、所有を確認した
+Env/Workspaceの削除、source登録解除を完了しました。ジョブログには2つのEnv削除、2つのWorkspace削除と、
+2026-10-09 15:52:58 UTCの最終PASSが残っています。このPASSは両方のパッケージ準備の`finally`と
+新しい設定読取で完全一致の許可削除を確認し、続く対象リソースの不在検査も成功した場合だけ出ます。
+これは実行コードに結び付いた検証証拠で、別の生Policy snapshotは保持しません。同じジョブの導入済み
+network検査も成功しました。外部SonarCloudは新規コードcoverage 100%で成功しました。
+これらの結果で過去の別のWindows/network失敗が解決したとは扱わず、issue #344のclient/接続要件も残ります。
+
+最終候補はこの限定成功の後にmain `23499701`を通常mergeします。統合後のexact-head CIは別の未完了確認です。
 
 ## 保持キャッシュ台帳の整理
 

@@ -1027,6 +1027,104 @@ the dedicated test binary was used, not the installed CLI. No Policy relaxation
 or guest management authority was added. Authenticated Git, human GUI answers,
 installed input and giant-repository measurements were not exercised.
 
+### Installed Linux input gate
+
+The candidate based on main `7a3a6b8b` adds
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py) to the existing
+mandatory Ubuntu installed lifecycle journey. It uses ordinary `repo add`,
+`workspace import`, path `open`, `exec`, stop/reopen, explicit Environment/Workspace
+deletion and source unregistration against the installed controller. The upstream
+is the public Hacocoon repository; input
+is a small local checkout and an actual linked worktree. No credential, private
+registry, replacement controller, catalog edit or product setup repair is needed.
+Git is an optional selected-Image prerequisite under [getting started](../guides/getting-started.md#develop-and-return-later).
+For its two exact-owned Environments only, the fixture uses public `config` and
+`exec` commands to install missing Git through ordinary Ubuntu package access.
+Four temporary rules per Environment permit only `archive.ubuntu.com` and
+`security.ubuntu.com`, HTTP/80 and HTTPS/443, with a 15-minute expiry. No wildcard,
+global or DNS grant is added. These administrator grants are name-scoped: safety
+is bounded to the fresh single-runner fixture's unique nonce names, with recorded
+receipts checked before configuration and immediately before `exec`. This does
+not claim instance-bound permission or atomic name-based execution. Each package
+operation removes its exact rules in `finally`, preserving unrelated Policy;
+changed/ambiguous rules fail closed and prevent Env deletion/name reuse before
+runner teardown.
+Configuration uses revision-bound public snapshots, never direct protected-file
+writes or save replay. An absent snapshot cannot complete an unconfirmed add:
+a delayed save may still commit. Such ambiguity retains pending grants and Env
+names. A pending removal is reconciled only by observing absence after the add
+was confirmed; an uncertain save is never automatically resent. Package failures
+remain failures; Git/data assertions are unchanged. The fixture does not require Git in every Base or change the default Image.
+
+Freshness is an execution precondition: this fixture runs only in that disposable
+GitHub-hosted installer journey. It refuses execution without both `GITHUB_ACTIONS=true`
+and `HACO_CI_RUNNER_ENVIRONMENT=github-hosted`; those markers do not prove freshness.
+The empty `repo list --json` check is additional protection only. The public list
+hides excluded sources, and registration can reuse equivalent HTTPS/SSH/scp
+remotes. Do not run it against an existing installation. Unexpected registration
+receipts are not adopted or unregistered; the requested identity and local receipts
+remain for inspection. No test claims to detect records hidden by the public API.
+Import/open observations are saved separately before validation; only validated
+responses enter cleanup ownership. Nonzero import JSON can carry a recovery
+reference, while the current open command emits JSON only on success. Records
+retain bounded public identity/status fields, never raw command output or secrets.
+On handled failures, an `INSTALLED_INPUT_FAILURE` JSON line preserves that bounded
+report in the existing Actions logs after runner teardown. Local source trees
+are not uploaded; abrupt runner termination may prevent the failure report.
+
+Assertions distinguish selected HEAD, staged/dirty/untracked files, independent
+guest commits, another managed Workspace and unchanged client/common Git state.
+Repeated open and stopped resume must retain the same Environment/Workspace
+identity; a mismatched path reference must be refused. Environment/Workspace
+cleanup checks exact recorded owners and positive absence, preserving unconfirmed
+creation receipts. `repo delete` only unregisters the exact owned source from
+active selection. Its absence from `repo list` does not prove physical deletion:
+native source data is intentionally retained until the disposable runner is torn
+down. No purge or older repository-deletion behavior is used.
+Fixture/cleanup regressions are repository evidence only. The installed success
+below covers this added slice; it does not complete issue #344's Linux SSH,
+connection-enumeration/forwarding or editor requirements. Existing Windows
+acceptance remains separate and is not rerun or replaced by this fixture.
+
+At `be032d9f`, [Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)
+passed installation and the existing lifecycle, then failed the first Workspace
+import with a connection reset and a retained recovery-required identity. The
+bounded report survived in the job log; no imported Env was opened. A component
+regression reproduces the missing `$HACO_ROOT/transfers` directory through the
+actual receiver, upload framing over `net.Pipe` and native archive staging.
+The receiver now initializes that private directory like the other import handlers.
+Missing/existing roots, unsafe existing paths and retained failure identities pass
+locally with race; installed acceptance at this stage remained pending. The initial
+native failure is not relabeled a pass or bypassed by fixture-side preparation.
+
+At `4e8f9464`, [Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)
+passed both independent imports and their first opens. The next guest Git assertion
+failed with `git: not found`; exact-owned cleanup completed and bounded receipts
+were retained. This is the documented optional Git prerequisite, not an import
+failure or a requirement to modify all Bases. The corrected fixture follows the
+package-permission path above. Local regressions reproduce the earlier missing
+prerequisite, preserve all Git assertions, and check bounded grants, cleanup,
+uncertain saves and concurrent Policy edits. Installed execution of this follow-up
+is recorded below. A separate default/custom-root registration regression verifies lazy
+staging initialization without touching the default root or invoking the service.
+
+
+At `23241a4`, [Ubuntu run 37954236509](https://github.com/SLktEx/Hacocoon/actions/runs/37954236509)
+and its evidence gate passed. The installed linked-worktree fixture completed
+selected HEAD/index/working-file checks, ordinary guest commits, independent
+Workspace/client/common-Git isolation, mismatched-owner refusal, repeated open,
+stop/resume, exact-owned Environment/Workspace deletion and source unregistration.
+The job recorded both owned Env deletions, both Workspace deletions and final
+fixture PASS at 2026-10-09 15:52:58 UTC. That PASS is reachable only after both
+package setup `finally` blocks and fresh configuration reads confirm exact
+removal, followed by positive resource-absence checks. This is code-bound
+assertion evidence; no separate raw Policy snapshot is retained. The same job's
+installed network checks also passed. External SonarCloud passed at 100% new-code
+coverage. Other historical Windows/network failures are not resolved by these
+results, and issue #344's remaining client/connection requirements stay open.
+
+The final candidate normally merges main `23499701` after this scoped success;
+its combined exact-head CI is separate and pending.
 
 ## Retained cache catalog maintenance
 
