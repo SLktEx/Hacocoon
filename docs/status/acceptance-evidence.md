@@ -287,6 +287,63 @@ The local `71dbb4f` configuration/preview fixture kept default deny and eight ad
 
 Full original receipts, fixture identities and log/artifact links remain in [the original implementation record](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) and [the original feature evidence](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md). These immutable records are historical evidence, not current operating instructions.
 
+<a id="host-oci-sharing"></a>
+
+### Real Host OCI sharing measurements
+
+PR #743 head `6af9764d2ea4c7b0a01aa931c2cb1ec071ddb35e`, tested as merge
+`0785baf61d9552fcd6f8de0972298a7427db5906`, passed
+[`TestRealIncusHostToolingE2E` in 104.17 s](https://github.com/SLktEx/Hacocoon/actions/runs/37928748494/job/113813959793).
+The dedicated pool/project was `haco-area-6e4bcd1e35bce84c`; exact fixture cleanup
+passed. Substrate: Ubuntu 26.04, Linux `7.0.0-1012-azure` x86_64, Go 1.27.0,
+Incus 7.0.1, Btrfs-progs 6.17.1, nerdctl 2.3.5, containerd 2.3.3 and BuildKit
+0.31.2 with the native snapshotter. The actual BusyBox/BuildKit-built image was
+`sha256:964017daedcd872403b9aef02dd51e47a727d2c42bfce6d57495e6f63f9980f7`.
+
+The [reproducible measurement procedure](../design/btrfs-storage-layout.md#host-oci-copy-measurement)
+uses `du --apparent-size --block-size=1`, `du --block-size=1`, and
+`btrfs filesystem du --raw --summarize` while the exact owned consumers are paused
+through Incus. Selected whole-Store results, in bytes:
+
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Host before copy | 23,136,518 | 23,183,360 | 22,994,944 | 5,120,000 | 8,937,472 |
+| Host after native copy | 23,136,518 | 23,183,360 | 22,994,944 | 0 | 14,057,472 |
+| Copy after native copy | 23,136,518 | 23,175,168 | 22,994,944 | 0 | 14,057,472 |
+| Copy before container write | 23,136,518 | 23,179,264 | 22,999,040 | 307,200 | 13,754,368 |
+| Copy after 8 MiB container write | 35,970,962 | 36,069,376 | 35,856,384 | 8,732,672 | 13,717,504 |
+| Copy after container/tag deletion | 23,136,518 | 23,179,264 | 22,999,040 | 352,256 | 13,709,312 |
+
+After native copy, actual containerd content blobs had 2,240,512 shared extent
+bytes and zero exclusive bytes in each area; copied BuildKit data had 7,147,520
+set-shared bytes and zero exclusive bytes. Native parent-UUID ancestry, same image
+identity, offline execution, independent writes and source deletion passed.
+The 8,388,608-byte random writable-layer payload increased referenced allocation
+by 12,890,112 bytes and exclusive extents by 8,425,472 bytes; native snapshot/image
+references and runtime metadata explain why those counters are not payload size.
+The source image remained usable and did not contain the receiver's write.
+
+The 4,294,967,296-byte sparse pool backing file's allocation changed from
+2,462,105,600 to 2,462,134,272 bytes across native copy (+28,672). Receiver
+provisioning occurred before the next baseline: 3,013,103,616 bytes before the
+container write and 3,021,672,448 afterward (+8,568,832). After deleting the
+container and one image tag, the source image and receiver's second tag remained;
+backing allocation was 3,021,905,920 bytes, not a measured physical decrease.
+These are whole-pool observations including rootfs/metadata activity, not isolated
+device-write counters, compressed-extent sizes or export/import amplification.
+The full log retains both areas and their content/BuildKit subarea samples.
+
+The first head `ae95116bb04122f672baf9046cc7597ab374b007`
+[failed before byte measurements](https://github.com/SLktEx/Hacocoon/actions/runs/37927891326/job/113811150446):
+pull/build/reuse passed, but the observer rejected Btrfs' standard feature-bearing
+version banner. The first-line version parser and its regression fixed that
+observer defect; the earlier failure and skipped Packer stage remain distinct.
+Local focused/race/vet/lint and documentation checks passed; local native cases
+were skipped because Incus/Btrfs were unavailable. The hosted result above is the
+native evidence. Base/multiple-Env, managed Workspace, snapshot restore,
+archive/publish amplification, Docker drivers, last-reference reclamation and
+large-workload measurements remain open under [#241](https://github.com/SLktEx/Hacocoon/issues/241).
+
 <a id="transfer"></a>
 
 ## Environment transfer and evacuation

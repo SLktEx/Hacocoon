@@ -229,6 +229,7 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	}
 	command("exec", trustedHostName, "--project", project, "--", "/usr/bin/unshare", "--mount", "/bin/true")
 	t.Log("PASS owned Host nesting/reuse and nested mount namespace; OCI runtime acceptance remains separate")
+	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	var verifyRuntimeCopy func(core.PersistentResource)
 	if os.Getenv("HACO_E2E_HOST_TOOLING") == "1" {
 		// Use normal Host networking, including scoped Docker FORWARD rules.
@@ -246,7 +247,6 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	} else {
 		verifyRuntimeCopy = prepareHostRuntimeCopy(t, ctx, runtime, source, command)
 	}
-	command("exec", trustedHostName, "--project", project, "--", "/bin/sh", "-ec", "printf 'Host area content\\n' > /var/lib/hacocoon-oci/marker; sync")
 	var interrupted *hostCopyResumeFailureRunner
 	if interruptResume {
 		interrupted = &hostCopyResumeFailureRunner{Runner: runner}
@@ -281,9 +281,6 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	instance, err := backend.hostCopyInstance(ctx, source)
 	if err != nil || instance.StatusCode != 103 || instance.Config[hostOCICopyKey] != "" || instance.Config["boot.autostart"] != "true" {
 		t.Fatalf("Host not safely resumed: %v", err)
-	}
-	if verifyRuntimeCopy != nil {
-		verifyRuntimeCopy(target)
 	}
 	pathFor := func(resource core.PersistentResource) string {
 		return filepath.Join("/var/lib/incus/storage-pools", pool, "custom", project+"_haco-persistent-"+resource.Owner)
@@ -322,8 +319,26 @@ func testRealIncusHostAreaCopy(t *testing.T, interruptResume bool) {
 	if uuid == "" || uuid == "-" || field(copied, "Parent UUID") != uuid || field(copied, "UUID") == uuid {
 		t.Fatal("Btrfs COW ancestry missing")
 	}
-	if err := os.WriteFile(filepath.Join(targetPath, "marker"), []byte("copy changed"), 0600); err != nil {
-		t.Fatal(err)
+	if verifyRuntimeCopy != nil {
+		verifyRuntimeCopy(target)
+	} else {
+		// Even the marker-only variant writes through a disposable Incus guest,
+		// never through Incus' backing subvolume from the Physical Host.
+		name := "haco-area-runtime-copy"
+		command("launch", imageFingerprint, name, "--project", project, "--storage", pool, "--no-profiles", "--config", "user.hacocoon.kind=runtime-copy-fixture")
+		provider, err := NewSandboxProvider(runtime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := provider.attachPersistentResource(ctx, name, target); err != nil {
+			t.Fatal(err)
+		}
+		command("exec", name, "--project", project, "--", "/bin/sh", "-ec", "printf 'copy changed' > /var/lib/hacocoon-oci/marker; sync")
+		verifyHostAreaReceiver(t, project, name, target, command)
+		command("delete", name, "--force", "--project", project)
+	}
+	if read(targetPath) != "copy changed" {
+		t.Fatal("copy marker mutation did not persist")
 	}
 	if read(sourcePath) != original {
 		t.Fatal("copy changed Host area")
@@ -393,4 +408,22 @@ func (r *hostCopyResumeFailureRunner) Run(ctx context.Context, name string, args
 		return host.Result{ExitCode: 1}, errors.New("fixture interrupted Host resume")
 	}
 	return r.Runner.Run(ctx, name, args...)
+}
+
+// Fresh fixture consumers are deleted or paused only after their marker and
+// exact Store attachment are verified. No guest-populated copy returns to Host.
+func verifyHostAreaReceiver(t *testing.T, project, name string, target core.PersistentResource, command func(...string) string) {
+	t.Helper()
+	if name != "haco-area-runtime-copy" || strings.TrimSpace(command("config", "get", name, "user.hacocoon.kind", "--project", project)) != "runtime-copy-fixture" {
+		t.Fatal("fixture ownership changed")
+	}
+	pool, volume, err := persistentVolume(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, expected := range map[string]string{"pool": pool, "source": volume, "path": OCIStorePath} {
+		if strings.TrimSpace(command("config", "device", "get", name, "persistent-resource", key, "--project", project)) != expected {
+			t.Fatal("fixture attachment changed")
+		}
+	}
 }

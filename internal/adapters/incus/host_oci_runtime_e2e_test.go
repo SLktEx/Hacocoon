@@ -111,18 +111,8 @@ nerdctl --snapshotter native build --network none -t hacocoon-host-delete:Dev /t
 		t.Log("PASS offline Docker/nerdctl area recovery, image identity and independent image deletion")
 		// The fixture was freshly created in this random owned project. Verify its
 		// marker and exact volume before deleting, then leave catalog cleanup to caller.
-		if strings.TrimSpace(command("config", "get", name, "user.hacocoon.kind", "--project", runtime.project)) != "runtime-copy-fixture" {
-			t.Fatal("fixture ownership changed")
-		}
-		pool, volume, err := persistentVolume(target)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for key, expected := range map[string]string{"pool": pool, "source": volume, "path": OCIStorePath} {
-			if strings.TrimSpace(command("config", "device", "get", name, "persistent-resource", key, "--project", runtime.project)) != expected {
-				t.Fatal("fixture attachment changed")
-			}
-		}
+		guest(name, "printf 'copy changed' > /var/lib/hacocoon-oci/marker; sync")
+		verifyHostAreaReceiver(t, runtime.project, name, target, command)
 		command("delete", name, "--force", "--project", runtime.project)
 	}
 }

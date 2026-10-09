@@ -262,6 +262,63 @@ Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了�
 
 元の詳細、検証用構成の識別子、ログ・成果物へのリンクは [整理前の実装状況](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) および [当該設計の検証記録](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md)に固定コミットで保持されています。現在の操作手順としては使用しないでください。
 
+<a id="host-oci-sharing"></a>
+
+### 実際の Host OCI 領域の共有容量計測
+
+PR #743 の head `6af9764d2ea4c7b0a01aa931c2cb1ec071ddb35e` を merge commit
+`0785baf61d9552fcd6f8de0972298a7427db5906` として試験し、
+[`TestRealIncusHostToolingE2E` が104.17秒で成功](https://github.com/SLktEx/Hacocoon/actions/runs/37928748494/job/113813959793)しました。
+専用 pool/project は `haco-area-6e4bcd1e35bce84c` で、正確な所有対象の後始末も成功。
+Ubuntu 26.04、Linux `7.0.0-1012-azure` x86_64、Go 1.27.0、Incus 7.0.1、
+Btrfs-progs 6.17.1、nerdctl 2.3.5、containerd 2.3.3、BuildKit 0.31.2 と
+native snapshotter を使用しました。BusyBox を元に実際に BuildKit で作ったイメージは
+`sha256:964017daedcd872403b9aef02dd51e47a727d2c42bfce6d57495e6f63f9980f7` です。
+
+[再現手順と計測の意味](../design/btrfs-storage-layout.ja.md)に従い、正確な所有対象を
+Incus 経由で一時停止して、`du --apparent-size --block-size=1`、
+`du --block-size=1`、`btrfs filesystem du --raw --summarize` を実行しました。
+Store 全体の主な測定値は次のとおりです。単位はすべてバイトです。
+
+| 対象・操作 | 論理容量 | 参照ブロック割当量 | extent 合計 | 排他的 extent | set-shared |
+|---|---:|---:|---:|---:|---:|
+| コピー前の Host | 23,136,518 | 23,183,360 | 22,994,944 | 5,120,000 | 8,937,472 |
+| ネイティブコピー後の Host | 23,136,518 | 23,183,360 | 22,994,944 | 0 | 14,057,472 |
+| ネイティブコピー後のコピー先 | 23,136,518 | 23,175,168 | 22,994,944 | 0 | 14,057,472 |
+| コンテナー書き込み前のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 307,200 | 13,754,368 |
+| 8 MiB 書き込み後のコピー先 | 35,970,962 | 36,069,376 | 35,856,384 | 8,732,672 | 13,717,504 |
+| コンテナー・タグ削除後のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 352,256 | 13,709,312 |
+
+ネイティブコピー後、実際の containerd コンテンツ blob は両領域とも共有 extent が
+2,240,512 バイト、排他的 extent は0でした。コピー先の BuildKit データは
+set-shared が7,147,520バイト、排他的 extent は0でした。ネイティブの parent UUID、
+イメージ識別子の一致、オフライン実行、書き込みの独立性、元領域の削除も成功。
+コンテナーの書き込み層へ8,388,608バイトの乱数を書き込むと、参照ブロック割当量は
+12,890,112バイト、排他的 extent は8,425,472バイト増えました。ネイティブ snapshot
+によるイメージ参照やランタイムのメタデータも含むため、これらは書き込んだデータ量
+そのものではありません。元のイメージは引き続き実行でき、コピー先の書き込みを
+含みませんでした。
+
+ファイル長4,294,967,296バイトのスパース backing file は、ネイティブコピー前後で
+割当量が2,462,105,600から2,462,134,272バイトへ増加（+28,672）しました。
+次の基準値より前に受け手を準備しています。コンテナー書き込み前は3,013,103,616、
+後は3,021,672,448バイト（+8,568,832）。コンテナーと一つのタグを削除した後も
+元イメージと受け手の別タグは残り、backing file の割当量は3,021,905,920バイトで、
+物理容量の減少は観測していません。rootfs・メタデータの活動も含むプール全体の
+観測であり、独立したデバイス書き込み量、圧縮後の extent 長、export/import の増幅を
+表しません。全ログには両領域とコンテンツ・BuildKit 部分の測定値も残しています。
+
+最初の head `ae95116bb04122f672baf9046cc7597ab374b007` は
+[容量計測前に失敗](https://github.com/SLktEx/Hacocoon/actions/runs/37927891326/job/113811150446)しました。
+pull/build/reuse は成功しましたが、観測処理が標準の機能一覧を含む Btrfs の版表示を
+拒否しました。先頭行から版だけを取り出す処理と回帰試験で修正しています。以前の
+失敗と、その結果スキップした Packer 試験は別の記録として保持します。
+ローカルの対象試験・race・vet・lint・文書検査は成功しましたが、Incus/Btrfs が
+なかったため実機試験はスキップしました。実機の証拠は上記 hosted 結果です。
+Base と複数 Env、管理 Workspace、snapshot restore、archive/publish の増幅、
+Docker の各 driver、最後の参照を除いた後の回収、大規模負荷の計測は
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+
 <a id="transfer"></a>
 
 ## Env移送・データ退避

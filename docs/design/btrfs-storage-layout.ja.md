@@ -100,6 +100,69 @@ common インストーラーは完了表示の前に同じ製品doctorを実行�
 
 これらは hosted environment 上のライフサイクルと方針を検証するもの。physical compression ratio、COW 効率、Windows Host VHDX compaction 効果、すべての対応している Host 設定まで証明するものではない。
 
+## Host OCI コピーの容量計測
+
+`TestRealIncusHostToolingE2E` は既存の標準 Host 試験に容量計測を加えます。
+BusyBox を取得し、BuildKit で実際のイメージをビルド・実行してから、正規の
+リソースサービスで Host の OCI 領域をコピーし、ネットワークのない独立した
+受け手でイメージを再利用します。従来の合成キャッシュ・Store データ試験を
+実イメージの受入結果として扱うものではありません。
+
+コピー前の Host 領域、ネイティブコピー後の両領域、保持したコンテナーの
+書き込み層へ 8 MiB の乱数を書き込む前後の両領域を計測します。そのコンテナーと
+イメージのタグを一つ削除した後にも計測し、Host のイメージと受け手の別タグは
+残します。ネイティブクローンの親子関係に加え、コピー先のイメージ内容・BuildKit
+ディレクトリに共有 extent があることを要求します。書き込み後は割当量と排他的な
+extent が増え、Host のイメージは内容不変かつコピー先の書き込みを含まずに
+実行できる必要があります。
+
+`storage_measurement` の各記録は操作と対象領域を識別し、Store 全体、containerd の
+コンテンツ blob、BuildKit のディレクトリを分けて報告します。
+
+| 観測項目 | コマンドと意味 |
+|---|---|
+| `logical_bytes` | `du --summarize --apparent-size --block-size=1` による見かけの容量 |
+| `allocated_bytes` | `du --summarize --block-size=1` による参照ブロックの割当量。コピー間の CoW 重複参照を含む |
+| `extent_total_bytes`、`extent_exclusive_bytes`、`extent_set_shared_bytes` | `btrfs filesystem du --raw --summarize` の FIEMAP extent 集計。set-shared は各引数内で重なる共有 extent を一度だけ数える |
+| `pool_logical_bytes`、`pool_allocated_bytes` | この試験専用の Incus 所有スパースイメージのファイル長と `du --block-size=1` による割当量 |
+
+コピーごとの割当量や共有 extent を足して、重複を除いた物理使用量と見なしては
+いけません。FIEMAP の extent 長は圧縮後のバイト数ではありません。プールの観測には
+rootfs・メタデータ・ランタイムの活動も含まれ、差分は割当量の変化であり、デバイスの
+書き込みカウンターや export/import の書き込み増幅ではありません。他の参照が
+残る場合を含め、イメージやタグの消失だけでは実容量の回収を証明できません。
+[Btrfs コマンドの契約](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)と[検証した出力形式](https://github.com/kdave/btrfs-progs/blob/v6.17/cmds/filesystem-du.c#L496-L508)も参照してください。
+
+観測前に正確なボリューム所有者と利用元を確認し、試験専用インスタンスだけを Incus
+経由で一時停止します。ファイルシステムを同期してカウンターを読んだ後、同じ
+インスタンスを再開します。書き込みはゲスト・ランタイム操作で行い、観測処理は
+backing subvolume・loop デバイス・mount を直接変更しません。失敗時には表示した
+project・catalog を残し、一時停止中の利用元も調査用に残る場合があります。
+既存環境を取り込んだり、無関係なプールを削除したりしません。
+
+標準 Host ツールの準備と通信が可能な、専用の root Linux/WSL Incus/Btrfs 環境で、
+リポジトリのルートから実行します。既存の Incus ワークフローも同じ試験を実行し、
+別のベンチマーク用ワークフローは追加しません。
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go test -c -o /tmp/haco-host-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_HOST_TOOLING=1 /tmp/haco-host-storage.test \
+  -test.run='^TestRealIncusHostToolingE2E$' -test.v -test.timeout=25m
+```
+
+実際に試験したコミットと全試験・CI 記録を保持してください。試験は追加で、
+OS/kernel、Go、Incus、Btrfs-progs、
+nerdctl/containerd/BuildKit の版、native snapshotter、ビルド済みイメージの識別子を
+報告します。記録した変更のない checkout からビルドしてください。現在のリビジョン
+だけでは、古いバイナリーの由来は証明できません。実機の測定値を[受入記録](../status/acceptance-evidence.ja.md#storage)に
+残すまでは、計測による受入を完了したと主張しません。Base と複数 Env、管理
+Workspace、snapshot restore、archive/publish の増幅、Docker の各 driver、最後の
+参照を除いた後の回収、大規模負荷の計測は
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。Btrfs の観測を
+他のファイルシステムや Windows VHDX の割当量へ一般化しません。
+
 ## Workspace の境界
 
 通常の管理 Workspace は、管理プール内の独立した Incus カスタムボリュームと正規の利用権を使います。保持している外部パス方式は、利用者が選んだディレクトリを接続するもので、プール内に置く必要はありません。ルートファイルシステムの構成に合わせるためだけに、任意のソースコードを管理ストレージへ移動しません。
