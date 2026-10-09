@@ -65,6 +65,42 @@ jobs:
             ci-failure-substrate.json
           if-no-files-found: error
           retention-days: 30
+  incus-vm-probe:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
+    steps:
+      - name: "[infrastructure] Check out candidate source"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: "[fixture] Validate optional Incus VM probe"
+        run: |
+          bash -n tools/ci-incus-vm.sh
+          python3 tools/test_incus_vm_probe.py
+      - name: "[infrastructure] Prepare isolated Incus VM substrate"
+        run: bash tools/ci-incus-vm.sh setup
+      - name: "[infrastructure] Discover optional Incus VM capability"
+        run: bash tools/ci-incus-vm.sh probe
+      - name: "[fixture] Verify exact VM cleanup"
+        if: always()
+        run: bash tools/ci-incus-vm.sh cleanup
+      - name: "[fixture] Record bounded substrate evidence"
+        if: always()
+        env:
+          INCUS_CONF: ${{ runner.temp }}/haco-incus-client
+        run: python3 tools/ci_diagnostics.py --output ci-substrate.json
+      - name: "[infrastructure] Retain optional VM capability evidence"
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: incus-vm-probe-${{ github.run_attempt }}
+          path: |
+            ${{ env.HACO_CI_VM_RECEIPT }}
+            ci-substrate.json
+          if-no-files-found: error
+          retention-days: 30
   incus-core-e2e:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
@@ -674,7 +710,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   incus-core-e2e-evidence:
-    needs: [incus-standalone, incus-core-e2e, incus-storage-cli, incus-host-tooling, incus-snapshots, incus-volume-base-build, incus-transfer, incus-evacuation-recovery, incus-maintenance]
+    needs: [incus-standalone, incus-vm-probe, incus-core-e2e, incus-storage-cli, incus-host-tooling, incus-snapshots, incus-volume-base-build, incus-transfer, incus-evacuation-recovery, incus-maintenance]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
