@@ -164,6 +164,78 @@ last-reference reclamation and large-workload measurements open under
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241). Do not generalize these
 Btrfs observations to other filesystems or Windows VHDX allocation.
 
+## Managed Workspace lifecycle measurement
+
+The existing required `TestRealIncusSnapshotAggregateE2E` fixture now samples
+one managed repository volume through running Snapshot capture, public
+`open --new --snapshot`, stopped `env copy`, independent write and deletion.
+This is a bounded synthetic Workspace workload; the real OCI workload remains
+in the separate Host fixture above. Native acceptance and actual values belong
+in [acceptance evidence](../status/acceptance-evidence.md#storage).
+
+The measurement interval starts after the older aggregate fixture's synthetic
+Git/rootfs/OCI setup. New payload writes and unlinks use only the exact owned
+guest; Snapshot, copy and resource deletion use the existing public lifecycle.
+An 8 MiB random file is captured, unlinked from its original Workspace while
+saved data remains, restored and copied. A second 8 MiB random file is written
+only in the final copy. The fixture then deletes the saved Snapshot and restored
+source, samples the surviving copy, and unlinks both payload files there. It
+preserves the aggregate fixture's original Git/content/ownership/cleanup checks.
+
+Each named phase reports the whole selected Workspace volume and its fixed
+payload directory separately, using the `du` and FIEMAP fields defined above.
+Bounded SHA-256 reads connect content to those measurements; identical hashes
+alone never establish sharing. Source/saved/restored/copy labels have stable
+hashes of their exact project/pool/volume/owner identity. The durable fixture
+catalog retains the original ownership records. Capture, restore and copy must
+show actual shared extents; the independent write must increase referenced
+allocation and exclusive extents without changing the saved or source payload.
+
+Observation holds the canonical Environment-then-Workspace locks, checks native
+volume ownership and exclusive attachment, and pauses only the exact running
+fixture consumers through Incus. Stopped consumers remain stopped. Identity,
+generation, attachment and pause state are checked again before physical reads
+and resume. Unexpected state or failed observation retains the fixture, including
+paused instances, rather than guessing cleanup. Each sampling phase is bounded
+by two minutes and each command by one minute; fixed payload files must be
+regular, single-link and exactly 8 MiB. Nothing modifies a backing subvolume,
+loop device or mount directly.
+
+Pool counters are marked `pool_scope=whole_shared_pool`. This managed pool also
+contains rootfs, Images, metadata and unrelated fixture/Host activity; its deltas
+cannot be attributed to the Workspace operation. A single filesystem sync
+precedes each sample. [Btrfs documents](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)
+that this starts deleted-subvolume cleaning but does not wait for completion.
+Native object absence therefore proves logical deletion only. Surviving-copy
+exclusive/shared transitions and backing allocation after the last live unlink
+are observations, with no sleep, retry-to-green or required capacity reduction.
+They do not prove completed extent retirement, discard or Windows reclamation.
+
+On a dedicated Linux/WSL Incus Host with the normal managed Btrfs pool and a
+cached container image, build from the recorded clean commit and supply the
+verified pool name and full image fingerprint:
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go build -o /tmp/haco-snapshot-cli ./cmd/haco
+go test -c -o /tmp/haco-snapshot-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_SNAPSHOT_AGGREGATE=1 \
+  HACO_E2E_SNAPSHOT_CLI=/tmp/haco-snapshot-cli \
+  HACO_E2E_INCUS_RESUME_POOL=<managed-pool> \
+  HACO_E2E_INCUS_RESUME_IMAGE=<full-cached-image-fingerprint> \
+  /tmp/haco-snapshot-storage.test \
+  -test.run='^TestRealIncusSnapshotAggregateE2E$' -test.v -test.timeout=55m
+```
+
+The maintained `incus-snapshots` job already requires this test and supplies the
+CLI; no additional workflow or opt-in measurement gate is introduced. The test
+prints its private failure-recovery catalog before resource creation and cleans
+only exact owned resources on success. Retain the complete receipt and exact
+compiled commit. Base/multiple-Env measurement, archive/publish amplification,
+completed physical reclamation and larger workloads remain under
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241).
+
 ## Workspace boundary
 
 Managed product Workspaces use independent Incus custom volumes in the managed pool, with canonical leases and separate data ownership. Retained external-path Workspaces instead bind an explicitly selected caller-owned directory; they need not live in the pool. Never move arbitrary user source trees into managed storage merely to match the rootfs layout.

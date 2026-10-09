@@ -446,8 +446,19 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	// Exercise the shipped CLI through a private real controller socket, with
 	// real Incus independent copies without stopping the running source.
 	binary := os.Getenv("HACO_E2E_SNAPSHOT_CLI")
-	var cliSavedID string
+	var cliSavedID, measurementHash string
+	measurement := workspaceStorageObserver{t: t, ctx: ctx, runtime: r, catalog: reopened, pool: pool}
+	measurementSource := workspaceStorageArea{label: "source", work: reloadedWork, env: resumedEnv, generation: resumedID}
 	if binary != "" {
+		// Earlier synthetic setup writes are outside this interval. Every new
+		// measurement payload mutation goes through this exact owned guest.
+		measurement.metadata(image)
+		measurement.guest(measurementSource, `test ! -e "$1"; mkdir -- "$1"; dd if=/dev/urandom of="$1/base" bs=1048576 count=8 status=none conv=fsync`)
+		before := measurement.observe("before_snapshot", measurementSource)["source"]
+		measurementHash = before.Hashes["base"]
+		if len(before.Hashes) != 1 || measurementHash == "" || before.Payload.AllocatedBytes == 0 || before.Payload.ExtentTotalBytes == 0 {
+			t.Fatal("Workspace measurement payload allocation unavailable")
+		}
 		func() {
 			server := control.NewServer()
 			must(controlapi.RegisterManagedWorkspaces(server, resumedService))
@@ -484,6 +495,17 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 				t.Fatal("incomplete CLI save", saved)
 			}
 			cliSavedID = saved[0].ID
+			measurementSaved, err := reopened.GetSnapshot(ctx, cliSavedID)
+			must(err)
+			savedArea := workspaceStorageArea{label: "saved", saved: &measurementSaved}
+			copied := measurement.observe("after_snapshot", measurementSource, savedArea)
+			must(requireSharedWorkspacePayload(copied["source"], measurementHash))
+			must(requireSharedWorkspacePayload(copied["saved"], measurementHash))
+			measurement.guest(measurementSource, `rm -- "$1/base"; sync`)
+			deleted := measurement.observe("source_unlink_snapshot_retained", measurementSource, savedArea)
+			if len(deleted["source"].Hashes) != 0 || deleted["source"].Payload.ExtentTotalBytes != 0 || deleted["source"].Payload.LogicalBytes >= copied["source"].Payload.LogicalBytes || deleted["saved"].Hashes["base"] != measurementHash {
+				t.Fatal("logical source deletion or saved payload retention unproven")
+			}
 			t.Logf("public CLI saved %s from running %s", cliSavedID, resumedName)
 			current, err := r.InspectEnvironment(ctx, resumed.Ref)
 			must(err)
@@ -676,6 +698,11 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(err)
 		publicOCI, err := reopened.GetPersistentResource(ctx, restored.OCI)
 		must(err)
+		measurementRestored := workspaceStorageArea{label: "restored", work: publicWork, env: publicEnv, generation: publicGeneration}
+		measurementSaved := workspaceStorageArea{label: "saved", saved: &saved}
+		restoredBytes := measurement.observe("after_public_restore", measurementSaved, measurementRestored)
+		must(requireSharedWorkspacePayload(restoredBytes["saved"], measurementHash))
+		must(requireSharedWorkspacePayload(restoredBytes["restored"], measurementHash))
 		publicMounts, err := repository.WorkspaceAttachments(ctx, publicWork)
 		must(err)
 		for _, m := range publicMounts {
@@ -724,6 +751,18 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if len(afterCopies) != len(beforeCopies) {
 			t.Fatal("copy retained temporary save")
 		}
+		measurementCopy := workspaceStorageArea{label: "copy", work: copiedWork, env: copiedEnv, generation: copiedGeneration}
+		beforeWrite := measurement.observe("after_public_copy", measurementSaved, measurementRestored, measurementCopy)
+		for _, area := range []string{"saved", "restored", "copy"} {
+			must(requireSharedWorkspacePayload(beforeWrite[area], measurementHash))
+		}
+		measurement.guest(measurementCopy, `test ! -e "$1/delta"; dd if=/dev/urandom of="$1/delta" bs=1048576 count=8 status=none conv=fsync`)
+		afterWrite := measurement.observe("after_copy_write", measurementSaved, measurementRestored, measurementCopy)
+		if len(afterWrite["copy"].Hashes) != 2 || afterWrite["copy"].Hashes["base"] != measurementHash || afterWrite["copy"].Hashes["delta"] == "" || afterWrite["copy"].Payload.LogicalBytes <= beforeWrite["copy"].Payload.LogicalBytes || afterWrite["copy"].Payload.AllocatedBytes <= beforeWrite["copy"].Payload.AllocatedBytes || afterWrite["copy"].Payload.ExtentExclusiveBytes <= beforeWrite["copy"].Payload.ExtentExclusiveBytes {
+			t.Fatal("independent Workspace write allocation unproven")
+		}
+		must(requireSharedWorkspacePayload(afterWrite["saved"], measurementHash))
+		must(requireSharedWorkspacePayload(afterWrite["restored"], measurementHash))
 		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
 			t.Fatal("copied rootfs lost")
 		}
@@ -749,7 +788,20 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if _, err := reopened.GetSnapshot(ctx, cliSavedID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("save not deleted", err)
 		}
+		measurement.observe("snapshot_deleted_restored_and_copy_retained", measurementRestored, measurementCopy)
 		must(resumedService.Delete(ctx, publicEnv.Name))
+		lastCopy := measurement.observe("source_and_snapshot_deleted_copy_retained", measurementCopy)["copy"]
+		if lastCopy.Hashes["base"] != measurementHash || lastCopy.Hashes["delta"] != afterWrite["copy"].Hashes["delta"] {
+			t.Fatal("logical reference deletion changed surviving Workspace")
+		}
+		// Provider absence does not fence Btrfs's asynchronous subvolume cleaner.
+		// Record shared/exclusive changes once; never sleep/retry for exclusive
+		// bytes or infer backing-file reclamation from logical object deletion.
+		measurement.guest(measurementCopy, `rm -- "$1/base" "$1/delta"; sync`)
+		lastUnlink := measurement.observe("last_live_payload_unlinked", measurementCopy)["copy"]
+		if len(lastUnlink.Hashes) != 0 || lastUnlink.Payload.ExtentTotalBytes != 0 || lastUnlink.Payload.LogicalBytes >= lastCopy.Payload.LogicalBytes {
+			t.Fatal("last live Workspace payload deletion unproven")
+		}
 		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "copied" {
 			t.Fatal("copy depends on deleted source")
 		}

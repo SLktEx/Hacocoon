@@ -163,6 +163,71 @@ Workspace、snapshot restore、archive/publish の増幅、Docker の各 driver�
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。Btrfs の観測を
 他のファイルシステムや Windows VHDX の割当量へ一般化しません。
 
+## 管理 Workspace のライフサイクル計測
+
+既存の必須試験 `TestRealIncusSnapshotAggregateE2E` で、管理リポジトリの
+ボリューム一つを対象に、稼働中の Snapshot 作成、公開コマンド
+`open --new --snapshot`、停止後の `env copy`、独立した書き込みと削除を計測します。
+これは範囲を限定した合成 Workspace 負荷です。実際の OCI 負荷は上記の Host 試験で
+扱い、実機での受入結果と実測値は[受入記録](../status/acceptance-evidence.ja.md#storage)に残します。
+
+計測区間は、従来の集約試験による合成 Git/rootfs/OCI データ準備の後から始まります。
+新しいデータの書き込みと unlink は所有権を確認したゲスト内だけで行い、Snapshot、
+コピー、リソース削除には既存の公開ライフサイクルを使います。8 MiB の乱数ファイルを
+保存し、Snapshot を残したまま元の Workspace から削除して、復元・コピーします。
+最後のコピーにだけ別の 8 MiB ファイルを書き込みます。保存した Snapshot と復元元を
+削除して残るコピーを計測した後、そこから両ファイルを削除します。既存の Git・内容・
+所有権・後片付けの検査は維持します。
+
+各段階で、選んだ Workspace ボリューム全体と固定の計測ディレクトリを分け、上記の
+`du`・FIEMAP 項目を報告します。上限を設けた SHA-256 計算で内容を結び付けますが、
+同じハッシュだけで共有を証明しません。source/saved/restored/copy の各ラベルに、
+正確な project/pool/volume/owner の組から得た安定したハッシュを付けます。元の所有権
+記録は永続的な試験用 catalog に残ります。保存・復元・コピーには実際の共有 extent を
+要求し、独立した書き込みには参照割当量と排他的 extent の増加、保存元と元データの
+不変を要求します。
+
+観測は正規の Environment、Workspace の順でライフサイクルをロックし、ボリュームの
+所有権と単独の接続先を確認します。稼働中の正確な試験用インスタンスだけを Incus で
+一時停止し、停止済みのものは起動しません。物理領域の読み取りと再開の前に、識別・
+世代・接続先・一時停止状態を再確認します。不明な状態や観測失敗では推測で後片付けせず、
+一時停止したインスタンスを含めて調査用に残します。観測一回は二分、各コマンドは一分を
+上限とし、固定ファイルはリンク数一の通常ファイルかつ正確に 8 MiB である必要があります。
+backing subvolume、loop デバイス、mount を直接変更しません。
+
+プールの値には `pool_scope=whole_shared_pool` と記録します。同じ管理プールには rootfs、
+Image、メタデータ、他の試験や Host の活動もあるため、差分を Workspace 操作だけの
+割当量とは見なしません。各観測前にファイルシステムを一度同期しますが、
+[Btrfs の仕様](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)では、
+これは削除済み subvolume の清掃を開始するだけで完了を待ちません。ネイティブリソースの
+不在が証明するのは論理的な削除だけです。残るコピーの排他的・共有 extent の変化と、
+最後の有効なファイル参照を除いた後の backing 割当量は観測値として記録します。
+待ち時間の挿入や成功までの再試行、容量減少の必須条件は設けません。extent の回収完了、
+discard、Windows 側の回収を証明するものではありません。
+
+通常の管理 Btrfs プールとキャッシュ済みコンテナーイメージがある専用の Linux/WSL
+Incus Host で、記録した変更のないコミットからビルドし、検証済みのプール名と完全な
+イメージ fingerprint を渡します。
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go build -o /tmp/haco-snapshot-cli ./cmd/haco
+go test -c -o /tmp/haco-snapshot-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_SNAPSHOT_AGGREGATE=1 \
+  HACO_E2E_SNAPSHOT_CLI=/tmp/haco-snapshot-cli \
+  HACO_E2E_INCUS_RESUME_POOL=<managed-pool> \
+  HACO_E2E_INCUS_RESUME_IMAGE=<full-cached-image-fingerprint> \
+  /tmp/haco-snapshot-storage.test \
+  -test.run='^TestRealIncusSnapshotAggregateE2E$' -test.v -test.timeout=55m
+```
+
+既存の `incus-snapshots` ジョブがこの試験を必須として CLI を渡すため、新しいワークフローや
+計測用の有効化フラグは追加しません。リソース作成前に障害復旧用 catalog を表示し、
+成功時は正確に所有するリソースだけを削除します。全記録とビルドしたコミットを保持してください。
+Base と複数 Env の計測、archive/publish の増幅、物理的な回収の完了、大規模負荷は
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+
 ## Workspace の境界
 
 通常の管理 Workspace は、管理プール内の独立した Incus カスタムボリュームと正規の利用権を使います。保持している外部パス方式は、利用者が選んだディレクトリを接続するもので、プール内に置く必要はありません。ルートファイルシステムの構成に合わせるためだけに、任意のソースコードを管理ストレージへ移動しません。

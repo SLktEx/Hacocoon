@@ -16,9 +16,10 @@ async function observe(options = {}) {
     UIKind: { Desktop: 1 }, ViewColumn: {Active: -1}, ExtensionKind: { UI: 1 }, version: 'fixture', env: {uiKind: 1, remoteName: options.remoteName || 'ssh-remote'},
     Uri: {joinPath: (uri, name) => ({...uri, path: uri.path + '/' + name})},
     workspace: {
-      isTrusted: true, workspaceFolders: [{uri: folder}],
+      isTrusted: true, workspaceFolders: options.noFolder ? [] : [{uri: folder}],
       fs: {
         readFile: async uri => {
+          if (options.stallFilesystem) return new Promise(() => {});
           if (!files.has(uri.path)) throw Object.assign(new Error('missing'), {code: 'FileNotFound'});
           return files.get(uri.path);
         },
@@ -44,7 +45,7 @@ async function observe(options = {}) {
             if (!options.noTerminal) files.set('/workspace/.haco-terminal-' + fixture.nonce,
               Buffer.from(options.badTerminal ? 'wrong' : fixture.nonce));
           },
-          dispose: () => { disposed = true; }
+          dispose: () => { if (options.disposeFailure) throw Error("secret disposal error"); disposed = true; }
         };
       }
     },
@@ -52,6 +53,7 @@ async function observe(options = {}) {
   };
   Object.defineProperty(api, 'gatedAPI', {enumerable: true, get() { throw Error('proposed API unavailable'); }});
   Object.defineProperty(api.window, 'gatedAPI', {enumerable: true, get() { throw Error('proposed API unavailable'); }});
+  let deadline;
   const context = {
     exports: {}, Buffer,
     require: name => name === './review' ? { createReview(localAPI, settings) {
@@ -64,17 +66,39 @@ async function observe(options = {}) {
       review.dispose = () => {};
       return review;
     } } : name === 'vscode' ? api : name === './fixture.json' ? fixture : {
-      writeFileSync: (p, content, flags) => { assert.equal(flags.flag, 'wx'); assert.ok(!publications.has(p)); publications.set(p, content); },
-      linkSync: (src, dst) => { assert.ok(!publications.has(dst)); publications.set(dst, publications.get(src)); },
+      writeFileSync: (p, content, flags) => {
+        assert.equal(flags.flag, 'wx');
+        if ((options.progressFailure && p.includes('.progress-')) ||
+            (options.receiptWriteFailure && p === '/result.tmp')) throw Error('secret write error');
+        assert.ok(!publications.has(p)); publications.set(p, content);
+      },
+      linkSync: (src, dst) => {
+        if (options.receiptLinkFailure) throw Error('secret link error');
+        assert.ok(!publications.has(dst)); publications.set(dst, publications.get(src));
+      },
       unlinkSync: p => publications.delete(p)
     },
-    setTimeout: (fn, ms) => { if (ms < 360000) queueMicrotask(fn); return 1; },
+    setTimeout: (fn, ms) => {
+      if (ms < 360000) queueMicrotask(fn);
+      else { assert.equal(ms, 360000); deadline = fn; }
+      return 1;
+    },
     clearTimeout: () => {}
   };
   vm.runInNewContext(source, context);
   context.exports.activate({ extension: { extensionKind: 1 } });
+  if (options.repeatActivation) context.exports.activate({ extension: { extensionKind: 1 } });
   for (let i = 0; i < 1000; i++) await Promise.resolve();
-  return {result: publications.has('/result') ? JSON.parse(publications.get('/result')) : undefined,
+  if (options.expire) deadline();
+  const progress = [...publications.entries()].filter(([name]) => name.includes('.progress-'))
+    .map(([, value]) => JSON.parse(value));
+  for (const signal of progress) {
+    assert.equal(signal.authority, fixture.authority);
+    assert.equal(signal.nonce, fixture.nonce);
+    assert.deepEqual(Object.keys(signal).sort(), ['authority', 'nonce', 'phase']);
+  }
+  return {progress: progress.map(signal => signal.phase), publications,
+    result: publications.has('/result') ? JSON.parse(publications.get('/result')) : undefined,
     files, shown, terminal, disposed, closed};
 }
 test('PASS uses only required stable APIs and requires editor, terminal and cleanup', async () => {
@@ -112,4 +136,49 @@ test('failed local review removes its proven owned remote probes', async () => {
   assert.equal(r.result.status, 'failed');
   assert.equal(r.result.reviewDiagnostics.cleanup, true);
   assert.equal(r.files.size, 1);
+});
+
+for (const [name, options, phase] of [
+  ['no folder', {noFolder: true}, 'target-missing'],
+  ['wrong scheme', {uri: {scheme: 'file'}}, 'target-scheme-mismatch'],
+  ['wrong authority', {uri: {authority: 'secret-authority'}}, 'target-authority-mismatch'],
+  ['wrong path', {uri: {path: '/secret-path'}}, 'target-path-mismatch']
+]) {
+  test(name + ' leaves bounded progress without acceptance', async () => {
+    const r = await observe(options);
+    assert.deepEqual(r.progress, ['activated', phase]);
+    assert.equal(r.result, undefined);
+    assert.equal(r.terminal, false);
+    assert.ok(!JSON.stringify([...r.publications.values()]).includes('secret'));
+  });
+}
+for (const [name, options, last] of [
+  ['receipt write', {receiptWriteFailure: true}, 'review-disposed'],
+  ['receipt publication', {receiptLinkFailure: true}, 'receipt-written'],
+  ['terminal disposal', {disposeFailure: true}, 'finish-started']
+]) {
+  test(name + ' failure leaves progress and cannot pass', async () => {
+    const r = await observe(options);
+    assert.equal(r.result, undefined);
+    assert.equal(r.progress.at(-1), last);
+    assert.ok(!JSON.stringify([...r.publications.values()]).includes('secret'));
+  });
+}
+test('progress write failure does not change successful receipt', async () => {
+  const r = await observe({progressFailure: true});
+  assert.equal(r.result.status, 'passed');
+  assert.deepEqual(r.progress, []);
+});
+test('stalled observer retains 360s failure deadline and records its stage', async () => {
+  const r = await observe({stallFilesystem: true, expire: true});
+  assert.equal(r.result.status, 'failed');
+  assert.equal(r.result.stage, 'remote-filesystem');
+  assert.ok(r.progress.includes('deadline'));
+});
+
+test('repeated unrelated activation cannot overwrite or multiply fixed markers', async () => {
+  const r = await observe({noFolder: true, repeatActivation: true});
+  assert.deepEqual(r.progress, ['activated', 'target-missing']);
+  assert.equal(r.publications.size, 2);
+  assert.equal(r.result, undefined);
 });
