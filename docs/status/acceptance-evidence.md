@@ -340,9 +340,88 @@ version banner. The first-line version parser and its regression fixed that
 observer defect; the earlier failure and skipped Packer stage remain distinct.
 Local focused/race/vet/lint and documentation checks passed; local native cases
 were skipped because Incus/Btrfs were unavailable. The hosted result above is the
-native evidence. Base/multiple-Env, managed Workspace, snapshot restore,
-archive/publish amplification, Docker drivers, last-reference reclamation and
-large-workload measurements remain open under [#241](https://github.com/SLktEx/Hacocoon/issues/241).
+native Host evidence. The next section adds bounded managed-Workspace
+capture/restore/copy measurements. Base/multiple-Env and saved-rootfs restore byte
+accounting, archive/publish amplification, Docker drivers, completed physical
+reclamation and large-workload measurements remain open under
+[#241](https://github.com/SLktEx/Hacocoon/issues/241).
+
+<a id="workspace-sharing"></a>
+
+### Managed Workspace sharing and logical deletion
+
+PR #751 head `729b3009495e76dc8db09df990eb83e55f63c9c8`, tested as merge
+`a7060f189fadc98dc005bd7af75d8c3b41cc8d0e` into `f05d3d1554b405bfa2db5b83b7f1dd4f226992ca`,
+passed [`TestRealIncusSnapshotAggregateE2E` in 229.01 s](https://github.com/SLktEx/Hacocoon/actions/runs/37964529331/job/113935434154).
+The [tested fixture source](https://github.com/SLktEx/Hacocoon/blob/729b3009495e76dc8db09df990eb83e55f63c9c8/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L804)
+retains its original Git/content/ownership assertions and confirmed exact-owned
+cleanup. Fixture `haco-aggregate-11705984157cdfa3` used Ubuntu 26.04,
+Linux `7.0.0-1012-azure` x86_64, Go 1.27.0, Incus 7.0.1 and
+Btrfs-progs 6.17.1. The cached input image fingerprint was
+`ffb1a536af31961dbc1976f5e0ca9a900ae43dbe50619fa179ad2963bd9d4173`.
+
+The [measurement procedure](../design/btrfs-storage-layout.md#managed-workspace-lifecycle-measurement)
+uses bounded guest writes in the selected managed repository, canonical capture,
+public restore/copy and exact-owned deletion. Historical synthetic setup writes
+occur before this interval. Each physical sample holds lifecycle locks and pauses
+only the exact running consumers. Whole selected-Workspace results, in bytes;
+combined labels below mean each listed area had the same values, not their sum:
+
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source before Snapshot | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| Source and saved after Snapshot, each | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Source after unlink, Snapshot retained | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+| Saved after source unlink | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| Saved and restored after public restore, each | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Copy after public copy | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Copy after independent 8 MiB write | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| Copy after Snapshot deletion, restored source retained | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| Copy after source and Snapshot deletion | 16,805,228 | 16,900,096 | 16,793,600 | 16,777,216 | 12,288 |
+| Copy after last live payload unlink | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+
+The original random payload was 8,388,608 logical/referenced/extent bytes. It
+changed from wholly exclusive before capture to zero exclusive and 8,388,608
+set-shared bytes in each captured/restored/copied payload directory. Its SHA-256
+remained `c2d6ac8279f1a8189b1a6513aa10baecc10b48ea167e4940bcca9fc98f9d09b7`.
+The copy-only 8 MiB write increased both whole-Workspace referenced allocation
+and exclusive extents by exactly 8,388,608 bytes; saved/restored payloads remained
+unchanged. After logical source/Snapshot deletion, this run observed all
+16,777,216 payload extent bytes exclusive in the surviving copy. Final guest
+unlink reduced its payload's logical, referenced and extent counts to zero;
+the separate Git/Workspace data remained.
+
+The shared pool's sparse backing file stayed 137,438,953,472 bytes long. Its
+observed allocation was:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before Snapshot | 745,246,720 |
+| After Snapshot | 748,982,272 |
+| Source unlink, Snapshot retained | 750,309,376 |
+| After public restore | 1,455,939,584 |
+| After public copy | 1,463,418,880 |
+| After copy-only write | 1,472,823,296 |
+| Snapshot deleted, restored source and copy retained | 1,474,723,840 |
+| Source and Snapshot deleted, copy retained | 1,476,001,792 |
+| Last live payload unlinked | 1,477,312,512 |
+
+These counters include other rootfs, Image, metadata and Host activity. Aggregate
+transfer/runtime steps also intervene between source-unlink and restore samples;
+the large increase is not attributed to Workspace restore. The final unlink
+removed 16 MiB of live payload references while backing allocation increased
+1,310,720 bytes. No isolated physical-write cost, compressed-byte saving, discard
+or Windows VHDX reclamation is established. FIEMAP counts remain separate from
+referenced allocation and are not summed across copies.
+
+Each phase performs one filesystem sync and one observation, without waiting or
+retrying for capacity reduction. [Btrfs filesystem sync](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)
+starts deleted-subvolume cleaning but does not wait for it. Provider absence and
+the observed exclusive transition therefore do not establish a general completed
+physical-retirement fence. The full job receipt retains 17 area samples, nine
+pool samples, exact ownership-identity hashes and successful cleanup. This
+bounded Workspace-data result leaves saved-rootfs byte accounting, Base/multiple
+Env, archive/publish amplification, completed reclamation and large workloads open.
 
 <a id="transfer"></a>
 
