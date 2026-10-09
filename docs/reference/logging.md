@@ -257,3 +257,19 @@ is rejected against the event's UTC creation time. At most 128 events are retain
 for 700 seconds, with explicit unavailable/truncated results. Raw WMI fields and
 errors are discarded. This observer never enters WSL, changes a worker result or
 kills the worker; teardown stops only its own observer process.
+
+The disposable VS Code acceptance observer records only fixed progress phases in
+exclusive local markers bound to the fixture authority and nonce. After failure,
+the wrapper reads at most 18 regular marker files, up to 512 bytes each, and emits
+only allowlisted phase names and an invalid-input boolean. It excludes raw editor
+logs, paths, command lines, errors and fixture identities. Missing progress does
+not prove nonactivation; the observer or its local writes may be unavailable.
+The reader checks single-link regular, non-reparse file type and path/descriptor
+identity before and after reading, discarding observed changes. It is limited to
+the trusted disposable local fixture directory and its trusted parent path.
+Portable Python open does not provide atomic Windows no-follow or nonblocking
+protection; these snapshots do not defend against hostile concurrent replacement
+of a marker or its parent path.
+Signals are observations, not an event timeline or acceptance receipts. Neither
+the cold reconnect route nor the 360-second observer and 600-second wrapper
+deadlines change; the exact final receipt remains mandatory.

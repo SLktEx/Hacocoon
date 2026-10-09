@@ -62,6 +62,9 @@ try {
     }
     if (-not (Test-Path -LiteralPath $resultFile -PathType Leaf)) {
         Write-Host 'VS CODE ACCEPTANCE: FAIL phase=editor-timeout'
+        # Read local fixed observer signals only after failure; never contact WSL
+        # or print raw editor logs, paths, process arguments or remote errors.
+        & python (Join-Path $PSScriptRoot 'vscode_acceptance_diagnostics.py') --manifest $manifestFile
         throw 'VS Code did not complete remote editor/terminal acceptance within 10 minutes.'
     }
     $result = Get-Content -Raw -LiteralPath $resultFile | ConvertFrom-Json
@@ -72,6 +75,7 @@ try {
         $safeStage = 'invalid-receipt'
         if ($result.stage -cin @('remote-kind','remote-filesystem','remote-terminal','local-approval-review','cleanup','complete')) { $safeStage = $result.stage }
         Write-Host "VS CODE ACCEPTANCE: FAIL phase=$safeStage"
+        & python (Join-Path $PSScriptRoot 'vscode_acceptance_diagnostics.py') --manifest $manifestFile
         if ($result.PSObject.Properties.Name -contains 'reviewDiagnostics') {
             $diagnostic = $result.reviewDiagnostics
             foreach ($key in @('localUI','desktop','trusted','panelCreated','readyObserved','refusalObserved','cleanup')) {
