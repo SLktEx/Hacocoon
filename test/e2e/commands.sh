@@ -57,6 +57,10 @@ done
 # Go module directories are read-only and must not become disposable user data.
 export HOME="$root/home"
 
+# Exercise the shipped executable-name login routes before any controller is
+# available. The fixture owns its isolated environment and never changes users.
+python3 "$(dirname "$0")/login.py" "$bin/haco"
+
 # Only the executable entrypoint owns logging setup. Invalid configuration
 # must fail once, without a package initializer silently selecting defaults.
 if HACO_LOG_LEVEL=invalid "$bin/haco-controller" >"$root/controller-log.out" 2>"$root/controller-log.err"; then
