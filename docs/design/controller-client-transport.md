@@ -203,6 +203,22 @@ closes the connection and reports a protocol error; EOF alone is not process
 completion. Update pre-1.0 clients and controllers together. See
 [the compatibility decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
 
+On Linux/WSL, the shared terminal bridge owns a separate input descriptor for
+file-backed pipes and terminals. Remote EOF, output failure or
+cancellation restores the terminal, closes that descriptor and joins its input
+copier before returning. The caller's descriptor stays open and its file-status
+flags stay unchanged.
+Pipes and terminals are reopened through their pinned `/proc/self/fd` identity
+without acquiring a controlling terminal; terminal device identity is checked
+separately. PTY masters are refused because reopening allocates a different
+terminal. Unavailable or unpollable reopenings fail explicitly.
+Reopening also checks the underlying inode's read permission, so an inherited
+descriptor may be refused after a credential change. Regular files (including
+their read offsets), arbitrary caller-owned readers, sockets, non-terminal
+devices and other platforms retain their existing input semantics. Interrupting
+a blocking read remains the caller's responsibility; closing a non-pollable file
+cannot stop a stalled filesystem read.
+
 Raw streams remain for methods that define their own result/event framing, such
 as setup progress and transfer. Their transport supplies bytes and EOF; each
 application protocol owns its completion checks.
@@ -290,6 +306,10 @@ existing running Environment, validates generation and Workspace ownership, and
 holds the canonical lifecycle lock until execution ends. Stopped Environments
 fail without automatic start. Disconnect cancels the command; it does not stop
 or delete the Environment.
+
+Once execution starts, observed local cancellation takes CLI exit-code 130
+precedence over a racing transport error or process result. Without local
+cancellation, the command retains its process exit status and ordinary errors.
 
 ## Daily Environment inspection
 
