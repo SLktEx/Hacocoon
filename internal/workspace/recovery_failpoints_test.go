@@ -30,8 +30,9 @@ var errInjectedFailure = errors.New("injected reliability failure")
 
 type failpointStore struct {
 	environmentStore
-	point semanticFailpoint
-	fired bool
+	point     semanticFailpoint
+	fired     bool
+	interrupt func()
 }
 
 func (s *failpointStore) arm(point semanticFailpoint) {
@@ -44,6 +45,9 @@ func (s *failpointStore) inject(point semanticFailpoint) error {
 		return nil
 	}
 	s.fired = true
+	if s.interrupt != nil {
+		s.interrupt()
+	}
 	return fmt.Errorf("%s: %w", point, errInjectedFailure)
 }
 

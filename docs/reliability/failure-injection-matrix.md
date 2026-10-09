@@ -12,28 +12,28 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 
 | Semantic boundary | Fast deterministic coverage | Real-substrate coverage | Required recovery result |
 | --- | --- | --- | --- |
-| before durable Workspace/Environment reservation | `recovery_failpoints_test.go` | user journey | no state/runtime; retry succeeds |
-| after durable reservation, before provider side effects | `recovery_failpoints_test.go` | selected real-Incus case planned | reservation retained; no second runtime is created; fail closed until ownership can be resolved |
-| provider instance created but later provider reconciliation fails | existing Incus cleanup tests; provider-ref retention work pending | real-Incus case planned | exact runtime identity retained when known; cleanup or recovery-required |
-| before runtime ownership persistence | `recovery_failpoints_test.go` | selected real-Incus case planned | created runtime cleaned up; reservation finalized; retry succeeds |
-| after runtime ownership persistence | `recovery_failpoints_test.go` | selected real-Incus case planned | bounded cleanup; retry succeeds or recovery-required retains exact ref |
+| before durable Workspace/Environment reservation | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | user journey | no state/runtime; retry succeeds |
+| after durable reservation, before provider side effects | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | reservation retained; no second runtime is created; fail closed until ownership can be resolved |
+| provider instance created but later provider reconciliation fails | `workspace/creation_receipt_test.go`, `adapters/incus/sandbox_test.go` | real-Incus case planned | exact runtime identity retained when known; cleanup or recovery-required |
+| before runtime ownership persistence | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | returned errors permit exact cleanup; process exit retains the reservation without a ref and refuses guessed cleanup |
+| after runtime ownership persistence | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | bounded cleanup on returned errors; process exit retains the exact ref and RW lease for explicit deletion |
 | Incus storage pool ensure/use | Incus storage runner tests; common failpoint adapter pending | Incus-owned Btrfs E2E | conflicting or unavailable pool state cannot become Ready silently |
 | network/profile/device reconciliation | Incus unit/component tests exist; semantic failpoint expansion pending | real-Incus Core E2E | incomplete security attachment cannot become Ready |
 | instance start / readiness verification | Incus tests cover cleanup and RW probe; semantic failpoint expansion pending | real-Incus Core E2E | created != Ready; cleanup or retained recovery ownership |
-| before Ready Environment + active lease commit | `recovery_failpoints_test.go` | selected real-Incus case planned | runtime cleaned up; retry succeeds |
-| after Ready commit but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | no zombie aggregate; cleanup/retry converges deterministically |
+| before Ready Environment + active lease commit | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | returned errors clean up; process exit retains acquiring ownership for explicit deletion |
+| after Ready commit but caller loses response | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | returned errors clean up; process exit preserves the Ready aggregate, refuses duplicate creation and allows exact deletion |
 
 ## Environment delete
 
 | Semantic boundary | Fast deterministic coverage | Real-substrate coverage | Required recovery result |
 | --- | --- | --- | --- |
-| before runtime delete | `recovery_failpoints_test.go` | selected real-Incus case planned | authoritative state remains; retry succeeds |
-| after runtime delete but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | state retains ownership until retry confirms absence and finalizes |
+| before runtime delete | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | authoritative state remains; retry succeeds |
+| after runtime delete but caller loses response | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | state retains ownership until retry confirms absence and finalizes |
 | connection/forward teardown | pending common connection failpoint seam | user journey / real-Incus | retry-safe; unrelated forwards untouched |
 | Workspace detach / lease release | lifecycle aggregate prevents independent lease release; broader failpoint case pending | real-Incus | RW lease retained until runtime absence is proven |
 | shared Incus storage remains available | provider/storage tests pending | Incus-owned Btrfs E2E | Environment deletion never guesses at or destroys the shared pool lifecycle |
-| before authoritative state finalization | `recovery_failpoints_test.go` | selected real-Incus case planned | runtime already absent; retry finalizes atomically |
-| after authoritative state finalization but caller loses response | `recovery_failpoints_test.go` | selected real-Incus case planned | retry is idempotent success |
+| before authoritative state finalization | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | runtime already absent; retry finalizes atomically |
+| after authoritative state finalization but caller loses response | `recovery_failpoints_test.go`, `recovery_process_linux_test.go` | selected real-Incus case planned | retry is idempotent success |
 
 ## `haco setup`
 
@@ -51,11 +51,35 @@ Timing-based sleeps are not canonical fault injection. Prefer semantic before/af
 
 | Interruption | Deterministic layer | Real-substrate layer | Required recovery result |
 | --- | --- | --- | --- |
-| controller restart before durable create transition | pending process harness | selected user journey | client receives failure/reconnect; no partial ownership loss |
-| controller restart after runtime ownership transition | pending process harness | selected user journey | next invocation sees durable ownership and recovers safely |
+| controller restart before durable create transition | lifecycle subprocess covered; full controller process pending | selected user journey | client receives failure/reconnect; no partial ownership loss |
+| controller restart after runtime ownership transition | lifecycle subprocess covered; full controller process pending | selected user journey | next invocation sees durable ownership and recovers safely |
 | client process termination | pending process harness | selected user journey | server-side durable state remains authoritative |
 | trusted `haco-host` restart | pending | selected installer/host journey | no privilege/ownership widening |
 | Incus restart where CI-safe | pending | scheduled/manual real-host matrix | retries converge without guessed cleanup |
+
+## Lifecycle process termination fixture
+
+`internal/workspace/recovery_process_linux_test.go` reuses the test-only semantic
+boundaries from `recovery_failpoints_test.go`. A child test process exits with a
+specific checked code before/after reservation, runtime receipt, Ready commit,
+runtime deletion and finalization. No cleanup or unlock defers execute. A fresh
+child opens the production JSON catalog and exercises ordinary lifecycle calls;
+there are no sleeps or production interruption switches.
+
+The fixture provider keeps its inventory and create/delete log in a separate
+file that survives both processes. Each created ref contains the actual fresh
+Environment instance ID. Assertions compare that inventory with the exact lease,
+Workspace identity, Ready metadata and operation log. They verify RW exclusion,
+refusal to adopt or delete an unreceipted resource, exact-owner cleanup after a
+receipt, idempotent deletion, safe recreation and preservation of an unrelated
+provider resource and external Workspace file. The timeout bounds a failed child;
+it does not choose the interruption point.
+
+This covers process termination and fresh-process lifecycle/store recovery on
+Linux. It does not run the installed controller, client, haco-host or Incus, prove
+power-loss durability, or complete the native restart, OCI-copy or authenticated
+registry matrix. Existing receipt tests already verify that post-init provider
+configuration follows durable ownership; that implementation is not pending.
 
 ## Storage / host failures
 
