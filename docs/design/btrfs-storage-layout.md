@@ -100,6 +100,70 @@ Repository CI drives the shipped `haco` and `haco-host` controller clients as an
 
 These checks establish lifecycle and policy behavior on the hosted environment. They do not by themselves establish compression ratio, COW efficiency, Windows-host VHDX compaction effectiveness, or every supported Host configuration.
 
+## Host OCI copy measurement
+
+`TestRealIncusHostToolingE2E` extends the existing standard Host fixture with
+byte measurements. It pulls BusyBox, builds and executes a real image with
+BuildKit, copies the actual Host OCI area through the canonical resource service,
+and reuses the image in an independent networkless receiver. It does not turn the
+older synthetic cache/Store fixtures into real-image acceptance.
+
+The fixture samples the Host area before copying, both areas after native copy,
+and both areas before/after an 8 MiB random write to a retained container's writable
+layer. It then deletes that container and one image tag and samples again while
+the Host image and the receiver's second tag remain. Native clone ancestry and
+nonzero shared extents in the copied image-content and BuildKit directories are
+required. Allocation and exclusive extents must increase after the write; the
+Host image must still execute with unchanged content and no copied write.
+
+Each `storage_measurement` record identifies its operation and area. The whole
+Store, containerd content blobs and BuildKit directory are reported separately:
+
+| Observation | Command and meaning |
+|---|---|
+| `logical_bytes` | `du --summarize --apparent-size --block-size=1`: apparent directory contents |
+| `allocated_bytes` | `du --summarize --block-size=1`: referenced allocated blocks, including CoW duplicates across copies |
+| `extent_total_bytes`, `extent_exclusive_bytes`, `extent_set_shared_bytes` | `btrfs filesystem du --raw --summarize`: FIEMAP extent accounting; set-shared counts overlapping shared extents once within each argument |
+| `pool_logical_bytes`, `pool_allocated_bytes` | File size and `du --block-size=1` allocation of this fixture's Incus-owned sparse backing image |
+
+Do not sum per-copy allocation or shared extents to infer unique physical usage.
+FIEMAP extent lengths are not a compressed-byte measurement. The pool observation
+includes rootfs, metadata and runtime activity; differences are observed allocation
+changes, not device write counters or export/import write amplification. Image/tag
+absence does not prove physical reclamation, especially while other references
+remain. See the [Btrfs command contract](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand) and the
+[versioned summary format](https://github.com/kdave/btrfs-progs/blob/v6.17/cmds/filesystem-du.c#L496-L508).
+
+The observer verifies exact volume ownership and consumers, pauses only those
+fixture instances through Incus, synchronizes the filesystem, reads the counters,
+and resumes the same instances. All fixture writes use guest/runtime operations;
+the observer does not modify backing subvolumes, loop devices or mounts. Failure
+retains the printed project/catalog and may retain paused consumers for inspection.
+It never adopts an existing installation or deletes an unrelated pool.
+
+Run from the repository root on a dedicated root Linux/WSL Incus/Btrfs host with
+normal Host-tool provisioning/network access. The maintained Incus workflow runs
+this same test; no separate benchmark workflow is required:
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go test -c -o /tmp/haco-host-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_HOST_TOOLING=1 /tmp/haco-host-storage.test \
+  -test.run='^TestRealIncusHostToolingE2E$' -test.v -test.timeout=25m
+```
+
+Keep the full test/CI receipt with its exact tested commit. The fixture additionally
+reports OS/kernel, Go, Incus, Btrfs-progs, nerdctl/containerd/BuildKit versions,
+native snapshotter and built-image identity. Compile from the recorded clean
+checkout; a current worktree revision alone does not authenticate an older binary.
+Native measurements must be recorded in [acceptance evidence](../status/acceptance-evidence.md#storage)
+before claiming measured acceptance. This slice leaves Base/multiple-Env,
+managed-Workspace, snapshot restore, archive/publish amplification, Docker drivers,
+last-reference reclamation and large-workload measurements open under
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241). Do not generalize these
+Btrfs observations to other filesystems or Windows VHDX allocation.
+
 ## Workspace boundary
 
 Managed product Workspaces use independent Incus custom volumes in the managed pool, with canonical leases and separate data ownership. Retained external-path Workspaces instead bind an explicitly selected caller-owned directory; they need not live in the pool. Never move arbitrary user source trees into managed storage merely to match the rootfs layout.

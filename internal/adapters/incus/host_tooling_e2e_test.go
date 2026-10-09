@@ -67,8 +67,21 @@ buildctl du -v | grep '^ID:' | sort > /root/build-cache-after
 cmp /root/build-cache-before /root/build-cache-after
 nerdctl build -t hacocoon-standard:repeat /root/host-tooling-context`)
 	t.Log("PASS standard Git/gh, public pull/run, BuildKit build/run, restart and repeat setup retaining image/cache")
+	measurement := hostStorageObserver{t: t, ctx: ctx, runtime: runtime, source: source}
+	measurement.metadata(guest, id)
+	measurement.observe("host_before_copy", nil, "")
 
 	return func(target core.PersistentResource) {
+		copiedBytes := measurement.observe("after_native_copy", &target, "")
+		// The existing parent-UUID check establishes native clone ancestry.
+		// Require shared extents in actual image content and BuildKit data too;
+		// identical image IDs/bytes alone would not establish CoW sharing.
+		for _, area := range []string{"copy/containerd/io.containerd.content.v1.content/blobs", "copy/buildkit"} {
+			sample := copiedBytes[area]
+			if sample.ExtentSetSharedBytes == 0 || sample.ExtentExclusiveBytes >= sample.ExtentTotalBytes {
+				t.Fatal("actual OCI/build data sharing unproven", area)
+			}
+		}
 		name := "haco-area-runtime-copy"
 		command("launch", defaultImage, name, "--project", runtime.project, "--storage", strings.Split(target.NativeRef, "/")[0], "--no-profiles", "--config", "user.hacocoon.kind=runtime-copy-fixture")
 		provider, err := NewSandboxProvider(runtime)
@@ -93,23 +106,26 @@ nerdctl build -t hacocoon-standard:repeat /root/host-tooling-context`)
 			t.Fatal("copy changed image identity")
 		}
 		guest(name, `test "$(nerdctl run --rm --network none --pull never hacocoon-standard:local)" = built
-nerdctl image rm hacocoon-standard:local
 test ! -S /run/hacocoon/control.sock
 test ! -S /var/lib/incus/unix.socket`)
+		beforeWrite := measurement.observe("before_container_write", &target, name)["copy"]
+		// A real container writable layer, retained by its stopped container.
+		// Random data prevents zero/compression optimizations masking allocation.
+		guest(name, `nerdctl run --name haco-storage-write --network none --pull never hacocoon-standard:local sh -ec 'dd if=/dev/urandom of=/storage-write bs=1048576 count=8; test "$(wc -c < /storage-write)" = 8388608; sync'`)
+		afterWrite := measurement.observe("after_container_write", &target, name)["copy"]
+		if afterWrite.AllocatedBytes <= beforeWrite.AllocatedBytes || afterWrite.ExtentExclusiveBytes <= beforeWrite.ExtentExclusiveBytes {
+			t.Fatal("container write did not increase copy allocation and exclusive extents")
+		}
+		t.Logf("storage_measurement operation=container_write payload_bytes=8388608 copy_allocated_delta=%d copy_extent_exclusive_delta=%d", afterWrite.AllocatedBytes-beforeWrite.AllocatedBytes, afterWrite.ExtentExclusiveBytes-beforeWrite.ExtentExclusiveBytes)
+		guest(trustedHostName, `nerdctl run --rm --network none --pull never hacocoon-standard:local sh -ec 'test ! -e /storage-write; test "$(cat /built)" = built'`)
+		guest(name, `nerdctl rm haco-storage-write
+nerdctl image rm hacocoon-standard:local
+test "$(nerdctl run --rm --network none --pull never hacocoon-standard:repeat)" = built`)
 		guest(trustedHostName, `test "$(nerdctl run --rm --pull never hacocoon-standard:local)" = built`)
+		measurement.observe("after_container_and_image_delete_source_retained", &target, name)
 		t.Log("PASS managed Host area copied to independent offline Store; image reused without pull and deletion isolated")
-		if strings.TrimSpace(command("config", "get", name, "user.hacocoon.kind", "--project", runtime.project)) != "runtime-copy-fixture" {
-			t.Fatal("fixture ownership changed")
-		}
-		pool, volume, err := persistentVolume(target)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for key, expected := range map[string]string{"pool": pool, "source": volume, "path": OCIStorePath} {
-			if strings.TrimSpace(command("config", "device", "get", name, "persistent-resource", key, "--project", runtime.project)) != expected {
-				t.Fatal("fixture attachment changed")
-			}
-		}
+		guest(name, "printf 'copy changed' > /var/lib/hacocoon-oci/marker; sync")
+		verifyHostAreaReceiver(t, runtime.project, name, target, command)
 		command("delete", name, "--force", "--project", runtime.project)
 	}
 }

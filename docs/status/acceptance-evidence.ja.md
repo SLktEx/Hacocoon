@@ -262,6 +262,63 @@ Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了�
 
 元の詳細、検証用構成の識別子、ログ・成果物へのリンクは [整理前の実装状況](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) および [当該設計の検証記録](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md)に固定コミットで保持されています。現在の操作手順としては使用しないでください。
 
+<a id="host-oci-sharing"></a>
+
+### 実際の Host OCI 領域の共有容量計測
+
+PR #743 の head `6af9764d2ea4c7b0a01aa931c2cb1ec071ddb35e` を merge commit
+`0785baf61d9552fcd6f8de0972298a7427db5906` として試験し、
+[`TestRealIncusHostToolingE2E` が104.17秒で成功](https://github.com/SLktEx/Hacocoon/actions/runs/37928748494/job/113813959793)しました。
+専用 pool/project は `haco-area-6e4bcd1e35bce84c` で、正確な所有対象の後始末も成功。
+Ubuntu 26.04、Linux `7.0.0-1012-azure` x86_64、Go 1.27.0、Incus 7.0.1、
+Btrfs-progs 6.17.1、nerdctl 2.3.5、containerd 2.3.3、BuildKit 0.31.2 と
+native snapshotter を使用しました。BusyBox を元に実際に BuildKit で作ったイメージは
+`sha256:964017daedcd872403b9aef02dd51e47a727d2c42bfce6d57495e6f63f9980f7` です。
+
+[再現手順と計測の意味](../design/btrfs-storage-layout.ja.md)に従い、正確な所有対象を
+Incus 経由で一時停止して、`du --apparent-size --block-size=1`、
+`du --block-size=1`、`btrfs filesystem du --raw --summarize` を実行しました。
+Store 全体の主な測定値は次のとおりです。単位はすべてバイトです。
+
+| 対象・操作 | 論理容量 | 参照ブロック割当量 | extent 合計 | 排他的 extent | set-shared |
+|---|---:|---:|---:|---:|---:|
+| コピー前の Host | 23,136,518 | 23,183,360 | 22,994,944 | 5,120,000 | 8,937,472 |
+| ネイティブコピー後の Host | 23,136,518 | 23,183,360 | 22,994,944 | 0 | 14,057,472 |
+| ネイティブコピー後のコピー先 | 23,136,518 | 23,175,168 | 22,994,944 | 0 | 14,057,472 |
+| コンテナー書き込み前のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 307,200 | 13,754,368 |
+| 8 MiB 書き込み後のコピー先 | 35,970,962 | 36,069,376 | 35,856,384 | 8,732,672 | 13,717,504 |
+| コンテナー・タグ削除後のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 352,256 | 13,709,312 |
+
+ネイティブコピー後、実際の containerd コンテンツ blob は両領域とも共有 extent が
+2,240,512 バイト、排他的 extent は0でした。コピー先の BuildKit データは
+set-shared が7,147,520バイト、排他的 extent は0でした。ネイティブの parent UUID、
+イメージ識別子の一致、オフライン実行、書き込みの独立性、元領域の削除も成功。
+コンテナーの書き込み層へ8,388,608バイトの乱数を書き込むと、参照ブロック割当量は
+12,890,112バイト、排他的 extent は8,425,472バイト増えました。ネイティブ snapshot
+によるイメージ参照やランタイムのメタデータも含むため、これらは書き込んだデータ量
+そのものではありません。元のイメージは引き続き実行でき、コピー先の書き込みを
+含みませんでした。
+
+ファイル長4,294,967,296バイトのスパース backing file は、ネイティブコピー前後で
+割当量が2,462,105,600から2,462,134,272バイトへ増加（+28,672）しました。
+次の基準値より前に受け手を準備しています。コンテナー書き込み前は3,013,103,616、
+後は3,021,672,448バイト（+8,568,832）。コンテナーと一つのタグを削除した後も
+元イメージと受け手の別タグは残り、backing file の割当量は3,021,905,920バイトで、
+物理容量の減少は観測していません。rootfs・メタデータの活動も含むプール全体の
+観測であり、独立したデバイス書き込み量、圧縮後の extent 長、export/import の増幅を
+表しません。全ログには両領域とコンテンツ・BuildKit 部分の測定値も残しています。
+
+最初の head `ae95116bb04122f672baf9046cc7597ab374b007` は
+[容量計測前に失敗](https://github.com/SLktEx/Hacocoon/actions/runs/37927891326/job/113811150446)しました。
+pull/build/reuse は成功しましたが、観測処理が標準の機能一覧を含む Btrfs の版表示を
+拒否しました。先頭行から版だけを取り出す処理と回帰試験で修正しています。以前の
+失敗と、その結果スキップした Packer 試験は別の記録として保持します。
+ローカルの対象試験・race・vet・lint・文書検査は成功しましたが、Incus/Btrfs が
+なかったため実機試験はスキップしました。実機の証拠は上記 hosted 結果です。
+Base と複数 Env、管理 Workspace、snapshot restore、archive/publish の増幅、
+Docker の各 driver、最後の参照を除いた後の回収、大規模負荷の計測は
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+
 <a id="transfer"></a>
 
 ## Env移送・データ退避
@@ -886,7 +943,7 @@ Env/Workspaceのcleanupは記録した所有者と削除後の不在を確認し
 `repo delete`は所有者を確認したsourceを選択対象から登録解除するだけです。
 `repo list`からの非表示は物理削除の証拠ではなく、native sourceデータは使い捨てrunnerの破棄まで
 意図的に保持します。purgeや以前のレポジトリ削除動作は追加しません。
-fixture/cleanupの回帰はリポジトリ内の証拠に限ります。追加経路の導入済み実行は未実施で、
+fixture/cleanupの回帰はリポジトリ内の証拠に限ります。下記の導入済み成功は追加経路だけの証拠で、
 issue #344のLinux SSH、接続一覧・forwarding、editor受入の完了は意味しません。
 既存のWindows受入とは分け、このfixtureで再実行や代替はしません。
 
@@ -897,16 +954,28 @@ recovery-requiredの識別情報は限定した報告としてジョブログに
 `$HACO_ROOT/transfers`が未作成の場合の失敗を再現しました。
 receiverは他のimport handlerと同じく、この非公開ディレクトリを初期化するようになりました。
 未作成・既存のディレクトリ、不安全な既存パス、失敗時の識別情報保持はローカルのrace付き回帰で成功しましたが、
-修正後の導入済み受入は未実施です。最初の実機失敗を成功に言い換えず、fixture側の準備で回避もしません。
+この時点では修正後の導入済み受入は未実施でした。最初の実機失敗を成功に言い換えず、fixture側の準備で回避もしません。
 
 `4e8f9464`の[Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)では、
 2つの独立importと初回openが成功しました。続くguest内Git検証は`git: not found`で失敗し、
 所有者を確認した対象のcleanupが完了し、限定した応答記録が残りました。これは記載済みの任意のGit前提で、
 import失敗やすべてのBaseを変更する要件ではありません。修正fixtureは上記のパッケージ許可経路を使います。
 ローカル回帰は以前の前提不足を再現し、Gitの検証条件を維持したまま、限定許可・cleanup・保存結果不明・
-Policy同時編集を確認します。修正後の導入済み実行は未実施です。別の既定・独自root登録回帰では、
+Policy同時編集を確認します。この修正の導入済み実行を下記に記録します。別の既定・独自root登録回帰では、
 既定rootに触れずserviceを呼び出さずに、staging初期化がimport実行時まで行われないことを確認します。
 
+
+`23241a4`の[Ubuntu run 37954236509](https://github.com/SLktEx/Hacocoon/actions/runs/37954236509)と
+証拠ゲートが成功しました。導入済みlinked-worktree試験は、選択HEAD/index/作業ファイル、通常のguest commit、
+別Workspaceとclient/common Gitからの独立性、所有者不一致の拒否、再open、停止・再開、所有を確認した
+Env/Workspaceの削除、source登録解除を完了しました。ジョブログには2つのEnv削除、2つのWorkspace削除と、
+2026-10-09 15:52:58 UTCの最終PASSが残っています。このPASSは両方のパッケージ準備の`finally`と
+新しい設定読取で完全一致の許可削除を確認し、続く対象リソースの不在検査も成功した場合だけ出ます。
+これは実行コードに結び付いた検証証拠で、別の生Policy snapshotは保持しません。同じジョブの導入済み
+network検査も成功しました。外部SonarCloudは新規コードcoverage 100%で成功しました。
+これらの結果で過去の別のWindows/network失敗が解決したとは扱わず、issue #344のclient/接続要件も残ります。
+
+最終候補はこの限定成功の後にmain `23499701`を通常mergeします。統合後のexact-head CIは別の未完了確認です。
 
 ## 保持キャッシュ台帳の整理
 
