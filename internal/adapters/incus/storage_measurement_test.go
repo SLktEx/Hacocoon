@@ -95,10 +95,14 @@ func (m hostStorageObserver) metadata(guest func(string, string) string, imageID
 	if err != nil {
 		m.t.Fatal(err)
 	}
+	btrfsVersion, err := storageMeasurementBtrfsVersion(m.command("btrfs", "--version"))
+	if err != nil {
+		m.t.Fatal(err)
+	}
 	values := map[string]string{
 		"go":          runtime.Version(),
 		"kernel":      strings.TrimSpace(m.command("uname", "-srmo")),
-		"btrfs_progs": strings.TrimSpace(m.command("btrfs", "--version")),
+		"btrfs_progs": btrfsVersion,
 		"incus":       serverVersion,
 		"nerdctl":     strings.TrimSpace(guest(trustedHostName, "nerdctl --version")),
 		"containerd":  strings.TrimSpace(guest(trustedHostName, "containerd --version")),
@@ -206,6 +210,20 @@ func (m hostStorageObserver) observe(phase string, target *core.PersistentResour
 		m.command("incus", "start", receiver, "--project", m.runtime.project)
 	}
 	return result
+}
+
+// Upstream v6.17 --version prints a version banner and built-in feature flags,
+// including CRYPTO=<provider>. Only PACKAGE_STRING's first-line version is a
+// version identity; the feature line is not logged or validated as a version.
+// https://github.com/kdave/btrfs-progs/blob/v6.17/common/help.c#L513-L570
+func storageMeasurementBtrfsVersion(output string) (string, error) {
+	line, _, _ := strings.Cut(output, "\n")
+	fields := strings.Fields(line)
+	version := regexp.MustCompile(`^v[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:[-+][A-Za-z0-9.+-]+)?$`)
+	if len(output) > 16*1024 || len(fields) != 2 || fields[0] != "btrfs-progs" || len(fields[1]) > 64 || !version.MatchString(fields[1]) {
+		return "", fmt.Errorf("Btrfs-progs version unavailable")
+	}
+	return fields[1], nil
 }
 
 // /1.0's structured environment field is locale independent; `incus version`

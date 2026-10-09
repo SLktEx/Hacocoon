@@ -142,3 +142,20 @@ func TestStorageMeasurementIncusVersionIsLocaleIndependent(t *testing.T) {
 		}
 	}
 }
+
+func TestStorageMeasurementBtrfsVersionIgnoresFeatureBanner(t *testing.T) {
+	// Upstream common/help.c:help_builtin_features prints PACKAGE_STRING, then
+	// a separate feature line with CRYPTO=<provider>. Do not reject that '='.
+	for _, version := range []string{"v6.17", "v6.17.1", "v6.17-24-g123-dirty"} {
+		for _, suffix := range []string{"\n", "\n-EXPERIMENTAL -INJECT -STATIC +LZO +ZSTD +UDEV +FSVERITY +ZONED CRYPTO=builtin\n"} {
+			if got, err := storageMeasurementBtrfsVersion("btrfs-progs " + version + suffix); err != nil || got != version {
+				t.Fatal("rejected version with standard feature banner", got, err)
+			}
+		}
+	}
+	for _, input := range []string{"", "v6.17", "other v6.17", "btrfs-progs nonsense", "btrfs-progs v6.17 secret", "btrfs-progs v6.17;injection", "btrfs-progs v6.17\n" + strings.Repeat("x", 16*1024)} {
+		if _, err := storageMeasurementBtrfsVersion(input); err == nil {
+			t.Fatal("accepted unsafe or missing Btrfs version")
+		}
+	}
+}
