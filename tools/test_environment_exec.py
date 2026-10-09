@@ -32,7 +32,7 @@ try:
         assert process.stdout.read(7) == b"started"
         process.send_signal(signal.SIGINT)
         process.communicate(timeout=30)
-        assert process.returncode == 130
+        assert process.returncode == 130, f"exec cancellation returned exit {process.returncode}, expected 130"
         assert name in rows(), "exec cancellation removed the Environment"
     finally:
         if process.poll() is None:

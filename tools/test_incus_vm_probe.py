@@ -4,6 +4,7 @@ import contextlib
 import errno
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import incus_vm_probe as probe
+import incus_vm_receipt as receipts
 
 def envelope(metadata):
     return json.dumps({"type": "sync", "status": "Success", "status_code": 200,
@@ -32,7 +34,7 @@ class IncusFixture:
         self.operation_reads = 0
         self.environment = {"server_version": "7.0.1", "kernel": "Linux", "kernel_version": "7.0.0-azure",
                             "kernel_architecture": "x86_64", "os_name": "Ubuntu", "os_version": "26.04",
-                            "driver": "lxc | qemu", "server_certificate": "secret"}
+                            "driver": "lxc | qemu", "server_certificate": "secret", "certificate_fingerprint": "b" * 64}
 
     def __call__(self, args, timeout=30):
         self.calls.append(args)
@@ -91,16 +93,17 @@ class IncusFixture:
 class ProbeTests(unittest.TestCase):
     def run_case(self, fixture, kvm=None, tick=200):
         with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "result.json"
-            fixture.output = output
-            with patch.object(probe, "command", side_effect=fixture), \
+            with patch.object(receipts.tempfile, "gettempdir", return_value=temporary), \
+                    patch.object(probe, "command", side_effect=fixture), \
                     patch.object(probe, "kvm_observation", return_value=kvm or {"state": "present"}), \
                     patch.object(probe, "cpu_observation", return_value={"vmx": True, "svm": False}), \
                     patch.object(probe.time, "sleep"), \
                     patch.object(probe.time, "monotonic", side_effect=range(0, 10000, tick)), \
                     contextlib.redirect_stdout(io.StringIO()) as logs:
-                code = probe.run_probe(NAME, output)
-            receipt = json.loads(output.read_text())
+                with probe.ReceiptStore(NAME, create=True) as store:
+                    fixture.output = Path(temporary) / store.directory_name / receipts.RECEIPT
+                    code = probe.run_probe(NAME, store)
+            receipt = json.loads(fixture.output.read_text())
             self.assertNotIn("private", logs.getvalue())
             self.assertNotIn("secret", logs.getvalue())
             return code, receipt
@@ -214,6 +217,23 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual((code, result["status"]), (0, "supported"))
         self.assertNotIn("driver", result["server"])
 
+    def test_daemon_drift_blocks_cleanup_before_inventory_or_deletion(self):
+        for server in (None, [], {"certificate_fingerprint": "wrong"}, {"certificate_fingerprint": "c" * 64}):
+            receipt = {"schema": 2, "name": NAME, "owner": "a" * 32, "launch_attempted": True, "server": server}
+            fixture = IncusFixture()
+            with patch.object(probe, "command", side_effect=fixture):
+                with self.assertRaises(probe.ProbeError):
+                    probe.cleanup(receipt)
+            self.assertTrue(all(args == ["query", "--raw", "/1.0"] for args in fixture.calls))
+
+    def test_daemon_identity_must_be_valid_before_launch(self):
+        for invalid in (None, [], 123, "", "g" * 64, "b" * 63):
+            fixture = IncusFixture()
+            fixture.environment["certificate_fingerprint"] = invalid
+            code, result = self.run_case(fixture)
+            self.assertEqual((code, result["reason"]), (1, "invalid_server_fingerprint"))
+            self.assertFalse(result["launch_attempted"])
+
     def test_existing_name_is_not_adopted(self):
         fixture = IncusFixture()
         fixture.row = {"name": NAME, "type": "virtual-machine", "config": {probe.OWNER: "other"}}
@@ -233,14 +253,6 @@ class ProbeTests(unittest.TestCase):
                 with self.assertRaises(probe.ProbeError):
                     probe.cleanup({"name": name, "owner": "a" * 32, "launch_attempted": True})
                 command.assert_not_called()
-
-    def test_receipt_cannot_be_overwritten(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            output = Path(temporary) / "result.json"
-            output.write_text("prior receipt")
-            with self.assertRaises(FileExistsError):
-                probe.run_probe(NAME, output)
-            self.assertEqual(output.read_text(), "prior receipt")
 
     def test_failed_query_with_plausible_json_is_not_absence(self):
         for code, raw in ((1, "[]"), (0, "{}"), (0, '[{"name":"x"},{"name":"x"}]'),
@@ -270,17 +282,6 @@ class ProbeTests(unittest.TestCase):
             probe.command(["launch", "images:ubuntu/26.04", NAME, "--vm"])
             self.assertEqual(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
 
-    def test_receipt_save_does_not_follow_predictable_temporary_symlink(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
-            output, unrelated = directory / "result.json", directory / "unrelated"
-            unrelated.write_text("unchanged")
-            output.with_name(output.name + ".tmp").symlink_to(unrelated)
-            probe.save(output, {"owner": "a" * 32})
-            self.assertEqual(unrelated.read_text(), "unchanged")
-            self.assertFalse(output.is_symlink())
-            self.assertEqual(output.stat().st_mode & 0o777, 0o600)
-
     def test_command_failures_keep_raw_output_private(self):
         for error in (OSError("private"), subprocess.TimeoutExpired(["incus"], 1, output="secret")):
             with patch.object(probe.subprocess, "run", side_effect=error):
@@ -298,6 +299,113 @@ class ProbeTests(unittest.TestCase):
             with patch.object(probe.os, "stat", return_value=info), patch.object(probe.os, "open") as opened:
                 self.assertFalse(probe.kvm_observation()["character_device"])
                 opened.assert_not_called()
+
+
+class ReceiptTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.temp_patch = patch.object(receipts.tempfile, "gettempdir", return_value=str(self.root))
+        self.temp_patch.start()
+        self.addCleanup(self.temp_patch.stop)
+        self.directory = self.root / f"hacocoon-incus-vm-probe-{os.geteuid()}-{NAME}"
+        self.path = self.directory / receipts.RECEIPT
+
+    def test_fixed_private_receipt_is_readable_and_not_re_reserved(self):
+        with probe.ReceiptStore(NAME, create=True) as store:
+            store.save({"name": NAME})
+            self.assertEqual(store.read(), {"name": NAME})
+            self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(self.directory.stat().st_mode & 0o777, 0o700)
+        with self.assertRaises(FileExistsError):
+            probe.ReceiptStore(NAME, create=True)
+        with probe.ReceiptStore(NAME) as store:
+            self.assertEqual(store.read(), {"name": NAME})
+
+    def test_path_or_unicode_arguments_never_create_directories(self):
+        for name in ("../target", "/tmp/target", "--force", NAME + "/../target", "hci-１２-1-vm", NAME + "\n"):
+            with self.subTest(name=name), self.assertRaises(probe.ProbeError):
+                probe.ReceiptStore(name, create=True)
+        self.assertEqual(list(self.root.iterdir()), [])
+        with patch.object(probe.sys, "argv", ["probe", "probe", "--name", NAME, "--output", "/tmp/target"]), \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            probe.main()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_directory_symlinks_and_insecure_or_foreign_directories_are_refused(self):
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        self.directory.symlink_to(outside, target_is_directory=True)
+        with self.assertRaises(OSError):
+            probe.ReceiptStore(NAME)
+        self.directory.unlink()
+        self.directory.mkdir(mode=0o755)
+        with self.assertRaisesRegex(probe.ProbeError, "unsafe_receipt_directory"):
+            probe.ReceiptStore(NAME)
+        self.directory.rmdir()
+        foreign = self.root / f"hacocoon-incus-vm-probe-{os.geteuid() + 1}-{NAME}"
+        foreign.mkdir(mode=0o700)
+        with patch.object(receipts.os, "geteuid", return_value=os.geteuid() + 1), \
+                self.assertRaisesRegex(probe.ProbeError, "unsafe_receipt_directory"):
+            probe.ReceiptStore(NAME)
+
+    def test_parent_replacement_cannot_redirect_an_open_store(self):
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        target = outside / receipts.RECEIPT
+        target.write_text("unchanged")
+        with probe.ReceiptStore(NAME, create=True) as store:
+            held = self.root / "held"
+            self.directory.rename(held)
+            self.directory.symlink_to(outside, target_is_directory=True)
+            store.save({"name": NAME})
+            self.assertEqual(store.read(), {"name": NAME})
+            self.assertEqual(target.read_text(), "unchanged")
+            self.assertEqual(json.loads((held / receipts.RECEIPT).read_text()), {"name": NAME})
+
+    def test_replaced_symlink_fifo_hardlink_and_mode_changes_are_refused(self):
+        for kind in ("replacement", "symlink", "fifo", "hardlink", "permissions"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as root, \
+                    patch.object(receipts.tempfile, "gettempdir", return_value=root), \
+                    probe.ReceiptStore(NAME, create=True) as store:
+                path = Path(root) / store.directory_name / receipts.RECEIPT
+                unrelated = Path(root) / "unrelated"
+                unrelated.write_text("unchanged")
+                if kind == "permissions":
+                    path.chmod(0o644)
+                elif kind == "hardlink":
+                    os.link(path, Path(root) / "extra-link")
+                else:
+                    path.rename(path.with_name("original"))
+                    if kind == "symlink":
+                        path.symlink_to(unrelated)
+                    elif kind == "fifo":
+                        os.mkfifo(path, 0o600)
+                    else:
+                        path.write_text("replacement")
+                        path.chmod(0o600)
+                with self.assertRaises(probe.ProbeError):
+                    store.save({"name": NAME})
+                with self.assertRaises(probe.ProbeError):
+                    store.read()
+                self.assertEqual(unrelated.read_text(), "unchanged")
+
+    def test_oversized_missing_and_incomplete_receipts_fail_closed(self):
+        with patch.object(probe.sys, "argv", ["probe", "cleanup", "--name", NAME]):
+            self.assertEqual(probe.main(), 0)  # Setup never reserved this name.
+        with probe.ReceiptStore(NAME, create=True) as store:
+            self.path.write_bytes(b"x" * (receipts.LIMIT + 1))
+            with self.assertRaisesRegex(probe.ProbeError, "receipt_too_large"):
+                store.read()
+            self.path.write_text("{}")
+        with patch.object(probe.sys, "argv", ["probe", "cleanup", "--name", NAME]), \
+                contextlib.redirect_stderr(io.StringIO()), patch.object(probe, "command") as command:
+            self.assertEqual(probe.main(), 1)
+            self.path.unlink()
+            self.assertEqual(probe.main(), 1)
+            command.assert_not_called()
 
 
 if __name__ == "__main__":

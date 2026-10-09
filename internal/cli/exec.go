@@ -80,7 +80,9 @@ func execCommand(ctx context.Context, client execClient, args []string, input io
 	}
 
 	result, err := client.ExecStream(ctx, name, request, input, out, diagnostic)
-	if errors.Is(err, context.Canceled) {
+	// Local cancellation can race a transport failure or completion receipt.
+	// The stream's return value need not retain the caller's cancellation.
+	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
 		return 130
 	}
 	if err != nil {

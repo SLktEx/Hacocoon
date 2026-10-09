@@ -97,7 +97,7 @@ jobs:
         with:
           name: incus-vm-probe-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/incus-vm-probe.json
+            ${{ env.HACO_CI_VM_RECEIPT }}
             ci-substrate.json
           if-no-files-found: error
           retention-days: 30

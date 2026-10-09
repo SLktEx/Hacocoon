@@ -8,9 +8,12 @@ cd "$repo_root"
 }
 [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]{1,20}$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[0-9]{1,10}$ ]] || exit 1
 export INCUS_CONF="${RUNNER_TEMP:?}/haco-incus-client"
-output="$RUNNER_TEMP/incus-vm-probe.json"
+export TMPDIR="$RUNNER_TEMP"
+readonly probe_name="hci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-vm"
+readonly receipt="$RUNNER_TEMP/hacocoon-incus-vm-probe-$(id -u)-$probe_name/receipt.json"
 case "${1:-}" in
   setup)
+    printf 'HACO_CI_VM_RECEIPT=%s\n' "$receipt" >> "${GITHUB_ENV:?}"
     bash tools/ci-incus.sh setup
     # The shared pinned-key LTS setup stays container-only. Only this fresh job
     # adds the matching full package (QEMU/firmware dependencies) from that source.
@@ -23,10 +26,12 @@ case "${1:-}" in
     sh install/incus-lts.sh verify-server
     ;;
   probe)
-    python3 tools/incus_vm_probe.py probe --name "hci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-vm" --output "$output"
+    cd "$RUNNER_TEMP"
+    python3 "$repo_root/tools/incus_vm_probe.py" probe --name "$probe_name"
     ;;
   cleanup)
-    python3 tools/incus_vm_probe.py cleanup --output "$output"
+    cd "$RUNNER_TEMP"
+    python3 "$repo_root/tools/incus_vm_probe.py" cleanup --name "$probe_name"
     ;;
   *) echo 'usage: ci-incus-vm.sh <setup|probe|cleanup>' >&2; exit 2 ;;
 esac

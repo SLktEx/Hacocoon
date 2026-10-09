@@ -196,7 +196,7 @@ no profiles and attaches no NIC, Host directory or management socket. Successful
 agent exec must observe PID 1 systemd in running/degraded state, then repeat after
 a verified stop/start. The result records the image fingerprint when created.
 
-`incus-vm-probe.json` records KVM device/permission and client API observations,
+`receipt.json` records KVM device/permission and client API observations,
 x86 virtualization flags, required Incus/kernel/OS identity, launch exit status,
 lifecycle outcome and verified instance absence. The accompanying substrate
 receipt records the exact runner image, SHA, run and attempt. Client access to
@@ -224,15 +224,30 @@ On an already initialized, isolated Incus host, the same repository probe runs
 without GitHub-specific behavior (choose an unused numeric name and private receipt directory):
 
 ```bash
-receipt_dir="$(mktemp -d)"
-python3 tools/incus_vm_probe.py probe --name hci-123-1-vm --output "$receipt_dir/result.json"
-python3 tools/incus_vm_probe.py cleanup --output "$receipt_dir/result.json"
+receipt_root="$(mktemp -d)"
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py probe --name hci-123-1-vm
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py cleanup --name hci-123-1-vm
 ```
 
+The receipt is `$receipt_root/hacocoon-incus-vm-probe-<uid>-hci-123-1-vm/receipt.json`,
+where `<uid>` is the effective user ID. CI uses the same dedicated-directory
+contract under runner temp. There is no arbitrary output-path argument. The
+probe exclusively creates a mode-0700 directory, validates ownership/private
+permissions and refuses symlinks, then holds its directory descriptor. Reads
+and atomic replacement use only the fixed mode-0600 receipt name relative to
+that descriptor. Changed file type/identity is rejected, reads are limited to
+64 KiB, and private exclusive temporary writes fsync both file and directory.
+Parent-path replacement cannot redirect an opened receipt store.
+
 The probe creates and deletes only the exact named, nonce-marked VM. It refuses an
-existing name or receipt. Cleanup checks pending daemon operations, current VM
-ownership and positive absence; failed inventory never authorizes deletion.
-Ordinary image-download caches remain with the initialized daemon. Use a fresh
-receipt for another run; after interruption, pass the original receipt to cleanup. `supported` makes a future optional backend plausible on
-that exact runner; it is not product/provider acceptance or a guarantee for every
-GitHub runner image. Decisive native results belong in [acceptance evidence](../status/acceptance-evidence.md).
+existing name or receipt directory. The public server-certificate fingerprint is
+recorded before launch, and cleanup refuses a different daemon. Cleanup checks
+pending daemon operations, current VM ownership and positive absence; failed
+inventory never authorizes deletion. A setup failure before the private run
+directory exists needs no cleanup, while an existing malformed/incomplete receipt
+fails closed. Ordinary image-download caches remain with the initialized daemon.
+After interruption, use the original `TMPDIR` and name for cleanup; choose a new
+name or temp root for another probe. `supported` makes a future optional backend
+plausible on that exact runner; it is not product/provider acceptance or a
+guarantee for every GitHub runner image. Decisive native results belong in
+[acceptance evidence](../status/acceptance-evidence.md).

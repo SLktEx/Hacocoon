@@ -168,7 +168,7 @@ containerへの代替、失敗の黙認、self-hosted runnerの要件はあり�
 であることを確認し、停止を観測して再起動後も繰り返します。作成できたイメージの
 fingerprintを結果に保存します。
 
-`incus-vm-probe.json`にはKVMデバイス・権限・クライアントAPIの観測、x86の仮想化
+`receipt.json`にはKVMデバイス・権限・クライアントAPIの観測、x86の仮想化
 フラグ、必須のIncus/kernel/OS識別情報、起動終了値、ライフサイクル結果、VM不在の確認を
 記録します。同梱の基盤記録にはrunnerイメージ・SHA・run・attemptを残します。
 クライアントの`/dev/kvm`アクセス権をroot daemonの権限と同一視しません。
@@ -192,14 +192,25 @@ fingerprintを結果に保存します。
 未使用の数字による名前と、自分だけが開ける記録先ディレクトリーを選びます。
 
 ```bash
-receipt_dir="$(mktemp -d)"
-python3 tools/incus_vm_probe.py probe --name hci-123-1-vm --output "$receipt_dir/result.json"
-python3 tools/incus_vm_probe.py cleanup --output "$receipt_dir/result.json"
+receipt_root="$(mktemp -d)"
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py probe --name hci-123-1-vm
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py cleanup --name hci-123-1-vm
 ```
 
-作成・削除は指定した名前とランダムな所有マーカーのVMだけです。既存名・既存記録は
-拒否します。削除前にdaemon処理の完了とVM所有を照合し、最後に不在を確認します。
-一覧取得の失敗は削除許可になりません。通常のイメージ取得キャッシュはdaemonに残します。
-中断後の削除には元の記録先を使い、次の実行では新しい記録先を使います。`supported`はそのrunnerで将来の任意バックエンドを
-検討できる根拠であり、製品の受入や全GitHub runnerイメージの保証ではありません。
-決定的な実行結果は[受入記録](../status/acceptance-evidence.ja.md)に残します。
+記録先は`$receipt_root/hacocoon-incus-vm-probe-<uid>-hci-123-1-vm/receipt.json`です。
+`<uid>`は実行ユーザーの実効UIDです。CIもrunner temp配下に同じ規則の専用ディレクトリーを
+使います。任意の出力パスを指定する引数はありません。ディレクトリーを0700で排他的に
+作成し、所有者・権限・symlink不在を検証したdescriptorを保持します。固定名の0600記録を
+descriptor相対で読み書きし、既存ファイルの種類・識別の変化は拒否します。読み取りは64 KiB
+までです。更新は同じディレクトリー内の排他的な一時ファイルから置換し、記録と
+ディレクトリーをfsyncします。親パスの差替えで別の場所へ書き込みません。
+
+作成・削除は指定した名前とランダムな所有マーカーのVMだけです。既存名・既存記録先は
+拒否します。公開されたサーバー証明書のfingerprintを起動前に保存し、cleanupが別daemonを
+見ていたら停止します。削除前にdaemon処理の完了とVM所有を照合し、最後に不在を確認します。
+一覧取得の失敗は削除許可になりません。予約前にsetupが失敗して専用ディレクトリーが
+存在しなければcleanupは不要です。既存の不完全・不正な記録は失敗のままにします。
+通常のイメージ取得キャッシュはdaemonに残します。中断後の削除には元と同じ`TMPDIR`と
+名前を使い、次の調査には新しい名前かtemp rootを使います。`supported`はそのrunnerで
+将来の任意バックエンドを検討できる根拠であり、製品の受入や全GitHub runnerイメージの
+保証ではありません。決定的な実行結果は[受入記録](../status/acceptance-evidence.ja.md)に残します。
