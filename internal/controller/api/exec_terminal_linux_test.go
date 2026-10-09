@@ -111,8 +111,10 @@ func TestExecTerminalSizePreservesCallerFileFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	var before, after int
+	var descriptor uintptr
 	var controlErr error
 	if err := raw.Control(func(fd uintptr) {
+		descriptor = fd
 		controlErr = unix.IoctlSetWinsize(int(fd), unix.TIOCSWINSZ, &unix.Winsize{Col: 83, Row: 29})
 		if controlErr == nil {
 			before, controlErr = unix.FcntlInt(fd, unix.F_GETFL, 0)
@@ -133,6 +135,11 @@ func TestExecTerminalSizePreservesCallerFileFlags(t *testing.T) {
 	if before != after {
 		t.Fatalf("metadata inspection changed caller flags: %x -> %x", before, after)
 	}
+	// -t without -i supplies an empty reader that still identifies its TTY.
+	columns, rows, err = execTerminalSize(metadataInput{Reader: bytes.NewReader(nil), fd: descriptor})
+	if err != nil || columns != 83 || rows != 29 {
+		t.Fatal("metadata-only terminal input changed", columns, rows, err)
+	}
 	if _, _, err := execTerminalSize(bytes.NewReader(nil)); !errors.Is(err, core.ErrInvalidArgument) {
 		t.Fatal("non-terminal reader accepted", err)
 	}
@@ -140,4 +147,17 @@ func TestExecTerminalSizePreservesCallerFileFlags(t *testing.T) {
 	if _, _, err := execTerminalSize(slave); err == nil {
 		t.Fatal("closed terminal accepted")
 	}
+	if _, _, err := execTerminalSize((*os.File)(nil)); err == nil {
+		t.Fatal("nil terminal accepted")
+	}
+	if _, _, err := execTerminalSize(metadataInput{Reader: bytes.NewReader(nil), fd: 1 << 30}); !errors.Is(err, core.ErrInvalidArgument) {
+		t.Fatal("invalid terminal descriptor accepted", err)
+	}
 }
+
+type metadataInput struct {
+	io.Reader
+	fd uintptr
+}
+
+func (r metadataInput) Fd() uintptr { return r.fd }

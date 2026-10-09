@@ -312,6 +312,47 @@ func TestOwnedInputPreservesFiniteReadersAndRefusesUnreadableDescriptors(t *test
 	if got, closeReader, err := ownInput(null); err != nil || closeReader != nil || got != null {
 		t.Fatal("non-terminal device input semantics changed", err)
 	}
+	if _, closeReader, err := ownInput((*os.File)(nil)); !errors.Is(err, os.ErrInvalid) || closeReader != nil {
+		t.Fatal("nil file accepted", err)
+	}
+	invalid := os.NewFile(1<<30, "invalid-descriptor")
+	defer func() { _ = invalid.Close() }()
+	if _, closeReader, err := ownInput(invalid); !errors.Is(err, unix.EBADF) || closeReader != nil {
+		t.Fatal("invalid kernel descriptor accepted", err)
+	}
+}
+
+func TestOwnedInputReopenPermissionFailurePreservesCaller(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("requires unprivileged inode permission checks")
+	}
+	path := filepath.Join(t.TempDir(), "input-fifo")
+	if err := unix.Mkfifo(path, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Open(path, unix.O_RDWR|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := os.NewFile(uintptr(fd), "inherited-fifo")
+	defer func() { _ = file.Close() }()
+	flags := inputFlags(t, file)
+	if err := os.Chmod(path, 0000); err != nil {
+		t.Fatal(err)
+	}
+	if _, closeReader, err := ownInput(file); !errors.Is(err, os.ErrPermission) || closeReader != nil {
+		t.Fatal("inaccessible input was reopened", err)
+	}
+	if flags != inputFlags(t, file) {
+		t.Fatal("failed reopening changed caller flags")
+	}
+	if _, err := file.Write([]byte("x")); err != nil {
+		t.Fatal("caller lost its existing descriptor", err)
+	}
+	var data [1]byte
+	if _, err := io.ReadFull(file, data[:]); err != nil || data[0] != 'x' {
+		t.Fatal("caller can no longer read its existing descriptor", err)
+	}
 }
 
 func TestOwnedInputRefusesPTYMasterWithoutRetargeting(t *testing.T) {

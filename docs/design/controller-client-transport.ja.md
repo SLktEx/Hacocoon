@@ -296,6 +296,10 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 削除と共通のlifecycle lockを実行終了まで保持します。停止中は失敗し、自動起動しません。
 切断時はコマンドを中断しますがEnvironmentを削除・停止しません。
 
+実行開始後にローカルで中止を確認した場合、同時に返された通信エラーや実行結果よりも
+CLIの終了値130を優先します。ローカルの中止がなければ、コマンドの終了値と通常の
+エラーをそのまま扱います。
+
 ## 日常の Environment 確認
 
 状態: **CLI の範囲は実装済み**。`haco env list` は登録済み Environment の名前、Workspace、Base を表で表示します。

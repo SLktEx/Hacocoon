@@ -307,6 +307,10 @@ holds the canonical lifecycle lock until execution ends. Stopped Environments
 fail without automatic start. Disconnect cancels the command; it does not stop
 or delete the Environment.
 
+Once execution starts, observed local cancellation takes CLI exit-code 130
+precedence over a racing transport error or process result. Without local
+cancellation, the command retains its process exit status and ordinary errors.
+
 ## Daily Environment inspection
 
 Status: **implemented CLI slice**. `haco env list` shows the registered Environment
