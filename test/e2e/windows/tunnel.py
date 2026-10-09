@@ -119,7 +119,16 @@ def main():
                         raise RuntimeError("application fixture failed")
                     process.write("\x03")
                     stage = 3
-            elif stage == 3 and re.search(r"(?m)^TUNNEL-EXIT:0\s*$", fresh):
+            elif stage == 3:
+                # Wait for a complete output line: a terminal read can split the
+                # status digits, and an echoed printf is not an exit receipt.
+                # Bash's $? is a canonical decimal status in the range 0-255.
+                match = re.search(r"(?m)^TUNNEL-EXIT:(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])[ \t]*\n", fresh)
+                if not match:
+                    return
+                exit_code = int(match.group(1))
+                if exit_code != 0:
+                    raise RuntimeError(f"Windows tunnel exited with code {exit_code} after Ctrl+C")
                 try:
                     connection = socket.create_connection(("127.0.0.1", port), timeout=2)
                 except OSError:

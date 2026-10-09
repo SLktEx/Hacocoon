@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -11,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SLktEx/Hacocoon/internal/cli/ui"
 	"github.com/SLktEx/Hacocoon/internal/controller/api"
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/logging"
 )
 
 type forwardReadyWriter struct {
@@ -101,6 +104,72 @@ func TestClientForwardHelpIsBilingualAndControllerIndependent(t *testing.T) {
 			if !strings.Contains(out.String(), want) {
 				t.Fatal(language, want, out.String())
 			}
+		}
+	}
+}
+
+func TestClientForwardLoggerUsesOnlyDiagnosticWriter(t *testing.T) {
+	t.Setenv("HACO_LOG_LEVEL", "info")
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	root := logging.Root()
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, want := range []int{0, 1, 2, 17} {
+		var out, diagnostic bytes.Buffer
+		run := func(ctx context.Context, _ []string, stdout, stderr io.Writer, _ cliui.Language, _ *controlapi.Client, _ func()) int {
+			if stdout != &out || stderr != &diagnostic || ctx.Err() != context.Canceled || logging.Root() != root {
+				t.Fatal("logging changed streams, cancellation or process logger")
+			}
+			logging.FromContext(ctx).Error("Windows tunnel companion failed", "component", "client", "operation", "windows_tunnel_companion", "stage", "wait", "reason", "signaled", "context_state", "canceled", "duration_ms", 12)
+			return want
+		}
+		code := forwardClientCommandUsing(parent, []string{"--target-port", "8080", "PRIVATE-env"}, &out, &diagnostic, run)
+		var fields map[string]any
+		if err := json.Unmarshal(diagnostic.Bytes(), &fields); err != nil {
+			t.Fatal(err)
+		}
+		if code != want || out.Len() != 0 || fields["operation"] != "windows_tunnel_companion" || fields["reason"] != "signaled" || len(fields) != 9 || strings.Contains(diagnostic.String(), "PRIVATE") {
+			t.Fatal("fixed operational fields or command outcome changed")
+		}
+	}
+}
+
+func TestClientForwardRejectsInvalidLoggingBeforeCommand(t *testing.T) {
+	t.Setenv("HACO_UI_LANGUAGE", "en")
+	t.Setenv("HACO_CONTROL_SOCKET", "/PRIVATE/nonexistent/forward.sock")
+	for _, key := range []string{"HACO_LOG_LEVEL", "HACO_LOG_FORMAT"} {
+		t.Run(key, func(t *testing.T) {
+			t.Setenv("HACO_LOG_LEVEL", "info")
+			t.Setenv("HACO_LOG_FORMAT", "text")
+			t.Setenv(key, "PRIVATE-invalid")
+			var out, diagnostic bytes.Buffer
+			run := func(context.Context, []string, io.Writer, io.Writer, cliui.Language, *controlapi.Client, func()) int {
+				t.Fatal("invalid logging configuration reached command dispatch")
+				return 0
+			}
+			code := forwardClientCommandUsing(context.Background(), []string{"--target-port", "8080", "PRIVATE-env"}, &out, &diagnostic, run)
+			if code != 2 || out.Len() != 0 || diagnostic.String() != cliMessage("error.logging")+"\n" {
+				t.Fatalf("code=%d stdout=%q diagnostics=%q", code, out.String(), diagnostic.String())
+			}
+		})
+	}
+}
+
+func TestClientForwardLoggingPreservesCommandCodes(t *testing.T) {
+	t.Setenv("HACO_LOG_LEVEL", "info")
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	t.Setenv("HACO_CONTROL_SOCKET", "/nonexistent/forward.sock")
+	for _, tc := range []struct {
+		args []string
+		code int
+	}{
+		{[]string{"--help"}, 0},
+		{[]string{"--target-port", "0", "demo"}, 2},
+		{[]string{"--target-port", "8080", "demo"}, 1},
+	} {
+		var out, diagnostic bytes.Buffer
+		if code := forwardClientCommand(context.Background(), tc.args, &out, &diagnostic); code != tc.code {
+			t.Fatalf("args=%v code=%d want=%d", tc.args, code, tc.code)
 		}
 	}
 }

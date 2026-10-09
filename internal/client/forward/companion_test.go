@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -46,5 +47,26 @@ func TestCompanionFailureLoggingHasOnlyBoundedObservations(t *testing.T) {
 				t.Fatal(out.String())
 			}
 		})
+	}
+}
+
+func TestCompanionStartFailurePreservesResultAndOmitsProcessDetails(t *testing.T) {
+	var out, diagnostic bytes.Buffer
+	logger, err := logging.New(logging.Config{Writer: &diagnostic, Format: logging.FormatJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := logging.WithLogger(context.Background(), logger)
+	cmd := exec.CommandContext(ctx, filepath.Join(t.TempDir(), "PRIVATE-executable"), "PRIVATE-argument")
+	code, err := runCompanion(ctx, cmd, testDelegation(), &out, &diagnostic)
+	if code != 1 || err == nil || !strings.Contains(err.Error(), "PRIVATE-executable") || cmd.Process != nil {
+		t.Fatal("start failure result changed or child unexpectedly launched")
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(diagnostic.Bytes(), &fields); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() != 0 || len(fields) != 9 || fields["stage"] != "start" || fields["reason"] != "other" || fields["context_state"] != "active" || strings.Contains(diagnostic.String(), "PRIVATE") {
+		t.Fatal("companion diagnostic exposed process details or changed output")
 	}
 }
