@@ -41,12 +41,14 @@ type rootfsStorageArea struct {
 	live  *rootfsLiveIdentity
 	saved *core.Snapshot
 	image *core.Snapshot
+	files bool // Fixed per-file counters for the archive materialization interval.
 }
 
 type rootfsStorageSample struct {
-	Rootfs  storageByteSample `json:"rootfs"`
-	Payload storageByteSample `json:"payload"`
-	Hashes  map[string]string `json:"payload_sha256"`
+	Rootfs  storageByteSample            `json:"rootfs"`
+	Payload storageByteSample            `json:"payload"`
+	Hashes  map[string]string            `json:"payload_sha256"`
+	Files   map[string]storageByteSample `json:"payload_files,omitempty"`
 }
 
 type rootfsStorageObserver struct {
@@ -480,6 +482,24 @@ func (m rootfsStorageObserver) observe(phase string, areas ...rootfsStorageArea)
 			*scope.sample, err = parseStorageByteSample(m.command("du", "--summarize", "--apparent-size", "--block-size=1", "--", scope.path), m.command("du", "--summarize", "--block-size=1", "--", scope.path), m.command("btrfs", "filesystem", "du", "--raw", "--summarize", scope.path), scope.path)
 			if err != nil {
 				m.t.Fatal("invalid rootfs byte observation", err)
+			}
+		}
+		if area.files {
+			sample.Files = map[string]storageByteSample{}
+			for _, role := range []string{"base", "delta"} {
+				if _, ok := hashes[role]; !ok {
+					continue
+				}
+				file := filepath.Join(payload, role)
+				counts, err := parseStorageByteSample(m.command("du", "--summarize", "--apparent-size", "--block-size=1", "--", file), m.command("du", "--summarize", "--block-size=1", "--", file), m.command("btrfs", "filesystem", "du", "--raw", "--summarize", file), file)
+				if err != nil {
+					m.t.Fatal("invalid rootfs file byte observation")
+				}
+				sample.Files[role] = counts
+			}
+			verified, err := storageMeasurementHashes(payload)
+			if err != nil || !reflect.DeepEqual(verified, hashes) {
+				m.t.Fatal("rootfs payload changed during file observation")
 			}
 		}
 		result[area.label] = sample

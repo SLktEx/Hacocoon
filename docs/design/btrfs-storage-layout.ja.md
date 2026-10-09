@@ -158,9 +158,10 @@ nerdctl/containerd/BuildKit の版、native snapshotter、ビルド済みイメ�
 報告します。記録した変更のない checkout からビルドしてください。現在のリビジョン
 だけでは、古いバイナリーの由来は証明できません。実機の測定値を[受入記録](../status/acceptance-evidence.ja.md#storage)に
 残すまでは、計測による受入を完了したと主張しません。管理 Workspace と rootfs/Image は
-以下の節で別々に定義します。一般的な Base ビルド負荷、archive/publish の増幅、
-Docker driver、最後の参照を除いた後の回収、大規模負荷の計測は
-[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。Btrfs の観測を
+以下の節で、保持する archive の計測とともに
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)の各範囲として定義します。
+一般的な Base ビルド負荷、Docker driver、物理回収の完了、大規模負荷は未検証の限界であり、
+代表的な計測を求めるこの issue の追加完了条件ではありません。Btrfs の観測を
 他のファイルシステムや Windows VHDX の割当量へ一般化しません。
 
 ## 管理 Workspace のライフサイクル計測
@@ -225,9 +226,9 @@ sudo env HACO_E2E_SNAPSHOT_AGGREGATE=1 \
 既存の `incus-snapshots` ジョブがこの試験を必須として CLI を渡すため、新しいワークフローや
 計測用の有効化フラグは追加しません。リソース作成前に障害復旧用 catalog を表示し、
 成功時は正確に所有するリソースだけを削除します。全記録とビルドしたコミットを保持してください。
-これは Workspace データの計測で、以下の rootfs/Image の経路とは別です。
-一般的な Base ビルドの計測、archive/publish の増幅、物理的な回収の完了、大規模負荷は
-[issue #241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+これは Workspace データの計測で、以下の rootfs/Image と保持する archive の計測とは別です。
+一般的な Base ビルドの効率、物理回収の完了、大規模負荷は未検証です。論理削除を正確に
+報告するために、容量が減るまで待つ必要はありません。
 
 ## rootfs の保存と通常 Image の再利用の計測
 
@@ -289,6 +290,56 @@ extent の回収完了を待ちません。プールの値は `pool_scope=whole_
 受入成功を証明しません。一般的な Base ビルド・Packer の効率、実 OCI 負荷、物理的な
 回収完了、大規模負荷、他のファイルシステムは
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241)の今回の限定範囲外です。
+
+## 保持する native archive と import 展開の計測
+
+通常 Image の経路では、Env B に既存の 8 MiB 差分を書いた後、正規の削除前に export します。
+通常の停止と公開 CLI の `haco env export`、`haco env import` は、既存の非公開
+コントローラーと正規の移送サービスを使います。実際の `.haco` 出力を試験専用の非公開
+ディレクトリに保持し、移送先一つを新規作成して計測・削除します。集約試験全体が成功した
+場合は既存の試験用ディレクトリ削除で archive も消し、この計測が失敗した場合は復旧用
+catalog とともに残します。新しい合成の元環境、
+Base ビルド、プール、権限、mount 変更、計測フラグは追加しません。従来の集約 export は
+計測用ファイルの作成前に行われる別の機能試験で、そのバイト数を今回の計測へ流用しません。
+
+次の観測を分けて記録します。
+
+- 保持 archive: リンク数一の通常ファイルとファイルシステムの識別ハッシュ、数値の
+  filesystem type、論理容量、参照割当量（`st_blocks * 512`）、全体の SHA-256。
+  import の前後と移送先削除後に、上限付き読み取りの前後で読み取り専用 descriptor、
+  パスと祖先ディレクトリの所有・識別を再確認します。archive は管理 Btrfs プールとは
+  別のファイルシステムに置かれる場合があります。
+- native component: 既存の bundle 検証器で全体を検証し、manifest の固定 role ごとの
+  `bytes` と `sha256`、合計と外側の付加分（ファイル容量から component 合計を引いた値）
+  だけを記録します。計数だけのための展開や component コピーは行いません。
+- 元と移送先: rootfs 全体、計測用ディレクトリに加え、`base`・`delta` 各ファイルの容量と
+  不変のハッシュを確認します。既存の正確な所有識別、Environment → Workspace の
+  ロック順、一時停止・読み取り・再開、Host mount 範囲確認を維持し、ゲストから見た
+  計測ファイルの数値 UID:GID が `0:0` のままであることも確認します。
+- 背景と後始末: 既存の `whole_shared_pool` は背景情報のままです。export の一時
+  Snapshot と image 操作記録が通常のライフサイクルで解消され、移送先 Env・Workspace・
+  必要なら Store の native/catalog 不在が確認できることを要求します。その間 archive は
+  読み取り可能なまま保持します。
+
+`separately_materialized_from_source` は、元と移送先に同じ差分の内容があり、元の差分の
+extent が export 前と import 後の両方で完全に排他的な場合だけ記録します。移送先が自分の
+import cache と共有していても、この限定的な判断は変わりません。元や基準値に共有が
+残る場合は `inconclusive_source_shared` または `inconclusive_baseline_shared` と記録し、
+排他的になるまで再試行しません。別々の観測でハッシュが一致し set-shared が非ゼロでも、
+その二つが共有している証明にはしません。物理 extent の対応関係は推定しません。
+
+移送は非圧縮の native rootfs・volume archive を公開します。通常の Base 公開は別の
+圧縮経路を使うため、今回を Base ビルドや Packer の効率計測とは扱いません。
+component archive、bundle の一時保存、メタデータを書き換えた import archive は、
+実装上で確認できる一時的な実体化段階です。その割当量やメモリーの最大値、デバイスの
+書き込み増幅は計測しません。保持出力と移送先の割当量を足して、一時容量の最大値や
+固有の物理使用量とみなすこともできません。
+
+実行は前述と同じ集約試験です。追加した archive 経路の実機受入は、正確なコミット・run と
+値を[受入記録](../status/acceptance-evidence.ja.md#storage)に残すまで未完了です。
+従来の rootfs/Image の成功から今回の成功を推定しません。issue の範囲は代表的な
+実体化境界と論理削除・容量回収の区別であり、普遍的なスケーリング、全 builder、
+物理回収の成功は追加条件ではありません。
 
 ## Workspace の境界
 

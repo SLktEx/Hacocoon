@@ -157,8 +157,8 @@ The Snapshot aggregate E2E's `storage_measurement` receipt is test-only, not a
 new production logger. `fixture=snapshot-rootfs-image-lifecycle`, `phase` and
 `area` use fixed labels. `identity_sha256` hashes the verified project, pool and
 typed runtime/owner or Image identity; it never emits the underlying ownership
-record. `bytes` contains only typed `rootfs`, `payload` and `payload_sha256`
-objects: the byte counters defined in the
+record. `bytes` contains typed `rootfs`, `payload`, `payload_sha256` and, for
+the archive interval, fixed-role `payload_files` objects: the byte counters defined in the
 [measurement contract](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement)
 and hashes of the fixed, bounded fixture files.
 
@@ -169,6 +169,16 @@ fields. Paths, raw Incus/API responses, arbitrary guest content, config and
 subprocess output are excluded from these records. The existing private fixture
 recovery catalog remains separate; these receipts neither grant cleanup
 authority nor prove native acceptance without the exact test result.
+
+Retained-archive receipts project only numeric logical/referenced allocation,
+filesystem type, hashed filesystem/file identity, the whole-file SHA-256, verified
+component role/bytes/digest, component total and envelope overhead. The manifest's
+source name, repository names, routing and arbitrary metadata are not serialized.
+`payload_role=delta` relationship records allow only
+`separately_materialized_from_source`, `inconclusive_source_shared` and
+`inconclusive_baseline_shared`. These are bounded observations, not pairwise
+sharing or transient-peak claims. See the
+[archive measurement contract](../design/btrfs-storage-layout.md#retained-native-archive-and-import-materialization-measurement).
 
 ## Adding or changing logs
 

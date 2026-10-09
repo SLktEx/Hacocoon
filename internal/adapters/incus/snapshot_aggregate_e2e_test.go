@@ -474,6 +474,14 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			must(controlapi.RegisterCreation(server, &creation.Service{Catalog: reopened, Images: resumedRouter, Workspaces: restoredRepositories, Environments: resumedService, Snapshots: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
 			must(controlapi.RegisterRepositories(server, restoredRepositories, gitrepo.NewBroker(restoredRepositories, reopened, filepath.Join(dir, "git-sockets"))))
 			must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
+			archiveExporter := environmenttransfer.Exporter{Snapshots: resumedService, Root: dir, Component: resumedRouter.ExportSnapshotComponent, Workspaces: resumedRouter.ExportSnapshotWorkspaces}
+			archiveImporter := environmenttransfer.Importer{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores, Root: dir, StoreKind: OCIStoreKind}
+			must(controlapi.RegisterEnvironmentExport(server, func(ctx context.Context, source string) (environmenttransfer.ExportResult, error) {
+				return archiveExporter.ExportStopped(ctx, source, 4<<30)
+			}))
+			must(controlapi.RegisterEnvironmentImport(server, func(ctx context.Context, source io.Reader, name string) (environmenttransfer.ImportResult, error) {
+				return archiveImporter.Import(ctx, source, name, 4<<30)
+			}))
 			socket := filepath.Join(dir, "cli.sock")
 			listener, err := control.ListenUnix(socket, 0600)
 			must(err)
@@ -519,7 +527,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			if len(rootUnlinked["source"].Hashes) != 0 || rootUnlinked["source"].Payload.ExtentTotalBytes != 0 || rootUnlinked["saved"].Hashes["base"] != rootfsHash {
 				t.Fatal("logical rootfs unlink or saved retention unproven")
 			}
-			measureSnapshotImageReuse(rootfsMeasurement, binary, measurementSaved, rootfsHash, resumedService, restoredRepositories)
+			measureSnapshotImageReuse(rootfsMeasurement, binary, measurementSaved, rootfsHash, resumedService, restoredRepositories, &archiveImporter)
 			copied := measurement.observe("after_snapshot", measurementSource, savedArea)
 			must(requireSharedWorkspacePayload(copied["source"], measurementHash))
 			must(requireSharedWorkspacePayload(copied["saved"], measurementHash))
