@@ -100,6 +100,7 @@
     "file": "incus-core-e2e.yml",
     "jobs": [
       "incus-standalone",
+      "incus-vm-probe",
       "incus-core-e2e",
       "incus-storage-cli",
       "incus-host-tooling",
@@ -203,10 +204,17 @@
         "[product] Establish normal Environment creation and exec against Incus-owned Btrfs",
         "[infrastructure] Prepare pinned OCI runtime transfer assets",
         "[product] Verify retained Store maintenance through native adapter and controller CLI"
+      ],
+      "incus-vm-probe": [
+        "[infrastructure] Check out candidate source",
+        "[fixture] Validate optional Incus VM probe",
+        "[infrastructure] Prepare isolated Incus VM substrate",
+        "[infrastructure] Discover optional Incus VM capability"
       ]
     },
     "job_names": [
       "incus-standalone",
+      "incus-vm-probe",
       "incus-core-e2e",
       "incus-storage-cli",
       "incus-host-tooling",

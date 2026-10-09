@@ -37,6 +37,7 @@ run_workflow_policy() {
   section "workflow-policy"
   python3 tools/check_ci_contracts.py
   python3 tools/test_ci_diagnostics.py
+  python3 tools/test_incus_vm_probe.py
   python3 tools/test_ci_cleanup.py
   python3 tools/test_ci_required_tests.py
   python3 tools/test_ci_history.py

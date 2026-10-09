@@ -177,3 +177,62 @@ policy and repository tests alone cannot establish Issue #615's full native
 repeatability criteria. Track exact candidate/run results in acceptance evidence.
 
 Native Windows acceptance keeps completed phase output when its child reaches the existing 30-minute limit. Each stream remains bounded at 4 MiB; timeout stays a failure even if earlier success markers exist. Truncation is explicit. The runner joins the child before returning diagnostics and never retries the product operation.
+
+## Optional Incus VM capability
+
+`incus-vm-probe` in the existing Incus workflow runs independently on a fresh
+Ubuntu 26.04 GitHub-hosted runner. It discovers substrate capability for #258;
+it does not add a Hacocoon VM backend or change the system-container contracts.
+A completed `supported` or positively identified `unsupported` result satisfies
+this discovery contract. Setup, image/network, observation, lifecycle and cleanup
+errors fail the job and leave the answer inconclusive. There is no container
+fallback, tolerated failure or self-hosted runner requirement.
+
+The job reuses the signed 7.0 LTS bootstrap, adds the matching `incus` package's
+VM dependencies only on this runner, then restarts the daemon to refresh its
+cached driver availability. The probe launches `images:ubuntu/26.04 --vm` with
+2 CPUs, 1 GiB memory and a root disk on the initialized default pool. It inherits
+no profiles and attaches no NIC, Host directory or management socket. Successful
+agent exec must observe PID 1 systemd in running/degraded state, then repeat after
+a verified stop/start. The result records the image fingerprint when created.
+
+`incus-vm-probe.json` records KVM device/permission and client API observations,
+x86 virtualization flags, required Incus/kernel/OS identity, launch exit status,
+lifecycle outcome and verified instance absence. The accompanying substrate
+receipt records the exact runner image, SHA, run and attempt. Client access to
+`/dev/kvm` is not confused with the root daemon's access. A missing device is
+`unsupported` only when the actual launch also returns Incus's specific missing-KVM
+refusal. Missing/malformed server identity, unknown launch errors, permission
+refusals and timeouts remain inconclusive; they are never evidence of unsupported
+hardware. Raw provider output, arbitrary
+configuration, environments and credentials are not retained.
+
+The fallback error contract is grounded in Incus 7.0.1's
+[instance-type refusal](https://github.com/lxc/incus/blob/v7.0.1/internal/server/instance/instance_utils.go)
+[QEMU driver observation](https://github.com/lxc/incus/blob/v7.0.1/internal/server/instance/drivers/driver_qemu.go),
+and [remote-operation error wrapper](https://github.com/lxc/incus/blob/v7.0.1/client/util.go).
+Other observations use Incus JSON API instance/server/operation fields. Raw
+query envelopes preserve empty operation maps; both CLI exit and API success
+are required, because raw query can return an API error with exit zero. The
+KVM diagnostic uses the
+[Linux KVM API](https://docs.kernel.org/virt/kvm/api.html#kvm-get-api-version).
+Tests cover supported execution, exact refusal, client permission differences,
+malformed/failed observations, partial creation, timeouts, owner replacement and
+cleanup failures. These fixtures do not establish real VM acceptance.
+
+On an already initialized, isolated Incus host, the same repository probe runs
+without GitHub-specific behavior (choose an unused numeric name and private receipt directory):
+
+```bash
+receipt_dir="$(mktemp -d)"
+python3 tools/incus_vm_probe.py probe --name hci-123-1-vm --output "$receipt_dir/result.json"
+python3 tools/incus_vm_probe.py cleanup --output "$receipt_dir/result.json"
+```
+
+The probe creates and deletes only the exact named, nonce-marked VM. It refuses an
+existing name or receipt. Cleanup checks pending daemon operations, current VM
+ownership and positive absence; failed inventory never authorizes deletion.
+Ordinary image-download caches remain with the initialized daemon. Use a fresh
+receipt for another run; after interruption, pass the original receipt to cleanup. `supported` makes a future optional backend plausible on
+that exact runner; it is not product/provider acceptance or a guarantee for every
+GitHub runner image. Decisive native results belong in [acceptance evidence](../status/acceptance-evidence.md).
