@@ -8,10 +8,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -131,8 +133,7 @@ func TestRealIncusPackerBaseBuildE2E(t *testing.T) {
 	base := core.BaseName("packer-tools")
 	build := func() basebuild.Result {
 		t.Helper()
-		out, runErr := runner.Run(ctx, "incus", "exec", trustedHostName, "--project", project, "--",
-			"/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build", "--name", string(base), "--json", "--output", "/root/packer-example")
+		out, runErr := runner.Run(ctx, "incus", packerFixtureBuildArgs(project, base)...)
 		var result basebuild.Result
 		must(json.Unmarshal([]byte(out.Stdout), &result))
 		if runErr != nil || out.ExitCode != 0 {
@@ -141,7 +142,7 @@ func TestRealIncusPackerBaseBuildE2E(t *testing.T) {
 			t.Fatalf("Packer fixture failed; categories=%v", packerFailureCategories(result.Execution))
 		}
 		if result.State != "ready" || result.Base.Name != base || result.Base.Revision == "" || result.Builder != "" {
-			t.Fatal("incomplete Packer result", result)
+			t.Fatalf("incomplete Packer result; %s", packerFailureSummary(result))
 		}
 		return result
 	}
@@ -208,8 +209,7 @@ print("clean")`)
 	} {
 		command("file", "push", originalHCL, trustedHostName+"/root/packer-example/base.pkr.hcl", "--project", project, "--mode", "0644")
 		guest("/bin/sh", "-ec", failure.script)
-		out, err := runner.Run(ctx, "incus", "exec", trustedHostName, "--project", project, "--",
-			"/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build", "--name", string(base), "--json", "/root/packer-example")
+		out, err := runner.Run(ctx, "incus", packerFixtureBuildArgs(project, base)...)
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() != 1 || out.ExitCode != 1 || out.StdoutTruncated || ctx.Err() != nil {
 			t.Fatalf("%s did not return the expected build failure: exit=%d error=%v", failure.name, out.ExitCode, err)
@@ -217,7 +217,8 @@ print("clean")`)
 		var failed basebuild.Result
 		must(json.Unmarshal([]byte(out.Stdout), &failed))
 		if out.ExitCode == 0 || failed.State == "ready" || failed.Stage != failure.stage || !strings.HasPrefix(failed.Builder, "haco-packer-") {
-			t.Fatalf("%s failure was not observed at expected stage: %+v", failure.name, failed)
+			packerNestedFailureDiagnostics(t, ctx, runner, project, failed.Builder)
+			t.Fatalf("%s failure was not observed at expected stage=%s; %s", failure.name, failure.stage, packerFailureSummary(failed))
 		}
 		images, err := manager.List(ctx)
 		must(err)
@@ -250,6 +251,45 @@ print("clean")`)
 	// failed-attempt receipts and their exact nested resources remain diagnosable.
 }
 
+// Both successful and negative calls capture the same bounded execution result
+// in memory. The default CLI omits it; never print the raw result in diagnostics.
+func packerFixtureBuildArgs(project string, base core.BaseName) []string {
+	return []string{"exec", trustedHostName, "--project", project, "--",
+		"/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build",
+		"--name", string(base), "--json", "--output", "/root/packer-example"}
+}
+
+func packerFailureSummary(result basebuild.Result) string {
+	stage := "unknown"
+	switch result.Stage {
+	case "prepare", "fmt", "init", "validate", "project", "build", "export", "import", "cleanup":
+		stage = result.Stage
+	}
+	return fmt.Sprintf("stage=%s categories=%v", stage, packerFailureCategories(result.Execution))
+}
+
+func TestPackerFixtureBuildCapturesBoundedOutput(t *testing.T) {
+	want := []string{"exec", trustedHostName, "--project", "haco-packer-e2e-test", "--",
+		"/usr/bin/env", "HACO_CONTROL_SOCKET=/var/lib/packer-fixture.sock", "haco", "base", "build",
+		"--name", "packer-tools", "--json", "--output", "/root/packer-example"}
+	if got := packerFixtureBuildArgs("haco-packer-e2e-test", "packer-tools"); !slices.Equal(got, want) {
+		t.Fatal("fixture build no longer captures execution for safe diagnostic classification")
+	}
+}
+
+func TestPackerFailureSummaryOmitsPrivateResultFields(t *testing.T) {
+	result := basebuild.Result{Base: core.BaseInfo{Name: "private-base"}, Builder: "private-builder", State: "private-state", Stage: "init",
+		Execution: &core.ExecutionResult{Stderr: "secret-token\x1b[2J network /private/user-data"}}
+	if got := packerFailureSummary(result); got != "stage=init categories=[network]" {
+		t.Fatal("summary exposed result data or lost fixed diagnostic fields")
+	}
+	result.Stage = "init\nprivate-stage"
+	result.Execution = nil
+	if got := packerFailureSummary(result); got != "stage=unknown categories=[no-execution-result]" {
+		t.Fatal("untrusted stage entered diagnostic output")
+	}
+}
+
 // External error text is untrusted even in synthetic E2E. Only these fixed
 // categories may cross into CI logs; no matching substring or value is emitted.
 func packerFailureCategories(execution *core.ExecutionResult) []string {
@@ -258,7 +298,13 @@ func packerFailureCategories(execution *core.ExecutionResult) []string {
 	}
 	text := strings.ToLower(execution.Stdout + execution.Stderr)
 	var categories []string
+	// Packer v1.16.0 packer/plugin-getter/plugins.go supplies the typed
+	// rate-limit and unavailable-version messages. A generic 403 is not proof
+	// of rate limiting. Retain categories only, never the message or its suffix.
 	for _, item := range []struct{ needle, category string }{
+		{"plugin host rate limited the plugin getter", "plugin-rate-limit"},
+		{"no matching version found in releases", "plugin-version-unavailable"},
+		{"no release version found for constraints", "plugin-version-unavailable"},
 		{"error creating container", "instance-create"}, {"error publishing container", "image-publish"},
 		{"error stopping container", "instance-stop"}, {"error uploading", "upload"},
 		{"error executing", "provisioner-exec"}, {"idmap", "idmap"}, {"cgroup", "cgroup"}, {"bpf", "bpf"}, {"hook", "hook"}, {"autodev", "autodev"}, {"namespace", "namespace"}, {"denied", "denied"}, {"invalid argument", "invalid-argument"}, {"failed to setup", "setup"}, {"lxc.conf", "lxc-config"}, {"failed to allocate", "allocation"}, {"failed to create", "create"}, {"failed to load", "load"}, {"uid_map", "uid-map"},
@@ -274,7 +320,7 @@ func packerFailureCategories(execution *core.ExecutionResult) []string {
 		{"x509", "tls-certificate"}, {"connection refused", "connection-refused"},
 		{"device", "device"}, {"resource temporarily unavailable", "resource-unavailable"},
 	} {
-		if strings.Contains(text, item.needle) {
+		if strings.Contains(text, item.needle) && !slices.Contains(categories, item.category) {
 			categories = append(categories, item.category)
 		}
 	}
@@ -290,6 +336,21 @@ func TestPackerFailureCategoriesNeverExposeSubprocessText(t *testing.T) {
 	}
 	if strings.Join(packerFailureCategories(&core.ExecutionResult{Stderr: "private unmatched text"}), ",") != "unclassified" {
 		t.Fatal("unrecognized text exposed")
+	}
+}
+
+func TestPackerInitFailureCategoriesUseSpecificUpstreamMessages(t *testing.T) {
+	for _, tc := range []struct{ text, want string }{
+		{"Plugin host rate limited the plugin getter", "plugin-rate-limit"},
+		{"no matching version found in releases", "plugin-version-unavailable"},
+		{"no release version found for constraints", "plugin-version-unavailable"},
+		{"no matching version found in releases; no release version found for constraints", "plugin-version-unavailable"},
+		{"HTTP 403 Forbidden", "unclassified"},
+	} {
+		execution := &core.ExecutionResult{Stderr: tc.text + " secret-token\x1b[2J https://private.invalid/token"}
+		if got := strings.Join(packerFailureCategories(execution), ","); got != tc.want {
+			t.Fatal("init classification exposed private text or inferred an unsupported cause")
+		}
 	}
 }
 
