@@ -938,7 +938,7 @@ installed input and giant-repository measurements were not exercised.
 
 ### Installed Linux input gate
 
-The test-only candidate based on main `7a3a6b8b` adds
+The candidate based on main `7a3a6b8b` adds
 [`workspace_input.py`](../../test/e2e/installed/workspace_input.py) to the existing
 mandatory Ubuntu installed lifecycle journey. It uses ordinary `repo add`,
 `workspace import`, path `open`, `exec`, stop/reopen, explicit Environment/Workspace
@@ -975,6 +975,17 @@ Fixture/cleanup regressions are repository evidence only. Installed execution of
 this added slice is pending; it does not complete issue #344's Linux SSH,
 connection-enumeration/forwarding or editor requirements. Existing Windows
 acceptance remains separate and is not rerun or replaced by this fixture.
+
+At `be032d9f`, [Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)
+passed installation and the existing lifecycle, then failed the first Workspace
+import with a connection reset and a retained recovery-required identity. The
+bounded report survived in the job log; no imported Env was opened. A component
+regression reproduces the missing `$HACO_ROOT/transfers` directory through the
+actual receiver, upload framing over `net.Pipe` and native archive staging.
+The receiver now initializes that private directory like the other import handlers.
+Missing/existing roots, unsafe existing paths and retained failure identities pass
+locally with race; corrected installed acceptance remains pending. The initial
+native failure is not relabeled a pass or bypassed by fixture-side preparation.
 
 
 ## Retained cache catalog maintenance

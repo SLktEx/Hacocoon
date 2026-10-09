@@ -813,7 +813,7 @@ fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state
 
 ### 導入済みLinuxの入力ゲート
 
-main `7a3a6b8b`を基にした試験のみの候補で、既存の必須Ubuntu導入済みlifecycle経路に
+main `7a3a6b8b`を基にした候補で、既存の必須Ubuntu導入済みlifecycle経路に
 [`workspace_input.py`](../../test/e2e/installed/workspace_input.py)を追加しました。
 導入済みcontrollerへ通常の`repo add`、`workspace import`、パス指定の`open`、
 `exec`、停止・再開、Env/Workspaceの明示的な削除、sourceの登録解除を実行します。
@@ -844,6 +844,15 @@ Env/Workspaceのcleanupは記録した所有者と削除後の不在を確認し
 fixture/cleanupの回帰はリポジトリ内の証拠に限ります。追加経路の導入済み実行は未実施で、
 issue #344のLinux SSH、接続一覧・forwarding、editor受入の完了は意味しません。
 既存のWindows受入とは分け、このfixtureで再実行や代替はしません。
+
+`be032d9f`の[Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)は
+導入と従来のlifecycleに成功後、最初のWorkspace importで接続がresetされ失敗しました。
+recovery-requiredの識別情報は限定した報告としてジョブログに残り、取り込んだEnvのopenには進んでいません。
+実際のreceiver、`net.Pipe`経由のupload framing、native archive stagingを通す構成要素回帰で、
+`$HACO_ROOT/transfers`が未作成の場合の失敗を再現しました。
+receiverは他のimport handlerと同じく、この非公開ディレクトリを初期化するようになりました。
+未作成・既存のディレクトリ、不安全な既存パス、失敗時の識別情報保持はローカルのrace付き回帰で成功しましたが、
+修正後の導入済み受入は未実施です。最初の実機失敗を成功に言い換えず、fixture側の準備で回避もしません。
 
 
 ## 保持キャッシュ台帳の整理
