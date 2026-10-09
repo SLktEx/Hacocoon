@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -202,6 +203,12 @@ func (p *BaseProvider) PublishBase(ctx context.Context, env core.Environment, le
 	image, err := p.ownedBaseImage(ctx, name, *published)
 	if err != nil {
 		return result, err
+	}
+	// The build alias is an observation, not proof that the returned image
+	// belongs to this publication. Match its durable receipt to the exact
+	// builder lease before exposing a revision or moving the logical pointer.
+	if image.Properties["user.hacocoon.build-instance"] != lease.InstanceID || image.Properties["user.hacocoon.build-environment"] != env.Name {
+		return result, errors.Join(core.ErrCapabilityStale, core.ErrRecoveryRequired)
 	}
 	result.Revision = core.BaseRevision("sha256:" + image.Fingerprint)
 	current := map[string]string{"name": aliasName, "target": image.Fingerprint, "description": builtBaseDescription}

@@ -53,7 +53,7 @@ func TestBuiltBaseUsesOwnedNativeImageAndPinnedRevision(t *testing.T) {
 	}
 }
 func TestPublishBaseRecordsOwnershipBeforeVerificationAndPreservesImages(t *testing.T) {
-	for _, failure := range []string{"", "publish", "verify", "alias", "foreign"} {
+	for _, failure := range []string{"", "publish", "verify", "alias", "foreign", "other-build", "other-builder", "missing-builder"} {
 		t.Run(failure, func(t *testing.T) {
 			t.Setenv(baseConfigEnv, "")
 			work := core.NewTemporaryWorkspace()
@@ -117,7 +117,17 @@ func TestPublishBaseRecordsOwnershipBeforeVerificationAndPreservesImages(t *test
 					if failure == "verify" {
 						return host.Result{Stdout: "{}"}, nil
 					}
-					im := baseImage{Fingerprint: testFingerprintA, Type: "container", Properties: map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": "tools", "user.hacocoon.build-instance": id}}
+					im := baseImage{Fingerprint: testFingerprintA, Type: "container", Properties: map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": "tools", "user.hacocoon.build-instance": id, "user.hacocoon.build-environment": env.Name}}
+					switch failure {
+					case "other-build":
+						// A valid owner for another build is not this publication's
+						// ownership receipt, even with the expected alias and name.
+						im.Properties["user.hacocoon.build-instance"] = "env-" + strings.Repeat("b", 32)
+					case "other-builder":
+						im.Properties["user.hacocoon.build-environment"] = "other-builder"
+					case "missing-builder":
+						delete(im.Properties, "user.hacocoon.build-environment")
+					}
 					data, _ := json.Marshal(im)
 					return host.Result{Stdout: string(data)}, nil
 				}
@@ -144,6 +154,82 @@ func TestPublishBaseRecordsOwnershipBeforeVerificationAndPreservesImages(t *test
 			}
 			if failure == "foreign" && published {
 				t.Fatal("foreign alias overwritten")
+			}
+			if failure == "other-build" || failure == "other-builder" || failure == "missing-builder" {
+				if pointer || got.Revision != "" || !errors.Is(err, core.ErrCapabilityStale) || !errors.Is(err, core.ErrRecoveryRequired) {
+					t.Fatal("mismatched publication moved the Base pointer or lost recovery state", got, err)
+				}
+			}
+		})
+	}
+}
+
+func TestPublishBasePreservesHistoricalAliasOnMismatchedBuild(t *testing.T) {
+	for _, mismatched := range []bool{false, true} {
+		t.Run(map[bool]string{false: "exact-build", true: "other-build"}[mismatched], func(t *testing.T) {
+			t.Setenv(baseConfigEnv, "")
+			work := core.NewTemporaryWorkspace()
+			id := "env-" + strings.Repeat("a", 32)
+			oldID := "env-" + strings.Repeat("b", 32)
+			env := core.Environment{Name: "builder", RuntimeRef: "haco-builder", Workspace: work}
+			lease := core.WorkspaceLease{EnvironmentID: env.Name, RuntimeRef: env.RuntimeRef, InstanceID: id, WorkspaceID: work.ID, SourcePath: work.Path, State: core.WorkspaceLeaseActive}
+			alias := baseAlias{Name: builtBasePrefix + "tools", Target: testFingerprintB, Type: "container", Description: builtBaseDescription}
+			published, updated := false, false
+			runner := &fakeRunner{run: func(_ context.Context, _ int, _ string, args []string) (host.Result, error) {
+				joined := strings.Join(args, " ")
+				var value any
+				switch {
+				case strings.HasPrefix(joined, "config get"):
+					return host.Result{Stdout: id}, nil
+				case args[0] == "list":
+					return host.Result{Stdout: "haco-builder,STOPPED\n"}, nil
+				case strings.HasPrefix(joined, "file push"):
+					return host.Result{}, nil
+				case strings.Contains(joined, "/metadata?"):
+					value = map[string]any{"architecture": "x86_64", "templates": map[string]any{}}
+				case strings.HasPrefix(joined, "query -X POST /1.0/images?"):
+					published = true
+					return host.Result{}, nil
+				case strings.Contains(joined, "/aliases?") && args[2] == "GET":
+					aliases := []baseAlias{alias}
+					if published {
+						aliases = append(aliases, baseAlias{Name: "hacocoon-build-" + id, Target: testFingerprintA, Type: "container", Description: builtBaseDescription})
+					}
+					value = aliases
+				case strings.Contains(joined, "/images/"+testFingerprintB+"?"):
+					// Historical revisions can lack the diagnostic builder name.
+					value = baseImage{Fingerprint: testFingerprintB, Type: "container", Properties: map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": "tools", "user.hacocoon.build-instance": oldID}}
+				case strings.Contains(joined, "/images/"+testFingerprintA+"?"):
+					owner := id
+					if mismatched {
+						owner = oldID
+					}
+					value = baseImage{Fingerprint: testFingerprintA, Type: "container", Properties: map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": "tools", "user.hacocoon.build-instance": owner, "user.hacocoon.build-environment": env.Name}}
+				case strings.HasPrefix(joined, "query -X PUT /1.0/images/aliases/"+alias.Name+"?"):
+					var body baseAlias
+					if json.Unmarshal([]byte(args[5]), &body) != nil || body.Name != alias.Name || body.Target != testFingerprintA || body.Description != builtBaseDescription {
+						t.Fatal("unexpected alias update", joined)
+					}
+					alias.Target = body.Target
+					updated = true
+					return host.Result{}, nil
+				default:
+					t.Fatal("unexpected provider operation", joined)
+				}
+				data, _ := json.Marshal(value)
+				return host.Result{Stdout: string(data)}, nil
+			}}
+			p, _ := NewBaseProvider(New(runner))
+			got, err := p.PublishBase(context.Background(), env, lease, "tools")
+			if !published {
+				t.Fatal("historical alias prevented new publication", err)
+			}
+			if mismatched {
+				if !errors.Is(err, core.ErrRecoveryRequired) || !errors.Is(err, core.ErrCapabilityStale) || updated || alias.Target != testFingerprintB || got.Revision != "" {
+					t.Fatal("mismatched build replaced the historical revision", got, err)
+				}
+			} else if err != nil || !updated || alias.Target != testFingerprintA || got.Revision != "sha256:"+testFingerprintA {
+				t.Fatal("exact build did not replace the historical revision", got, err)
 			}
 		})
 	}
