@@ -945,7 +945,26 @@ mandatory Ubuntu installed lifecycle journey. It uses ordinary `repo add`,
 deletion and source unregistration against the installed controller. The upstream
 is the public Hacocoon repository; input
 is a small local checkout and an actual linked worktree. No credential, private
-registry, replacement controller, catalog edit or Policy relaxation is needed.
+registry, replacement controller, catalog edit or product setup repair is needed.
+Git is an optional selected-Image prerequisite under [getting started](../guides/getting-started.md#develop-and-return-later).
+For its two exact-owned Environments only, the fixture uses public `config` and
+`exec` commands to install missing Git through ordinary Ubuntu package access.
+Four temporary rules per Environment permit only `archive.ubuntu.com` and
+`security.ubuntu.com`, HTTP/80 and HTTPS/443, with a 15-minute expiry. No wildcard,
+global or DNS grant is added. These administrator grants are name-scoped: safety
+is bounded to the fresh single-runner fixture's unique nonce names, with recorded
+receipts checked before configuration and immediately before `exec`. This does
+not claim instance-bound permission or atomic name-based execution. Each package
+operation removes its exact rules in `finally`, preserving unrelated Policy;
+changed/ambiguous rules fail closed and prevent Env deletion/name reuse before
+runner teardown.
+Configuration uses revision-bound public snapshots, never direct protected-file
+writes or save replay. An absent snapshot cannot complete an unconfirmed add:
+a delayed save may still commit. Such ambiguity retains pending grants and Env
+names. A pending removal is reconciled only by observing absence after the add
+was confirmed; an uncertain save is never automatically resent. Package failures
+remain failures; Git/data assertions are unchanged. The fixture does not require Git in every Base or change the default Image.
+
 Freshness is an execution precondition: this fixture runs only in that disposable
 GitHub-hosted installer journey. It refuses execution without both `GITHUB_ACTIONS=true`
 and `HACO_CI_RUNNER_ENVIRONMENT=github-hosted`; those markers do not prove freshness.
@@ -986,6 +1005,17 @@ The receiver now initializes that private directory like the other import handle
 Missing/existing roots, unsafe existing paths and retained failure identities pass
 locally with race; corrected installed acceptance remains pending. The initial
 native failure is not relabeled a pass or bypassed by fixture-side preparation.
+
+At `4e8f9464`, [Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)
+passed both independent imports and their first opens. The next guest Git assertion
+failed with `git: not found`; exact-owned cleanup completed and bounded receipts
+were retained. This is the documented optional Git prerequisite, not an import
+failure or a requirement to modify all Bases. The corrected fixture follows the
+package-permission path above. Local regressions reproduce the earlier missing
+prerequisite, preserve all Git assertions, and check bounded grants, cleanup,
+uncertain saves and concurrent Policy edits. Corrected installed execution is
+pending. A separate default/custom-root registration regression verifies lazy
+staging initialization without touching the default root or invoking the service.
 
 
 ## Retained cache catalog maintenance

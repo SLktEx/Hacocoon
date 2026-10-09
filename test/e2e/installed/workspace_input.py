@@ -5,12 +5,14 @@ the installer journey, never against an existing installation: repo list omits
 excluded registrations. Runner safeguards enforce the CI context, not freshness.
 Only public product commands create/delete Environments and Workspaces or
 register/unregister the source; native source data remains until runner teardown.
-No catalog, Policy, Incus or guest setup repair is used. The registered public
-upstream supplies routing, not the imported fixture data.
+No catalog or Incus repair is used. Optional guest Git uses the documented
+package-permission path through public config/exec commands, with temporary
+exact-Environment grants. The registered upstream supplies routing, not input.
 """
 import hashlib
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
 import shutil
@@ -22,6 +24,14 @@ import uuid
 
 UPSTREAM = "https://github.com/SLktEx/Hacocoon.git"
 REPORT_LIMIT = 16384
+GIT_PREREQUISITE = '''
+if ! command -v git >/dev/null 2>&1; then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
+fi
+command -v git >/dev/null
+git --version
+'''
 
 
 def public_receipt(value):
@@ -154,6 +164,9 @@ class Acceptance:
         self.workspaces = []
         self.environments = []
         self.inputs = []
+        self.package_rules = []
+        self.package_add_observed = False
+        self.package_remove_pending = False
         self.save()
 
     @staticmethod
@@ -169,6 +182,9 @@ class Acceptance:
             "registration_receipt": public_receipt(self.registration_receipt),
             "import_receipts": self.import_receipts, "open_receipts": self.open_receipts,
             "source": public_receipt(self.source) if self.source else None,
+            "package_policy_pending": sorted({rule["environment"] for rule in self.package_rules}),
+            "package_policy_add_observed": self.package_add_observed,
+            "package_policy_remove_pending": self.package_remove_pending,
             "workspaces": [public_receipt(row) for row in self.workspaces],
             "environments": [public_receipt(row) for row in self.environments]}
 
@@ -232,6 +248,92 @@ class Acceptance:
         for path, expected in self.inputs:
             require(tree_digest(path) == expected, "client input/common Git state changed")
 
+    def apply_package_policy(self, snapshot):
+        # Use the revision-bound public command. Never edit protected Policy
+        # storage or replay an uncertain save over a concurrent change.
+        path = self.root / ("package-policy-" + uuid.uuid4().hex + ".json")
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w") as output:
+            json.dump(snapshot, output)
+        saved = self.query("config", "--file", str(path), "--json")
+        require(saved.get("policy") == snapshot["policy"] and
+                isinstance(saved.get("revision"), str) and
+                re.fullmatch(r"sha256:[a-f0-9]{64}", saved["revision"]),
+                "package Policy save is unconfirmed")
+        require(self.query("config", "--json") == saved, "package Policy changed after save")
+        path.unlink()
+
+    def remove_package_policy(self):
+        if not self.package_rules:
+            return
+        snapshot = self.query("config", "--json")
+        current = snapshot["policy"]["rules"]
+        require(isinstance(current, list), "invalid package Policy snapshot")
+        reasons = {rule["reason"] for rule in self.package_rules}
+        require(all(rule in self.package_rules for rule in current
+                    if isinstance(rule, dict) and rule.get("reason") in reasons),
+                "refusing cleanup of changed package Policy")
+        # Snapshot is not a completion fence for a timed-out configuration save.
+        # A delayed add may still commit after an early read reports absence.
+        # Retain both pending rules and Env names until this add is positively
+        # observed, or leave them for expiry and disposable runner teardown.
+        if not self.package_add_observed:
+            require(all(current.count(rule) == 1 for rule in self.package_rules),
+                    "package Policy add is still unconfirmed; retain Environment names")
+            self.package_add_observed = True
+        remaining = list(current)
+        for rule in self.package_rules:
+            require(remaining.count(rule) <= 1, "ambiguous package Policy ownership")
+            if rule in remaining:
+                remaining.remove(rule)
+        if remaining != current:
+            require(not self.package_remove_pending,
+                    "package Policy removal is still unconfirmed; retain Environment names")
+            snapshot["policy"]["rules"] = remaining
+            self.package_remove_pending = True
+            self.save()
+            self.apply_package_policy(snapshot)
+        self.package_rules = []
+        self.package_add_observed = False
+        self.package_remove_pending = False
+        self.save()
+
+    def prepare_git(self, environment):
+        # Getting started explicitly permits Git-less Images. Exercise the same
+        # ordinary package path as installed Windows acceptance, not a Base or
+        # guest repair. Keep every later Git/data assertion unchanged.
+        # These are administrator name scopes in the fresh single-runner fixture,
+        # not instance-bound permissions or an atomic name-based exec contract.
+        current = self.query("env", "status", "--json", environment["name"])["environment"]
+        require(environment_identity(current) == environment_identity(environment),
+                "refusing package setup in a replaced Environment")
+        require(re.fullmatch(r"work-" + re.escape(self.prefix) + r"-(other|selected)", environment["name"]),
+                "invalid package Policy Environment")
+        expiry = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        reason = "Installed Workspace input Git prerequisite " + environment["name"]
+        rules = [{"capability": "network.egress", "action": "connect", "resource": host,
+                  "environment": environment["name"], "attributes": {"protocol": protocol, "port": port},
+                  "decision": "allow", "reason": reason, "expires_at": expiry}
+                 for host in ("archive.ubuntu.com", "security.ubuntu.com")
+                 for protocol, port in (("http", "80"), ("https", "443"))]
+        snapshot = self.query("config", "--json")
+        existing = snapshot["policy"]["rules"]
+        require(isinstance(existing, list) and all(not isinstance(rule, dict) or rule.get("reason") != reason
+                                                 for rule in existing),
+                "package Policy already exists")
+        self.package_rules.extend(rules)
+        self.package_add_observed = False
+        self.save()  # Cleanup intent survives an ambiguous configuration save.
+        snapshot["policy"]["rules"] = existing + rules
+        try:
+            self.apply_package_policy(snapshot)
+            self.package_add_observed = True
+            current = self.query("env", "status", "--json", environment["name"])["environment"]
+            require(environment_identity(current) == environment_identity(environment),
+                    "refusing package setup in a replaced Environment")
+            self.haco("exec", environment["name"], "--", "sh", "-ceu", GIT_PREREQUISITE)
+        finally:
+            self.remove_package_policy()
+
     def check_stale_reference(self, path, other_workspace):
         reference = path / ".haco-workspace.json"
         original = reference.read_bytes()
@@ -253,6 +355,12 @@ class Acceptance:
         # The public repo delete command only unregisters the source from active
         # selection; its native data is retained for disposable runner teardown.
         errors = []
+        try:
+            self.remove_package_policy()
+        except (RuntimeError, subprocess.SubprocessError, KeyError, ValueError) as error:
+            # Do not free an Env name while its package grant is uncertain.
+            # Leave exact owned resources for inspection/disposable teardown.
+            raise RuntimeError("owned cleanup incomplete; inspect retained package Policy") from error
         for env in reversed(self.environments):
             try:
                 current = self.query("env", "status", "--json", env["name"])["environment"]
@@ -310,6 +418,8 @@ class Acceptance:
         self.save()
         _, other = self.import_open("other", main)
         path, selected = self.import_open("selected", linked)
+        self.prepare_git(other)
+        self.prepare_git(selected)
         self.haco("exec", selected["name"], "--", "sh", "-ceu", r'''
 cd /workspace
 test "$(git rev-parse --show-toplevel)" = /workspace

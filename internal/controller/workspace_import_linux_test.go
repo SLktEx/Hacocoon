@@ -108,6 +108,36 @@ func workspaceInputBytes(t *testing.T) []byte {
 	return buffer.Bytes()
 }
 
+func TestWorkspaceImportRegistrationDoesNotPrepareStaging(t *testing.T) {
+	for _, configured := range []bool{false, true} {
+		name := "default root"
+		if configured {
+			name = "custom root"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := ""
+			if configured {
+				root = filepath.Join(t.TempDir(), "not-created")
+			}
+			t.Setenv("HACO_ROOT", root)
+			server := control.NewServer()
+			// Registration must install the endpoint without invoking the service
+			// or requiring filesystem access to the default or custom root.
+			if err := registerWorkspaceImport(server, nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := registerWorkspaceImport(server, nil); !errors.Is(err, control.ErrInvalidArgument) {
+				t.Fatal("Workspace import endpoint was not registered", err)
+			}
+			if configured {
+				if _, err := os.Lstat(root); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("registration prepared staging before an import", err)
+				}
+			}
+		})
+	}
+}
+
 func TestWorkspaceImportInitializesInstalledStaging(t *testing.T) {
 	for _, mode := range []string{"missing", "existing", "file", "broad", "symlink"} {
 		t.Run(mode, func(t *testing.T) {

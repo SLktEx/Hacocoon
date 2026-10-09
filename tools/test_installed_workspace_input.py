@@ -2,6 +2,7 @@
 import importlib.util
 import base64
 import contextlib
+import copy
 import io
 import json
 from pathlib import Path
@@ -60,6 +61,292 @@ class FixtureTests(unittest.TestCase):
             (root / "outside").symlink_to("/etc/passwd")
             with self.assertRaisesRegex(RuntimeError, "unexpected source"):
                 acceptance.tree_digest(root)
+
+
+class PackagePrerequisiteTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.fixture = acceptance.Acceptance(Path(self.directory.name))
+        self.environment = self.env("selected")
+        self.original = {"default": "deny", "rules": [
+            {"capability": "network.egress", "action": "connect", "resource": "existing.example",
+             "environment": "unrelated", "decision": "deny", "attributes": {"protocol": "https", "port": "443"}}],
+            "saved_decisions": [], "network_services": []}
+        self.policy = copy.deepcopy(self.original)
+        self.revision = 1
+        self.writes = []
+        self.commands = []
+        self.installed = set()
+        self.fail_save_after_write = False
+        self.fail_package = False
+        self.fixture.query = self.query
+        self.fixture.haco = self.haco
+
+    def env(self, label):
+        return {"name": "work-" + self.fixture.prefix + "-" + label,
+                "created_at": "2026-10-09T00:00:00Z", "runtime_ref": "haco-exact-" + label,
+                "workspace": {"id": "workspace:managed:" + ("a" if label == "selected" else "b") * 32}}
+
+    def snapshot(self):
+        return {"revision": "sha256:" + format(self.revision, "064x"), "policy": copy.deepcopy(self.policy)}
+
+    def query(self, *args):
+        if args[:3] == ("env", "status", "--json"):
+            label = args[3].rsplit("-", 1)[1]
+            return {"environment": self.env(label), "state": "stopped"}
+        if args == ("config", "--json"):
+            return self.snapshot()
+        if args[:2] == ("config", "--file"):
+            path = Path(args[2])
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            edit = json.loads(path.read_text())
+            self.assertEqual(edit["revision"], self.snapshot()["revision"])
+            self.policy = edit["policy"]
+            self.writes.append(copy.deepcopy(self.policy))
+            self.revision += 1
+            if self.fail_save_after_write:
+                self.fail_save_after_write = False
+                raise subprocess.CalledProcessError(1, args)
+            return self.snapshot()
+        if args == ("repo", "list", "--json"):
+            return {"sources": []}
+        if args[:2] == ("repo", "add"):
+            return {"id": self.fixture.prefix, "owner": "c" * 32, "state": "ready"}
+        self.fail("unexpected product query: " + repr(args))
+
+    def haco(self, *args):
+        self.commands.append(args)
+        if args[0] == "exec":
+            environment = args[1]
+            if "apt-get install -y --no-install-recommends git" in args[-1]:
+                grants = self.policy["rules"][1:]
+                self.assertEqual(len(grants), 4)
+                self.assertTrue(all(rule["environment"] == environment for rule in grants))
+                if self.fail_package:
+                    raise subprocess.CalledProcessError(100, args)
+                self.installed.add(environment)
+            elif environment not in self.installed:
+                raise subprocess.CalledProcessError(127, args, stderr="git: not found")
+        return "new-local-commit"
+
+    def test_fixture_prepares_both_gitless_environments_before_git_assertions(self):
+        self.fixture.import_open = lambda label, source: (self.fixture.root / label, self.env(label))
+        self.fixture.check_stale_reference = mock.Mock()
+        self.fixture.check_reopen = mock.Mock()
+        self.fixture.check_inputs = mock.Mock()
+        self.fixture.exercise()
+        self.assertEqual(self.installed, {self.env(label)["name"] for label in ("other", "selected")})
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(self.fixture.package_rules, [])
+        self.assertEqual(len(self.writes), 4)
+        self.assertTrue(any("git commit" in repr(command) or "commit -m imported-index" in repr(command)
+                            for command in self.commands))
+
+    def test_package_grants_are_exact_temporary_and_preserve_existing_policy(self):
+        self.fixture.prepare_git(self.environment)
+        granted = self.writes[0]["rules"][1:]
+        self.assertEqual({(rule["resource"], rule["attributes"]["protocol"], rule["attributes"]["port"])
+                          for rule in granted},
+                         {(host, protocol, port) for host in ("archive.ubuntu.com", "security.ubuntu.com")
+                          for protocol, port in (("http", "80"), ("https", "443"))})
+        for rule in granted:
+            self.assertEqual((rule["capability"], rule["action"], rule["decision"]),
+                             ("network.egress", "connect", "allow"))
+            self.assertEqual(rule["environment"], self.environment["name"])
+            self.assertNotIn("*", json.dumps(rule))
+            expires = acceptance.datetime.fromisoformat(rule["expires_at"])
+            remaining = (expires - acceptance.datetime.now(acceptance.timezone.utc)).total_seconds()
+            self.assertGreater(remaining, 890)
+            self.assertLessEqual(remaining, 900)
+        self.assertEqual(self.writes[-1], self.original)
+        self.assertEqual(self.policy, self.original)
+
+    def test_package_failure_removes_grants_without_retrying_guest_command(self):
+        self.fail_package = True
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(len(self.commands), 1)
+        self.assertEqual(self.fixture.package_rules, [])
+
+    def test_guest_package_script_installs_only_missing_git(self):
+        for present in (False, True):
+            with self.subTest(present=present), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                binary = root / "git"
+                log = root / "packages.log"
+                apt = root / "apt-get"
+                apt.write_text('''#!/bin/sh
+set -eu
+printf '%s\\n' "$*" >> "$PACKAGE_LOG"
+case "$*" in
+  update) ;;
+  'install -y --no-install-recommends git')
+    printf '#!/bin/sh\\nprintf "git version fixture\\\\n"\\n' > "$GIT_BINARY"
+    /bin/chmod 0700 "$GIT_BINARY"
+    ;;
+  *) exit 93 ;;
+esac
+''')
+                apt.chmod(0o700)
+                if present:
+                    binary.write_text('#!/bin/sh\nprintf "git version retained\\n"\n')
+                    binary.chmod(0o700)
+                result = subprocess.run(["/bin/sh", "-ceu", acceptance.GIT_PREREQUISITE],
+                                        env={"PATH": directory, "PACKAGE_LOG": str(log), "GIT_BINARY": str(binary)},
+                                        text=True, capture_output=True, check=True)
+                if present:
+                    self.assertFalse(log.exists())
+                    self.assertIn("retained", result.stdout)
+                else:
+                    self.assertEqual(log.read_text().splitlines(), ["update", "install -y --no-install-recommends git"])
+                    self.assertIn("fixture", result.stdout)
+
+    def test_uncertain_saved_grant_is_inspected_and_removed_without_package_execution(self):
+        self.fail_save_after_write = True
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(self.commands, [])
+        self.assertEqual(len(self.writes), 2)
+
+    def test_stale_policy_save_is_not_replayed_over_a_concurrent_change(self):
+        query = self.fixture.query
+        attempts = []
+        concurrent = {"capability": "local.echo", "action": "echo", "resource": "new", "decision": "deny"}
+
+        def conflict(*args):
+            if args[:2] == ("config", "--file"):
+                attempts.append(args)
+                self.policy["rules"].append(concurrent)
+                self.revision += 1
+                raise subprocess.CalledProcessError(1, args)
+            return query(*args)
+
+        self.fixture.query = conflict
+        with self.assertRaisesRegex(RuntimeError, "add is still unconfirmed"):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(self.policy["rules"], self.original["rules"] + [concurrent])
+        self.assertEqual(self.commands, [])
+        self.assertTrue(self.fixture.package_rules)
+        self.assertFalse(self.fixture.package_add_observed)
+
+    def test_timed_out_add_is_not_completed_by_an_early_absent_snapshot(self):
+        query = self.fixture.query
+        delayed = []
+
+        def delayed_save(*args):
+            if args[:2] == ("config", "--file"):
+                delayed.append(json.loads(Path(args[2]).read_text()))
+                raise subprocess.TimeoutExpired(args, 300)
+            return query(*args)
+
+        self.fixture.environments = [self.environment]
+        self.fixture.query = delayed_save
+        with self.assertRaisesRegex(RuntimeError, "add is still unconfirmed"):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(len(delayed), 1)
+        self.assertEqual(self.policy, self.original)
+        self.assertTrue(self.fixture.package_rules)
+        self.assertFalse(self.fixture.package_add_observed)
+        with self.assertRaisesRegex(RuntimeError, "retained package Policy"):
+            self.fixture.cleanup()
+        self.assertEqual(self.commands, [])
+
+        # Complete the original request only after cleanup observed absence.
+        # Positive observation now permits an exact removal, with no add retry.
+        self.policy = delayed[0]["policy"]
+        self.revision += 1
+        self.fixture.query = query
+        self.fixture.remove_package_policy()
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(self.fixture.package_rules, [])
+        self.assertEqual(self.commands, [])
+        self.assertEqual(len(self.writes), 1)
+
+    def test_uncertain_removal_preserves_add_observation_and_is_not_replayed(self):
+        for committed in (False, True):
+            with self.subTest(committed=committed):
+                self.policy = copy.deepcopy(self.original)
+                self.commands = []
+                self.writes = []
+                query = self.query
+                removals = []
+
+                def lose_removal_response(*args):
+                    if args[:2] == ("config", "--file") and self.writes:
+                        removals.append(json.loads(Path(args[2]).read_text()))
+                        if committed:
+                            query(*args)
+                        raise subprocess.TimeoutExpired(args, 300)
+                    return query(*args)
+
+                self.fixture.query = lose_removal_response
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    self.fixture.prepare_git(self.environment)
+                self.assertTrue(self.fixture.package_add_observed)
+                self.assertTrue(self.fixture.package_remove_pending)
+                if not committed:
+                    with self.assertRaisesRegex(RuntimeError, "removal is still unconfirmed"):
+                        self.fixture.remove_package_policy()
+                    self.assertEqual(len(removals), 1)
+                    self.policy = removals[0]["policy"]
+                    self.revision += 1
+                self.fixture.remove_package_policy()
+                self.assertEqual(self.policy, self.original)
+                self.assertEqual(self.fixture.package_rules, [])
+                self.assertFalse(self.fixture.package_remove_pending)
+                self.assertEqual(len(removals), 1)
+
+    def test_replaced_environment_receipt_never_receives_package_permission(self):
+        replaced = dict(self.environment, created_at="different creation")
+        with self.assertRaisesRegex(RuntimeError, "replaced Environment"):
+            self.fixture.prepare_git(replaced)
+        self.assertEqual(self.writes, [])
+        self.assertEqual(self.commands, [])
+
+    def test_replacement_during_policy_save_is_refused_before_package_execution(self):
+        query = self.fixture.query
+
+        def replace_after_save(*args):
+            result = query(*args)
+            if args[:3] == ("env", "status", "--json") and self.writes:
+                result["environment"]["created_at"] = "replacement"
+            return result
+
+        self.fixture.query = replace_after_save
+        with self.assertRaisesRegex(RuntimeError, "replaced Environment"):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(self.commands, [])
+
+    def test_uncertain_package_policy_cleanup_does_not_free_environment_names(self):
+        self.fixture.environments = [self.environment]
+        self.fixture.remove_package_policy = mock.Mock(side_effect=RuntimeError("ambiguous grants"))
+        with self.assertRaisesRegex(RuntimeError, "retained package Policy"):
+            self.fixture.cleanup()
+        self.assertEqual(self.commands, [])
+
+    def test_cleanup_preserves_concurrent_rules_and_refuses_changed_or_duplicate_grants(self):
+        self.fixture.prepare_git(self.environment)
+        exact = self.writes[0]["rules"][1:]
+        unrelated = {"capability": "local.echo", "action": "echo", "resource": "new", "decision": "deny"}
+        self.policy["rules"] += exact + [unrelated]
+        self.fixture.package_rules = copy.deepcopy(exact)
+        self.fixture.remove_package_policy()
+        self.assertEqual(self.policy["rules"], self.original["rules"] + [unrelated])
+        for altered in ([dict(exact[0], resource="changed.example")], [exact[0], exact[0]]):
+            with self.subTest(altered=altered):
+                self.policy["rules"] = self.original["rules"] + altered
+                self.fixture.package_rules = copy.deepcopy(exact)
+                before = copy.deepcopy(self.policy)
+                writes = len(self.writes)
+                with self.assertRaises(RuntimeError):
+                    self.fixture.remove_package_policy()
+                self.assertEqual(self.policy, before)
+                self.assertEqual(len(self.writes), writes)
 
 
 class CleanupTests(unittest.TestCase):
