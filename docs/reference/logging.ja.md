@@ -123,7 +123,8 @@ Snapshot 集約 E2E の `storage_measurement` は試験専用の記録であり�
 追加ではありません。`fixture=snapshot-rootfs-image-lifecycle`、`phase`、`area` は
 固定のラベルを使います。`identity_sha256` は確認済みの project・pool と型付きの
 runtime/owner または Image 識別のハッシュで、元の所有記録は出力しません。
-`bytes` は型付きの `rootfs`、`payload`、`payload_sha256` だけを含み、
+`bytes` は型付きの `rootfs`、`payload`、`payload_sha256` と、archive の計測時だけ
+固定 role の `payload_files` を含み、
 [計測の契約](../design/btrfs-storage-layout.ja.md#rootfs-の保存と通常-image-の再利用の計測)で
 定義した容量と、固定・上限付きの試験ファイルのハッシュを記録します。
 
@@ -133,6 +134,14 @@ runtime/owner または Image 識別のハッシュで、元の所有記録は�
 使います。パス、生の Incus/API 応答、任意のゲスト内容、設定、子プロセス出力は
 含めません。既存の非公開の障害復旧用 catalog は別に扱います。この記録は削除権限を
 与えず、正確な試験結果なしに実機受入の成功を証明しません。
+
+保持 archive の記録は、論理容量・参照割当量の数値、filesystem type、ファイルと
+ファイルシステムの識別ハッシュ、全体の SHA-256、検証済み component の role・容量・
+ハッシュ、component 合計、外側の付加容量だけを出力します。manifest の元環境名、
+リポジトリ名、経路、任意メタデータは出力しません。`payload_role=delta` の関係は
+`separately_materialized_from_source`、`inconclusive_source_shared`、
+`inconclusive_baseline_shared` の三つに限定します。二つの実体間の共有や一時容量の
+最大値の証明ではありません。[archive 計測の契約](../design/btrfs-storage-layout.ja.md#保持する-native-archive-と-import-展開の計測)を参照してください。
 
 ## 監査の追加field
 

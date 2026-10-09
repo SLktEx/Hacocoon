@@ -159,11 +159,12 @@ native snapshotter and built-image identity. Compile from the recorded clean
 checkout; a current worktree revision alone does not authenticate an older binary.
 Native measurements must be recorded in [acceptance evidence](../status/acceptance-evidence.md#storage)
 before claiming measured acceptance. The following sections define separate
-managed-Workspace and rootfs/Image slices. General Base-build workloads,
-archive/publish amplification, Docker drivers, last-reference reclamation and
-large-workload measurements remain under
-[issue #241](https://github.com/SLktEx/Hacocoon/issues/241). Do not generalize these
-Btrfs observations to other filesystems or Windows VHDX allocation.
+managed-Workspace, rootfs/Image and retained-archive slices of
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241). General Base-build
+workloads, Docker drivers, completed reclamation and large workloads remain
+unverified limits, not additional completion requirements for that representative
+measurement issue. Do not generalize Btrfs observations to other filesystems or
+Windows VHDX allocation.
 
 ## Managed Workspace lifecycle measurement
 
@@ -234,9 +235,9 @@ CLI; no additional workflow or opt-in measurement gate is introduced. The test
 prints its private failure-recovery catalog before resource creation and cleans
 only exact owned resources on success. Retain the complete receipt and exact
 compiled commit. This measures Workspace data, not the separate rootfs/Image
-branch below. General Base-build measurement, archive/publish amplification,
-completed physical reclamation and larger workloads remain under
-[issue #241](https://github.com/SLktEx/Hacocoon/issues/241).
+branch and retained-archive interval below. General Base-build efficiency,
+completed physical reclamation and larger workloads remain unverified; logical
+deletion does not require a capacity reduction to be reported faithfully.
 
 ## Rootfs capture and ordinary Image reuse measurement
 
@@ -304,6 +305,65 @@ receipts do not establish rootfs/Image acceptance. General Base-build/Packer
 efficiency, real OCI workloads, completed physical reclamation, large workloads
 and other filesystems remain outside this bounded slice of
 [issue #241](https://github.com/SLktEx/Hacocoon/issues/241).
+
+## Retained native archive and import materialization measurement
+
+The ordinary Image branch now exports Env B after its existing 8 MiB delta
+write and before its canonical cleanup. Normal stop, shipped `haco env export`
+and `haco env import` use the existing private controller and canonical transfer
+services. The actual `.haco` output stays in the private fixture directory while
+one required fresh destination is created, measured and deleted. On complete
+aggregate success, the existing fixture-directory cleanup removes the archive;
+a failed interval retains it with the recovery catalog. No synthetic
+source, Base build, pool, permission, mount change or measurement flag is added.
+The older aggregate export precedes the controlled payloads and remains a separate
+functional check; its bytes are not attributed to this interval.
+
+The receipt keeps these observations separate:
+
+- Retained archive: regular single-link file and filesystem identity hashes,
+  numeric filesystem type, logical bytes, referenced allocation (`st_blocks *
+  512`) and whole-file SHA-256. Read-only descriptor/path/ancestor ownership is
+  checked around bounded reads before and after import and destination cleanup.
+  The archive may be on a different filesystem from the managed Btrfs pool.
+- Native components: the complete envelope is verified with the existing bundle
+  inspector. Only each fixed manifest role's `bytes` and `sha256`, their total
+  and outer-envelope overhead (file size minus component total) are reported.
+  Components are neither extracted nor copied solely for counting.
+- Source/imported data: whole-rootfs and payload-directory counters plus separate
+  `base`/`delta` file counters and unchanged hashes. Existing exact ownership,
+  Environment-then-Workspace locking, pause/read/resume and Host mount-scope
+  guards apply. Guest numeric payload ownership must remain `0:0`.
+- Context and cleanup: the existing `whole_shared_pool` samples remain contextual.
+  Export's temporary Snapshot and image receipts must be cleared through normal
+  lifecycle success; fresh destination Env, Workspace and optional Store cleanup
+  must establish exact native/catalog absence while the archive remains readable.
+
+A `separately_materialized_from_source` result requires the same bounded delta
+bytes in source and destination, with the source delta wholly exclusive both
+before export and after import. Destination extents may still share with its own
+import cache. If the source or baseline reports sharing, the fixed relationship
+is `inconclusive_source_shared` or `inconclusive_baseline_shared`; no retry waits
+for exclusivity. Equal hashes and nonzero set-shared values in separate samples
+never identify a pair of shared files. No physical-extent mapping is inferred.
+
+Transfer publishes uncompressed native rootfs/volume archives. Ordinary Base
+publication uses its distinct compressed path; this interval is not a Base-build
+or Packer efficiency measurement. Component archives, bundle staging and
+metadata-rewritten import archives are transient materialization stages visible
+in the implementation. Their peak allocated bytes, peak memory and device-write
+amplification are not measured here. Retained output and destination allocation
+must not be summed into a transient-peak or unique-physical-storage claim.
+
+Use the [same aggregate build/invocation](#managed-workspace-lifecycle-measurement).
+The added archive interval passed in PR #753's first native run at tested merge
+`c9ba3ac33323c091c1c2450beafc3515dc65b1e1`; the
+[exact-run acceptance evidence](../status/acceptance-evidence.md#archive-materialization)
+records retained bytes, source/imported counters, separate delta materialization
+and logical cleanup without a physical-reclaim claim. Representative
+materialization and the distinction between logical deletion and capacity recovery
+are the issue's scope; universal scaling, every builder and successful physical
+reclamation are not additional requirements.
 
 ## Workspace boundary
 

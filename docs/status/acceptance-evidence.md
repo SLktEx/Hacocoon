@@ -522,6 +522,104 @@ workloads, restored SSH/live application consistency, completed reclamation,
 large workloads and Windows VHDX effects remain outside this bounded result for
 [#241](https://github.com/SLktEx/Hacocoon/issues/241).
 
+<a id="archive-materialization"></a>
+
+### Retained native archive and import materialization
+
+PR #753 head `375c4f0e3706d0bca697745164710532fddbe087`, checked out and
+built as merge `c9ba3ac33323c091c1c2450beafc3515dc65b1e1` into
+`83d8d91695a04f3c26f8f331d2eeec03428fa6c8`, passed the added archive interval in
+[native run 38001081322, job 114059018186, attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/38001081322/job/114059018186) on 2026-10-09.
+`TestRealIncusSnapshotAggregateE2E` passed in 359.70 s; its existing
+`shipped-controller-import` subtest passed in 23.71 s. The
+[tested interval](https://github.com/SLktEx/Hacocoon/blob/375c4f0e3706d0bca697745164710532fddbe087/internal/adapters/incus/rootfs_archive_reuse_e2e_test.go#L21-L177) used fixture `haco-aggregate-5d8450302b0f769c`,
+Ubuntu 26.04.1 (OS identity 26.04), Linux `7.0.0-1012-azure` x86_64,
+Go 1.27.0, Incus 7.0.1 and Btrfs-progs 6.17.1. The cached input fingerprint was
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`; the ordinary
+Image had `origin=snapshot-generated-image` and fingerprint
+`ff8534d6dcc9812f9bb91fcd35d7f7ae2d168152d16c76180ca2465b960fdcf6`.
+Reproduction uses the [existing aggregate recipe](../design/btrfs-storage-layout.md#managed-workspace-lifecycle-measurement),
+with the [archive measurement contract](../design/btrfs-storage-layout.md#retained-native-archive-and-import-materialization-measurement).
+
+The shipped CLI/controller exported ordinary Image Env B after its 8 MiB delta
+write, then imported one fresh destination. The retained `.haco` file was
+**707,051,008 logical bytes and 707,055,616 referenced allocated bytes**
+(`st_blocks * 512`). Its filesystem type was `61267`, distinct from the
+managed Btrfs pool. All three samples, after export, after import and after
+destination deletion, had identical counters, component digests and identities:
+
+- Archive SHA-256: `7a2563cce037bf1f76f01e2c83895292e943b2e5cd4251e58655985ef2747436`
+- `filesystem_identity_sha256`: `0ea4ec481550c1f15778cbb9377d5cc9b1ed9c1618bc483b6878bf807bbf3804`
+- `file_identity_sha256`: `e623bc1b1b4e7417f27f26308ccaee44ca57038cdc431eac25a2b3038e87dfeb`
+
+| Verified component role | Bytes | SHA-256 |
+|---|---:|---|
+| `rootfs` | 707,044,352 | `aba634edadad8f15172559466e1d3e2be5eda671519375f177e3da98af5c6352` |
+| `workspace` | 3,584 | `bbcf3c547eef1e4150f975b841528a8cc1233a5232478234ccacbbd1e5401563` |
+
+The two components totalled 707,047,936 bytes; the outer envelope added
+3,072 bytes. No OCI component was present in this interval. The earlier
+aggregate export and its controller-import subtest remain separate functional checks.
+
+Whole-rootfs counters below are bytes. All four source samples (before export,
+after export/import and after destination deletion) were identical. The receipt's
+source identity hash was `ccf0385cac8a126aea407bc4b7d418b34e6cdc9681cffebcc8c9b96721a77580`;
+the fresh imported identity hash was
+`35d0b29d5cfb3b7c3c2b48a59b3c553b19219ec954cf7acab67ac510b6bc361f`.
+
+| Area | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source | 688,443,469 | 748,875,776 | 689,197,056 | 16,879,616 | 281,337,856 |
+| Imported | 688,538,187 | 748,965,888 | 689,291,264 | 689,291,264 | 0 |
+
+Each `base`/`delta` file had exactly 8,388,608 logical, allocated and extent bytes.
+The source `base` had 0 exclusive / 8,388,608 set-shared bytes; its `delta` had
+8,388,608 exclusive / 0 set-shared bytes at every sample. Each imported file had
+8,388,608 exclusive / 0 set-shared bytes. Both payload directories totalled
+16,777,216 logical, allocated and extent bytes; source exclusive/set-shared were
+8,388,608 each, while imported exclusive was 16,777,216 and set-shared was 0.
+Guest ownership `0:0` was verified in source and destination. The respective
+SHA-256 values matched in every source/imported sample:
+
+- `base`: `293bf8567227610fc453daa3f7989e8b860b54b7e5d44d26e753848a9d1dbf49`
+- `delta`: `1ff32bf51e7e9472443465c9b93557dc24c716531c0aef8b606fa13ef23ea584`
+
+The recorded delta relationship was `separately_materialized_from_source`:
+source exclusivity before export and after import supports that bounded result.
+The source whole-rootfs was not wholly exclusive. Equal hashes or separate
+set-shared counters do not establish pairwise sharing, and these observations
+are not unique-physical-byte or compression measurements.
+
+The four `whole_shared_pool` samples retained a logical backing-file length of
+137,438,953,472 bytes:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before export | 1,117,982,720 |
+| After export | 1,121,533,952 |
+| After import | 1,478,545,408 |
+| Destination deleted, archive retained | 1,481,560,064 |
+
+Allocation rose 3,014,656 bytes after destination deletion. Other objects and
+metadata share this pool; no delta is assigned solely to export/import or cleanup,
+and no completed physical reclamation is claimed. Archive allocation on the
+other filesystem is not pool allocation and is not added to these counts.
+
+Exact temporary Snapshot/image cleanup and fresh destination Env/Workspace
+native/catalog absence passed while the same archive remained readable. The
+existing final fixture cleanup then removed it; aggregate resources were absent,
+with persistent catalog lock identities intentionally retained. Cached input-image
+deletion was explicitly skipped because dedicated-image permission was not enabled.
+Earlier failures remain separate; this result is native interval acceptance.
+
+Transfer's uncompressed native archives remain distinct from normal compressed
+Base publication. Retained counters do not measure transient component/staging/import
+peaks, peak memory, device-write amplification or universal Base/Packer efficiency.
+This is a representative materialization/deletion result for
+[#241](https://github.com/SLktEx/Hacocoon/issues/241), not whole-installation or
+disaster-backup acceptance; universal scaling and physical-reclaim success are
+not additional completion requirements.
+
 <a id="transfer"></a>
 
 ## Environment transfer and evacuation

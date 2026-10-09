@@ -8,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
+	environmenttransfer "github.com/SLktEx/Hacocoon/internal/env/transfer"
 	gitrepo "github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/workspace"
 )
 
 // Reuse the aggregate fixture's existing creation controller and ordinary Image
 // path. No new build, pool, permission or workspace source is provisioned here.
-func measureSnapshotImageReuse(m rootfsStorageObserver, binary string, saved core.Snapshot, hash string, service *workspace.Service, repositories *gitrepo.RepositoryService) {
+func measureSnapshotImageReuse(m rootfsStorageObserver, binary string, saved core.Snapshot, hash string, service *workspace.Service, repositories *gitrepo.RepositoryService, importer *environmenttransfer.Importer) {
 	m.t.Helper()
 	must := func(err error) {
 		m.t.Helper()
@@ -79,6 +80,7 @@ func measureSnapshotImageReuse(m rootfsStorageObserver, binary string, saved cor
 	if len(after["saved"].Hashes) != 1 || after["saved"].Hashes["base"] != hash {
 		m.t.Fatal("ordinary Image Env write changed saved rootfs")
 	}
+	measureSnapshotArchiveRoundTrip(m, binary, areas[1], works[1], service, repositories, importer)
 	for i, area := range areas {
 		// The canonical lifecycle owns stop, runtime absence and automatic data
 		// cleanup. On failure retain the durable receipts; no raw cache deletion.

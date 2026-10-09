@@ -491,6 +491,96 @@ FIEMAP の長さは圧縮後のバイト数やデバイス書き込み量では�
 復元後の SSH・稼働アプリケーションの整合性、物理回収の完了、大規模負荷、Windows VHDXへの
 影響は、[#241](https://github.com/SLktEx/Hacocoon/issues/241)の今回の限定結果の範囲外です。
 
+<a id="archive-materialization"></a>
+
+### 保持する native archive と import 展開の実測
+
+PR #753 の head `375c4f0e3706d0bca697745164710532fddbe087`を、
+`83d8d91695a04f3c26f8f331d2eeec03428fa6c8`への検証用マージ
+`c9ba3ac33323c091c1c2450beafc3515dc65b1e1`として checkout・ビルドし、
+2026-10-09の[実機 run 38001081322、job 114059018186、初回実行](https://github.com/SLktEx/Hacocoon/actions/runs/38001081322/job/114059018186)で
+追加した archive 計測が成功しました。`TestRealIncusSnapshotAggregateE2E`は359.70秒、
+既存の`shipped-controller-import`子試験は23.71秒で成功しました。
+[試験した計測処理](https://github.com/SLktEx/Hacocoon/blob/375c4f0e3706d0bca697745164710532fddbe087/internal/adapters/incus/rootfs_archive_reuse_e2e_test.go#L21-L177)の fixture は`haco-aggregate-5d8450302b0f769c`です。
+Ubuntu 26.04.1（OS 識別は26.04）、Linux `7.0.0-1012-azure` x86_64、
+Go 1.27.0、Incus 7.0.1、Btrfs-progs 6.17.1を使いました。入力 cache の fingerprint は
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`、通常 Image は
+`origin=snapshot-generated-image`、fingerprint は
+`ff8534d6dcc9812f9bb91fcd35d7f7ae2d168152d16c76180ca2465b960fdcf6`です。
+再現には[既存の集約試験のコマンド](../design/btrfs-storage-layout.ja.md#管理-workspace-のライフサイクル計測)と
+[archive 計測の契約](../design/btrfs-storage-layout.ja.md#保持する-native-archive-と-import-展開の計測)を使います。
+
+通常 Image の Env B に8 MiBの差分を書いた後、公開 CLI とコントローラーで export し、
+新しい移送先一つへ import しました。保持した`.haco`ファイルは
+**論理容量707,051,008バイト、参照割当量707,055,616バイト**
+（`st_blocks * 512`）でした。filesystem type は`61267`で、管理 Btrfs プールとは
+別です。export 後、import 後、移送先削除後の計3サンプルで、容量、component の
+ハッシュ、ファイル・ファイルシステムの識別が全て一致しました。
+
+- Archive SHA-256: `7a2563cce037bf1f76f01e2c83895292e943b2e5cd4251e58655985ef2747436`
+- `filesystem_identity_sha256`: `0ea4ec481550c1f15778cbb9377d5cc9b1ed9c1618bc483b6878bf807bbf3804`
+- `file_identity_sha256`: `e623bc1b1b4e7417f27f26308ccaee44ca57038cdc431eac25a2b3038e87dfeb`
+
+| 検証済み component role | バイト数 | SHA-256 |
+|---|---:|---|
+| `rootfs` | 707,044,352 | `aba634edadad8f15172559466e1d3e2be5eda671519375f177e3da98af5c6352` |
+| `workspace` | 3,584 | `bbcf3c547eef1e4150f975b841528a8cc1233a5232478234ccacbbd1e5401563` |
+
+component 二つの合計は707,047,936バイト、外側の付加分は3,072バイトです。
+この計測には OCI component はありません。従来の集約 export とその controller-import
+子試験は別の機能検証です。
+
+以下は rootfs 全体のバイト数です。元の4サンプル（export 前、export 後、import 後、
+移送先削除後）は全て同値でした。元の識別ハッシュは
+`ccf0385cac8a126aea407bc4b7d418b34e6cdc9681cffebcc8c9b96721a77580`、新しい移送先は
+`35d0b29d5cfb3b7c3c2b48a59b3c553b19219ec954cf7acab67ac510b6bc361f`です。
+
+| 領域 | 論理容量 | 参照割当量 | extent 合計 | 排他 | 共有集合 |
+|---|---:|---:|---:|---:|---:|
+| 元 | 688,443,469 | 748,875,776 | 689,197,056 | 16,879,616 | 281,337,856 |
+| 移送先 | 688,538,187 | 748,965,888 | 689,291,264 | 689,291,264 | 0 |
+
+各`base`・`delta`ファイルは論理容量・割当量・extent がそれぞれ正確に8,388,608バイトでした。
+元の`base`は排他0・共有集合8,388,608バイト、`delta`は排他8,388,608・共有集合0バイトで、
+全サンプルで不変でした。移送先の各ファイルは排他8,388,608・共有集合0バイトでした。
+両方の計測ディレクトリは論理容量・割当量・extent が各16,777,216バイトです。元の排他・
+共有集合は各8,388,608バイト、移送先の排他は16,777,216バイト、共有集合は0でした。
+元と移送先でゲスト内の所有者`0:0`を確認しました。各 SHA-256 は全サンプルで次の値を維持しました。
+
+- `base`: `293bf8567227610fc453daa3f7989e8b860b54b7e5d44d26e753848a9d1dbf49`
+- `delta`: `1ff32bf51e7e9472443465c9b93557dc24c716531c0aef8b606fa13ef23ea584`
+
+差分の関係は`separately_materialized_from_source`と記録されました。元の差分が export 前と
+import 後の両方で完全に排他的なため、この限定した実体化の判断ができます。元の rootfs
+全体は完全に排他的ではありません。ハッシュの一致や別々の共有集合の値から二つのファイル間の
+共有を推定せず、固有の物理バイト数や圧縮後の容量の計測とも扱いません。
+
+`whole_shared_pool`の4サンプルでは、backing file の論理長は137,438,953,472バイトでした。
+
+| 段階 | プール全体の割当バイト数 |
+|---|---:|
+| export 前 | 1,117,982,720 |
+| export 後 | 1,121,533,952 |
+| import 後 | 1,478,545,408 |
+| 移送先削除、archive 保持 | 1,481,560,064 |
+
+移送先削除後も割当量は3,014,656バイト増加しました。他のリソースやメタデータも同じ
+プールを使うため、差分を export・import・削除だけに帰属させず、物理回収の完了も主張しません。
+別のファイルシステムにある archive の割当量はプールの割当量とは別で、加算しません。
+
+同じ archive を読み取り可能なまま保持し、一時 Snapshot・image の正確な削除と、
+新しい移送先 Env・Workspace の native/catalog 不在確認が成功しました。その後、既存の
+最終 fixture 削除で archive も消し、集約リソースの不在を確認しました。catalog のロック識別は
+意図して残しています。入力 cache image の削除は、専用 image の削除許可がないため明示的に
+スキップしました。過去の失敗とは別の結果であり、今回はこの実機計測区間の受入成功です。
+
+移送の非圧縮 native archive と通常の Base 公開の圧縮経路は区別します。保持した値からは、
+一時 component・staging・import の最大容量、メモリーの最大値、デバイス書き込みの増幅、
+一般的な Base・Packer の効率は分かりません。これは
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)の代表的な実体化・削除の結果であり、
+導入全体や災害復旧用バックアップの受入ではありません。普遍的なスケーリングや
+物理回収の成功を、この issue の追加完了条件にはしません。
+
 <a id="transfer"></a>
 
 ## Env移送・データ退避
