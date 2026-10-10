@@ -255,12 +255,46 @@ Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了�
 |---|---|
 | PR #493, #501; `a2fcb72` / runs 34297739368, 34297739417 | スナップショット復元はBase実体の保持と元Envの削除に依存せず、権限を新規発行する。Base作成・Env作成・SSHはmachine-ID/stdio問題と600秒タイムアウトを経て成功。所有対象は不存在確認後のみ解放し、診断証拠は元の記録に残す。 |
 | PR #504–507; `c4842c2` | Workspace、作成したBase、Store全体、元リポジトリの削除を個別の実機試験で確認。Base試験ではWindowsのSSH aliasが初回失敗。元リポジトリ試験は初期化で停止した回があり、その後段のスキップを成功とは扱わない。 |
-| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | 接続中・Hostのイメージ操作は実行基盤アダプターの試験構成で成功。非接続nerdctlの配備と単体controller/CLIは588.51秒で成功し、未使用候補の確認付き削除も成功。導入済みcontroller/Standard全体と非接続Dockerは未完了。 |
+| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | 接続中・Hostのイメージ操作は実行基盤アダプターの試験構成で成功。非接続nerdctlの配備と単体controller/CLIは588.51秒で成功し、未使用候補の確認付き削除も成功。これらの試験は導入済みcontroller/Standard構成の検証ではなく、後述の[限定した導入済み経路](#installed-oci-cli)が追加の証拠。非接続Dockerは未完了。 |
 | `f3f5557`, `ae0c245` | Docker 28.5.2/vfs、nerdctl 2.3.5/containerd 2.3.3の試験構成でHost OCI領域の隔離、停止中のコピー、完了証明に基づく復旧を確認。初回のroot不一致は修正前の失敗。不明なプロバイダー完了状態は引き続き解放を拒否。全バージョン・導入構成の合格ではない。 |
 | `5100d86` / run 34623036552, job 103341362151 | 公開reclaimの開始・結果確認が成功。Windows割当量は7,964,983,296→4,224,712,704バイト（3,740,270,592回収）。仮想1 TiB・Incus 128 GiBの容量は不変。Linux discard、指定WSLの停止・圧縮・再開、保持Workspace/OCI/スナップショットの復元を確認。 |
 | `4369fdb`, `d675c5a`, `de72119`; earlier Windows trials | Job関連の起動エラーの原因は未確定。`d675c5a`はaccess-denied 5でLinux未開始の未完了を保持。`de72119`はworker失敗を保存したが起動元へ通知しなかった。以前のOpenVirtualDiskエラー32とディスク段階だけの成功は統合回収の証明ではない。junction拒否は成功、一部symlink試験は権限不足でスキップ。既存環境・電源断・セッション間・中断workerの実機レビューは未確認。 |
 
 元の詳細、検証用構成の識別子、ログ・成果物へのリンクは [整理前の実装状況](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) および [当該設計の検証記録](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md)に固定コミットで保持されています。現在の操作手順としては使用しないでください。
+
+<a id="installed-oci-cli"></a>
+
+### 導入済みCLIでのHostイメージコピーと保持Store再利用
+
+PR #757のhead `c745427d3c63d8db844eb3142786421b71c26b82`を、
+`ce7860473e62409f9cf6c9649ba291dcb8c040fa`へのmerge
+`28b69814d30eba16b9cbcbe3fb8a94c241d9caba`としてcheckout・ビルドし、
+[新規Ubuntuの導入済み通常ユーザー経路が初回試行で成功](https://github.com/SLktEx/Hacocoon/actions/runs/38022165364/job/114125296512)しました。
+mergeのtreeはレビュー済みheadのtreeと一致します。
+`test/e2e/installed/oci_images.py`は通常ユーザーの`haco`コマンドと、
+製品がHostに導入済みのnerdctl/BuildKitを使用しました。
+
+一意のタグを付けた二つの`FROM scratch`イメージを`--network none`で作成し、
+実際のHostイメージデータを用意しました。通常のEnvironment作成がHost領域を自動コピーし、
+Storeの独立した所有権を確認しました。Storeの明示指定やイメージsave/loadは使いません。
+Environment削除後、製品の非接続Storeの一覧・削除で実際の不変イメージIDを確認し、
+コピーからの削除がHost一覧を変えないこと、同じWorkspaceの自動再作成で変更後の一覧と
+正確なStoreを再利用することを確認しました。別Workspaceには現在のHost一覧がコピーされました。
+Hostにイメージがある状態での`--no-oci`、Storeなしのイメージ参照拒否、矛盾するStore指定の
+拒否、所有するEnvironment・Store・Hostイメージだけの後始末も成功しました。
+
+Hostイメージ構築から後始末・PASSまでの追加OCI区間は約145秒で、Ubuntu jobの40分期限は
+変更していません。二つのイメージでの結果であり、大規模イメージ・大量削除・転送性能の
+実証ではありません。通常Environmentに実行基盤・パッケージやPolicy・通信権限を追加せず、
+Host管理ソケットも公開していません。非接続Storeのメタデータ用ツールは製品の通常準備経路を
+使いました。固定の読み取り専用レシピ観測と通常CLIによる保存・消去も成功し、
+BuildKitキャッシュは使い捨てrunnerの破棄に任せています。
+
+guest内のオフラインコンテナ実行は明示的に**未検証**です。既定Baseには任意の実行基盤が
+含まれません。現行の認証付きregistry取得とcredentialの後始末、Docker、Windows/WSLでの
+OCI再作成、その他の実行基盤・driverとの互換性、中断操作の組合せは未完了です。
+この限定結果で#275を完了とはせず、前掲の過去の失敗・スキップも置き換えません。
+旧版と独自layoutの移行は引き続き現在のissue範囲外です。
 
 <a id="host-oci-sharing"></a>
 

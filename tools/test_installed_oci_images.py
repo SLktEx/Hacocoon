@@ -208,8 +208,9 @@ class FixtureTests(unittest.TestCase):
                 raise RuntimeError("response lost")
             return result
         self.fixture.haco = fail
+        workspace = self.fixture.workspace("lost")
         with self.assertRaisesRegex(RuntimeError, "response lost"):
-            self.fixture.create("lost", self.fixture.workspace("lost"))
+            self.fixture.create("lost", workspace)
         with self.assertRaisesRegex(RuntimeError, "unconfirmed creation"):
             self.fixture.cleanup()
         self.assertFalse(any(args[:2] == ("env", "delete") for args in self.product.calls))

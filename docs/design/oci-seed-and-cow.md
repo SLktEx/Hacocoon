@@ -2,7 +2,7 @@
 
 [日本語](oci-seed-and-cow.ja.md) | English
 
-Status: **implemented retirement candidate**. Legacy version compatibility and
+Status: **implemented retirement**. Legacy version compatibility and
 migration are out of scope for the current M0–M5 work, by the user's 2026-09-15
 scope correction. No legacy catalog reader or conversion shim remains.
 

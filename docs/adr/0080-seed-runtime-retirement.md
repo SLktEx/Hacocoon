@@ -1,6 +1,6 @@
 # ADR 0080: Remove Seed implementation without a compatibility layer
 
-Status: accepted, implementation candidate. [日本語](0080-seed-runtime-retirement.ja.md)
+Status: accepted, implemented. [日本語](0080-seed-runtime-retirement.ja.md)
 
 Date: 2026-09-15
 

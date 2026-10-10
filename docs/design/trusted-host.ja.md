@@ -116,10 +116,11 @@ Managed Environments                   UNTRUSTED
 - 信頼された instanceだけに付与する専用`haco-control` proxy
 - ダイジェスト / 所有権を検証した`/usr/local/bin/haco-host` 配備
 - 同じ元データ / ダイジェスト / メタデータ基準を使う同じリリースの `/usr/local/bin/haco` 配備
-- 未移行`haco` コマンドがguest-local 構成へ暗黙のに落ちることを防ぐ`environment.HACO_CLIENT_MODE=controller`
+- 実行場所を示す`environment.HACO_CLIENT_MODE=controller`（認可情報ではありません）。
+  製品`haco`にはguest-local構成経路はありません。
 - `haco-host doctor`を確認してから既定 interactive entryを有効化する対応している WSL 初期設定
 
-Trusted Host全体の名前空間整理、cloud 認証情報、汎用external ツールはまだ部分実装。上記のGit/GitHubとWindows連携は実装済み。標準のローカル setup は下記の Host ツールを導入します。Core と Environment の実行基盤の選択は独立したままです。
+クラウドの認証情報と汎用の外部ツールはまだ部分実装です。上記のGit/GitHubとWindows連携は実装済み。標準のローカル setup は下記の Host ツールを導入します。Core と Environment の実行基盤の選択は独立したままです。
 
 ## Trust と authority
 
@@ -250,15 +251,15 @@ wsl -d Hacocoon -u root
 
 ## 今後の follow-up
 
+現在のCLIとtrusted Hostの責務は
+[ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)で定めています。
+
 別workとして残るもの:
 
 - 実装済みの Git/GitHub 以外へ、Host で使う外部サービスツールを拡張する
 - 任意OCI 実行基盤の対応範囲を拡張（Host の元データ領域と Environment の独立 Store は実装済み）
 - 再利用可能な認証情報を通常Environmentへ置かない認証情報 broker
 - 実機確認したCLI以外のWindows application互換性を評価
-- 残る適切な`haco` コマンドをclassifyしてコントローラークライアントパスへ移行
-- 信頼された Host-local operationをlong-termの`haco-host` 名前空間へ移しtemporary ambiguityをなくす
-- `haco` / `haco-host` CLI responsibility splitを完了
 - Coreがリポジトリを永久に`haco-host`へ固定すると仮定しないWorkspace / リポジトリ location seam
 
 ## Acceptance boundary
