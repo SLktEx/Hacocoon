@@ -221,6 +221,21 @@ class JourneyModeTest(unittest.TestCase):
 
 
 class InstallerCommandTest(unittest.TestCase):
+    @contextmanager
+    def terminal_chunks(self, chunks):
+        # Use the actual read loop, accumulation, normalization and callback.
+        # A further read fails immediately: no Windows host or timeout is needed
+        # to prove that a live cmd.exe cannot hide an explicit BAT failure.
+        terminal = object.__new__(gate.TerminalProcess)
+        terminal.output = ""
+        terminal.proc = Mock(exitstatus=0)
+        terminal.proc.isalive.return_value = True
+        terminal._queue = Mock()
+        terminal._queue.get.side_effect = ["C:\\package> ", *chunks,
+                                          AssertionError("waited beyond final installer result")]
+        with patch.object(gate, "TerminalProcess", return_value=terminal), redirect_stdout(io.StringIO()):
+            yield terminal
+
     def test_normal_and_cached_installs_type_the_shipped_command_once(self):
         for cached, expected in ((False, "install-windows.bat\r\n"),
                                  (True, "install-windows.bat -UseCachedWslImage\r\n")):
@@ -259,6 +274,59 @@ class InstallerCommandTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "BAT did not complete"):
                 gate.run_bat(Path("package"))
         terminal.write.assert_called_once_with("install-windows.bat\r\n")
+
+    def test_explicit_failure_stops_live_terminal_at_every_chunk_boundary(self):
+        # The trailing space and CRLF reproduce the #756 BAT failure receipt.
+        # Include signed native statuses and split ANSI/OSC wrappers as well as
+        # text/digits. A newline is required before deciding the result.
+        for code in (1, 37, -2147024891):
+            receipt = ("\r\n\x1b]0;installer\x1b\\\x1b[31m"
+                       f"Hacocoon installation failed with exit code {code}.\x1b[0m \r\n")
+            for split in range(len(receipt) + 1):
+                with self.subTest(code=code, split=split), self.terminal_chunks(
+                    [receipt[:split], receipt[split:]]
+                ) as terminal:
+                    with self.assertRaisesRegex(RuntimeError, f"product: Windows installer failed with exit code {code}"):
+                        gate.run_bat(Path("package"), use_cached_wsl_image=True)
+                    terminal.proc.write.assert_called_once_with("install-windows.bat -UseCachedWslImage\r\n")
+                    terminal.proc.terminate.assert_called_once_with(force=True)
+                    self.assertEqual(terminal._queue.get.call_count, 2 if split == len(receipt) else 3)
+
+    def test_restart_required_is_terminal_without_another_bat_or_restart(self):
+        receipt = ("\r\nHacocoon installation is paused until Windows restarts. "
+                   "Follow the saved continuation instructions. \r\n")
+        for split in range(len(receipt) + 1):
+            with self.subTest(split=split), self.terminal_chunks([receipt[:split], receipt[split:]]) as terminal:
+                with self.assertRaisesRegex(RuntimeError, "requires a Windows restart.*3010"):
+                    gate.run_bat(Path("package"))
+                terminal.proc.write.assert_called_once_with("install-windows.bat\r\n")
+                terminal.proc.terminate.assert_called_once_with(force=True)
+
+    def test_explicit_failure_takes_precedence_over_a_later_completion_banner(self):
+        with self.terminal_chunks([
+            "\r\nHacocoon installation failed with exit code 1.\r\n"
+            "Hacocoon WSL installation complete\r\nHacocoon Windows installation complete.\r\n"
+        ]) as terminal:
+            with self.assertRaisesRegex(RuntimeError, "installer failed with exit code 1"):
+                gate.run_bat(Path("package"))
+            terminal.proc.write.assert_called_once_with("install-windows.bat\r\n")
+            terminal.proc.terminate.assert_called_once_with(force=True)
+
+    def test_partial_echoed_or_malformed_failure_lines_do_not_reject_success(self):
+        chunks = [
+            "\r\nC:\\package>echo Hacocoon installation failed with exit code 1.\r\n",
+            "Hacocoon installation failed with exit code 1.", " unrelated\r\n",
+            "Hacocoon installation failed with exit code 1", "37", ". unexpected\r\n",
+            "Hacocoon installation failed with exit code ١.\r\n",
+            "Hacocoon installation failed with exit code 12345678901.\r\n",
+            "Hacocoon WSL installation complete\r\n",
+            "\x1b[32mHacocoon Windows installation complete.\x1b[0m\r\n", None,
+        ]
+        with self.terminal_chunks(chunks) as terminal:
+            gate.run_bat(Path("package"))
+            self.assertEqual([call.args[0] for call in terminal.proc.write.call_args_list],
+                             ["install-windows.bat\r\n", "exit\r\n"])
+            terminal.proc.terminate.assert_not_called()
 
 
 class LanguageAssertionTest(unittest.TestCase):

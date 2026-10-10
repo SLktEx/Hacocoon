@@ -137,6 +137,7 @@ with tempfile.TemporaryDirectory() as temp:
 
             for required in (
                 '[switch]$InteractiveUserSetup', '[switch]$UseCachedWslImage',
+                '[switch]$DownloadWslImageOnly',
                 '$ManagedLoginUser = "hacocoon"', 'Ensure-ManagedWslLoginUser',
                 'Complete-InteractiveWslUserSetup', 'Configure-ManagedWslOobe',
                 'Invoke-WslRootShellScript', '"HACO_INSTALL_USER=$loginUser"',
@@ -227,5 +228,14 @@ finally:
     sys.modules.pop(spec.name, None)
 if normalized != "Hacocoon Windows installation complete.":
     raise SystemExit(f"Windows terminal normalization deleted visible output: {normalized!r}")
+
+# Cache preparation is an image download, not an incomplete installation whose
+# failure can be hidden on cache hits. Keep it independent of WSL lifecycle.
+cache_workflow = (ROOT / ".github/workflows/windows-wsl-image-cache.yml").read_text(encoding="utf-8")
+if "& $installer -DownloadWslImageOnly" not in cache_workflow:
+    raise SystemExit("WSL cache warmer must use the download-only installer mode")
+for forbidden in ("-UseCachedWslImage", "-InstanceName", "wsl.exe", "continue-on-error"):
+    if forbidden in cache_workflow:
+        raise SystemExit(f"WSL cache warmer restored lifecycle work or hidden failure: {forbidden!r}")
 
 print("INSTALLER PACKAGES OK")

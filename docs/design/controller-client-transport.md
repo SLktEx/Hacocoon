@@ -301,8 +301,6 @@ Still planned:
 - classify and migrate the remaining appropriate `haco` commands onto the controller client interface;
 - remove or explicitly deprecate compatibility aliases once their replacements are established;
 - move trusted Host-local tooling into the long-term `haco-host` namespaces;
-- streamed Execution framing with explicit stdout/stderr/exit metadata;
-- generic Environment forwarding;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
 
@@ -432,9 +430,12 @@ remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
 
 No persistent Incus forwarding device is created; the existing `env forward`
 and SSH/preview lifecycle remain available. The native Windows companion below
-implements the Windows listener candidate; installed acceptance remains separate.
-A native Linux trusted-Host client listens inside that Host. Generic process
-caller consolidation remains partial. See [ADR 0091](../adr/0091-client-stream-forwarding.md).
+implements the Windows listener candidate; installed results are scoped in the
+[commit-bound acceptance evidence](../status/acceptance-evidence.md#incus-key-download).
+A native Linux trusted-Host client listens inside that Host. Supported shell
+clients use managed streams, and the unused direct-stdio Environment shell chain
+is removed; see [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
+Forwarding follows [ADR 0091](../adr/0091-client-stream-forwarding.md).
 
 ## Windows process transport
 
@@ -475,8 +476,10 @@ The installer permanently places the matching amd64/arm64 client and prints its
 absolute help command. No user PATH mutation is required. `haco-wsl.exe` keeps
 its installation/reclamation responsibilities. See [installer ownership](installer.md#windows-client-placement).
 The explicit companion entry remains available. Ordinary WSL `haco env tunnel`
-selects its installed Windows client automatically; installed Windows/WSL/Incus
-acceptance remains unfinished.
+selects its installed Windows client automatically. The installed Windows/WSL/Incus
+tunnel journey passed at `1054688e`; see the
+[scoped acceptance record](../status/acceptance-evidence.md#incus-key-download).
+Broader platform acceptance and earlier unresolved failures remain separate.
 
 ## Automatic Windows tunnel entry
 

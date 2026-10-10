@@ -290,8 +290,6 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 - 残る`haco` コマンドをclassifyし、適切なものをコントローラークライアント interfaceへ移行
 - replacementが確立したcompatibility aliasをremoveまたは明示deprecate
 - 信頼された Host-local ツールをlong-termの`haco-host` 名前空間へ移行
-- stdout/stderr/exit メタデータを持つstreamed Execution framing
-- generic Environment 転送
 - 実需が出た場合のみremote 通信
 - profilingで必要性が示された場合のみFD passing / zero-copy
 
@@ -399,8 +397,11 @@ controller側の1時間の絶対期限が上限です。EOFを無視する接続
 
 永続Incus転送deviceは作りません。既存の`env forward`とSSH／previewは利用できます。
 Windows側待受から`wsl.exe`を通す公開companionは以下の実装候補です。導入済み
-Windows／WSL経由の受入は未確認です。通常のLinuxのtrusted Host clientはHost内で待ち受けます。
-汎用process callerの統合もpartialです。[ADR 0091](../adr/0091-client-stream-forwarding.ja.md)を参照してください。
+環境での結果と検証範囲は[コミットごとの受入記録](../status/acceptance-evidence.ja.md#incus-key-download)を参照してください。
+通常のLinuxのtrusted Host clientはHost内で待ち受けます。対応するシェルクライアントは
+管理ストリームを使い、未使用のEnvシェルの標準入出力への直接接続は削除済みです。
+[ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
+転送の契約は[ADR 0091](../adr/0091-client-stream-forwarding.ja.md)に従います。
 
 ## Windowsのプロセス転送
 
@@ -434,7 +435,9 @@ optionより先に置きます。Linux/Windowsで引数・対象準備・同時1
 表示します。利用者のPATH変更は不要です。`haco-wsl.exe`は導入・容量回収の責務を
 維持します。[配置と所有権](installer.md#windows-client-placement)を参照してください。
 明示的な公開入口も利用できます。WSLの`haco env tunnel`は導入済みWindowsクライアントを
-自動選択します。導入済みWindows/WSL/Incusの受入は残件です。
+自動選択します。導入済みWindows/WSL/Incusの転送手順は`1054688e`で成功しました。
+検証範囲は[受入記録](../status/acceptance-evidence.ja.md#incus-key-download)を参照してください。
+より広いプラットフォームの受入と過去の未解決の失敗は別途残ります。
 
 ## SSHとTCP転送の共通処理
 
