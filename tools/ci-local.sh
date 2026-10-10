@@ -169,6 +169,7 @@ run_test() {
   python3 tools/test_environment_exec_cancel.py
   python3 tools/test_installed_workspace_input.py
   python3 tools/test_installed_oci_images.py
+  python3 tools/test_controller_signals.py
   section "test"
   go test -count=1 -shuffle=615 ./...
   go vet ./...
