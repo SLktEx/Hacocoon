@@ -873,7 +873,7 @@ if (-not ($installed -contains $InstanceName)) {
 Ensure-Wsl2 $InstanceName
 $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--exec", "true")
 if ($probe.ExitCode -ne 0) {
-    throw "'$InstanceName' exists but is not ready."
+    throw "'$InstanceName' exists but is not ready (WSL exit code $($probe.ExitCode))."
 }
 
 # pre

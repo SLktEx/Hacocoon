@@ -111,6 +111,41 @@ try {
     }
 } finally { ${function:Invoke-WslCapture} = $realCapture }
 
+# Exercise only the existing readiness invocation and its following refusal.
+# Do not run installer entry points or replace the default-user probe with root.
+$readinessProbeText = '$probe = Invoke-WslCapture @("--distribution", $InstanceName, "--exec", "true")'
+$readinessIndexes = @(for ($i = 0; $i -lt $ast.EndBlock.Statements.Count; $i++) {
+    if ($ast.EndBlock.Statements[$i].Extent.Text -ceq $readinessProbeText) { $i }
+})
+Assert-Equal $readinessIndexes.Count 1
+$readinessIndex = $readinessIndexes[0]
+$readinessCheck = [scriptblock]::Create(
+    $ast.EndBlock.Statements[$readinessIndex].Extent.Text + "`n" +
+    $ast.EndBlock.Statements[$readinessIndex + 1].Extent.Text
+)
+function Invoke-WslCapture([string[]]$Arguments) {
+    Assert-Equal ($Arguments -join '|') '--distribution|Hacocoon|--exec|true'
+    $script:readinessCalls++
+    return New-WslCaptureResult $script:readinessCode @('secret stdout detail') 'secret stderr detail'
+}
+try {
+    $InstanceName = 'Hacocoon'
+    foreach ($code in @(0, 1, 127, -2147024891)) {
+        $script:readinessCode = $code
+        $script:readinessCalls = 0
+        $failure = $null
+        $output = @()
+        try { $output = @(& $readinessCheck) } catch { $failure = $_ }
+        Assert-Equal $script:readinessCalls 1
+        Assert-Equal $output.Count 0
+        if ($code -eq 0) {
+            Assert-Equal ($null -eq $failure) $true
+        } else {
+            Assert-Equal $failure.Exception.Message "'Hacocoon' exists but is not ready (WSL exit code $code)."
+        }
+    }
+} finally { ${function:Invoke-WslCapture} = $realCapture }
+
 # Exercise registration continuation with only native/inventory/file boundaries
 # mocked. Native 0 without the exact distro must never advance to common setup.
 function Invoke-WslInstall([string]$Name, [string[]]$Arguments) {

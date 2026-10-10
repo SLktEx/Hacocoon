@@ -47,6 +47,15 @@ for _stream in (sys.stdout, sys.stderr):
 
 TERMINAL_ARGV = ("cmd.exe",)
 INSTALL_COMPLETE_RE = re.compile(r"Hacocoon Windows installation complete\.", re.MULTILINE)
+INSTALL_FAILED_RE = re.compile(
+    r"^Hacocoon installation failed with exit code (-?[0-9]{1,10})\.[ \t]*\n",
+    re.MULTILINE,
+)
+INSTALL_PAUSED_RE = re.compile(
+    r"^Hacocoon installation is paused until Windows restarts\. "
+    r"Follow the saved continuation instructions\.[ \t]*\n",
+    re.MULTILINE,
+)
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*?(?:\x07|\x1b\\)")
@@ -81,6 +90,18 @@ def reject_failed_host_entry(text: str) -> None:
     # the session timeout or retry WSL entry and hide the original product error.
     if re.search(r"(?m)^haco: enter trusted haco-host:", text):
         raise RuntimeError("product: ordinary Host entry failed before its prompt")
+
+
+def reject_failed_install(text: str) -> None:
+    # These are the shipped BAT's final-result lines. Wait for the newline so
+    # ConPTY read boundaries cannot turn a partial/echoed line into a receipt.
+    # The parent cmd.exe remains alive after BAT failure; do not wait its session
+    # timeout, send another BAT, or repair the failed first-install attempt.
+    failed = INSTALL_FAILED_RE.search(text)
+    if failed:
+        raise RuntimeError(f"product: Windows installer failed with exit code {failed.group(1)}")
+    if INSTALL_PAUSED_RE.search(text):
+        raise RuntimeError("product: Windows installer requires a Windows restart (exit code 3010)")
 
 
 def run_phase(name: str, action, *args, **kwargs):
@@ -246,6 +267,8 @@ def run_bat(package_root: Path, *, use_cached_wsl_image: bool = False) -> None:
 
     def drive(output: str, process: TerminalProcess) -> None:
         nonlocal sent_bat, sent_exit
+        if sent_bat:
+            reject_failed_install(output)
         if not sent_bat and cmd_prompt_count(output):
             command = "install-windows.bat"
             if use_cached_wsl_image:
