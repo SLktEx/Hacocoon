@@ -43,7 +43,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Join-Path $env:HACO_WSL_CACHE_ROOT "install-windows.ps1"
-          & $installer -UseCachedWslImage -InstanceName "Hacocoon-Cache-Warm"
+          & $installer -DownloadWslImageOnly
 
       - name: Verify cache file exists
         shell: pwsh
@@ -54,16 +54,3 @@ jobs:
           }
           Write-Host "Ubuntu WSL image cache: $cachePath"
           Write-Host "SHA256: $((Get-FileHash -LiteralPath $cachePath -Algorithm SHA256).Hash.ToLowerInvariant())"
-
-      - name: Remove cache-warm WSL distribution
-        if: always()
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $instance = "Hacocoon-Cache-Warm"
-          $installed = @(& wsl.exe --list --quiet 2>$null | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-          if ($installed -contains $instance) {
-            wsl.exe --terminate $instance 2>$null
-            wsl.exe --unregister $instance
-          }
-          $global:LASTEXITCODE = 0

@@ -2,7 +2,8 @@ param([string]$WslTransportDistro)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-# Load function ASTs only. Never execute installer entry points in component tests.
+# Load function ASTs for lifecycle tests. The guarded download-only case below
+# separately exercises standalone dispatch without entering WSL installation.
 $installer = Join-Path $PSScriptRoot "../install/install-windows.ps1"
 $tokens = $null
 $errors = $null
@@ -384,6 +385,86 @@ try {
 } finally {
     foreach ($file in @($cachePath, ($cachePath + '.download'), $cacheFunctionFile)) { [IO.File]::Delete($file) }
     [IO.Directory]::Delete($cacheRoot)
+}
+
+# The cache warmer invokes the actual standalone script, not an extracted
+# function. Only network bytes are mocked; hashing and top-level mode dispatch
+# are real. No WSL discovery/native call or adjacent Linux bundle is allowed.
+$downloadRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-download-only-' + [guid]::NewGuid())
+[IO.Directory]::CreateDirectory($downloadRoot) | Out-Null
+$downloadInstaller = Join-Path $downloadRoot 'install-windows.ps1'
+$downloadImage = Join-Path $downloadRoot 'ubuntu.wsl'
+[IO.File]::Copy($installer, $downloadInstaller)
+# The invoked installer has its own script scope. Share one parent fixture
+# object instead of resolving $script: counters from inside that child script.
+$downloadFixture = @{ ExpectedHash=''; Downloads=0; DiscoveryCalls=0; NativeCalls=0 }
+function Invoke-RestMethod {
+    $asset = @{ Url = 'https://example.invalid/ubuntu.wsl'; Sha256 = $downloadFixture.ExpectedHash }
+    return @{ ModernDistributions = @{ Ubuntu = @(@{ Name = 'Ubuntu-26.04'; Amd64Url = $asset; Arm64Url = $asset }) } }
+}
+function Invoke-WebRequest([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing) {
+    Assert-Equal $ProgressPreference 'SilentlyContinue'
+    Assert-Equal $UseBasicParsing.IsPresent $true
+    $downloadFixture.Downloads++
+    [IO.File]::WriteAllText($OutFile, 'abc')
+}
+function Get-Command([string]$Name) {
+    Assert-Equal $Name 'wsl.exe'
+    $downloadFixture.DiscoveryCalls++
+    throw 'test-wsl-discovery-boundary'
+}
+function wsl.exe {
+    $downloadFixture.NativeCalls++
+    throw 'Download-only mode must not invoke WSL'
+}
+try {
+    $downloadFixture.ExpectedHash = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+    Assert-Equal (@([IO.Directory]::GetFiles($downloadRoot)).Count) 1
+    & $downloadInstaller -DownloadWslImageOnly
+    Assert-Equal (Get-Sha256Hex $downloadImage) $downloadFixture.ExpectedHash
+    & $downloadInstaller -DownloadWslImageOnly
+    Assert-Equal $downloadFixture.Downloads 1
+    Assert-Equal (@([IO.Directory]::GetFiles($downloadRoot)).Count) 2
+    Assert-Equal $downloadFixture.DiscoveryCalls 0
+    Assert-Equal $downloadFixture.NativeCalls 0
+    Assert-Equal $ProgressPreference 'Continue'
+
+    foreach ($options in @(
+        @{ DownloadWslImageOnly=$true; WebDownload=$true },
+        @{ DownloadWslImageOnly=$true; BaseDistro='Ubuntu-24.04' },
+        @{ UseCachedWslImage=$true; WebDownload=$true },
+        @{ UseCachedWslImage=$true; BaseDistro='Ubuntu-24.04' }
+    )) {
+        $failure = $null
+        try { & $downloadInstaller @options } catch { $failure = $_ }
+        Assert-Equal ($null -ne $failure) $true
+        Assert-Equal ($failure.Exception.Message -match 'cannot be combined|support only') $true
+    }
+    Assert-Equal $downloadFixture.Downloads 1
+    Assert-Equal $downloadFixture.DiscoveryCalls 0
+    Assert-Equal $downloadFixture.NativeCalls 0
+
+    [IO.File]::Delete($downloadImage)
+    $downloadFixture.ExpectedHash = '0' * 64
+    $failure = $null
+    try { & $downloadInstaller -DownloadWslImageOnly } catch { $failure = $_ }
+    Assert-Equal ($failure.Exception.Message -like '*SHA256 mismatch*') $true
+    Assert-Equal $downloadFixture.Downloads 2
+    Assert-Equal ([IO.File]::Exists($downloadImage)) $false
+    Assert-Equal ([IO.File]::Exists($downloadImage + '.download')) $false
+    Assert-Equal $downloadFixture.DiscoveryCalls 0
+    Assert-Equal $downloadFixture.NativeCalls 0
+
+    # Normal cached-image installation must still enter the existing WSL path.
+    $failure = $null
+    try { & $downloadInstaller -UseCachedWslImage } catch { $failure = $_ }
+    Assert-Equal $failure.Exception.Message 'test-wsl-discovery-boundary'
+    Assert-Equal $downloadFixture.DiscoveryCalls 1
+    Assert-Equal $downloadFixture.NativeCalls 0
+} finally {
+    Remove-Item -LiteralPath function:Get-Command, function:wsl.exe
+    foreach ($file in @($downloadImage, ($downloadImage + '.download'), $downloadInstaller)) { [IO.File]::Delete($file) }
+    [IO.Directory]::Delete($downloadRoot)
 }
 # Native review checksum verification runs in the same minimal PowerShell host.
 # Get-FileHash is deliberately unavailable in these component tests.

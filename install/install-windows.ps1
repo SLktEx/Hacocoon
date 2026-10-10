@@ -5,6 +5,7 @@ param(
     [string]$HacocoonVersion = "latest",
     [switch]$WebDownload,
     [switch]$UseCachedWslImage,
+    [switch]$DownloadWslImageOnly,
     [switch]$SkipIncus,
     [switch]$GrantIncusAdmin,
     [switch]$InteractiveUserSetup,
@@ -836,11 +837,16 @@ function Configure-WslPost([string]$Name, [string]$LoginUser) {
 Assert-SafeName $InstanceName "WSL instance name"
 Assert-SafeName $BaseDistro "WSL base distribution"
 if ($HacocoonVersion -ne "latest") { Assert-ReleaseTag $HacocoonVersion }
-if ($UseCachedWslImage -and $BaseDistro -ne "Ubuntu-26.04") {
-    throw "-UseCachedWslImage currently supports only -BaseDistro Ubuntu-26.04."
+if (($UseCachedWslImage -or $DownloadWslImageOnly) -and $BaseDistro -ne "Ubuntu-26.04") {
+    throw "-UseCachedWslImage and -DownloadWslImageOnly support only -BaseDistro Ubuntu-26.04."
 }
-if ($UseCachedWslImage -and $WebDownload) {
-    throw "-UseCachedWslImage and -WebDownload cannot be used together."
+if (($UseCachedWslImage -or $DownloadWslImageOnly) -and $WebDownload) {
+    throw "-WebDownload cannot be combined with -UseCachedWslImage or -DownloadWslImageOnly."
+}
+if ($DownloadWslImageOnly) {
+    # Preparing the verified image is independent of WSL and the Linux bundle.
+    Get-CachedUbuntuWslImage | Out-Null
+    return
 }
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
