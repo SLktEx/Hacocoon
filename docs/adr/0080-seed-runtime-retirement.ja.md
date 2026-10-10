@@ -1,6 +1,6 @@
 # ADR 0080: 互換用の処理を残さずSeedの実装を撤去する
 
-状態: accepted、実装候補。[English](0080-seed-runtime-retirement.md)
+状態: accepted、実装済み。[English](0080-seed-runtime-retirement.md)
 
 日付: 2026-09-15
 

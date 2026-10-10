@@ -280,12 +280,50 @@ The local `71dbb4f` configuration/preview fixture kept default deny and eight ad
 |---|---|
 | PR #493, #501; `a2fcb72` / runs 34297739368, 34297739417 | Snapshot restore is independent of Base filesystem retention and source deletion; fresh authority is created. Base build/create/SSH passed after earlier machine-ID/stdio and 600-second timeout failures. Exact ownership was cleaned only after absence checks; diagnostics remain historical receipts. |
 | PR #504–507; `c4842c2` | Workspace, built Base, whole Store and source-repository cleanup passed their native gates. Base Windows alias SSH initially failed; source-repository tests initially stopped at instance initialization. Downstream skips in those failures are not passes. |
-| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | Attached/Host image operations passed runtime-adapter fixtures. Detached nerdctl delivery and bare controller/CLI passed in 588.51s; reviewed unused-image deletion also passed. Full installed-controller/Standard composition and detached Docker are still incomplete. |
+| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | Attached/Host image operations passed runtime-adapter fixtures. Detached nerdctl delivery and bare controller/CLI passed in 588.51s; reviewed unused-image deletion also passed. These runs did not establish installed-controller/Standard composition; the [scoped installed gate below](#installed-oci-cli) adds later evidence. Detached Docker remains incomplete. |
 | `f3f5557`, `ae0c245` | Host OCI area isolation, offline copy and bounded completed-copy recovery passed with Docker 28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3 fixtures. An initial root mismatch failed before correction. Unknown provider completion still blocks release; broad runtime/version/installed acceptance is not implied. |
 | `5100d86` / run 34623036552, job 103341362151 | Public reclaim dispatch/status passed: Windows allocation 7,964,983,296 → 4,224,712,704 bytes (3,740,270,592 recovered), 1 TiB virtual and 128 GiB Incus capacity unchanged. Linux discard, exact-distribution stop/compact/resume and retained Workspace/OCI/snapshot restore passed. |
 | `4369fdb`, `d675c5a`, `de72119`; earlier Windows trials | Job-related launch errors have unconfirmed causes. `d675c5a` retained pending with access-denied 5 and no Linux start; `de72119` saved a worker failure without reporting it to the launcher. Earlier OpenVirtualDisk error 32 and partial disk-only successes do not prove combined reclaim. Junction refusal passed; some symlink checks skipped for privilege. Existing-installation, power-loss, cross-session and real interrupted-worker review remain unverified. |
 
 Full original receipts, fixture identities and log/artifact links remain in [the original implementation record](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) and [the original feature evidence](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md). These immutable records are historical evidence, not current operating instructions.
+
+<a id="installed-oci-cli"></a>
+
+### Installed Host image copy and retained Store recreation
+
+PR #757 head `c745427d3c63d8db844eb3142786421b71c26b82`, checked out and
+built as merge `28b69814d30eba16b9cbcbe3fb8a94c241d9caba` into
+`ce7860473e62409f9cf6c9649ba291dcb8c040fa`, passed the
+[fresh Ubuntu installed-user journey on its first attempt](https://github.com/SLktEx/Hacocoon/actions/runs/38022165364/job/114125296512).
+The merge tree equals the reviewed head tree. The installed
+`test/e2e/installed/oci_images.py` fixture used ordinary-user `haco` commands
+and the Host's already provisioned nerdctl/BuildKit.
+
+Two nonce-tagged `FROM scratch` images built with `--network none` supplied real
+Host image data. Ordinary Environment creation automatically copied the Host
+area, with independent Store ownership and no explicit Store override or image
+save/load. After Environment deletion, shipped detached list/delete verified the
+actual immutable image IDs, removal from the copy while Host inventory stayed
+intact, and preservation of the changed inventory and exact Store on automatic
+same-Workspace recreation. A separate Workspace copied the current Host inventory.
+Populated-Host `--no-oci`, image-access refusal without a Store, contradictory
+Store-selection refusal, and exact-owned Environment/Store/Host-image cleanup
+also passed.
+
+The new OCI interval, from Host-image build through cleanup and PASS, took
+approximately 145 seconds within the unchanged 40-minute Ubuntu job deadline.
+This is a two-image fixture result, not a large-image, large-batch or throughput
+claim. The fixture added no runtime/packages or Policy/network grants to ordinary
+Environments and exposed no Host management socket. Detached metadata tools used
+the shipped preparation path. The fixed read-only recipe observer and ordinary
+CLI save/clear succeeded; BuildKit cache remained for disposable-runner teardown.
+
+Guest offline container execution was explicitly **not tested**: the default
+Base lacks the optional runtime. Current authenticated-registry acquisition and
+credential cleanup, Docker, Windows/WSL OCI recreation, broader runtime/driver
+compatibility and interrupted-operation combinations remain incomplete. This
+bounded result does not close #275 or replace the historical failures/skips above.
+Old-version and custom-layout migration remain outside the current issue scope.
 
 <a id="host-oci-sharing"></a>
 

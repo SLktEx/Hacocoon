@@ -113,10 +113,11 @@ The current implementation provides:
 - a dedicated `haco-control` proxy visible only in the trusted instance;
 - `/usr/local/bin/haco-host` provisioning with digest/ownership verification;
 - same-release `/usr/local/bin/haco` provisioning with the same source/digest/metadata checks;
-- `environment.HACO_CLIENT_MODE=controller`, which prevents still-unmigrated `haco` commands from silently using guest-local composition;
+- `environment.HACO_CLIENT_MODE=controller`, which identifies execution context,
+  not authorization; product `haco` has no guest-local composition path;
 - supported WSL bootstrap that verifies `haco-host doctor` before enabling default interactive entry.
 
-The broader namespace migration, cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. The maintained local setup supplies Host tooling described below; Core and Environment runtime selection remain independent.
+Cloud credentials and general external tooling remain partial. Git/GitHub and Windows integration above are implemented. The maintained local setup supplies Host tooling described below; Core and Environment runtime selection remain independent.
 
 ## Trust and authority
 
@@ -255,15 +256,15 @@ Ordinary WSL product Host entry shows the [authority notice](#host-entry-languag
 
 ## Planned follow-up
 
+Current CLI and trusted Host responsibilities are defined in
+[ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md).
+
 Still separate work:
 
 - extend trusted external-service tooling beyond the implemented Git/GitHub path;
 - evaluate additional optional OCI runtime compatibility; Host-owned source areas and independent Environment Stores are supported;
 - broker credentials without putting reusable credentials in ordinary Environments;
 - evaluate wider Windows application compatibility beyond the accepted native CLI cases;
-- classify and migrate the remaining appropriate `haco` commands to the controller client path;
-- move trusted Host-local operations into their long-term `haco-host` namespaces and remove temporary ambiguity;
-- finish the `haco` versus `haco-host` CLI responsibility split;
 - implement the long-term Workspace/repository location seam without making Core assume repositories permanently live in `haco-host`.
 
 ## Acceptance boundary

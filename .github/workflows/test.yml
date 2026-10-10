@@ -361,6 +361,7 @@ jobs:
           python3 tools/test_forward_application.py
           python3 tools/test_environment_exec_cancel.py
           python3 tools/test_installed_workspace_input.py
+          python3 tools/test_installed_oci_images.py
           python3 tools/test_windows_transfer_bundle_copy.py
           python3 tools/test_evacuation_inventory.py
           python3 tools/test_evacuation_associations.py

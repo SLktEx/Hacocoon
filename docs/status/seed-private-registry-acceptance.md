@@ -29,4 +29,6 @@ scenario; removing the retired job does not turn those skips into passes.
 The original evidence covered Host-owned Basic-auth acquisition only. Complete
 Seed/CoW and failure-injection acceptance was never established by this fixture.
 Current persistent Store credential compatibility needs its own product-path
-acceptance; old-data evacuation/restore/comparison remains incomplete.
+acceptance. Current-version data evacuation, restore and comparison remain
+incomplete and are tracked [separately](../guides/data-evacuation.md); old-version
+migration is outside the current scope.
