@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"sync"
 	"time"
 
@@ -38,9 +36,6 @@ type Runtime struct {
 	project                  string
 	image                    string
 	storage                  *runtimeStorageState
-	stdin                    io.Reader
-	stdout                   io.Writer
-	stderr                   io.Writer
 	cleanupTimeout           time.Duration
 	managedWorkspace         func(context.Context, string) ([]WorkspaceAttachment, error)
 }
@@ -51,9 +46,6 @@ func New(runner host.Runner) *Runtime {
 		project:        defaultProject,
 		image:          defaultImage,
 		storage:        &runtimeStorageState{},
-		stdin:          os.Stdin,
-		stdout:         os.Stdout,
-		stderr:         os.Stderr,
 		cleanupTimeout: defaultCleanupTimeout,
 	}
 }

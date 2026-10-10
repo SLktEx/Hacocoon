@@ -36,7 +36,6 @@ func (p sourceTestProvider) CreateEnvironment(context.Context, core.EnvironmentR
 func (sourceTestProvider) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, nil
 }
-func (sourceTestProvider) ShellEnvironment(context.Context, string) error  { return nil }
 func (sourceTestProvider) DeleteEnvironment(context.Context, string) error { return nil }
 
 func TestPersistedSourceResolverBindsCreatedRoutedReference(t *testing.T) {

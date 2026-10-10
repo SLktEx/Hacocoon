@@ -87,6 +87,16 @@ writes or add product provisioning to the test path.
 
 ## Boundaries retained
 
+Environment shells likewise have one caller-stream implementation. The unused
+`Service.Shell`, `Router.ShellEnvironment` and Incus direct-stdio helper are
+removed, including their required lifecycle-interface methods and adapter-owned
+standard streams. The management API already uses `PrepareShellStream` and the
+optional provider stream capability; unsupported providers fail explicitly.
+Keeping the direct helper would retain a second path without the shared terminal
+and completion contracts. Name validation and meaningful ownership, byte and
+exit-status regressions move to the active path. Public clients, wire methods,
+persisted ownership and native-acceptance limits do not change.
+
 Managed controller streams require the negotiated completion identity. The old
 fallback that accepted a peer without a session ID is removed: EOF cannot prove
 the process exit status, and the missing identity prevents completion/cancellation

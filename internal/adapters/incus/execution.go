@@ -2,7 +2,6 @@ package incus
 
 import (
 	"context"
-	"os/exec"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -35,20 +34,4 @@ func (r *Runtime) ExecEnvironment(ctx context.Context, ref string, req core.Exec
 		Stdout: result.Stdout,
 		Stderr: result.Stderr,
 	}, err
-}
-
-func (r *Runtime) ShellEnvironment(ctx context.Context, ref string) error {
-	if err := validateManagedInstanceRef(ref); err != nil {
-		return err
-	}
-	return r.execInteractive(ctx, ref, []string{"/bin/bash"})
-}
-
-func (r *Runtime) execInteractive(ctx context.Context, ref string, argv []string) error {
-	args := append([]string{"exec", ref, "--project", r.project, "--"}, argv...)
-	cmd := exec.CommandContext(ctx, "incus", args...)
-	cmd.Stdin = r.stdin
-	cmd.Stdout = r.stdout
-	cmd.Stderr = r.stderr
-	return cmd.Run()
 }

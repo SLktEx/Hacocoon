@@ -200,6 +200,12 @@ Stream handshakeでは可能な検証を成功 acknowledgementより前に行い
 返します。EOFだけをプロセス終了の証拠にはしません。pre-1.0のclientとcontrollerは
 一緒に更新してください。[互換処理を廃止する判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
 
+Envのシェル実行は、Workspace、provider router、Incus adapterを通る、呼出元指定の
+ストリーム経路に一本化します。この任意機能を持たないproviderは未対応エラーを返します。
+未使用の標準入出力への直接接続とadapterが保持する標準ストリームは削除し、CLIや
+通信APIは変更しません。シェル準備はcatalogへのアクセス前に不正な名前を拒否します。
+[廃止の判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
+
 Linux/WSLの共通端末ブリッジは、ファイルとして渡されたパイプと端末に
 専用の入力記述子を用意します。接続先のEOF、出力失敗、中止では、端末を復元してから
 専用記述子を閉じ、入力転送処理の終了を待って戻ります。呼出元の記述子は閉じず、

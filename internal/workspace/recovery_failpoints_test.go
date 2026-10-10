@@ -124,8 +124,6 @@ func (*failpointRuntime) ExecEnvironment(context.Context, string, core.Execution
 	return core.ExecutionResult{}, nil
 }
 
-func (*failpointRuntime) ShellEnvironment(context.Context, string) error { return nil }
-
 func (r *failpointRuntime) DeleteEnvironment(_ context.Context, ref string) error {
 	if err := r.inject(failBeforeRuntimeDelete); err != nil {
 		return err
