@@ -81,6 +81,16 @@ Development and tests may override the local path with `HACO_CONTROL_SOCKET`. Ro
 
 Startup and stale-socket handling fail closed when an existing path cannot be proven safe to reuse.
 
+The listener disables Go's pathname-only automatic unlink and captures the bound
+socket's file identity before setting permissions. Its first cleanup, including
+permission-setup failure, removes the pathname only when it still has the captured
+identity and file type. Missing, uninspectable and replaced paths are left alone;
+underlying listener-close results are preserved. This protects stable replacements
+after identity capture. Binding/capture, pathname-based permission setup and the
+identity-check/unlink pair are not atomic against hostile directory writers. The
+endpoint's parent must remain under trusted control; this cleanup rule does not
+change parent permissions or stale-socket startup policy.
+
 ## Trusted `haco-host` endpoint
 
 The trusted instance receives a single Incus `proxy` device named `haco-control` with the intended shape:

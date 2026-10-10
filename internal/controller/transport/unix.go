@@ -54,16 +54,45 @@ func ListenUnix(path string, mode fs.FileMode) (net.Listener, error) {
 	if err := removeStaleSocket(path); err != nil {
 		return nil, err
 	}
-	listener, err := net.Listen("unix", path)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		return nil, fmt.Errorf("listen on Hacocoon control socket %q: %w", path, err)
 	}
-	if err := os.Chmod(path, mode.Perm()); err != nil {
+	owned, err := captureUnixListener(listener, path)
+	if err != nil {
+		return nil, err
+	}
+	return finishUnixListener(owned, mode, os.Chmod)
+}
+
+type unixSocketListener interface {
+	net.Listener
+	SetUnlinkOnClose(bool)
+}
+
+func captureUnixListener(listener unixSocketListener, path string) (*unlinkListener, error) {
+	// Go's default Close unlinks by pathname, even if another object replaced it.
+	// Disable that before any failure path can close the listener. Binding and
+	// capturing this identity require the parent to remain under trusted control.
+	listener.SetUnlinkOnClose(false)
+	info, err := os.Lstat(path)
+	if err != nil {
 		_ = listener.Close()
-		_ = os.Remove(path)
+		return nil, fmt.Errorf("inspect newly created control socket %q: %w", path, err)
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		_ = listener.Close()
+		return nil, fmt.Errorf("new control socket path %q is not a socket: %w", path, ErrAlreadyRunning)
+	}
+	return &unlinkListener{Listener: listener, path: path, info: info}, nil
+}
+
+func finishUnixListener(listener *unlinkListener, mode fs.FileMode, chmod func(string, fs.FileMode) error) (net.Listener, error) {
+	if err := chmod(listener.path, mode.Perm()); err != nil {
+		_ = listener.Close()
 		return nil, fmt.Errorf("set control socket permissions: %w", err)
 	}
-	return &unlinkListener{Listener: listener, path: path}, nil
+	return listener, nil
 }
 
 func removeStaleSocket(path string) error {
@@ -109,11 +138,21 @@ func removeStaleSocket(path string) error {
 type unlinkListener struct {
 	net.Listener
 	path string
+	info fs.FileInfo
 	once sync.Once
 }
 
 func (l *unlinkListener) Close() error {
 	err := l.Listener.Close()
-	l.once.Do(func() { _ = os.Remove(l.path) })
+	l.once.Do(func() {
+		current, statErr := os.Lstat(l.path)
+		if statErr != nil || l.info == nil || current.Mode().Type() != l.info.Mode().Type() || !os.SameFile(l.info, current) {
+			return
+		}
+		// This protects stable replacements, not hostile concurrent directory
+		// writers: Lstat and Remove are not atomic. The endpoint's parent must
+		// remain under trusted control, as for bind and permission setup.
+		_ = os.Remove(l.path)
+	})
 	return err
 }
