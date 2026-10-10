@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -124,11 +125,64 @@ def resume_failure_summary(value):
     return {"kind": "unrecognized"}
 
 
+def _stop_observation(process):
+    try:
+        if process.poll() is None:
+            process.kill()  # Only this read-only child, never its process tree.
+        process.wait(timeout=5)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def capture_observation(command):
+    """Capture only the fixed, synchronous single-emitter observation commands.
+
+    The installed _status helper and maintained PowerShell queries emit their
+    complete response before exiting. This is not generic EOF-equivalent capture
+    for commands that delegate output to a concurrent or later writer.
+    """
+    output = None
+    complete = False
+    try:
+        # Avoid pipe EOF and the Popen context manager's implicit untimed wait.
+        # Windows delete-on-close may retain storage until an inherited handle
+        # closes; closing our handle does not prove all holders have exited.
+        output = tempfile.TemporaryFile()
+        process = subprocess.Popen(command, stdout=output, stderr=subprocess.DEVNULL)
+        try:
+            exit_code = process.wait(timeout=25)
+        except subprocess.TimeoutExpired:
+            stopped = _stop_observation(process)
+            suffix = "" if stopped else "; termination unconfirmed"
+            raise RuntimeError("Windows read-only observation timed out" + suffix) from None
+        except BaseException:
+            _stop_observation(process)
+            raise
+        if exit_code:
+            raise RuntimeError("Windows read-only observation failed")
+        output.seek(0)
+        data = output.read(16385)
+        if len(data) > 16384:
+            raise RuntimeError("Windows read-only observation failed")
+        complete = True
+        return data
+    except OSError:
+        raise RuntimeError("Windows read-only observation unavailable") from None
+    finally:
+        if output is not None:
+            try:
+                output.close()
+            except OSError:
+                if complete:
+                    raise RuntimeError("Windows read-only observation capture cleanup failed") from None
+
+
 def read_json(command):
-    result = subprocess.run(command, capture_output=True, timeout=25)
-    if result.returncode or len(result.stdout) > 16384:
-        raise RuntimeError("Windows read-only observation failed")
-    return json.loads(result.stdout.decode("utf-8-sig"))
+    try:
+        return json.loads(capture_observation(command).decode("utf-8-sig"))
+    except (UnicodeError, ValueError):
+        raise RuntimeError("Windows read-only observation invalid") from None
 
 
 def process_origin_script():

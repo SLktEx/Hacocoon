@@ -297,6 +297,20 @@ regression scripts before the journey driver. These labels do not establish a
 worker result or diagnose a historical run whose logs are unavailable.
 Receipt output failure never skips observer cleanup or changes product acceptance.
 
+The fixed reclamation status/process queries and their native projection fixtures
+capture stdout in a private temporary file, discard stderr and wait for their
+exact child for 25 seconds. Timeout cleanup stops only that child and waits at
+most five more seconds; timeout or unconfirmed termination remains a failure,
+regardless of captured output. No worker tree is stopped or operation retried.
+Successful observations require zero child exit and the existing complete
+expected-document validation within 16 KiB. These commands are verified single
+emitters that finish their response before exiting; this helper is not for
+commands with concurrent or later output writers and does not establish pipe EOF.
+Windows delete-on-close storage can remain until an inherited handle closes;
+closing the parent's capture does not prove immediate file removal or descendant
+exit. This correction does not introduce a global journey deadline or change the
+retention-operation budgets, and does not attribute earlier timeouts to this path.
+
 The disposable VS Code acceptance observer records only fixed progress phases in
 exclusive local markers bound to the fixture authority and nonce. After failure,
 the wrapper reads at most 18 regular marker files, up to 512 bytes each, and emits
