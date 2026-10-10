@@ -21,6 +21,9 @@ func (s *Service) PrepareShellStream(ctx context.Context, name string) (func(con
 	if s == nil {
 		return nil, core.ErrInvalidArgument
 	}
+	if _, err := validateEnvironmentName(name); err != nil {
+		return nil, err
+	}
 	environment, err := s.store.GetEnvironment(ctx, name)
 	if err != nil {
 		return nil, err

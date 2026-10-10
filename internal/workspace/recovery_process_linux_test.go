@@ -65,10 +65,6 @@ func (*recoveryProcessRuntime) ExecEnvironment(context.Context, string, core.Exe
 	return core.ExecutionResult{}, core.ErrUnsupported
 }
 
-func (*recoveryProcessRuntime) ShellEnvironment(context.Context, string) error {
-	return core.ErrUnsupported
-}
-
 func (r *recoveryProcessRuntime) DeleteEnvironment(_ context.Context, ref string) error {
 	if err := r.boundary(failBeforeRuntimeDelete); err != nil {
 		return err

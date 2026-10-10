@@ -73,7 +73,6 @@ func (r *timeoutCleanupRuntime) CreateEnvironment(context.Context, core.Environm
 func (*timeoutCleanupRuntime) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, nil
 }
-func (*timeoutCleanupRuntime) ShellEnvironment(context.Context, string) error { return nil }
 func (*timeoutCleanupRuntime) DeleteEnvironment(ctx context.Context, _ string) error {
 	<-ctx.Done()
 	return ctx.Err()

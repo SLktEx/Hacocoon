@@ -27,7 +27,6 @@ func (p *baseTestProvider) CreateEnvironment(_ context.Context, spec core.Enviro
 func (*baseTestProvider) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, nil
 }
-func (*baseTestProvider) ShellEnvironment(context.Context, string) error  { return nil }
 func (*baseTestProvider) DeleteEnvironment(context.Context, string) error { return nil }
 func (p *baseTestProvider) ListBases(context.Context) ([]core.BaseInfo, error) {
 	return p.bases, p.catalogErr

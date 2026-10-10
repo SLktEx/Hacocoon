@@ -203,6 +203,13 @@ closes the connection and reports a protocol error; EOF alone is not process
 completion. Update pre-1.0 clients and controllers together. See
 [the compatibility decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
 
+Environment shell execution uses only the caller-supplied stream path through
+Workspace, the provider router and the Incus adapter. Providers without that
+optional capability return unsupported. The unused direct-stdio shell entry
+points and adapter-owned standard streams are removed; no CLI or wire method
+changes. Shell preparation rejects invalid names before catalog access. See
+[the retirement decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
+
 On Linux/WSL, the shared terminal bridge owns a separate input descriptor for
 file-backed pipes and terminals. Remote EOF, output failure or
 cancellation restores the terminal, closes that descriptor and joins its input

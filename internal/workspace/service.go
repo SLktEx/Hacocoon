@@ -12,7 +12,6 @@ const defaultCleanupTimeout = 30 * time.Second
 type environmentRuntime interface {
 	CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error)
 	ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	ShellEnvironment(context.Context, string) error
 	DeleteEnvironment(context.Context, string) error
 }
 

@@ -228,10 +228,6 @@ func (*defaultNativeFixture) DeleteEnvironment(context.Context, string) error {
 func (*defaultNativeFixture) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, core.ErrUnsupported
 }
-func (*defaultNativeFixture) ShellEnvironment(context.Context, string) error {
-	return core.ErrUnsupported
-}
-
 func (*defaultNativeFixture) InspectBase(_ context.Context, name core.BaseName) (core.BaseInfo, error) {
 	return core.BaseInfo{Name: name}, nil
 }

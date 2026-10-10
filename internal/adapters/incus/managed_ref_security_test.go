@@ -3,6 +3,8 @@ package incus
 import (
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/core"
@@ -16,7 +18,9 @@ func TestRuntimeRejectsOptionLikeInstanceRefsBeforeIncus(t *testing.T) {
 		{name: "start-all", call: func(r *Runtime) error { return r.Start(context.Background(), "--all") }},
 		{name: "stop-all", call: func(r *Runtime) error { return r.Stop(context.Background(), "--all") }},
 		{name: "delete-force", call: func(r *Runtime) error { return r.DeleteEnvironment(context.Background(), "--force") }},
-		{name: "shell-project", call: func(r *Runtime) error { return r.ShellEnvironment(context.Background(), "--project") }},
+		{name: "shell-project", call: func(r *Runtime) error {
+			return r.ShellEnvironmentStream(context.Background(), "--project", strings.NewReader(""), io.Discard, io.Discard)
+		}},
 		{name: "inspect-all-projects", call: func(r *Runtime) error {
 			_, err := r.InspectEnvironment(context.Background(), "--all-projects")
 			return err
