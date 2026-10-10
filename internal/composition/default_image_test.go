@@ -54,69 +54,84 @@ func (c defaultImageProgressCatalog) SetDefaultImage(ctx context.Context, image 
 func TestDefaultImageCatalogProgressPreservesOrderAndFailure(t *testing.T) {
 	for _, failureStage := range []string{"", "default_image_read", "default_image_write", "existing"} {
 		t.Run(failureStage, func(t *testing.T) {
-			failure := &os.PathError{Op: "SECRET-operation", Path: "SECRET-catalog-path-and-value", Err: errors.New("SECRET-cause")}
-			var calls []string
-			catalog := defaultImageProgressCatalog{
-				read: func(context.Context) (core.BaseName, error) {
-					calls = append(calls, "read")
-					if failureStage == "default_image_read" {
-						return "", failure
-					}
-					if failureStage == "existing" {
-						return "SECRET-existing-preference", nil
-					}
-					return "", nil
-				},
-				write: func(_ context.Context, image core.BaseName, initial bool) error {
-					calls = append(calls, "write")
-					if image != "SECRET-acquired-image" || !initial {
-						t.Fatal("changed persistence arguments")
-					}
-					if failureStage == "default_image_write" {
-						return failure
-					}
-					return nil
-				},
-			}
-			a := &App{Creation: &creation.Service{Catalog: catalog}, InitialImage: func(context.Context) (core.BaseName, error) {
-				calls = append(calls, "acquire")
-				return "SECRET-acquired-image", nil
-			}}
-			var events []hostsetup.Event
-			ctx := hostsetup.Observe(context.Background(), func(e hostsetup.Event) { events = append(events, e) })
-			err := a.initializeDefaultImage(ctx)
-			wantCalls := []string{"read", "acquire", "write"}
-			wantStages := []string{"default_image_read", "default_image_write"}
-			if failureStage == "default_image_read" || failureStage == "existing" {
-				wantCalls, wantStages = wantCalls[:1], wantStages[:1]
-			}
-			if !reflect.DeepEqual(calls, wantCalls) || len(events) != 2*len(wantStages) {
-				t.Fatal(calls, events)
-			}
-			for n, stage := range wantStages {
-				start, end := events[2*n], events[2*n+1]
-				wantState, wantReason := "succeeded", ""
-				if stage == failureStage {
-					wantState, wantReason = "failed", "failed"
-				}
-				if start.Stage != stage || start.State != "running" || end.Stage != stage || end.State != wantState || end.Reason != wantReason || end.DurationMS < 0 {
-					t.Fatal(events)
-				}
-			}
-			if failureStage == "default_image_read" || failureStage == "default_image_write" {
-				stage, reason := hostsetup.Details(err)
-				var original *os.PathError
-				if !errors.Is(err, failure) || !errors.As(err, &original) || original != failure || stage != failureStage || reason != "failed" || strings.Contains(err.Error(), "SECRET") {
-					t.Fatal(stage, reason, err)
-				}
-			} else if err != nil {
-				t.Fatal(err)
-			}
-			encoded, _ := json.Marshal(events)
-			if strings.Contains(string(encoded), "SECRET") {
-				t.Fatal("private catalog data escaped progress")
-			}
+			checkDefaultImageCatalogProgressCase(t, failureStage)
 		})
+	}
+}
+
+func defaultImageCatalogProgressFixture(t *testing.T, failureStage string, failure error, calls *[]string) defaultImageProgressCatalog {
+	t.Helper()
+	return defaultImageProgressCatalog{
+		read: func(context.Context) (core.BaseName, error) {
+			*calls = append(*calls, "read")
+			if failureStage == "default_image_read" {
+				return "", failure
+			}
+			if failureStage == "existing" {
+				return "SECRET-existing-preference", nil
+			}
+			return "", nil
+		},
+		write: func(_ context.Context, image core.BaseName, initial bool) error {
+			*calls = append(*calls, "write")
+			if image != "SECRET-acquired-image" || !initial {
+				t.Fatal("changed persistence arguments")
+			}
+			if failureStage == "default_image_write" {
+				return failure
+			}
+			return nil
+		},
+	}
+}
+
+func checkDefaultImageCatalogProgressCase(t *testing.T, failureStage string) {
+	t.Helper()
+	failure := &os.PathError{Op: "SECRET-operation", Path: "SECRET-catalog-path-and-value", Err: errors.New("SECRET-cause")}
+	var calls []string
+	catalog := defaultImageCatalogProgressFixture(t, failureStage, failure, &calls)
+	a := &App{Creation: &creation.Service{Catalog: catalog}, InitialImage: func(context.Context) (core.BaseName, error) {
+		calls = append(calls, "acquire")
+		return "SECRET-acquired-image", nil
+	}}
+	var events []hostsetup.Event
+	ctx := hostsetup.Observe(context.Background(), func(e hostsetup.Event) { events = append(events, e) })
+	err := a.initializeDefaultImage(ctx)
+	wantCalls := []string{"read", "acquire", "write"}
+	wantStages := []string{"default_image_read", "default_image_write"}
+	if failureStage == "default_image_read" || failureStage == "existing" {
+		wantCalls, wantStages = wantCalls[:1], wantStages[:1]
+	}
+	if !reflect.DeepEqual(calls, wantCalls) || len(events) != 2*len(wantStages) {
+		t.Fatal(calls, events)
+	}
+	checkDefaultImageCatalogProgressEvents(t, wantStages, failureStage, events)
+	if failureStage == "default_image_read" || failureStage == "default_image_write" {
+		stage, reason := hostsetup.Details(err)
+		var original *os.PathError
+		if !errors.Is(err, failure) || !errors.As(err, &original) || original != failure || stage != failureStage || reason != "failed" || strings.Contains(err.Error(), "SECRET") {
+			t.Fatal(stage, reason, err)
+		}
+	} else if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkDefaultImageCatalogProgressEvents(t *testing.T, stages []string, failureStage string, events []hostsetup.Event) {
+	t.Helper()
+	for n, stage := range stages {
+		start, end := events[2*n], events[2*n+1]
+		wantState, wantReason := "succeeded", ""
+		if stage == failureStage {
+			wantState, wantReason = "failed", "failed"
+		}
+		if start.Stage != stage || start.State != "running" || end.Stage != stage || end.State != wantState || end.Reason != wantReason || end.DurationMS < 0 {
+			t.Fatal(events)
+		}
+	}
+	encoded, _ := json.Marshal(events)
+	if strings.Contains(string(encoded), "SECRET") {
+		t.Fatal("private catalog data escaped progress")
 	}
 }
 

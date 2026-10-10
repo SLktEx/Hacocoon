@@ -286,3 +286,21 @@ finally で出力する要約は元の失敗を保持し、固定の Desktop pro
 不在の証明にはなりません。
 記録の直列化・書き込み・flush の失敗で受け入れ判定を変更したり、終了処理を中断したり
 しません。既存のコマンド、期限、厳密な所有権検証、ホスト鍵変更の拒否条件は不変です。
+
+Windows tunnel の fixture は既存の単調時計を使い、Ctrl+C、完全な終了コードの受領、
+既存の接続失敗チェック、shell 復帰、terminal の復帰、finally の終了処理を固定の段階で
+記録します。terminal は既存の終了状態の読み取りが既知か未確認か、固定の reader と
+run-stop 分類、reader の生存状態、既存の強制終了の試行と真偽値の戻り値を記録します。
+未確認は終了成功を意味しません。application observer の生存状態は既存の期限付き
+join の後だけに観測します。追加のプロセス、WSL 準備状態、バージョン、init crash の
+probe は実行しません。`listener_connect_failed` は既存の接続試行が `OSError` に
+なったことだけを示します。期限切れや権限エラーも含み、listener の不在を証明しません。
+生の例外、出力、パス、引数、識別子を含めず、属性読み取り、
+直列化、書き込み、flush の失敗は受け入れや終了処理に影響しません。この同期的な観測は
+診断 I/O の期限を新設しません。実際の終了処理の
+例外は従来どおり伝播し、元の例外を置き換えたり後続の終了処理を飛ばしたりする場合が
+あります。この診断変更はその制御フローを変更しません。tunnel の PASS は finally より
+前に出力され、terminal の正常終了や後続の WSL の正常性を証明しません。native の
+completion transport の起動・cancel と WSL init の状態は未観測のままです。native
+companion は共有 logger を初期化しておらず、この fixture は logger の追加や level の
+変更を行いません。

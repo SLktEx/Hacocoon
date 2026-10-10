@@ -368,3 +368,22 @@ unconfirmed deletion. Blocked or unconfirmed cleanup does not prove absence;
 disposable runner cleanup does not supply that proof. Receipt serialization/write/flush failure never changes
 acceptance or interrupts cleanup. Existing commands, deadlines, exact ownership
 checks and host-key refusal criteria remain unchanged.
+
+The Windows tunnel fixture adds fixed phases on its existing monotonic clock for
+Ctrl+C, the complete command-exit receipt, the existing failed-connect check, shell return, terminal
+return and finally cleanup. Terminal observations report the existing exit-status
+read as known or unknown, fixed reader/run-stop categories, reader liveness and
+the existing force-termination attempt/boolean return. Unknown is not successful
+termination. Application-observer liveness is sampled only after its existing
+bounded join. No extra process, WSL readiness, version or init-crash probe runs.
+`listener_connect_failed` means the existing connection attempt raised an
+`OSError`, including timeout or permission failure; it does not prove absence.
+These receipts exclude raw exceptions, output, paths, arguments and identities;
+accessor, serialization, write and flush failures cannot affect acceptance or
+cleanup. These synchronous observations do not add a diagnostic I/O deadline.
+Existing actual cleanup-operation exceptions still propagate and can
+replace a primary exception or skip later cleanup; this diagnostic change does
+not alter that control flow. A tunnel PASS precedes finally and does not establish
+graceful terminal exit or subsequent WSL health. Native completion-transport
+start/cancellation and WSL init state remain unobserved: the native companion does
+not initialize a shared logger, and this fixture does not add one or change levels.
