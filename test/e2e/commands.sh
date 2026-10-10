@@ -61,6 +61,10 @@ export HOME="$root/home"
 # before any socket-dependent fixture. The child cannot find Host commands.
 python3 "$(dirname "$0")/controller_startup.py" "$bin/haco-controller"
 
+# Exercise Main's actual SIGINT/SIGTERM handling with read-only ping readiness,
+# empty provider state, exact endpoint absence and retained private data.
+python3 "$(dirname "$0")/controller_signals.py" "$bin/haco-controller"
+
 # Exercise the shipped executable-name login routes before any controller is
 # available. The fixture owns its isolated environment and never changes users.
 python3 "$(dirname "$0")/login.py" "$bin/haco"
