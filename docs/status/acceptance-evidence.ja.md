@@ -919,6 +919,29 @@ Linux側回収完了後、Windows停止を要求しましたが、`compact_attac
 既存のソース別成功は保持し、新headのCI成功へ読み替えません。
 
 
+<a id="environment-exec-cancellation"></a>
+## 永続 Environment 内の実行キャンセル
+
+PR [#754](https://github.com/SLktEx/Hacocoon/pull/754) の head
+[`bf699cec300e`](https://github.com/SLktEx/Hacocoon/commit/bf699cec300e119eb483dbaaf1abf3174ba595a6) と
+base [`5efd8b15e08b`](https://github.com/SLktEx/Hacocoon/commit/5efd8b15e08b7ec118bbd1e75aa62a33454d8271) を統合した
+merge [`84c9d182be6a`](https://github.com/SLktEx/Hacocoon/commit/84c9d182be6a4f4253dca9e8c2f081a630a1231f) を実行しました。
+[Incus run 38007854895 / job 114080710610](https://github.com/SLktEx/Hacocoon/actions/runs/38007854895/job/114080710610) は、
+Ubuntu 26.04.1・Incus 7.0.1 で初回の試行が PASS。2026-10-10 00:11:41 UTC に
+`ENVIRONMENT EXEC CANCEL / EXACT EXECUTION ABSENT / RUNNING ENV RETAINED: PASS` を記録しました。
+既存のバイナリ転送、実 PTY の編集・サイズ変更、終了値 17、端末復元、停止済み
+Environment での実行拒否も PASS です。
+
+Environment を停止する前に、キャンセルが CLI 終了値 130 を返し、通常の `haco exec` で、
+shell から exec へ引き継ぐ PID と開始時刻で特定した実行個体の消失を、共通の 30 秒期限内に
+確認しました。保存済みの Environment 識別情報、稼働状態、guest の PID1 開始時刻は
+変わっていません。取得する出力と識別・観測応答にはサイズ上限があります。この試験では
+実行個体の残存は見つからず、製品の修正を証明するものでもありません。`sleep` への移行完了や
+任意の子孫プロセスの回収は主張しません。この実機観測とローカルの試験補助の単体試験 18 件は
+別の証拠であり、単体試験だけでは実機受入とは扱いません。この限定された実機結果は、
+最終 head に対する全 workflow の検証を代替しません。
+
+
 <a id="cache-generation-foundation"></a>
 ## キャッシュ世代管理の基盤
 

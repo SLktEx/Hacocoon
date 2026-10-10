@@ -2,46 +2,46 @@
 import json
 import os
 import secrets
-import signal
-import subprocess
 import sys
-import time
 from environment_exec_stream import verify_streaming
+from environment_exec_cancel import cleanup_environment, run_product, verify_cancellation
 
-if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("HACO_CI_RUNNER_ENVIRONMENT") != "github-hosted":
-    raise SystemExit("Environment acceptance requires the disposable GHA host")
-product, image = sys.argv[1:]
-name = "exec-" + secrets.token_hex(5)
-def invoke(*args, expected=0):
-    result = subprocess.run([product, *args], text=True, capture_output=True, timeout=300)
-    if result.returncode != expected:
-        raise RuntimeError("ordinary product command returned an unexpected status")
-    return result.stdout
-def rows():
-    return {row["name"]: row for row in json.loads(invoke("env", "ls", "--json"))}
-baseline = rows()
-created = False
-try:
-    invoke("open", "--new", image, "--name", name, "--client", "none")
-    created = True
-    assert invoke("exec", name, "--", "sh", "-ec", 'test "$PWD" = /workspace; printf exec-ok') == "exec-ok"
-    invoke("exec", name, "--", "sh", "-c", "exit 17", expected=17)
-    verify_streaming(product, name, rows)
-    process = subprocess.Popen([product, "exec", name, "--", "sh", "-ec", "printf started; exec sleep 600"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+def main():
+    if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("HACO_CI_RUNNER_ENVIRONMENT") != "github-hosted":
+        raise SystemExit("Environment acceptance requires the disposable GHA host")
+    product, image = sys.argv[1:]
+    name = "exec-" + secrets.token_hex(5)
+
+    def invoke(*args, **kwargs):
+        return run_product(product, *args, **kwargs)
+
+    def rows(*, timeout=300):
+        return {row["name"]: row for row in json.loads(invoke("env", "ls", "--json", timeout=timeout))}
+
+    baseline = rows()
+    created, original = False, None
     try:
-        assert process.stdout.read(7) == b"started"
-        process.send_signal(signal.SIGINT)
-        process.communicate(timeout=30)
-        assert process.returncode == 130, f"exec cancellation returned exit {process.returncode}, expected 130"
-        assert name in rows(), "exec cancellation removed the Environment"
+        invoke("open", "--new", image, "--name", name, "--client", "none")
+        created = True
+        # Capture ownership before further guest work. If lookup fails, retain the
+        # unverified target rather than letting a name-only cleanup guess ownership.
+        original = rows().get(name)
+        if not original or not original.get("runtime_ref") or not original.get("created_at"):
+            original = None
+            raise RuntimeError("created Environment identity was unavailable")
+        assert invoke("exec", name, "--", "sh", "-ec", 'test "$PWD" = /workspace; printf exec-ok') == "exec-ok"
+        invoke("exec", name, "--", "sh", "-c", "exit 17", expected=17)
+        verify_streaming(product, name, rows)
+        verify_cancellation(product, name, original, invoke, rows)
+        invoke("stop", name)
+        invoke("exec", name, "--", "true", expected=1)
     finally:
-        if process.poll() is None:
-            process.terminate()
-            process.communicate(timeout=30)
-    invoke("stop", name)
-    invoke("exec", name, "--", "true", expected=1)
-finally:
-    if created:
-        invoke("rm", "-f", name)
-assert rows() == baseline
-print("ENVIRONMENT EXEC / EXIT 17 / STREAM / CANCEL / STOPPED REFUSAL: PASS")
+        if created:
+            cleanup_environment(name, original, invoke, rows, sys.exc_info()[1])
+    assert rows() == baseline
+    print("ENVIRONMENT EXEC / EXIT 17 / STREAM / CANCEL / STOPPED REFUSAL: PASS")
+
+
+if __name__ == "__main__":
+    main()

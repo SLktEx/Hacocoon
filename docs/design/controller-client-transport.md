@@ -311,6 +311,20 @@ Once execution starts, observed local cancellation takes CLI exit-code 130
 precedence over a racing transport error or process result. Without local
 cancellation, the command retains its process exit status and ordinary errors.
 
+The maintained real-Incus fixture observes the launched shell's PID and Linux
+starttime before it replaces itself with `sleep`. Cancellation must return 130
+and remove that exact execution identity within the existing shared 30-second
+budget, before any Environment stop or cleanup. Ordinary `haco exec` checks
+absence (including PID reuse); an unreaped zombie is still present, and unknown
+observations fail. The unchanged Environment record, running status and guest
+PID1 starttime distinguish cancellation from stop/restart. This does not claim
+that `sleep` had already entered or that arbitrary descendants were reaped.
+Fixture unit tests alone do not establish real-Incus acceptance; see the
+[commit-bound native result](../status/acceptance-evidence.md#environment-exec-cancellation).
+Cleanup rechecks the saved creation record and retains unknown or changed targets;
+this is a point-in-time check, since the name-based CLI has no atomic
+compare-and-delete operation. Cleanup failure preserves the original failed observation.
+
 ## Daily Environment inspection
 
 Status: **implemented CLI slice**. `haco env list` shows the registered Environment
