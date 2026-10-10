@@ -44,6 +44,22 @@ func TestHostToolsStageIsPreserved(t *testing.T) {
 	}
 }
 
+func TestDefaultImageStagesArePreserved(t *testing.T) {
+	for _, stage := range []string{"default_image_read", "default_image_project", "default_image_resolve", "default_image_copy", "default_image_write"} {
+		t.Run(stage, func(t *testing.T) {
+			var events []Event
+			ctx := Observe(context.Background(), func(e Event) { events = append(events, e) })
+			err := func() (err error) {
+				defer Track(ctx, stage)(&err)
+				return nil
+			}()
+			if err != nil || len(events) != 2 || events[0].Stage != stage || events[1].Stage != stage || events[0].State != "running" || events[1].State != "succeeded" {
+				t.Fatal(err, events)
+			}
+		})
+	}
+}
+
 func TestUnknownChildStageCannotBecomeSetup(t *testing.T) {
 	for _, failure := range []error{nil, errors.New("SECRET-backend-output")} {
 		var events []Event

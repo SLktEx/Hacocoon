@@ -27,6 +27,68 @@ SERVER, arm_application = forward.SERVER, forward.arm_application
 TERMINAL_TIMEOUT_SECONDS = 180
 
 
+def terminal_receipt(terminal):
+    # Read observer state only. Never query or stop another process for a receipt.
+    record = {"terminal_exit_known": False, "terminal_exit_code": None,
+              "terminal_reader": "unknown", "terminal_reader_alive": None,
+              "terminal_run_stop": "unknown"}
+    try:
+        status = terminal.observed_exit_status
+        if type(status) is int:
+            record.update(terminal_exit_known=True, terminal_exit_code=status)
+        reader = terminal.reader_outcome
+        if type(reader) is str and reader in ("running", "eof", "failed"):
+            record["terminal_reader"] = reader
+        stop = terminal.run_stop
+        if type(stop) is str and stop in ("not_started", "running", "reader_done", "process_exited", "callback_failed", "timeout"):
+            record["terminal_run_stop"] = stop
+        alive = terminal._reader.is_alive()
+        if type(alive) is bool:
+            record["terminal_reader_alive"] = alive
+    except Exception:
+        # Partial observations remain observations; never interrupt owned cleanup.
+        return record
+    return record
+
+
+def process_receipt(*, alive, terminated, observer, application, exit_code):
+    record = {}
+    for key, value in (("terminal_alive", alive), ("termination_returned", terminated)):
+        record[key] = value if type(value) is bool else None
+    if type(exit_code) is int:
+        record["exit_code"] = exit_code
+    try:
+        if observer is not None:
+            observed = observer.is_alive()
+            record["application_observer_alive"] = observed if type(observed) is bool else None
+        if application is not None:
+            status = application.poll()
+            record["application_exit_code"] = status if type(status) is int else None
+    except Exception:
+        return record
+    return record
+
+
+def write_phase(started, name, *, terminal=None, alive=None, terminated=None, observer=None, application=None, exit_code=None):
+    try:
+        phases = ("application_start", "application_ready", "host_entry_start", "host_ready", "listener_ready",
+                  "native_owner_confirmed", "application_armed", "exchange_completed", "ctrl_c_sent",
+                  "tunnel_exit_received", "listener_connect_failed", "host_exit_sent", "host_returned", "terminal_exit_sent",
+                  "terminal_run_finished", "failed", "cleanup_start", "terminal_cleanup", "terminal_terminate_start",
+                  "terminal_terminate_returned", "application_observer_join_returned", "cleanup_completed", "cleanup_finished")
+        record = {"component": "ci", "operation": "windows_tunnel_entry",
+                  "phase": name if type(name) is str and name in phases else "unknown",
+                  "duration_ms": int((time.monotonic() - started) * 1000)}
+        if terminal is not None:
+            record.update(terminal_receipt(terminal))
+        record.update(process_receipt(alive=alive, terminated=terminated, observer=observer,
+                                      application=application, exit_code=exit_code))
+        print(json.dumps(record), flush=True)
+    except Exception:
+        # Serialization, accessor and sink failures must not replace acceptance.
+        return
+
+
 def exchange(port):
     data = bytes(range(256)) * 4096
     with socket.create_connection(("127.0.0.1", port), timeout=15) as client:
@@ -67,9 +129,8 @@ def main():
     if not shutil.which("pwsh"):
         raise RuntimeError("PowerShell 7 is required for native listener observation")
     started = time.monotonic()
-    def phase(name):
-        print(json.dumps({"component": "ci", "operation": "windows_tunnel_entry",
-                          "phase": name, "duration_ms": int((time.monotonic() - started) * 1000)}), flush=True)
+    def phase(name, **observations):
+        write_phase(started, name, **observations)
     phase("application_start")
     application = subprocess.Popen(["wsl.exe", "-d", args.distro, "-u", "root", "--exec", "incus", "exec", "haco-" + args.env,
                                     "--project", "hacocoon", "--", "python3", "-u", "-c", SERVER], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -118,6 +179,7 @@ def main():
                     if application.wait(timeout=15) != 0:
                         raise RuntimeError("application fixture failed")
                     process.write("\x03")
+                    phase("ctrl_c_sent")
                     stage = 3
             elif stage == 3:
                 # Wait for a complete output line: a terminal read can split the
@@ -127,6 +189,7 @@ def main():
                 if not match:
                     return
                 exit_code = int(match.group(1))
+                phase("tunnel_exit_received", exit_code=exit_code)
                 if exit_code != 0:
                     raise RuntimeError(f"Windows tunnel exited with code {exit_code} after Ctrl+C")
                 try:
@@ -136,34 +199,50 @@ def main():
                 else:
                     connection.close()
                     raise RuntimeError("Windows listener survived Ctrl+C")
+                phase("listener_connect_failed")
                 process.write("exit\r")
+                phase("host_exit_sent")
                 stage, sent_at = 4, len(output)
             elif stage == 4 and driver.cmd_prompt_count(fresh):
+                phase("host_returned")
                 process.write("exit\r\n")
+                phase("terminal_exit_sent")
                 stage = 5
-        terminal.run(on_output=drive, timeout=TERMINAL_TIMEOUT_SECONDS)
+        try:
+            terminal.run(on_output=drive, timeout=TERMINAL_TIMEOUT_SECONDS)
+        finally:
+            phase("terminal_run_finished", terminal=terminal)
         if stage != 5:
             raise RuntimeError("ordinary Windows tunnel entry did not complete")
         print("WINDOWS AUTOMATIC TUNNEL / NATIVE OWNER / 8x1MiB / HALF-CLOSE / CTRL+C CLEANUP: PASS")
     except Exception:
-        phase("failed")
-        print(json.dumps({"component": "ci", "operation": "windows_tunnel_entry",
-                          "application_exit_code": application.poll()}), flush=True)
+        phase("failed", application=application)
         raise
     finally:
-        if terminal is not None and terminal.proc.isalive():
-            terminal.proc.terminate(force=True)
-        if not application.stdin.closed:
-            application.stdin.close()
-        if application.poll() is None:
-            application.terminate()
-            try:
-                application.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                application.kill()
-                application.wait(timeout=5)
-        application.stdout.close()
-        observer.join(timeout=2)
+        phase("cleanup_start", terminal=terminal)
+        try:
+            if terminal is not None:
+                alive = terminal.proc.isalive()
+                phase("terminal_cleanup", terminal=terminal, alive=alive)
+                if alive:
+                    phase("terminal_terminate_start")
+                    terminated = terminal.proc.terminate(force=True)
+                    phase("terminal_terminate_returned", terminated=terminated)
+            if not application.stdin.closed:
+                application.stdin.close()
+            if application.poll() is None:
+                application.terminate()
+                try:
+                    application.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    application.kill()
+                    application.wait(timeout=5)
+            application.stdout.close()
+            observer.join(timeout=2)
+            phase("application_observer_join_returned", observer=observer)
+            phase("cleanup_completed")
+        finally:
+            phase("cleanup_finished", terminal=terminal)
 
 
 if __name__ == "__main__":

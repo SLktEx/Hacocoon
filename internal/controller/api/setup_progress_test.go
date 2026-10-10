@@ -101,6 +101,98 @@ func TestNotificationSetupFailureReachesProgressAndJournalOnce(t *testing.T) {
 	}
 }
 
+func TestDefaultImageStagesReachProgressAndOwnOneFailureLog(t *testing.T) {
+	stages := []string{"default_image_read", "default_image_project", "default_image_resolve", "default_image_copy", "default_image_write"}
+	for failed := -1; failed < len(stages); failed++ {
+		name := "success"
+		if failed >= 0 {
+			name = stages[failed]
+		}
+		t.Run(name, func(t *testing.T) {
+			runDefaultImageProgressCase(t, stages, failed)
+		})
+	}
+}
+
+func runDefaultImageProgressCase(t *testing.T, stages []string, failed int) {
+	t.Helper()
+	old := logging.Root()
+	var logs bytes.Buffer
+	logging.SetRoot(slog.New(slog.NewJSONHandler(&logs, nil)))
+	defer logging.SetRoot(old)
+	calls := 0
+	path := doctorTestSocket(t, func(s *control.Server) {
+		if err := RegisterSetup(s, setupServiceFunc(func(ctx context.Context) error {
+			return runDefaultImageSetupStages(ctx, stages, failed, &calls)
+		})); err != nil {
+			t.Fatal(err)
+		}
+	})
+	client, err := NewClient(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []hostsetup.Event
+	err = client.SetupHostProgress(context.Background(), recipes.Update{}, func(id string, e hostsetup.Event) {
+		if len(id) != 32 {
+			t.Error("invalid correlation ID")
+		}
+		events = append(events, e)
+	})
+	assertDefaultImageProgressResult(t, stages, failed, calls, events, err)
+	wantErrors := 0
+	if failed >= 0 {
+		wantErrors = 1
+	}
+	if strings.Count(logs.String(), `"level":"ERROR"`) != wantErrors || strings.Contains(logs.String(), "SECRET") || strings.Contains(logs.String(), "/private/") || strings.Contains(logs.String(), "https://") {
+		t.Fatal("failure logging ownership or redaction changed", logs.String())
+	}
+}
+
+func runDefaultImageSetupStages(ctx context.Context, stages []string, failed int, calls *int) error {
+	for n, stage := range stages {
+		err := func() (err error) {
+			defer hostsetup.Track(ctx, stage)(&err)
+			(*calls)++
+			if n == failed {
+				return errors.New("SECRET /private/path https://private.invalid?token=SECRET")
+			}
+			return nil
+		}()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func assertDefaultImageProgressResult(t *testing.T, stages []string, failed, calls int, events []hostsetup.Event, err error) {
+	t.Helper()
+	wantCalls, terminal := len(stages), "succeeded"
+	if failed >= 0 {
+		wantCalls, terminal = failed+1, "failed"
+		var status *control.StatusError
+		if !errors.As(err, &status) || status.Code != "setup_failed" {
+			t.Fatal("invalid failure frame", err)
+		}
+	} else if err != nil {
+		t.Fatal("invalid success frame", err)
+	}
+	if calls != wantCalls || len(events) != 2*wantCalls+2 || events[len(events)-1].Stage != "setup" || events[len(events)-1].State != terminal {
+		t.Fatal(calls, events)
+	}
+	for n := 0; n < wantCalls; n++ {
+		start, end := events[2*n+1], events[2*n+2]
+		state := "succeeded"
+		if n == failed {
+			state = "failed"
+		}
+		if start.Stage != stages[n] || start.State != "running" || end.Stage != stages[n] || end.State != state {
+			t.Fatal(events)
+		}
+	}
+}
+
 func TestSetupProgressRejectsUntrustedFramesAndMissingCompletion(t *testing.T) {
 	for _, frame := range []any{
 		setupFrame{Done: true},

@@ -4,6 +4,7 @@ import importlib.util
 from contextlib import contextmanager, ExitStack, redirect_stdout
 import io
 import json
+import queue
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -179,6 +180,212 @@ class TunnelExitTest(unittest.TestCase):
             connection.close.assert_called_once_with()
             self.assertEqual(self.terminal.write.call_count, 3)
             self.assert_failed_cleanup()
+
+
+    def receipts(self):
+        records = []
+        for line in self.output.getvalue().splitlines():
+            start = line.find('{"component": "ci", "operation": "windows_tunnel_entry"')
+            if start >= 0:
+                records.append(json.loads(line[start:]))
+        return records
+
+    def test_teardown_receipts_follow_existing_success_sequence(self):
+        with self.journey(["\r\nTUNNEL-EXIT:0\r\n"]):
+            self.run_tunnel()
+            records = self.receipts()
+            phases = [record["phase"] for record in records]
+            expected = ["exchange_completed", "ctrl_c_sent", "tunnel_exit_received", "listener_connect_failed",
+                        "host_exit_sent", "host_returned", "terminal_exit_sent", "terminal_run_finished",
+                        "cleanup_start", "terminal_cleanup", "application_observer_join_returned",
+                        "cleanup_completed", "cleanup_finished"]
+            self.assertEqual(phases[phases.index("exchange_completed"):], expected)
+            cleanup = records[phases.index("terminal_cleanup")]
+            self.assertIs(cleanup["terminal_alive"], False)
+            self.assertIs(cleanup["terminal_exit_known"], False)
+            self.assertIsNone(cleanup["terminal_exit_code"])
+            self.assertFalse(records[-3]["application_observer_alive"])
+            self.terminal.proc.terminate.assert_not_called()
+
+    def test_failed_connect_receipt_does_not_claim_listener_absence(self):
+        for failure in (ConnectionRefusedError(), TimeoutError(), PermissionError()):
+            with self.subTest(failure=type(failure).__name__), self.journey(["\r\nTUNNEL-EXIT:0\r\n"]):
+                self.cleanup.side_effect = failure
+                self.run_tunnel()
+                phases = [record["phase"] for record in self.receipts()]
+                self.assertIn("listener_connect_failed", phases)
+                self.assertNotIn("listener_closed", phases)
+
+    def test_force_termination_result_is_observed_without_changing_failure(self):
+        for result in (True, False, "PRIVATE"):
+            with self.subTest(result=result), self.journey(["\r\nTUNNEL-EXIT:17\r\n"]):
+                self.terminal.proc.terminate.return_value = result
+                with self.assertRaisesRegex(RuntimeError, "exited with code 17"):
+                    self.run_tunnel()
+                records = {record["phase"]: record for record in self.receipts()}
+                self.assertIn("terminal_terminate_start", records)
+                expected = result if type(result) is bool else None
+                self.assertIs(records["terminal_terminate_returned"]["termination_returned"], expected)
+                self.assertIn("cleanup_completed", records)
+                self.assertNotIn("PRIVATE", self.output.getvalue())
+                self.assert_failed_cleanup()
+
+    def test_diagnostic_serialization_failure_never_changes_success_or_primary(self):
+        for code in (0, 17):
+            with self.subTest(code=code), self.journey([f"\r\nTUNNEL-EXIT:{code}\r\n"]):
+                with patch.object(tunnel.json, "dumps", side_effect=RuntimeError("PRIVATE")):
+                    if code:
+                        with self.assertRaisesRegex(RuntimeError, "exited with code 17"):
+                            self.run_tunnel()
+                    else:
+                        self.run_tunnel()
+                self.assertTrue(self.application.stdin.closed)
+                self.assertTrue(self.application.stdout.closed)
+                self.assertNotIn("PRIVATE", self.output.getvalue())
+
+    def test_diagnostic_sink_failure_never_changes_success_or_primary(self):
+        def selective_print(message, **kwargs):
+            if message.startswith('{"component":'):
+                raise OSError("PRIVATE sink failure")
+            print(message, **kwargs)
+        for code in (0, 17):
+            with self.subTest(code=code), self.journey([f"\r\nTUNNEL-EXIT:{code}\r\n"]):
+                with patch.object(tunnel, "print", side_effect=selective_print, create=True):
+                    if code:
+                        with self.assertRaisesRegex(RuntimeError, "exited with code 17"):
+                            self.run_tunnel()
+                    else:
+                        self.run_tunnel()
+                self.assertTrue(self.application.stdout.closed)
+                self.assertNotIn("PRIVATE", self.output.getvalue())
+
+    def test_actual_cleanup_failure_keeps_existing_propagation_and_order(self):
+        with self.journey(["\r\nTUNNEL-EXIT:17\r\n"]):
+            cleanup_error = RuntimeError("PRIVATE cleanup failure")
+            self.terminal.proc.terminate.side_effect = cleanup_error
+            with self.assertRaises(RuntimeError) as caught:
+                self.run_tunnel()
+            self.assertIs(caught.exception, cleanup_error)
+            self.assertIn("exited with code 17", str(caught.exception.__context__))
+            # Arming already closed stdin; failed terminal cleanup still skips stdout.
+            self.assertTrue(self.application.stdin.closed)
+            self.assertFalse(self.application.stdout.closed)
+            phases = [record["phase"] for record in self.receipts()]
+            self.assertIn("terminal_terminate_start", phases)
+            self.assertNotIn("terminal_terminate_returned", phases)
+            self.assertNotIn("cleanup_completed", phases)
+            self.assertEqual(phases[-1], "cleanup_finished")
+            self.assertNotIn("PRIVATE", self.output.getvalue())
+
+    def test_failed_path_poll_observation_cannot_replace_primary_or_skip_cleanup(self):
+        with self.journey(["\r\nTUNNEL-EXIT:17\r\n"]):
+            calls = []
+            def poll():
+                calls.append(None)
+                if len(calls) == 2:
+                    raise RuntimeError("PRIVATE observation failure")
+                return None if len(calls) == 1 else 0
+            self.application.poll.side_effect = poll
+            with self.assertRaisesRegex(RuntimeError, "exited with code 17"):
+                self.run_tunnel()
+            self.assertEqual(len(calls), 3)
+            self.assertTrue(self.application.stdout.closed)
+            self.assertNotIn("PRIVATE", self.output.getvalue())
+
+
+class TunnelReceiptProjectionTest(unittest.TestCase):
+    def terminal(self, status=None, reader="eof", stop="reader_done"):
+        return SimpleNamespace(observed_exit_status=status, reader_outcome=reader, run_stop=stop,
+                               _reader=SimpleNamespace(is_alive=lambda: False))
+
+    def test_known_unknown_and_hostile_terminal_fields(self):
+        for status in (0, 23, None, True, "PRIVATE\npath/key"):
+            with self.subTest(status=status):
+                record = tunnel.terminal_receipt(self.terminal(status))
+                known = type(status) is int
+                self.assertIs(record["terminal_exit_known"], known)
+                self.assertEqual(record["terminal_exit_code"], status if known else None)
+                self.assertEqual(record["terminal_reader"], "eof")
+                self.assertFalse(record["terminal_reader_alive"])
+        record = tunnel.terminal_receipt(self.terminal(reader="PRIVATE", stop="PRIVATE"))
+        self.assertEqual(record["terminal_reader"], "unknown")
+        self.assertEqual(record["terminal_run_stop"], "unknown")
+        self.assertNotIn("PRIVATE", json.dumps(record))
+
+    def test_hostile_accessors_and_sink_are_noninterfering(self):
+        class Hostile:
+            def __getattribute__(self, name):
+                raise RuntimeError("PRIVATE")
+        output = io.StringIO()
+        with redirect_stdout(output):
+            tunnel.write_phase(0, "PRIVATE\nphase", terminal=Hostile(), observer=Hostile(), application=Hostile())
+        record = json.loads(output.getvalue())
+        self.assertEqual(record["phase"], "unknown")
+        self.assertEqual(record["terminal_reader"], "unknown")
+        self.assertNotIn("PRIVATE", output.getvalue())
+        with patch("builtins.print", side_effect=RuntimeError("PRIVATE")):
+            tunnel.write_phase(0, "cleanup_finished", terminal=self.terminal(0))
+
+    def test_flush_failure_is_noninterfering(self):
+        class BrokenFlush(io.StringIO):
+            def flush(self):
+                raise OSError("PRIVATE flush failure")
+        with redirect_stdout(BrokenFlush()):
+            tunnel.write_phase(0, "cleanup_finished", terminal=self.terminal(0))
+
+    def test_reader_eof_with_live_terminal_keeps_unknown_exit_and_existing_acceptance(self):
+        terminal = object.__new__(gate.TerminalProcess)
+        terminal.proc = Mock(exitstatus=None)
+        terminal.proc.read.side_effect = EOFError()
+        terminal._queue = queue.Queue()
+        terminal._reader = SimpleNamespace(is_alive=lambda: False)
+        terminal.output = ""
+        terminal.reader_outcome = "running"
+        terminal.observed_exit_status = None
+        gate.TerminalProcess._read_loop(terminal)
+        self.assertEqual(terminal.run(timeout=1), "")
+        record = tunnel.terminal_receipt(terminal)
+        self.assertEqual(record["terminal_reader"], "eof")
+        self.assertEqual(record["terminal_run_stop"], "reader_done")
+        self.assertIs(record["terminal_exit_known"], False)
+        terminal.proc.terminate.assert_not_called()
+        terminal.proc.isalive.assert_not_called()
+
+    def test_reader_error_is_distinct_from_eof_without_raw_receipt(self):
+        terminal = object.__new__(gate.TerminalProcess)
+        terminal.proc = Mock()
+        terminal.proc.read.side_effect = RuntimeError("PRIVATE read failure")
+        terminal._queue = queue.Queue()
+        terminal._reader = SimpleNamespace(is_alive=lambda: False)
+        terminal.observed_exit_status = None
+        terminal.run_stop = "running"
+        gate.TerminalProcess._read_loop(terminal)
+        record = tunnel.terminal_receipt(terminal)
+        self.assertEqual(record["terminal_reader"], "failed")
+        self.assertNotIn("PRIVATE", json.dumps(record))
+        self.assertIsInstance(terminal._queue.get_nowait(), str)
+        self.assertIsNone(terminal._queue.get_nowait())
+        self.assertTrue(terminal._queue.empty())
+
+    def test_callback_failure_does_not_reuse_an_earlier_exit_observation(self):
+        terminal = object.__new__(gate.TerminalProcess)
+        terminal.proc = Mock(exitstatus=0)
+        terminal._queue = queue.Queue()
+        terminal._queue.put("fixture output")
+        terminal._reader = SimpleNamespace(is_alive=lambda: True)
+        terminal.output = ""
+        terminal.reader_outcome = "running"
+        terminal.observed_exit_status = 0
+        primary = RuntimeError("fixed primary failure")
+        on_output = Mock(side_effect=primary)
+        with redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError) as caught:
+            terminal.run(timeout=1, on_output=on_output)
+        self.assertIs(caught.exception, primary)
+        record = tunnel.terminal_receipt(terminal)
+        self.assertEqual(record["terminal_run_stop"], "callback_failed")
+        self.assertFalse(record["terminal_exit_known"])
+        self.assertTrue(record["terminal_reader_alive"])
+        terminal.proc.terminate.assert_called_once_with(force=True)
 
 
 class EnvironmentBoundaryTest(unittest.TestCase):

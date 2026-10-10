@@ -8,6 +8,38 @@ function Stop-OwnedEditorProcess([Diagnostics.Process]$Process) {
     if (-not $Process.WaitForExit(10000)) { throw 'Owned editor did not exit' }
 }
 
+# Only fixed diagnostic values can cross the editor receipt boundary.
+function Select-VSCodeDiagnosticValue($Value, [string[]]$Allowed) {
+    if ($Value -is [string] -and $Value -cin $Allowed) { return $Value }
+    return 'unobserved'
+}
+
+function Get-VSCodeDiagnosticDuration($Value) {
+    if ($Value -isnot [int] -and $Value -isnot [long] -and $Value -isnot [double]) { return $null }
+    if (-not [double]::IsFinite($Value) -or $Value -lt 0 -or $Value -gt 9007199254740991 -or [math]::Floor($Value) -ne $Value) { return $null }
+    return $Value
+}
+
+function Write-VSCodeFailureDiagnostic($Result) {
+    try {
+        if ($Result.PSObject.Properties.Name -notcontains 'filesystemFailure' -or $null -eq $Result.filesystemFailure) { return }
+        $detail = $Result.filesystemFailure
+        $checks = @('workspace-marker','editor-file-read-write','remote-terminal-exec','local-approval-stale-refusal','owned-probes-removed')
+        $record = [ordered]@{
+            component = 'ci'; operation = 'vscode_acceptance_filesystem'
+            suboperation = Select-VSCodeDiagnosticValue $detail.suboperation @('marker-read','marker-validate','editor-write','editor-open','editor-validate','editor-show')
+            completed_checks = @($Result.checks | Where-Object { $_ -is [string] -and $_ -cin $checks } | Select-Object -Unique)
+            error_category = Select-VSCodeDiagnosticValue $detail.error_category @('type','not-found','exists','not-directory','is-directory','no-permissions','unavailable','other','unobserved')
+            duration_ms = Get-VSCodeDiagnosticDuration $detail.duration_ms
+        }
+        [Console]::Out.WriteLine(($record | ConvertTo-Json -Depth 3 -Compress))
+        [Console]::Out.Flush()
+    } catch {
+        # Observation failure must not replace the original refusal or skip cleanup.
+        return
+    }
+}
+
 if ($env:GITHUB_ACTIONS -ne 'true' -or -not $env:RUNNER_TEMP) {
     throw 'Real editor acceptance is restricted to the disposable GHA profile.'
 }
@@ -75,6 +107,7 @@ try {
         $safeStage = 'invalid-receipt'
         if ($result.stage -cin @('remote-kind','remote-filesystem','remote-terminal','local-approval-review','cleanup','complete')) { $safeStage = $result.stage }
         Write-Host "VS CODE ACCEPTANCE: FAIL phase=$safeStage"
+        Write-VSCodeFailureDiagnostic $result
         & python (Join-Path $PSScriptRoot 'vscode_acceptance_diagnostics.py') --manifest $manifestFile
         if ($result.PSObject.Properties.Name -contains 'reviewDiagnostics') {
             $diagnostic = $result.reviewDiagnostics

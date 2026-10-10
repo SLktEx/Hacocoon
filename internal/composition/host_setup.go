@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host/recipes"
 	"github.com/SLktEx/Hacocoon/internal/host/setup"
 	"io"
@@ -99,7 +100,10 @@ func (a *App) initializeDefaultImage(ctx context.Context) error {
 	if a.InitialImage == nil || a.Creation == nil {
 		return nil
 	}
-	current, err := a.Creation.Catalog.DefaultImage(ctx)
+	current, err := func() (image core.BaseName, err error) {
+		defer hostsetup.Track(ctx, "default_image_read")(&err)
+		return a.Creation.Catalog.DefaultImage(ctx)
+	}()
 	if err != nil {
 		return err
 	}
@@ -110,5 +114,8 @@ func (a *App) initializeDefaultImage(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return a.Creation.Catalog.SetDefaultImage(ctx, image, true)
+	return func() (err error) {
+		defer hostsetup.Track(ctx, "default_image_write")(&err)
+		return a.Creation.Catalog.SetDefaultImage(ctx, image, true)
+	}()
 }

@@ -12,10 +12,32 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
 from pathlib import Path
+
+
+USER_PHASES = frozenset(("registration", "fresh_history", "terminal_start", "observer_start",
+                         "host_entry", "absent_status", "history_verification", "dispatch",
+                         "worker_wait", "host_return", "host_reentry", "public_status",
+                         "host_exit", "terminal_exit", "observer_stop", "retention", "complete"))
+
+
+def report_phase(phase):
+    if phase not in USER_PHASES:
+        raise ValueError("Unknown reclamation observation phase")
+    report_observation({"component": "ci", "operation": "reclamation_user_path", "phase": phase})
+
+
+def report_observation(record):
+    # ConPTY may leave a prompt without a newline. Diagnostic output must not
+    # interrupt the journey or prevent cleanup when the runner stream is gone.
+    try:
+        print("\n" + json.dumps(record), flush=True)
+    except (OSError, ValueError):
+        pass
 
 
 def helper_is_running(rows, helper):
@@ -103,11 +125,64 @@ def resume_failure_summary(value):
     return {"kind": "unrecognized"}
 
 
+def _stop_observation(process):
+    try:
+        if process.poll() is None:
+            process.kill()  # Only this read-only child, never its process tree.
+        process.wait(timeout=5)
+        return True
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def capture_observation(command):
+    """Capture only the fixed, synchronous single-emitter observation commands.
+
+    The installed _status helper and maintained PowerShell queries emit their
+    complete response before exiting. This is not generic EOF-equivalent capture
+    for commands that delegate output to a concurrent or later writer.
+    """
+    output = None
+    complete = False
+    try:
+        # Avoid pipe EOF and the Popen context manager's implicit untimed wait.
+        # Windows delete-on-close may retain storage until an inherited handle
+        # closes; closing our handle does not prove all holders have exited.
+        output = tempfile.TemporaryFile()
+        process = subprocess.Popen(command, stdout=output, stderr=subprocess.DEVNULL)
+        try:
+            exit_code = process.wait(timeout=25)
+        except subprocess.TimeoutExpired:
+            stopped = _stop_observation(process)
+            suffix = "" if stopped else "; termination unconfirmed"
+            raise RuntimeError("Windows read-only observation timed out" + suffix) from None
+        except BaseException:
+            _stop_observation(process)
+            raise
+        if exit_code:
+            raise RuntimeError("Windows read-only observation failed")
+        output.seek(0)
+        data = output.read(16385)
+        if len(data) > 16384:
+            raise RuntimeError("Windows read-only observation failed")
+        complete = True
+        return data
+    except OSError:
+        raise RuntimeError("Windows read-only observation unavailable") from None
+    finally:
+        if output is not None:
+            try:
+                output.close()
+            except OSError:
+                if complete:
+                    raise RuntimeError("Windows read-only observation capture cleanup failed") from None
+
+
 def read_json(command):
-    result = subprocess.run(command, capture_output=True, timeout=25)
-    if result.returncode or len(result.stdout) > 16384:
-        raise RuntimeError("Windows read-only observation failed")
-    return json.loads(result.stdout.decode("utf-8-sig"))
+    try:
+        return json.loads(capture_observation(command).decode("utf-8-sig"))
+    except (UnicodeError, ValueError):
+        raise RuntimeError("Windows read-only observation invalid") from None
 
 
 def process_origin_script():
@@ -249,6 +324,12 @@ class ProcessStartObserver:
             self.emit({"state": "unavailable"})
         finally:
             self.ready.set()
+            # The reader owns its buffered stream. Closing it from another
+            # thread while readline holds the buffer lock can wait indefinitely.
+            try:
+                self.process.stdout.close()
+            except OSError:
+                self.emit({"state": "unavailable"})
 
     def close(self):
         if self.process is not None:
@@ -257,17 +338,22 @@ class ProcessStartObserver:
             self.process.wait(timeout=5)
             if self.thread is not None:
                 self.thread.join(timeout=5)
-            self.process.stdout.close()
+                if self.thread.is_alive():
+                    self.emit({"state": "unavailable"})
+                # The reader closes its own stream when its read returns.
+            else:
+                self.process.stdout.close()
 
     def __exit__(self, *_):
+        report_phase("observer_stop")
         try:
             self.close()
         except (OSError, subprocess.TimeoutExpired):
             self.emit({"state": "unavailable"})
         with self.lock:
             for row in self.rows:
-                print(json.dumps({"component": "ci", "operation": "reclamation_windows_start",
-                                  "scope": "all-windows-wsl-processes", **row}), flush=True)
+                report_observation({"component": "ci", "operation": "reclamation_windows_start",
+                                    "scope": "all-windows-wsl-processes", **row})
 
 
 def observed_process_counts(snapshot):
@@ -393,13 +479,16 @@ def main():
         raise RuntimeError("requires installed Windows acceptance without overrides")
     driver = load_driver("reclamation_user_driver", "install.py")
     installed = load_driver("reclamation_registration", "reclamation_worker.py")
+    report_phase("registration")
     reg = installed.registration()
     helper = Path(os.environ["LOCALAPPDATA"]) / "Hacocoon/reclamation" / uuid.UUID(reg).hex / "haco-wsl.exe"
     if not helper.is_file():
         raise RuntimeError("Installed helper missing")
     reclamation_retention = load_driver("reclamation_retention", Path(__file__).resolve().parents[3] / "tools/reclamation_retention.py")
     retention = reclamation_retention.load_manifest(args.retention_manifest)
+    report_phase("fresh_history")
     require_absent_history(read_json([str(helper), "_status", reg]))
+    report_phase("terminal_start")
     terminal = driver.TerminalProcess()
     stage, sent_at = 0, 0
     terminal_confirmed = False
@@ -411,14 +500,18 @@ def main():
             driver.reject_failed_host_entry(fresh)
         host = re.search(r"(?m)^[^\r\n]*@haco-host:[^\r\n]*[#\$]\s*$", fresh)
         if stage == 0 and driver.cmd_prompt_count(fresh):
+            report_phase("host_entry")
             process.write("wsl -d Hacocoon\r\n")
             stage, sent_at = 1, len(output)
         elif stage == 1 and host:
+            report_phase("absent_status")
             process.write("haco reclaim --status; printf '\\nHACO_ABSENT_STATUS_EXIT:%s\\n' \"$?\"\r\n")
             stage, sent_at = 10, len(output)
         elif stage == 10 and absent_status_completed(fresh):
+            report_phase("history_verification")
             require_absent_history(read_json([str(helper), "_status", reg]))
             print("Public status before first reclamation: PASS; no operation record created", flush=True)
+            report_phase("dispatch")
             process.write("haco reclaim --yes\r\n")
             stage, sent_at = 2, len(output)
         elif stage == 2 and any(text in fresh for text in ("Worker dispatched; reclamation is not yet confirmed.", "容量回収の処理を起動しました。完了はまだ確認できていません。")):
@@ -426,32 +519,40 @@ def main():
             if not match:
                 raise RuntimeError("Dispatch identity unavailable; retain operation")
             operation = "{" + str(uuid.UUID(match[1])) + "}"
+            report_phase("worker_wait")
             wait_for_worker(helper, reg, operation)
             terminal_confirmed = True
             if driver.cmd_prompt_count(fresh):
+                report_phase("host_reentry")
                 process.write("wsl -d Hacocoon\r\n")
                 stage, sent_at = 4, len(output)
             else:
+                report_phase("host_return")
                 stage, sent_at = 3, len(output)
         elif stage == 2 and any(text in fresh for text in ("could not be confirmed", "Dispatch result unavailable", "Managed Windows installation unavailable",
                                                           "Windowsの容量回収結果を確認できません。", "起動結果を確認できません。", "Windowsの導入情報を確認できません。")):
             raise RuntimeError("Public dispatch failed; no retry or WSL reentry")
         elif stage == 3 and driver.cmd_prompt_count(fresh):
+            report_phase("host_reentry")
             process.write("wsl -d Hacocoon\r\n")
             stage, sent_at = 4, len(output)
         elif stage == 4 and host:
+            report_phase("public_status")
             process.write("haco reclaim --status && test \"$(cat $HOME/.hacocoon-installer-acceptance)\" = kept-through-restart-and-rerun && printf 'PUBLIC_RECLAIM_STATUS_OK\\n'\r\n")
             stage, sent_at = 5, len(output)
         elif stage == 5 and re.search(r"(?m)^PUBLIC_RECLAIM_STATUS_OK\s*$", fresh):
             if not any(text in fresh for text in ("Reclamation: complete", "容量回収: 完了")):
                 raise RuntimeError("Public result did not confirm combined completion")
+            report_phase("host_exit")
             process.write("exit\r\n")
             stage, sent_at = 6, len(output)
         elif stage == 6 and driver.cmd_prompt_count(fresh):
+            report_phase("terminal_exit")
             process.write("exit\r\n")
             stage = 7
 
     try:
+        report_phase("observer_start")
         with ProcessStartObserver():
             terminal.run(on_output=drive)
         if stage != 7:
@@ -461,7 +562,9 @@ def main():
         if terminal_confirmed and terminal.proc.isalive():
             terminal.proc.terminate(force=True)
     print("PUBLIC RECLAMATION AND HOST SENTINEL AFTER RESUME: PASS")
+    report_phase("retention")
     reclamation_retention.verify_installed(retention, reg)
+    report_phase("complete")
 
 
 if __name__ == "__main__":

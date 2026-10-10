@@ -23,8 +23,13 @@ $WorkspaceCreated = $false
 $CleanupFailed = $false
 $DesktopFailures = [Collections.Generic.List[string]]::new()
 . (Join-Path $PSScriptRoot 'windows_ssh_diagnostic.ps1')
+$SSHProbeClock = [Diagnostics.Stopwatch]::StartNew()
+$PrimaryFailed = $false
+$PrimaryPhase = 'native-probes'
+$CleanupOutcomes = [ordered]@{ policy='not_attempted'; disconnect='not_attempted'; environment='not_attempted'; refusal='not_attempted'; workspace='not_attempted'; base='not_attempted'; local_files='not_attempted' }
 
 function Invoke-Captured([string]$FileName, [string[]]$Arguments, [switch]$SSHProgress, [int]$TimeoutMilliseconds = 300000) {
+    $captureClock = [Diagnostics.Stopwatch]::StartNew()
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $FileName
     $start.UseShellExecute = $false
@@ -56,6 +61,10 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments, [switch]$SSHPr
     }
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
+    $capture = [pscustomobject]@{
+        capture_complete = $true; stdout_chars = $stdout.Length; stderr_chars = $stderr.Length
+        capture_duration_ms = $captureClock.ElapsedMilliseconds; exit_code = $process.ExitCode
+    }
     if ($SSHProgress) { $stderr = Get-SSHProgressEvidence $stdout $stderr }
     $exitCode = $process.ExitCode
     $process.Dispose()
@@ -63,6 +72,7 @@ function Invoke-Captured([string]$FileName, [string[]]$Arguments, [switch]$SSHPr
         ExitCode = $exitCode
         Stdout = $stdout
         Stderr = $stderr
+        Capture = $capture
     }
 }
 
@@ -76,6 +86,8 @@ function Invoke-Checked([string]$FileName, [string[]]$Arguments, [string]$Descri
         $detail = $details -join "`n"
         $failure = [Exception]::new("$Description failed with exit $($result.ExitCode). $detail")
         $failure.Data['acceptance_exit_code'] = $result.ExitCode
+        $failure.Data['acceptance_capture'] = $result.Capture
+        $failure.Data['acceptance_progress'] = Get-SSHProgressEvidence $result.Stdout $result.Stderr
         throw $failure
     }
     return $result
@@ -544,65 +556,105 @@ fi
 
     # Reuse this exact test-owned Env; the ordinary terminal chooses its
     # installed Windows client without a helper path or distribution flag.
+    $PrimaryPhase = 'native-tunnel'
     & python (Join-Path $PSScriptRoot '../test/e2e/windows/tunnel.py') --env $EnvironmentName --distro $Distro
     if ($LASTEXITCODE -ne 0) { throw 'Ordinary Windows tunnel acceptance failed.' }
 
     # A changed key must fail closed before any remote command is executed.
+    $PrimaryPhase = 'changed-host-key'
+    Write-SSHAcceptancePhase 'changed-host-key' 'start' $SSHProbeClock
     $wrongKey = (Get-Content -Raw -LiteralPath $PublicKey).Trim() -split '\s+'
     [IO.File]::WriteAllText($KnownHosts, "haco-$EnvironmentName $($wrongKey[0]) $($wrongKey[1])`n", [Text.UTF8Encoding]::new($false))
     $mismatch = Invoke-Captured $NativeSSH @('-v', '-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', $alias, 'echo MUST-NOT-EXECUTE')
+    Write-SSHAcceptancePhase 'changed-host-key' 'completed' $SSHProbeClock $mismatch.Capture (Get-SSHProgressEvidence $mismatch.Stdout $mismatch.Stderr)
     $hostKeyOutcome = Get-SSHHostKeyCheckOutcome $mismatch.ExitCode $mismatch.Stdout $mismatch.Stderr
     if ($hostKeyOutcome -cne 'refused') {
         $progress = Get-SSHProgressEvidence $mismatch.Stdout $mismatch.Stderr
+        Write-SSHAcceptancePhase 'changed-host-key' 'failed' $SSHProbeClock
         throw "Changed host-key check failed; outcome=$hostKeyOutcome exit=$($mismatch.ExitCode) ssh_progress=$progress"
     }
     Write-Host "Native client: $NativeSSH"
     Write-Host "Route: Windows OpenSSH -> ProxyCommand -> wsl.exe -> controller UDS -> Environment sshd"
     Write-Host 'Private key remained in its Windows directory; only the .pub was passed to haco-host.'
 
+    $PrimaryPhase = 'complete'
+} catch {
+    $PrimaryFailed = $true
+    throw
 } finally {
-    try { Update-SSHTestPolicy 'remove' } catch { $CleanupFailed = $true; Write-Warning $_ }
-    if ($ConnectionId) {
-        try {
-            [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'disconnect', $EnvironmentName, $ConnectionId) 'Disconnect acceptance SSH transport')
-        } catch {
-            $CleanupFailed = $true; Write-Warning $_
-        }
-    }
     $EnvironmentGone = -not $EnvironmentAttempted
-    if ($EnvironmentAttempted) {
+    try {
+        Write-SSHAcceptancePhase 'cleanup-policy' 'start' $SSHProbeClock
         try {
-            [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'delete', '-f', $EnvironmentName) 'Delete acceptance Environment')
-            $EnvironmentGone = $true
+            Update-SSHTestPolicy 'remove'
+            $CleanupOutcomes.policy = 'completed'
+            Write-SSHAcceptancePhase 'cleanup-policy' 'completed' $SSHProbeClock
         } catch {
-            $CleanupFailed = $true; Write-Warning $_
+            $CleanupFailed = $true; $CleanupOutcomes.policy = 'failed'
+            Write-SSHAcceptancePhase 'cleanup-policy' 'failed' $SSHProbeClock $_.Exception.Data['acceptance_capture'] $_.Exception.Data['acceptance_progress']
         }
-    }
-    if ($ConnectionId -and $EnvironmentGone) {
-        # Confirm actual WSL listener removal and Windows connection refusal,
-        # independently of the controller cleanup response. Windows WSL
-        # forwarding may report a timeout instead of ECONNREFUSED after removal.
-        $closed = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=2', "haco-$EnvironmentName", 'echo MUST-NOT-EXECUTE')
-        if ($closed.ExitCode -eq 0 -or $closed.Stdout.Contains('MUST-NOT-EXECUTE')) {
-            $CleanupFailed = $true
-            Write-Warning 'SSH listener removal or Windows connection rejection could not be confirmed.'
-        } else {
-            Write-Host 'Cleanup: Portless Windows SSH connection rejected after deletion.'
+        if ($ConnectionId) {
+            Write-SSHAcceptancePhase 'cleanup-disconnect' 'start' $SSHProbeClock
+            try {
+                [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'disconnect', $EnvironmentName, $ConnectionId) 'Disconnect acceptance SSH transport')
+                $CleanupOutcomes.disconnect = 'completed'
+                Write-SSHAcceptancePhase 'cleanup-disconnect' 'completed' $SSHProbeClock
+            } catch {
+                $CleanupFailed = $true; $CleanupOutcomes.disconnect = 'failed'
+                Write-SSHAcceptancePhase 'cleanup-disconnect' 'failed' $SSHProbeClock $_.Exception.Data['acceptance_capture'] $_.Exception.Data['acceptance_progress']
+            }
         }
-    }
-    if ($WorkspaceCreated -and $EnvironmentGone) {
-        try {
-            [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker", "$Workspace/haco-preview-marker.txt") 'Remove acceptance Workspace marker')
-            [void](Invoke-Wsl @('--exec', 'rmdir', $Workspace) 'Remove acceptance Workspace')
-        } catch {
-            $CleanupFailed = $true; Write-Warning $_
+        if ($EnvironmentAttempted) {
+            Write-SSHAcceptancePhase 'cleanup-environment' 'start' $SSHProbeClock
+            try {
+                [void](Invoke-HacoHost @('/usr/local/bin/haco', 'env', 'delete', '-f', $EnvironmentName) 'Delete acceptance Environment')
+                $EnvironmentGone = $true
+                $CleanupOutcomes.environment = 'completed'
+                Write-SSHAcceptancePhase 'cleanup-environment' 'completed' $SSHProbeClock
+            } catch {
+                $CleanupFailed = $true; $CleanupOutcomes.environment = 'failed'
+                Write-SSHAcceptancePhase 'cleanup-environment' 'failed' $SSHProbeClock $_.Exception.Data['acceptance_capture'] $_.Exception.Data['acceptance_progress']
+            }
         }
-    }
-    # Retention acceptance later creates an ordinary Env from this exact Base.
-    # Keep it with the retained fixture, including when transfer failed.
-    if ($BuiltBaseFingerprint -and $EnvironmentGone -and [string]::IsNullOrEmpty($ReclamationManifest)) {
-        try {
-            $cleanupBase = @'
+        if (-not $EnvironmentGone) {
+            $CleanupOutcomes.refusal = 'blocked'; $CleanupOutcomes.workspace = 'blocked'; $CleanupOutcomes.base = 'blocked'
+        }
+        if ($ConnectionId -and $EnvironmentGone) {
+            $CleanupOutcomes.refusal = 'unconfirmed'
+            Write-SSHAcceptancePhase 'cleanup-refusal' 'start' $SSHProbeClock
+            # Confirm actual WSL listener removal and Windows connection refusal,
+            # independently of the controller cleanup response. Windows WSL
+            # forwarding may report a timeout instead of ECONNREFUSED after removal.
+            $closed = Invoke-Captured $NativeSSH @('-F', $ConfigPath, '-i', $PrivateKey, '-o', "UserKnownHostsFile=$KnownHosts", '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=2', "haco-$EnvironmentName", 'echo MUST-NOT-EXECUTE')
+            if ($closed.ExitCode -eq 0 -or $closed.Stdout.Contains('MUST-NOT-EXECUTE')) {
+                $CleanupFailed = $true
+                $CleanupOutcomes.refusal = 'failed'
+                Write-SSHAcceptancePhase 'cleanup-refusal' 'failed' $SSHProbeClock $closed.Capture
+                Write-Warning 'SSH listener removal or Windows connection rejection could not be confirmed.'
+            } else {
+                $CleanupOutcomes.refusal = 'completed'
+                Write-SSHAcceptancePhase 'cleanup-refusal' 'completed' $SSHProbeClock $closed.Capture
+                Write-Host 'Cleanup: Portless Windows SSH connection rejected after deletion.'
+            }
+        }
+        if ($WorkspaceCreated -and $EnvironmentGone) {
+            Write-SSHAcceptancePhase 'cleanup-workspace' 'start' $SSHProbeClock
+            try {
+                [void](Invoke-Wsl @('--exec', 'rm', '-f', "$Workspace/windows-marker", "$Workspace/haco-preview-marker.txt") 'Remove acceptance Workspace marker')
+                [void](Invoke-Wsl @('--exec', 'rmdir', $Workspace) 'Remove acceptance Workspace')
+                $CleanupOutcomes.workspace = 'completed'
+                Write-SSHAcceptancePhase 'cleanup-workspace' 'completed' $SSHProbeClock
+            } catch {
+                $CleanupFailed = $true; $CleanupOutcomes.workspace = 'failed'
+                Write-SSHAcceptancePhase 'cleanup-workspace' 'failed' $SSHProbeClock $_.Exception.Data['acceptance_capture'] $_.Exception.Data['acceptance_progress']
+            }
+        }
+        # Retention acceptance later creates an ordinary Env from this exact Base.
+        # Keep it with the retained fixture, including when transfer failed.
+        if ($BuiltBaseFingerprint -and $EnvironmentGone -and [string]::IsNullOrEmpty($ReclamationManifest)) {
+            Write-SSHAcceptancePhase 'cleanup-base' 'start' $SSHProbeClock
+            try {
+                $cleanupBase = @'
 import json, re, subprocess, sys
 fingerprint, name = sys.argv[1:]
 if not re.fullmatch(r'[a-f0-9]{64}',fingerprint) or not re.fullmatch(r'win-base-[a-f0-9]{16}',name):
@@ -619,17 +671,34 @@ if any(i.get('fingerprint')==fingerprint for i in images):
     raise SystemExit('fixture Base deletion unconfirmed')
 print('PASS exact-owned test Base image removed; shared parent retained')
 '@
-            [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$cleanupBase,$BuiltBaseFingerprint,$BuiltBaseName) 'Delete only the verified test Base image')
-        } catch { $CleanupFailed=$true; Write-Warning $_ }
-    }
-    foreach ($path in @($KnownHosts, $ConfigPath, $PublicKey, $PrivateKey, $BaseDefinition)) {
-        if (Test-Path -LiteralPath $path -PathType Leaf) {
-            Remove-Item -LiteralPath $path -Force
+                [void](Invoke-Wsl @('-u','root','--exec','python3','-c',$cleanupBase,$BuiltBaseFingerprint,$BuiltBaseName) 'Delete only the verified test Base image')
+                $CleanupOutcomes.base = 'completed'
+                Write-SSHAcceptancePhase 'cleanup-base' 'completed' $SSHProbeClock
+            } catch {
+                $CleanupFailed=$true; $CleanupOutcomes.base = 'failed'
+                Write-SSHAcceptancePhase 'cleanup-base' 'failed' $SSHProbeClock $_.Exception.Data['acceptance_capture'] $_.Exception.Data['acceptance_progress']
+            }
         }
-    }
-    if (Test-Path -LiteralPath $Work -PathType Container) {
-        # Only known test files were removed above; leave unexpected contents.
-        [IO.Directory]::Delete($Work, $false)
+        $CleanupOutcomes.local_files = 'unconfirmed'
+        Write-SSHAcceptancePhase 'cleanup-local-files' 'start' $SSHProbeClock
+        foreach ($path in @($KnownHosts, $ConfigPath, $PublicKey, $PrivateKey, $BaseDefinition)) {
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                Remove-Item -LiteralPath $path -Force
+            }
+        }
+        if (Test-Path -LiteralPath $Work -PathType Container) {
+            # Only known test files were removed above; leave unexpected contents.
+            [IO.Directory]::Delete($Work, $false)
+        }
+        $CleanupOutcomes.local_files = 'completed'
+        Write-SSHAcceptancePhase 'cleanup-local-files' 'completed' $SSHProbeClock
+    } catch {
+        # Preserve a pending primary error if an uncaught cleanup step fails.
+        # Without a primary error, keep the cleanup exception as before.
+        $CleanupFailed = $true
+        if (-not $PrimaryFailed) { throw }
+    } finally {
+        Write-SSHAcceptanceSummary $PrimaryFailed $PrimaryPhase $DesktopFailures.ToArray() $CleanupFailed $EnvironmentGone $CleanupOutcomes $SSHProbeClock
     }
 }
 

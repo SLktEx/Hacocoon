@@ -102,6 +102,18 @@ Never add a raw command-line log alongside the sanitized form. Arguments that ma
 
 ## Errors
 
+Initial default-Image setup reports the fixed stages `default_image_read`,
+`default_image_project`, `default_image_resolve`, `default_image_copy` and
+`default_image_write` through the existing setup progress stream and controller
+logger. They distinguish preference reading, project reconciliation, Image
+resolution/copy and preference persistence. An existing default skips acquisition
+and writing. Events contain only the existing stage/state/reason/duration fields
+and request correlation; they add no raw errors, commands, URLs, Image references
+or catalog values. The controller remains the sole setup ERROR owner. Observation
+preserves operation order, cancellation handling and error causes, without retry,
+repair or cleanup. These stages do not identify the cause of earlier failures
+whose substep evidence was not retained.
+
 The Windows tunnel's owned companion reports process failures once with
 `operation=windows_tunnel_companion`, fixed `stage` (pipe/start/prepare/wait),
 fixed `reason` (other/wait_delay/exit/signaled/timeout/canceled/pipe_closed),
@@ -287,6 +299,30 @@ for 700 seconds, with explicit unavailable/truncated results. Raw WMI fields and
 errors are discarded. This observer never enters WSL, changes a worker result or
 kills the worker; teardown stops only its own observer process.
 
+The observer reader owns its buffered pipe and closes it after reading ends.
+Teardown reports unavailable when its bounded join leaves that reader alive;
+it never closes the reader's buffer concurrently or replaces the primary failure.
+Fixed, flushed `reclamation_user_path` phase receipts distinguish registration,
+history, terminal entry/dispatch, worker observation, return/status, observer stop
+and retained-data verification. Workflow receipts separately identify both
+regression scripts before the journey driver. These labels do not establish a
+worker result or diagnose a historical run whose logs are unavailable.
+Receipt output failure never skips observer cleanup or changes product acceptance.
+
+The fixed reclamation status/process queries and their native projection fixtures
+capture stdout in a private temporary file, discard stderr and wait for their
+exact child for 25 seconds. Timeout cleanup stops only that child and waits at
+most five more seconds; timeout or unconfirmed termination remains a failure,
+regardless of captured output. No worker tree is stopped or operation retried.
+Successful observations require zero child exit and the existing complete
+expected-document validation within 16 KiB. These commands are verified single
+emitters that finish their response before exiting; this helper is not for
+commands with concurrent or later output writers and does not establish pipe EOF.
+Windows delete-on-close storage can remain until an inherited handle closes;
+closing the parent's capture does not prove immediate file removal or descendant
+exit. This correction does not introduce a global journey deadline or change the
+retention-operation budgets, and does not attribute earlier timeouts to this path.
+
 The disposable VS Code acceptance observer records only fixed progress phases in
 exclusive local markers bound to the fixture authority and nonce. After failure,
 the wrapper reads at most 18 regular marker files, up to 512 bytes each, and emits
@@ -302,3 +338,52 @@ of a marker or its parent path.
 Signals are observations, not an event timeline or acceptance receipts. Neither
 the cold reconnect route nor the 360-second observer and 600-second wrapper
 deadlines change; the exact final receipt remains mandatory.
+
+Caught remote-filesystem failures additionally retain a fixed suboperation
+(marker read/validation, editor write/open/text validation/show), an allowlisted
+error category, and monotonic milliseconds from observer activation to the caught
+failure. The wrapper projects these fields and existing completed check names;
+unknown values are unobserved and an unavailable clock is null. Error messages,
+stacks, paths, fixture identities and arbitrary error codes are never emitted.
+Classification or diagnostic output failure cannot replace acceptance or interrupt
+owned-probe cleanup. These fields neither establish remote readiness nor alter
+operation ordering, retries, deadlines or the mandatory final receipt.
+
+Windows SSH acceptance diagnostics emit only fixed `windows_ssh_acceptance`
+phases/states, monotonic elapsed milliseconds and completed-capture metadata:
+stdout/stderr UTF-16 code-unit counts, child exit code and capture duration.
+Progress categories distinguish ProxyCommand invocation, local/remote version
+exchange, banner timeout/invalid/closed, controller readiness and the existing
+SSH/WSL observations. They neither establish identity nor turn a transport
+failure into a successful changed-key refusal. Missing categories do not mean
+empty output. Raw output, command arguments, paths, peers and keys are excluded.
+
+A finally-emitted summary preserves the primary failure and reports all fixed
+Desktop probe names plus Policy removal, disconnect, Environment deletion,
+post-deletion refusal, Workspace, Base and local-file cleanup outcomes. Completed
+means the existing cleanup operation succeeded, including a Policy-removal no-op;
+it does not add an independent revocation or absence probe. The Environment
+receipt distinguishes no creation attempted, successful ordinary deletion and
+unconfirmed deletion. Blocked or unconfirmed cleanup does not prove absence;
+disposable runner cleanup does not supply that proof. Receipt serialization/write/flush failure never changes
+acceptance or interrupts cleanup. Existing commands, deadlines, exact ownership
+checks and host-key refusal criteria remain unchanged.
+
+The Windows tunnel fixture adds fixed phases on its existing monotonic clock for
+Ctrl+C, the complete command-exit receipt, the existing failed-connect check, shell return, terminal
+return and finally cleanup. Terminal observations report the existing exit-status
+read as known or unknown, fixed reader/run-stop categories, reader liveness and
+the existing force-termination attempt/boolean return. Unknown is not successful
+termination. Application-observer liveness is sampled only after its existing
+bounded join. No extra process, WSL readiness, version or init-crash probe runs.
+`listener_connect_failed` means the existing connection attempt raised an
+`OSError`, including timeout or permission failure; it does not prove absence.
+These receipts exclude raw exceptions, output, paths, arguments and identities;
+accessor, serialization, write and flush failures cannot affect acceptance or
+cleanup. These synchronous observations do not add a diagnostic I/O deadline.
+Existing actual cleanup-operation exceptions still propagate and can
+replace a primary exception or skip later cleanup; this diagnostic change does
+not alter that control flow. A tunnel PASS precedes finally and does not establish
+graceful terminal exit or subsequent WSL health. Native completion-transport
+start/cancellation and WSL init state remain unobserved: the native companion does
+not initialize a shared logger, and this fixture does not add one or change levels.
