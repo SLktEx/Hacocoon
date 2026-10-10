@@ -166,6 +166,21 @@ Each connection starts with a versioned, size-bounded JSON envelope. Requests id
 
 Protocol mismatch is explicit and never falls back to direct Incus access. The controller also bounds concurrently accepted connections.
 
+Each `Server.Serve` invocation owns the transports accepted from its listener.
+Before returning on cancellation, listener closure or an accept error, it closes
+its outstanding transports and stops its listener-cancellation watcher. Other
+listeners on the same server remain independent. The shared 256-connection limit
+counts connection handlers until they actually return, including handlers still
+running after transport closure. Shutdown closure can race a handler's normal
+connection closure; connection implementations must honor `net.Conn`'s concurrent
+call and I/O interruption contract. Shutdown relies on their `Close` returning.
+
+This is transport teardown, not a wait for arbitrary operations to finish. Handler
+contexts retain the caller's cancellation semantics; a client disconnect alone
+does not cancel bounded setup or release its exclusion. Forced shutdown can
+interrupt responses and streams. EOF does not establish operation success: the
+existing session completion and application-specific final receipts still apply.
+
 The typed Environment API currently includes:
 
 - create;
