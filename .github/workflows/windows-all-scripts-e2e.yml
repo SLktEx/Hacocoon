@@ -520,11 +520,18 @@ jobs:
       - name: "[product] Verify public reclamation through ordinary Host entry"
         shell: pwsh
         run: |
+          Write-Host '{"component":"ci","operation":"reclamation_retention_regressions","state":"started"}'
           python ./tools/test_reclamation_retention.py
           if ($LASTEXITCODE -ne 0) { throw "Reclamation retention regressions failed." }
+          Write-Host '{"component":"ci","operation":"reclamation_retention_regressions","state":"passed"}'
+          Write-Host '{"component":"ci","operation":"reclamation_observer_regressions","state":"started"}'
           python ./tools/test_reclamation_user_path.py
           if ($LASTEXITCODE -ne 0) { throw "Reclamation observer regressions failed." }
+          Write-Host '{"component":"ci","operation":"reclamation_observer_regressions","state":"passed"}'
+          Write-Host '{"component":"ci","operation":"reclamation_journey","state":"started"}'
           python ./test/e2e/windows/reclamation.py --retention-manifest "$env:RUNNER_TEMP/reclamation-fixture.json"
+          if ($LASTEXITCODE -ne 0) { throw "Reclamation user journey failed." }
+          Write-Host '{"component":"ci","operation":"reclamation_journey","state":"passed"}'
 
       - name: "[fixture] Record bounded substrate evidence"
         if: always()

@@ -287,6 +287,16 @@ for 700 seconds, with explicit unavailable/truncated results. Raw WMI fields and
 errors are discarded. This observer never enters WSL, changes a worker result or
 kills the worker; teardown stops only its own observer process.
 
+The observer reader owns its buffered pipe and closes it after reading ends.
+Teardown reports unavailable when its bounded join leaves that reader alive;
+it never closes the reader's buffer concurrently or replaces the primary failure.
+Fixed, flushed `reclamation_user_path` phase receipts distinguish registration,
+history, terminal entry/dispatch, worker observation, return/status, observer stop
+and retained-data verification. Workflow receipts separately identify both
+regression scripts before the journey driver. These labels do not establish a
+worker result or diagnose a historical run whose logs are unavailable.
+Receipt output failure never skips observer cleanup or changes product acceptance.
+
 The disposable VS Code acceptance observer records only fixed progress phases in
 exclusive local markers bound to the fixture authority and nonce. After failure,
 the wrapper reads at most 18 regular marker files, up to 512 bytes each, and emits
