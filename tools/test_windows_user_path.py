@@ -377,8 +377,9 @@ class TunnelReceiptProjectionTest(unittest.TestCase):
         terminal.reader_outcome = "running"
         terminal.observed_exit_status = 0
         primary = RuntimeError("fixed primary failure")
+        on_output = Mock(side_effect=primary)
         with redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError) as caught:
-            terminal.run(timeout=1, on_output=Mock(side_effect=primary))
+            terminal.run(timeout=1, on_output=on_output)
         self.assertIs(caught.exception, primary)
         record = tunnel.terminal_receipt(terminal)
         self.assertEqual(record["terminal_run_stop"], "callback_failed")
