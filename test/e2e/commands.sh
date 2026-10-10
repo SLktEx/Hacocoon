@@ -57,6 +57,10 @@ done
 # Go module directories are read-only and must not become disposable user data.
 export HOME="$root/home"
 
+# Refuse missing Standard-egress prerequisites through the shipped process
+# before any socket-dependent fixture. The child cannot find Host commands.
+python3 "$(dirname "$0")/controller_startup.py" "$bin/haco-controller"
+
 # Exercise the shipped executable-name login routes before any controller is
 # available. The fixture owns its isolated environment and never changes users.
 python3 "$(dirname "$0")/login.py" "$bin/haco"
