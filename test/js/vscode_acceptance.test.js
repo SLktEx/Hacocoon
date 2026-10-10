@@ -10,6 +10,11 @@ async function observe(options = {}) {
   const fixture = {authority: 'ssh-remote+haco-win-ssh-0123456789abcdef', nonce: 'ab'.repeat(16), result: '/result'};
   const files = new Map([['/workspace/windows-marker', Buffer.from(options.badMarker ? 'wrong' : 'windows-workspace-ok')]]);
   const publications = new Map();
+  const calls = [];
+  const operation = name => {
+    calls.push(name);
+    if (options.failAt === name) throw options.error ?? new Error('secret remote detail');
+  };
   let shown = false, terminal = false, disposed = false, closed = false;
   const folder = {scheme: 'vscode-remote', authority: fixture.authority, path: '/workspace', ...options.uri};
   const api = {
@@ -19,21 +24,25 @@ async function observe(options = {}) {
       isTrusted: true, workspaceFolders: options.noFolder ? [] : [{uri: folder}],
       fs: {
         readFile: async uri => {
+          operation('marker-read');
           if (options.stallFilesystem) return new Promise(() => {});
           if (!files.has(uri.path)) throw Object.assign(new Error('missing'), {code: 'FileNotFound'});
           return files.get(uri.path);
         },
-        writeFile: async (uri, bytes) => files.set(uri.path, bytes),
-        delete: async uri => { if (options.cleanupFailure) throw Error('cannot delete'); files.delete(uri.path); }
+        writeFile: async (uri, bytes) => { operation('editor-write'); files.set(uri.path, bytes); },
+        delete: async uri => { operation('delete'); if (options.cleanupFailure) throw Error('cannot delete'); files.delete(uri.path); }
       },
-      openTextDocument: async uri => ({getText: () => options.badEditor ? 'wrong' : files.get(uri.path).toString()})
+      openTextDocument: async uri => {
+        operation('editor-open');
+        return {getText: () => { operation('editor-validate'); return options.badEditor ? 'wrong' : files.get(uri.path).toString(); }};
+      }
     },
     window: {
       createWebviewPanel() {
         return {webview: {onDidReceiveMessage(fn) { fn({type: 'ready'}); }, postMessage() {}},
           reveal() {}, dispose() {}, onDidDispose() {}};
       },
-      showTextDocument: async () => { shown = true; },
+      showTextDocument: async () => { operation('editor-show'); shown = true; },
       createTerminal: ({cwd, pty}) => {
         if (pty) return { dispose() {} };
         assert.equal(cwd.authority, fixture.authority);
@@ -55,8 +64,11 @@ async function observe(options = {}) {
   Object.defineProperty(api.window, 'gatedAPI', {enumerable: true, get() { throw Error('proposed API unavailable'); }});
   let deadline;
   const context = {
-    exports: {}, Buffer,
-    require: name => name === './review' ? { createReview(localAPI, settings) {
+    exports: {}, Buffer, TypeError,
+    require: name => name === 'node:perf_hooks' ? {performance: {now() {
+      if (options.clockFailure) throw Error('secret clock failure');
+      return options.clockValue ?? calls.length * 10;
+    }}} : name === './review' ? { createReview(localAPI, settings) {
       assert.equal(settings.localUI, true);
       const review = (id) => {
         assert.equal(id, fixture.nonce);
@@ -99,7 +111,7 @@ async function observe(options = {}) {
   }
   return {progress: progress.map(signal => signal.phase), publications,
     result: publications.has('/result') ? JSON.parse(publications.get('/result')) : undefined,
-    files, shown, terminal, disposed, closed};
+    files, shown, terminal, disposed, closed, calls};
 }
 test('PASS uses only required stable APIs and requires editor, terminal and cleanup', async () => {
   const r = await observe();
@@ -181,4 +193,90 @@ test('repeated unrelated activation cannot overwrite or multiply fixed markers',
   assert.deepEqual(r.progress, ['activated', 'target-missing']);
   assert.equal(r.publications.size, 2);
   assert.equal(r.result, undefined);
+});
+
+
+for (const [suboperation, options, checks, deleted] of [
+  ['marker-read', {failAt: 'marker-read'}, [], false],
+  ['marker-validate', {badMarker: true}, [], false],
+  ['editor-write', {failAt: 'editor-write'}, ['workspace-marker'], false],
+  ['editor-open', {failAt: 'editor-open'}, ['workspace-marker'], true],
+  ['editor-validate', {failAt: 'editor-validate'}, ['workspace-marker'], true],
+  ['editor-validate', {badEditor: true}, ['workspace-marker'], true],
+  ['editor-show', {failAt: 'editor-show'}, ['workspace-marker'], true]
+]) {
+  test('filesystem failure identifies ' + suboperation + ' ' + JSON.stringify(options), async () => {
+    const r = await observe(options);
+    assert.equal(r.result.status, 'failed');
+    assert.equal(r.result.stage, 'remote-filesystem');
+    assert.deepEqual(r.result.checks, checks);
+    assert.equal(r.result.filesystemFailure.suboperation, suboperation);
+    assert.equal(r.result.filesystemFailure.error_category, 'other');
+    assert.equal(r.result.filesystemFailure.duration_ms, (r.calls.length - Number(deleted)) * 10);
+    assert.equal(r.result.reviewDiagnostics.cleanup, true);
+    assert.equal(r.calls.includes('delete'), deleted);
+    assert.equal(r.files.size, 1);
+    assert.equal(r.terminal, false);
+    assert.equal(r.closed, true);
+    assert.ok(!JSON.stringify([...r.publications.values()]).includes('secret'));
+  });
+}
+
+for (const [code, category] of [
+  ['FileNotFound', 'not-found'], ['FileExists', 'exists'],
+  ['FileNotADirectory', 'not-directory'], ['FileIsADirectory', 'is-directory'],
+  ['NoPermissions', 'no-permissions'], ['Unavailable', 'unavailable'],
+  ['secret bearer token', 'other'], [42, 'other'], [null, 'other']
+]) {
+  test('filesystem error code projection: ' + category + ' ' + code, async () => {
+    const error = Object.assign(new Error('secret /path?token=value'), {code, stack: 'secret stack'});
+    const r = await observe({failAt: 'editor-open', error});
+    assert.equal(r.result.filesystemFailure.error_category, category);
+    assert.equal(r.result.reviewDiagnostics.cleanup, true);
+    assert.equal(r.files.size, 1);
+    assert.ok(!JSON.stringify([...r.publications.values()]).includes('secret'));
+  });
+}
+
+test('hostile error accessors cannot skip owned cleanup or replace failure', async () => {
+  const error = Object.defineProperty({}, 'code', {get() { throw Error('secret accessor'); }});
+  const r = await observe({failAt: 'editor-open', error});
+  assert.equal(r.result.filesystemFailure.error_category, 'unobserved');
+  assert.equal(r.result.status, 'failed');
+  assert.equal(r.result.reviewDiagnostics.cleanup, true);
+  assert.equal(r.files.size, 1);
+  assert.ok(!JSON.stringify([...r.publications.values()]).includes('secret'));
+});
+
+test('type classification and cleanup failure preserve the original filesystem operation', async () => {
+  const r = await observe({failAt: 'editor-open', error: new TypeError('secret'), cleanupFailure: true});
+  assert.equal(r.result.filesystemFailure.suboperation, 'editor-open');
+  assert.equal(r.result.filesystemFailure.error_category, 'type');
+  assert.equal(r.result.reviewDiagnostics.errorKind, 'type');
+  assert.equal(r.result.reviewDiagnostics.cleanup, false);
+  assert.equal(r.result.status, 'failed');
+  assert.equal(r.result.stage, 'remote-filesystem');
+  assert.equal(r.files.size, 2);
+});
+
+for (const options of [{clockFailure: true}, {clockValue: NaN}, {clockValue: Infinity}]) {
+  test('unavailable diagnostic clock cannot affect acceptance: ' + JSON.stringify(options), async () => {
+    const passed = await observe(options);
+    assert.equal(passed.result.status, 'passed');
+    assert.equal(passed.result.filesystemFailure, undefined);
+    const failed = await observe({...options, failAt: 'editor-open'});
+    assert.equal(failed.result.status, 'failed');
+    assert.equal(failed.result.filesystemFailure.duration_ms, null);
+    assert.equal(failed.result.reviewDiagnostics.cleanup, true);
+    assert.equal(failed.files.size, 1);
+  });
+}
+
+test('diagnostic marker write failures preserve filesystem failure and cleanup', async () => {
+  const r = await observe({progressFailure: true, failAt: 'editor-open'});
+  assert.deepEqual(r.progress, []);
+  assert.equal(r.result.status, 'failed');
+  assert.equal(r.result.filesystemFailure.suboperation, 'editor-open');
+  assert.equal(r.result.reviewDiagnostics.cleanup, true);
+  assert.equal(r.files.size, 1);
 });

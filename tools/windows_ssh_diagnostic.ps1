@@ -76,17 +76,26 @@ function Write-SSHAcceptancePhase([string]$Phase, [string]$State, [Diagnostics.S
         $record['ssh_progress'] = @($Progress -split ',' | Where-Object { $_ -cin $tokens } | Select-Object -Unique)
         [Console]::Out.WriteLine(($record | ConvertTo-Json -Depth 3 -Compress))
         [Console]::Out.Flush()
-    } catch { }
+    } catch {
+        # Best-effort diagnostics must not replace acceptance or cleanup errors.
+        return
+    }
+}
+
+# Project only the fixed cleanup names and states into the summary receipt.
+function Get-SSHCleanupOutcomes([System.Collections.IDictionary]$Cleanup) {
+    $outcomes = [ordered]@{}
+    foreach ($name in @('policy','disconnect','environment','refusal','workspace','base','local_files')) {
+        $value = $Cleanup[$name]
+        $outcomes[$name] = $(if ($value -is [string] -and $value -cin @('not_attempted','unconfirmed','completed','failed','blocked')) { $value } else { 'unknown' })
+    }
+    return $outcomes
 }
 
 function Write-SSHAcceptanceSummary([bool]$PrimaryFailed, [string]$PrimaryPhase, [string[]]$DesktopFailures, [bool]$CleanupFailed, [bool]$EnvironmentGone, [System.Collections.IDictionary]$Cleanup, [Diagnostics.Stopwatch]$Clock) {
     try {
         $desktopNames = @('configuration','vscode','project-setup','approval-review','preview','environment-transfer','doctor')
-        $outcomes = [ordered]@{}
-        foreach ($name in @('policy','disconnect','environment','refusal','workspace','base','local_files')) {
-            $value = $Cleanup[$name]
-            $outcomes[$name] = $(if ($value -is [string] -and $value -cin @('not_attempted','unconfirmed','completed','failed','blocked')) { $value } else { 'unknown' })
-        }
+        $outcomes = Get-SSHCleanupOutcomes $Cleanup
         $record = [ordered]@{
             component = 'ci'; operation = 'windows_ssh_acceptance'; phase = 'summary'
             state = $(if ($PrimaryFailed -or $CleanupFailed -or $DesktopFailures.Count) { 'failed' } else { 'completed' })
@@ -100,5 +109,8 @@ function Write-SSHAcceptanceSummary([bool]$PrimaryFailed, [string]$PrimaryPhase,
         }
         [Console]::Out.WriteLine(($record | ConvertTo-Json -Depth 3 -Compress))
         [Console]::Out.Flush()
-    } catch { }
+    } catch {
+        # Best-effort diagnostics must not replace acceptance or cleanup errors.
+        return
+    }
 }

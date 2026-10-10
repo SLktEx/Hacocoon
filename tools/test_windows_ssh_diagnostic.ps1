@@ -84,6 +84,16 @@ $result = Invoke-Captured $pwsh @('-NoProfile','-NonInteractive','-Command','[Co
 if ($result.ExitCode -ne 17 -or $result.Capture.exit_code -ne 17 -or $result.Capture.stderr_chars -ne 7 -or
     $result.Capture.stdout_chars -ne 0 -or -not $result.Capture.capture_complete -or $result.Stderr -cne 'no-recognized-progress') { throw 'Failed completed capture metadata differs' }
 
+# The extracted projection preserves every known state and rejects unknown data.
+foreach ($state in @('not_attempted','unconfirmed','completed','failed','blocked')) {
+    $inputOutcomes = @{policy=$state;disconnect=$state;environment=$state;refusal=$state;workspace=$state;base=$state;local_files=$state;SECRET='SECRET'}
+    $projected = Get-SSHCleanupOutcomes $inputOutcomes
+    if (($projected.Keys -join ',') -cne 'policy,disconnect,environment,refusal,workspace,base,local_files' -or
+        @($projected.Values | Where-Object { $_ -cne $state }).Count) { throw 'Cleanup projection changed known fields or states' }
+}
+$projected = Get-SSHCleanupOutcomes @{policy='SECRET';disconnect=7;environment=$null;refusal='FAILED';workspace=@('completed');base='completed SECRET'}
+if (@($projected.Values | Where-Object { $_ -cne 'unknown' }).Count) { throw 'Cleanup projection accepted malformed state' }
+
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $originalOutput = [Console]::Out
 $receiptOutput = [IO.StringWriter]::new()

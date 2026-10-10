@@ -313,6 +313,16 @@ Signals are observations, not an event timeline or acceptance receipts. Neither
 the cold reconnect route nor the 360-second observer and 600-second wrapper
 deadlines change; the exact final receipt remains mandatory.
 
+Caught remote-filesystem failures additionally retain a fixed suboperation
+(marker read/validation, editor write/open/text validation/show), an allowlisted
+error category, and monotonic milliseconds from observer activation to the caught
+failure. The wrapper projects these fields and existing completed check names;
+unknown values are unobserved and an unavailable clock is null. Error messages,
+stacks, paths, fixture identities and arbitrary error codes are never emitted.
+Classification or diagnostic output failure cannot replace acceptance or interrupt
+owned-probe cleanup. These fields neither establish remote readiness nor alter
+operation ordering, retries, deadlines or the mandatory final receipt.
+
 Windows SSH acceptance diagnostics emit only fixed `windows_ssh_acceptance`
 phases/states, monotonic elapsed milliseconds and completed-capture metadata:
 stdout/stderr UTF-16 code-unit counts, child exit code and capture duration.
