@@ -59,6 +59,16 @@ func BridgeWithTerminal(
 		return errors.New("invalid interactive controller stream")
 	}
 
+	// The transport observes the caller directly and can close before its
+	// cancellation reaches the signal context below. Preserve that cancellation
+	// even when stream teardown or terminal restoration finishes first.
+	callerCtx := ctx
+	defer func() {
+		if err := callerCtx.Err(); err != nil {
+			retErr = err
+		}
+	}()
+
 	// The caller can enter raw mode below, so process termination must first turn
 	// into cooperative session cancellation. This gives the bridge a chance to
 	// close the controller stream and run the terminal restore defer instead of
