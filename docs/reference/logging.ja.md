@@ -88,6 +88,16 @@ HTTP header全体、プロセス環境全体、任意設定object、要求・応
 
 ## Hostコマンド・エラー・時間
 
+初回の既定 Image 設定では、固定した段階 `default_image_read`、
+`default_image_project`、`default_image_resolve`、`default_image_copy`、
+`default_image_write` を既存のセットアップ進捗とコントローラーのログに記録します。
+既定参照の読み取り、プロジェクトの照合、Image の解決・コピー、参照の保存を区別します。
+既定参照があれば取得と保存を省略します。記録は既存の段階・状態・理由・所要時間と
+要求の対応付けに限り、生のエラー、コマンド、URL、Image の参照やカタログ値は加えません。
+セットアップの ERROR は引き続きコントローラーだけが記録します。操作順序、
+キャンセル処理、元のエラーとの対応を保ち、再試行・修復・削除は行いません。
+段階別の証拠が残っていない過去の失敗原因を、この観測で特定したとは扱いません。
+
 Windows転送の子プロセス失敗は、`operation=windows_tunnel_companion`、固定の
 `stage`（pipe/start/prepare/wait）、`reason`（other/wait_delay/exit/signaled/timeout/canceled/pipe_closed）、
 `context_state`（active/timeout/canceled）と`duration_ms`で一度だけ記録します。

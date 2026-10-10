@@ -102,6 +102,18 @@ Never add a raw command-line log alongside the sanitized form. Arguments that ma
 
 ## Errors
 
+Initial default-Image setup reports the fixed stages `default_image_read`,
+`default_image_project`, `default_image_resolve`, `default_image_copy` and
+`default_image_write` through the existing setup progress stream and controller
+logger. They distinguish preference reading, project reconciliation, Image
+resolution/copy and preference persistence. An existing default skips acquisition
+and writing. Events contain only the existing stage/state/reason/duration fields
+and request correlation; they add no raw errors, commands, URLs, Image references
+or catalog values. The controller remains the sole setup ERROR owner. Observation
+preserves operation order, cancellation handling and error causes, without retry,
+repair or cleanup. These stages do not identify the cause of earlier failures
+whose substep evidence was not retained.
+
 The Windows tunnel's owned companion reports process failures once with
 `operation=windows_tunnel_companion`, fixed `stage` (pipe/start/prepare/wait),
 fixed `reason` (other/wait_delay/exit/signaled/timeout/canceled/pipe_closed),
