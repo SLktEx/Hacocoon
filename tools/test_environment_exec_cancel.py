@@ -113,8 +113,9 @@ class ProcObservationTests(unittest.TestCase):
                                 ("printf '%0100d' 1", "bound"), ("exec sleep 600", "timed out")):
             with self.subTest(reason=reason):
                 process = self.start(command)
+                deadline = time.monotonic() + 0.1
                 with self.assertRaisesRegex(RuntimeError, reason) as error:
-                    cancel.read_identity(process, time.monotonic() + 0.1)
+                    cancel.read_identity(process, deadline)
                 self.assertNotIn("secret-invalid", str(error.exception))
                 self.stop(process)
 
@@ -284,8 +285,9 @@ class OwnedCleanupTests(unittest.TestCase):
                     cancel.cleanup_environment("owned", saved, invoke, lambda: {"owned": current}, None)
                 invoke.assert_not_called()
         invoke = mock.Mock()
+        unavailable_rows = mock.Mock(side_effect=OSError("private"))
         with self.assertRaisesRegex(RuntimeError, "ownership was unknown"):
-            cancel.cleanup_environment("owned", original, invoke, mock.Mock(side_effect=OSError("private")), None)
+            cancel.cleanup_environment("owned", original, invoke, unavailable_rows, None)
         invoke.assert_not_called()
 
     def test_only_matching_target_is_removed_and_cleanup_failure_keeps_primary(self):

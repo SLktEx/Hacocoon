@@ -157,7 +157,7 @@ def read_identity(process, deadline):
         receipt.extend(part)
         if len(receipt) > 96:
             raise RuntimeError("exec identity receipt exceeded its bound")
-    match = re.fullmatch(rb"EXEC-IDENTITY ([1-9][0-9]{0,9}) ([0-9]{1,20}) ([0-9]{1,20})\n", receipt)
+    match = re.fullmatch(rb"EXEC-IDENTITY ([1-9]\d{0,9}) (\d{1,20}) (\d{1,20})\n", receipt)
     if match is None or int(match[1]) <= 1:
         raise RuntimeError("exec identity receipt was invalid")
     return tuple(field.decode("ascii") for field in match.groups())

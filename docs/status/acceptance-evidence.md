@@ -1020,6 +1020,32 @@ then updated; the prior source-bound results are preserved, not relabeled as CI
 success for a new head.
 
 
+<a id="environment-exec-cancellation"></a>
+## Persistent Environment execution cancellation
+
+PR [#754](https://github.com/SLktEx/Hacocoon/pull/754) head
+[`bf699cec300e`](https://github.com/SLktEx/Hacocoon/commit/bf699cec300e119eb483dbaaf1abf3174ba595a6)
+over base [`5efd8b15e08b`](https://github.com/SLktEx/Hacocoon/commit/5efd8b15e08b7ec118bbd1e75aa62a33454d8271)
+was checked out as merge
+[`84c9d182be6a`](https://github.com/SLktEx/Hacocoon/commit/84c9d182be6a4f4253dca9e8c2f081a630a1231f).
+[Incus run 38007854895, job 114080710610](https://github.com/SLktEx/Hacocoon/actions/runs/38007854895/job/114080710610)
+passed on attempt 1 with Ubuntu 26.04.1 and Incus 7.0.1. At 2026-10-10
+00:11:41 UTC it emitted `ENVIRONMENT EXEC CANCEL / EXACT EXECUTION ABSENT / RUNNING ENV RETAINED: PASS`;
+the existing binary stream, real PTY edit/resize, exit 17, terminal restoration
+and stopped-Environment refusal receipts also passed.
+
+Before any Environment stop, cancellation returned CLI exit 130 and ordinary
+`haco exec` observed the launched shell-to-exec PID/start-time identity disappear
+within the shared 30-second budget. The saved Environment identity, running state
+and guest PID1 start time were unchanged. Captured output and identity/observation
+receipts were bounded. No surviving execution was found in this fixture, and no
+product fix is asserted. This does not prove that `sleep` had already entered or
+that arbitrary descendants were reaped. This native observation is separate from
+the 18 local fixture unit tests; those alone do not establish native acceptance.
+This scoped native receipt does not substitute for verification of the final
+head across all workflows.
+
+
 <a id="cache-generation-foundation"></a>
 ## Cache generation foundation
 
