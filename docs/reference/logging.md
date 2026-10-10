@@ -312,3 +312,23 @@ of a marker or its parent path.
 Signals are observations, not an event timeline or acceptance receipts. Neither
 the cold reconnect route nor the 360-second observer and 600-second wrapper
 deadlines change; the exact final receipt remains mandatory.
+
+Windows SSH acceptance diagnostics emit only fixed `windows_ssh_acceptance`
+phases/states, monotonic elapsed milliseconds and completed-capture metadata:
+stdout/stderr UTF-16 code-unit counts, child exit code and capture duration.
+Progress categories distinguish ProxyCommand invocation, local/remote version
+exchange, banner timeout/invalid/closed, controller readiness and the existing
+SSH/WSL observations. They neither establish identity nor turn a transport
+failure into a successful changed-key refusal. Missing categories do not mean
+empty output. Raw output, command arguments, paths, peers and keys are excluded.
+
+A finally-emitted summary preserves the primary failure and reports all fixed
+Desktop probe names plus Policy removal, disconnect, Environment deletion,
+post-deletion refusal, Workspace, Base and local-file cleanup outcomes. Completed
+means the existing cleanup operation succeeded, including a Policy-removal no-op;
+it does not add an independent revocation or absence probe. The Environment
+receipt distinguishes no creation attempted, successful ordinary deletion and
+unconfirmed deletion. Blocked or unconfirmed cleanup does not prove absence;
+disposable runner cleanup does not supply that proof. Receipt serialization/write/flush failure never changes
+acceptance or interrupts cleanup. Existing commands, deadlines, exact ownership
+checks and host-key refusal criteria remain unchanged.
