@@ -24,7 +24,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 
-BRANCH = "investigate/pr766-wsl-once2-20261011"
+BRANCH = "investigate/pr766-wsl-once3-20261011"
 VENDOR_METADATA = "https://raw.githubusercontent.com/microsoft/WSL/341f1ddf76f089ff6351590b03f92bad30041725/distributions/DistributionInfo.json"
 IMAGE_URL = "https://releases.ubuntu.com/26.04.1/ubuntu-26.04.1-wsl-amd64.wsl"
 IMAGE_SHA = "48d56724b5c8e60f24893e83e73bbb58c60b3ca22fba3da977075420acd54104"
@@ -515,7 +515,8 @@ def run_console(name, wsl, journal):
         if type(row.get("cmd_pid")) is not int or not 0 < row["cmd_pid"] <= 0xffffffff or (pid is not None and pid != row["cmd_pid"]):
             raise Fault("console_receipt_invalid")
         pid = row["cmd_pid"]
-        if type(row.get("monotonic_ns")) is not int or row["monotonic_ns"] <= previous_ns:
+        # Adjacent events may share a clock tick; phase order is checked above.
+        if type(row.get("monotonic_ns")) is not int or row["monotonic_ns"] <= 0 or row["monotonic_ns"] < previous_ns:
             raise Fault("console_receipt_invalid")
         previous_ns = row["monotonic_ns"]
         if not isinstance(row.get("utc"), str) or not re.fullmatch(r"[0-9T:.+Z-]{20,40}", row["utc"]):

@@ -362,6 +362,27 @@ class Contracts(unittest.TestCase):
             with self.subTest(key=key, value=value), patch.object(p, 'capture', return_value=p.Result(0, '\n'.join(map(json.dumps, bad)), '')), self.assertRaises(p.Fault):
                 p.run_console(NAME, 'wsl.exe', MemoryJournal())
 
+    def test_valid_ordered_receipts_allow_same_monotonic_clock_tick(self):
+        # monotonic means nondecreasing, not one new tick per event. In CPython
+        # 3.12 on Windows GetTickCount64 can give adjacent events the same value.
+        rows = [{'phase': phase, 'cmd_pid': 2416,
+                 'observations': dict(p.CRITICAL_OBSERVATIONS),
+                 'monotonic_ns': 239750000000,
+                 'utc': '2026-10-11T14:27:28.568108+00:00'}
+                for phase in ('ready', 'ctrl_c_sent', 'wsl_returned', 'cmd_exited')]
+        rows[-1].update(exit_code=0, reader='eof')
+        journal = MemoryJournal()
+        with patch.object(p, 'capture', return_value=p.Result(0, '\n'.join(map(json.dumps, rows)), '')):
+            p.run_console(NAME, 'wsl.exe', journal)
+        self.assertEqual(journal.data['process_cleanup'], 'normal_exit')
+        self.assertEqual([row['phase'] for row in journal.data['events']],
+                         ['ready', 'ctrl_c_sent', 'wsl_returned', 'cmd_exited', 'helper_exited'])
+        for invalid in (0, -1, True, 239749999999):
+            bad = copy.deepcopy(rows)
+            bad[1]['monotonic_ns'] = invalid
+            with self.subTest(invalid=invalid), patch.object(p, 'capture', return_value=p.Result(0, '\n'.join(map(json.dumps, bad)), '')), self.assertRaises(p.Fault):
+                p.run_console(NAME, 'wsl.exe', MemoryJournal())
+
     def test_experiment_stops_at_first_failure_and_classifies_final(self):
         with patch.object(p, 'observe_outside_lifecycle', side_effect=AssertionError('no inventory inside lifecycle')), patch.object(p, 'capture', return_value=p.Result(1, '', '')) as capture, patch.object(p, 'run_console') as console:
             with self.assertRaisesRegex(p.Fault, 'baseline_failed'):

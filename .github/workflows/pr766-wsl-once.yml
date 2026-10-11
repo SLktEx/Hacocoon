@@ -1,4 +1,4 @@
-name: pr766-wsl-once2
+name: pr766-wsl-once3
 
 on: create
 
@@ -10,8 +10,8 @@ jobs:
     if: >-
       github.repository == 'SLktEx/Hacocoon' &&
       github.event_name == 'create' && github.event.ref_type == 'branch' &&
-      github.event.ref == 'investigate/pr766-wsl-once2-20261011' &&
-      github.ref == 'refs/heads/investigate/pr766-wsl-once2-20261011' &&
+      github.event.ref == 'investigate/pr766-wsl-once3-20261011' &&
+      github.ref == 'refs/heads/investigate/pr766-wsl-once3-20261011' &&
       github.run_attempt == 1
     runs-on: windows-2025
     timeout-minutes: 15
