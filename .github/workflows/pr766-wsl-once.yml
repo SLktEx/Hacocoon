@@ -1,0 +1,45 @@
+name: pr766-wsl-once
+
+on: create
+
+permissions:
+  contents: read
+
+jobs:
+  observe-once:
+    if: >-
+      github.repository == 'SLktEx/Hacocoon' &&
+      github.event_name == 'create' && github.event.ref_type == 'branch' &&
+      github.event.ref == 'investigate/pr766-wsl-once-20261010' &&
+      github.ref == 'refs/heads/investigate/pr766-wsl-once-20261010' &&
+      github.run_attempt == 1
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify pure fixture contracts
+        run: python tools/test_pr766_wsl_once.py
+      - name: Restore image without updating shared cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}/hacocoon-wsl-cache/ubuntu.wsl
+          key: hacocoon-wsl-${{ runner.os }}-${{ runner.arch }}-ubuntu-26.04-v1
+      - name: Install pinned console driver
+        timeout-minutes: 2
+        run: python -m pip install --disable-pip-version-check --no-input pywinpty==3.0.2
+      - name: One approved experiment and identity-checked cleanup
+        timeout-minutes: 10
+        run: >-
+          python tools/diagnostics/pr766_wsl_once.py
+          --output "${{ runner.temp }}/pr766-wsl-once.json"
+          --image "${{ runner.temp }}/hacocoon-wsl-cache/ubuntu.wsl"
+      - name: Preserve bounded observations including uncertain cleanup
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr766-wsl-once-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr766-wsl-once.json
+          if-no-files-found: warn
+          retention-days: 30
