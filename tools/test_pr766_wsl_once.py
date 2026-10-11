@@ -204,6 +204,39 @@ class Contracts(unittest.TestCase):
             journal.close()
             self.assertTrue(journal.data['sink_failed'])
 
+    def test_optional_inventory_failure_is_explicit_redacted_and_non_gating(self):
+        for error, category in ((p.Fault('observation_timeout'), 'observation_timeout'),
+                                (OSError('PRIVATE'), 'OSError'),
+                                (p.Fault('PRIVATE'), 'unrecognized_observation_error')):
+            journal = MemoryJournal()
+            journal.data.update(primary_failure='original', cleanup='verified')
+            with patch.object(p, 'capture', side_effect=error) as capture:
+                p.observe_outside_lifecycle(journal, 'inventory_after_cleanup')
+            self.assertEqual(capture.call_args.args[1], 5)
+            self.assertEqual(journal.data['events'][-1]['observations'], {'status': 'unavailable', 'category': category})
+            self.assertTrue(journal.data['observations_incomplete'])
+            self.assertEqual(journal.data['primary_failure'], 'original')
+            self.assertEqual(journal.data['cleanup'], 'verified')
+            self.assertNotIn('PRIVATE', json.dumps(journal.data))
+        journal = MemoryJournal()
+        with patch.object(p, 'capture', return_value=p.Result(0, json.dumps(EMPTY), '')):
+            p.observe_outside_lifecycle(journal, 'inventory_before_import')
+        self.assertEqual(journal.data['events'][-1]['observations'], {'status': 'available', **EMPTY})
+
+    def test_inventory_process_uncertainty_is_sticky_without_masking_results(self):
+        for category in ('observation_termination_unconfirmed', 'observation_pipe_unconfirmed', 'observation_timeout'):
+            journal = MemoryJournal()
+            journal.data.update(primary_failure='original', cleanup='verified', outcome='reproduced')
+            fault = p.Fault(category, process_cleanup_unconfirmed=True)
+            with patch.object(p, 'capture', side_effect=[fault, p.Result(0, json.dumps(EMPTY), '')]):
+                p.observe_outside_lifecycle(journal, 'inventory_before_import')
+                p.observe_outside_lifecycle(journal, 'inventory_after_cleanup')
+            self.assertTrue(journal.data['inventory_process_cleanup_unconfirmed'])
+            self.assertEqual(journal.data['events'][0]['observations']['process_cleanup'], 'unconfirmed')
+            self.assertEqual(journal.data['primary_failure'], 'original')
+            self.assertEqual(journal.data['cleanup'], 'verified')
+            self.assertEqual(journal.data['outcome'], 'reproduced')
+
     def test_capture_success_output_limit_and_timeout_without_native_process(self):
         for content, limit, expected in ((b'hello', 10, None), (b'oversized', 3, 'observation_size_limit')):
             child = Mock(stdout=io.BytesIO(content), stderr=io.BytesIO(), returncode=0)
@@ -252,6 +285,10 @@ class Contracts(unittest.TestCase):
         with patch.object(p.subprocess, 'Popen', return_value=child), patch.object(p.threading, 'Thread', return_value=thread), self.assertRaisesRegex(p.Fault, 'observation_pipe_unconfirmed'):
             p.capture(['fixed-observation'], 1)
         self.assertTrue(thread.join.called)
+        child.poll.return_value = None
+        with patch.object(p.subprocess, 'Popen', return_value=child), patch.object(p.threading, 'Thread', return_value=thread), self.assertRaisesRegex(p.Fault, 'observation_timeout') as caught:
+            p.capture(['fixed-observation'], 0)
+        self.assertTrue(caught.exception.process_cleanup_unconfirmed)
 
     def test_console_ctrl_c_normal_exit_and_failure_cleanup(self):
         class FakeConsole:
@@ -266,6 +303,8 @@ class Contracts(unittest.TestCase):
                 return item
             def write(self, value):
                 self.writes.append(value)
+                if self.fail_write:
+                    raise p.Fault('console_output_limit')
                 if value == '\x03':
                     self.queue.put('\r\nDIAG_INT\r\nC:\\fixture>')
                 elif value == 'exit\r\n':
@@ -281,13 +320,13 @@ class Contracts(unittest.TestCase):
                 return True
         for failed in (False, True):
             console = FakeConsole()
+            console.fail_write = failed
             spawn = Mock(return_value=console)
             output = io.StringIO()
             module = SimpleNamespace(PtyProcess=SimpleNamespace(spawn=spawn))
-            result = p.Result(1 if failed else 0, json.dumps(EMPTY), '')
-            with patch.dict(sys.modules, {'winpty': module}), patch.object(p, 'capture', return_value=result), patch('sys.stdout', output):
+            with patch.dict(sys.modules, {'winpty': module}), patch.object(p, 'capture', side_effect=AssertionError('no inventory inside console')), patch('sys.stdout', output):
                 if failed:
-                    with self.assertRaisesRegex(p.Fault, 'console_observation_failed'):
+                    with self.assertRaisesRegex(p.Fault, 'console_output_limit'):
                         p.console_child(NAME, r'C:\\Windows\\System32\\wsl.exe')
                 else:
                     p.console_child(NAME, r'C:\\Windows\\System32\\wsl.exe')
@@ -309,7 +348,7 @@ class Contracts(unittest.TestCase):
                 p.run_console(NAME, 'wsl.exe', journal)
             self.assertEqual(journal.data['events'][-1]['category'], expected)
             self.assertNotIn('PRIVATE', json.dumps(journal.data))
-        rows = [{'phase': phase, 'cmd_pid': 12, 'observations': EMPTY, 'monotonic_ns': index + 1, 'utc': '2026-10-11T00:00:00+00:00'} for index, phase in enumerate(('ready', 'ctrl_c_sent', 'wsl_returned', 'cmd_exited'))]
+        rows = [{'phase': phase, 'cmd_pid': 12, 'observations': dict(p.CRITICAL_OBSERVATIONS), 'monotonic_ns': index + 1, 'utc': '2026-10-11T00:00:00+00:00'} for index, phase in enumerate(('ready', 'ctrl_c_sent', 'wsl_returned', 'cmd_exited'))]
         rows[-1].update(exit_code=0, reader='eof')
         journal = MemoryJournal()
         with patch.object(p, 'capture', return_value=p.Result(0, '\n'.join(map(json.dumps, rows)), '')):
@@ -317,26 +356,26 @@ class Contracts(unittest.TestCase):
         self.assertEqual(journal.data['process_cleanup'], 'normal_exit')
         with patch.object(p, 'capture', return_value=p.Result(0, json.dumps(rows[1]), '')), self.assertRaisesRegex(p.Fault, 'console_receipt_invalid'):
             p.run_console(NAME, 'wsl.exe', MemoryJournal())
-        for key, value in (('exit_code', None), ('exit_code', 1), ('exit_code', False), ('reader', None), ('reader', 'failed'), ('cmd_pid', 13), ('cmd_pid', True), ('cmd_pid', 0), ('monotonic_ns', 1), ('utc', 'private')):
+        for key, value in (('exit_code', None), ('exit_code', 1), ('exit_code', False), ('reader', None), ('reader', 'failed'), ('cmd_pid', 13), ('cmd_pid', True), ('cmd_pid', 0), ('monotonic_ns', 1), ('utc', 'private'), ('observations', EMPTY), ('observations', {'status': 'available'})):
             bad = copy.deepcopy(rows)
             bad[-1][key] = value
             with self.subTest(key=key, value=value), patch.object(p, 'capture', return_value=p.Result(0, '\n'.join(map(json.dumps, bad)), '')), self.assertRaises(p.Fault):
                 p.run_console(NAME, 'wsl.exe', MemoryJournal())
 
     def test_experiment_stops_at_first_failure_and_classifies_final(self):
-        with patch.object(p, 'observe'), patch.object(p, 'capture', return_value=p.Result(1, '', '')) as capture, patch.object(p, 'run_console') as console:
+        with patch.object(p, 'observe_outside_lifecycle', side_effect=AssertionError('no inventory inside lifecycle')), patch.object(p, 'capture', return_value=p.Result(1, '', '')) as capture, patch.object(p, 'run_console') as console:
             with self.assertRaisesRegex(p.Fault, 'baseline_failed'):
                 p.experiment('wsl.exe', NAME, MemoryJournal())
             self.assertEqual(capture.call_count, 1)
             console.assert_not_called()
         for final, expected in ((p.Result(0, '', ''), 'not_reproduced'), (p.Result(-1, '', 'Wsl/Service/E_UNEXPECTED'), 'reproduced'), (p.Result(1, '', 'another failure'), 'inconclusive')):
             journal = MemoryJournal()
-            with patch.object(p, 'observe'), patch.object(p, 'capture', side_effect=[p.Result(0, '', ''), final]) as capture, patch.object(p, 'run_console') as console:
+            with patch.object(p, 'observe_outside_lifecycle', side_effect=AssertionError('no inventory inside lifecycle')), patch.object(p, 'capture', side_effect=[p.Result(0, '', ''), final]) as capture, patch.object(p, 'run_console') as console:
                 p.experiment('wsl.exe', NAME, journal)
                 self.assertEqual(capture.call_count, 2)
                 console.assert_called_once()
                 self.assertEqual(journal.data['outcome'], expected)
-        with patch.object(p, 'observe'), patch.object(p, 'capture', return_value=p.Result(0, '', '')) as capture, patch.object(p, 'run_console', side_effect=p.Fault('console_failed')):
+        with patch.object(p, 'observe_outside_lifecycle', side_effect=AssertionError('no inventory inside lifecycle')), patch.object(p, 'capture', return_value=p.Result(0, '', '')) as capture, patch.object(p, 'run_console', side_effect=p.Fault('console_failed')):
             with self.assertRaises(p.Fault):
                 p.experiment('wsl.exe', NAME, MemoryJournal())
             self.assertEqual(capture.call_count, 1)
@@ -371,7 +410,7 @@ class Contracts(unittest.TestCase):
                         raise p.Fault('secondary_failure')
                     journal.data['cleanup'] = 'verified'
                 results = [p.Result(0, 'WSL version: 2.6.3.0', ''), p.Result(1 if mode == 'import_failed' else 0, '', '')]
-                with patch.dict(os.environ, env), patch.object(p, 'require_context', return_value='123'), patch.object(p, 'verified_image', return_value=image), patch.object(p, 'registrations', side_effect=[[], [row], [row]]), patch.object(p, 'listed', return_value=[]), patch.object(p, 'capture', side_effect=results), patch.object(p, 'experiment', side_effect=experiment), patch.object(p, 'cleanup', side_effect=cleanup) as cleanup_mock, patch('builtins.print'):
+                with patch.dict(os.environ, env), patch.object(p, 'require_context', return_value='123'), patch.object(p, 'observe_outside_lifecycle'), patch.object(p, 'verified_image', return_value=image), patch.object(p, 'registrations', side_effect=[[], [row], [row]]), patch.object(p, 'listed', return_value=[]), patch.object(p, 'capture', side_effect=results), patch.object(p, 'experiment', side_effect=experiment), patch.object(p, 'cleanup', side_effect=cleanup) as cleanup_mock, patch('builtins.print'):
                     status = p.run(argparse.Namespace(output=output, image=image))
                 data = json.loads(output.read_text())
                 self.assertEqual(status, 0 if mode == 'pass' else 1)
@@ -386,6 +425,40 @@ class Contracts(unittest.TestCase):
                     self.assertEqual(data['cleanup_failure'], 'secondary_failure')
                 self.assertTrue(image.exists())  # Shared cache is never removed.
 
+    def test_inventory_timeout_cannot_prevent_actual_lifecycle_or_cleanup(self):
+        for uncertain in (False, True):
+            with self.subTest(uncertain=uncertain), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                image = root / 'cached.wsl'
+                image.write_bytes(b'fixture')
+                output = root / 'result.json'
+                row = {**ROW, 'path': p.canonical(root / 'pr766-once-123' / 'distro')}
+                env = {'RUNNER_TEMP': str(root), 'SystemRoot': str(root), 'GITHUB_SHA': 'a' * 40, 'ImageVersion': '20260925.250.1'}
+                sequence = []
+                def capture(argv, timeout):
+                    if argv[0] == 'powershell.exe':
+                        sequence.append('inventory')
+                        self.assertEqual(timeout, 5)
+                        raise p.Fault('observation_timeout', process_cleanup_unconfirmed=uncertain)
+                    if argv[1] == '--version':
+                        return p.Result(0, 'WSL version: 2.7.14.0', '')
+                    self.assertEqual(argv[1], '--import')
+                    sequence.append('import')
+                    return p.Result(0, '', '')
+                def experiment(wsl, name, journal):
+                    sequence.append('lifecycle')
+                    journal.data['outcome'] = 'not_reproduced'
+                def cleanup(wsl, name, target, record, journal):
+                    sequence.append('cleanup')
+                    journal.data['cleanup'] = 'verified'
+                with patch.dict(os.environ, env), patch.object(p, 'require_context', return_value='123'), patch.object(p, 'verified_image', return_value=image), patch.object(p, 'registrations', side_effect=[[], [row], [row]]), patch.object(p, 'listed', return_value=[]), patch.object(p, 'capture', side_effect=capture), patch.object(p, 'experiment', side_effect=experiment), patch.object(p, 'cleanup', side_effect=cleanup), patch('builtins.print'):
+                    self.assertEqual(p.run(argparse.Namespace(output=output, image=image)), 1 if uncertain else 0)
+                self.assertEqual(sequence, ['inventory', 'import', 'lifecycle', 'cleanup', 'inventory'])
+                data = json.loads(output.read_text())
+                self.assertEqual(data['outcome'], 'not_reproduced')
+                self.assertEqual(data['cleanup'], 'verified')
+                self.assertTrue(data['observations_incomplete'])
+                self.assertNotIn('primary_failure', data)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

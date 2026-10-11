@@ -24,7 +24,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 
-BRANCH = "investigate/pr766-wsl-once-20261010"
+BRANCH = "investigate/pr766-wsl-once2-20261011"
 VENDOR_METADATA = "https://raw.githubusercontent.com/microsoft/WSL/341f1ddf76f089ff6351590b03f92bad30041725/distributions/DistributionInfo.json"
 IMAGE_URL = "https://releases.ubuntu.com/26.04.1/ubuntu-26.04.1-wsl-amd64.wsl"
 IMAGE_SHA = "48d56724b5c8e60f24893e83e73bbb58c60b3ca22fba3da977075420acd54104"
@@ -43,7 +43,15 @@ CHILD_ERRORS = {"console_timeout", "console_fallback", "console_output_limit",
                 "observation_inventory_name", "observation_inventory_pid",
                 "observation_service_state", "OSError", "RuntimeError",
                 "JSONDecodeError", "UnicodeDecodeError", "BrokenPipeError"}
+INVENTORY_ERRORS = {"passive_observation_failed", "capture_budget_expired",
+                    "observation_size_limit", "observation_timeout",
+                    "observation_termination_unconfirmed", "observation_pipe_unconfirmed",
+                    "observation_reader_failed", "observation_inventory_limit",
+                    "observation_inventory_name", "observation_inventory_pid",
+                    "observation_service_state", "JSONDecodeError", "UnicodeDecodeError",
+                    "OSError", "PermissionError", "FileNotFoundError", "TypeError", "AttributeError"}
 CAPTURE_DEADLINE = None
+CRITICAL_OBSERVATIONS = {"status": "not_collected", "reason": "critical_path_isolation"}
 OBSERVE_SCRIPT = r"""
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
@@ -59,6 +67,10 @@ $processes=@(Get-CimInstance Win32_Process -Filter "Name='wsl.exe' OR Name='wslh
 
 class Fault(Exception):
     """Fixed, non-sensitive error category; never include child output."""
+
+    def __init__(self, category, *, process_cleanup_unconfirmed=False):
+        super().__init__(category)
+        self.process_cleanup_unconfirmed = process_cleanup_unconfirmed
 
 
 def decode(data):
@@ -131,10 +143,11 @@ def capture(argv, timeout, limit=LIMIT):
     join_deadline = time.monotonic() + 2
     for thread in threads:
         thread.join(timeout=max(0, join_deadline - time.monotonic()))
+    pipes_unconfirmed = any(thread.is_alive() for thread in threads)
     if failure:
-        raise Fault(failure)
-    if any(thread.is_alive() for thread in threads):
-        raise Fault("observation_pipe_unconfirmed")
+        raise Fault(failure, process_cleanup_unconfirmed=pipes_unconfirmed or failure == "observation_termination_unconfirmed")
+    if pipes_unconfirmed:
+        raise Fault("observation_pipe_unconfirmed", process_cleanup_unconfirmed=True)
     if overflow.is_set() or reader_error.is_set():
         raise Fault("observation_size_limit" if overflow.is_set() else "observation_reader_failed")
     return Result(child.returncode, *(decode(bytes(buffer)) for buffer in buffers))
@@ -269,11 +282,26 @@ class Journal:
             self.data["sink_failed"] = True
 
 
-def observe(journal, phase):
-    result = capture(["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", OBSERVE_SCRIPT], 5)
-    if result.code:
-        raise Fault("passive_observation_failed")
-    journal.event(phase, observations=selected_observations(json.loads(result.out)))
+def observe_outside_lifecycle(journal, phase):
+    """Optional inventory before import / after cleanup, never a test prerequisite.
+
+    The first authorized run timed out here before reaching its baseline. Keep
+    this same five-second bound, report missing evidence, and do not let an
+    inventory replace the actual lifecycle result or exact-owned cleanup.
+    """
+    try:
+        result = capture(["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", OBSERVE_SCRIPT], 5)
+        if result.code:
+            raise Fault("passive_observation_failed")
+        value = {"status": "available", **selected_observations(json.loads(result.out))}
+    except Exception as exc:
+        category = str(exc) if isinstance(exc, Fault) else type(exc).__name__
+        value = {"status": "unavailable", "category": category if category in INVENTORY_ERRORS else "unrecognized_observation_error"}
+        journal.data["observations_incomplete"] = True
+        if getattr(exc, "process_cleanup_unconfirmed", False) or category in ("observation_termination_unconfirmed", "observation_pipe_unconfirmed"):
+            value["process_cleanup"] = "unconfirmed"
+            journal.data["inventory_process_cleanup_unconfirmed"] = True
+    journal.event(phase, observations=value)
 
 
 def verified_image(image, download, deadline):
@@ -409,12 +437,9 @@ def console_child(name, wsl):
     deadline, output, stage = time.monotonic() + 45, "", 0
 
     def receipt(phase, **fields):
-        result = capture(["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", OBSERVE_SCRIPT], 5)
-        if result.code:
-            raise Fault("console_observation_failed")
         value = {"phase": phase, "utc": datetime.now(timezone.utc).isoformat(),
                  "monotonic_ns": time.monotonic_ns(), "cmd_pid": proc.pid,
-                 "observations": selected_observations(json.loads(result.out)), **fields}
+                 "observations": dict(CRITICAL_OBSERVATIONS), **fields}
         print(json.dumps(value), flush=True)
 
     failure = None
@@ -506,7 +531,9 @@ def run_console(name, wsl, journal):
         fields = {"cmd_pid": pid, "observed_monotonic_ns": previous_ns, "observed_utc": row["utc"]}
         if phase == "cmd_exited":
             fields.update(exit_code=0, reader="eof")
-        fields["observations"] = selected_observations(row.get("observations", {}))
+        if row.get("observations") != CRITICAL_OBSERVATIONS:
+            raise Fault("console_receipt_invalid")
+        fields["observations"] = dict(CRITICAL_OBSERVATIONS)
         journal.event(phase, **fields)
     if result.code or len(rows) != len(expected):
         category = "unrecognized_child_error"
@@ -523,7 +550,7 @@ def run_console(name, wsl, journal):
 
 
 def experiment(wsl, name, journal):
-    observe(journal, "before_baseline")
+    journal.event("before_baseline", observations=dict(CRITICAL_OBSERVATIONS))
     baseline = capture([wsl, "--distribution", name, "--user", "root", "--exec", "/bin/true"], 10)
     journal.event("baseline_returned", **baseline.receipt())
     if baseline.code:
@@ -532,7 +559,7 @@ def experiment(wsl, name, journal):
     final = capture([wsl, "--distribution", name, "--user", "root", "--exec", "/bin/true"], 10)
     journal.event("final_launch_returned", **final.receipt())
     journal.data["outcome"] = "not_reproduced" if final.code == 0 else "reproduced" if final.receipt()["wsl_service_unexpected"] else "inconclusive"
-    observe(journal, "after_final_launch")
+    journal.event("after_final_launch", observations=dict(CRITICAL_OBSERVATIONS))
 
 
 def require_context(env):
@@ -570,6 +597,7 @@ def run(args):
         if version.code:
             raise Fault("wsl_version_unavailable")
         journal.event("versions", versions=version_fields(version.out), runner_image=image_version)
+        observe_outside_lifecycle(journal, "inventory_before_import")
         image = verified_image(args.image, home / "ubuntu.wsl", time.monotonic() + 240)
         image_id = file_identity(image)
         journal.event("image_verified", sha256=IMAGE_SHA)
@@ -594,6 +622,8 @@ def run(args):
         experiment(wsl, name, journal)
     except Exception as exc:
         journal.data["primary_failure"] = str(exc) if isinstance(exc, Fault) else type(exc).__name__
+        if getattr(exc, "process_cleanup_unconfirmed", False):
+            journal.data["process_cleanup_unconfirmed"] = True
         journal.event("experiment_stopped")
     finally:
         CAPTURE_DEADLINE = started + 570
@@ -606,9 +636,10 @@ def run(args):
                 journal.data["cleanup_failure"] = str(exc) if isinstance(exc, Fault) else type(exc).__name__
         else:
             journal.data["cleanup"] = "not_imported_or_ownership_unconfirmed"
+        observe_outside_lifecycle(journal, "inventory_after_cleanup")
         journal.event("finished")
         journal.close()
-    return 0 if journal.data["outcome"] in ("not_reproduced", "reproduced") and journal.data["cleanup"] == "verified" and "primary_failure" not in journal.data and not journal.data.get("sink_failed") else 1
+    return 0 if journal.data["outcome"] in ("not_reproduced", "reproduced") and journal.data["cleanup"] == "verified" and "primary_failure" not in journal.data and not journal.data.get("sink_failed") and not journal.data.get("inventory_process_cleanup_unconfirmed") else 1
 
 
 def main():
