@@ -12,10 +12,11 @@ SCALAR = re.compile(r"[A-Za-z0-9_. /:+()-]{0,512}\Z")
 
 def probe(command):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(command, capture_output=True, timeout=10)
         # stdout is accepted only for these fixed version/state commands. Drop
-        # any unexpected bytes and every stderr; exit status remains actionable.
-        output = result.stdout.strip()
+        # any unexpected bytes (including decoding replacements) and every
+        # stderr; malformed text must not hide the command's exit status.
+        output = result.stdout.decode("utf-8", errors="replace").strip()
         return {"exit_code": result.returncode,
                 "value": output if SCALAR.fullmatch(output) else "omitted"}
     except subprocess.TimeoutExpired:
@@ -26,10 +27,12 @@ def probe(command):
 
 def inventory(command, fields):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(command, capture_output=True, timeout=10)
         if result.returncode or len(result.stdout) > 1 << 20:
             return {"state": "unavailable", "exit_code": result.returncode}
-        rows = json.loads(result.stdout)
+        # Invalid stdout remains an unavailable observation, even when the bad
+        # byte is in a field we would discard. stderr is never decoded.
+        rows = json.loads(result.stdout.decode("utf-8"))
         if not isinstance(rows, list) or len(rows) > 200:
             return {"state": "invalid"}
         # Only identifiers/state are retained, never expanded config, devices,
