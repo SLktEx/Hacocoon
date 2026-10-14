@@ -147,6 +147,8 @@ def main() -> int:
         if not archive.is_file():
             raise FileNotFoundError(f"missing release archive: {archive}")
         checksum_line = archive_checksum_line(checksums, archive.name)
+        if sha256(archive) != checksum_line.split()[0]:
+            raise ValueError("Linux archive checksum mismatch")
 
         raw_archive = output / archive.name
         shutil.copyfile(archive, raw_archive)
