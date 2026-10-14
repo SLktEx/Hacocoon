@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory() as temp:
 
     subprocess.run(
         [
-            "python3",
+            sys.executable,
             str(ROOT / "tools" / "package_installers.py"),
             "--dist",
             str(dist),
@@ -187,6 +187,25 @@ with tempfile.TemporaryDirectory() as temp:
     for name in expected_release - {"checksums.txt"}:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
+
+    # The outer release checksums must not bless a Linux archive that disagrees
+    # with the GoReleaser checksum embedded in both installer bundles.
+    for arch in ("amd64", "arm64"):
+        bad_archive = dist / f"haco_linux_{arch}.tar.gz"
+        original = bad_archive.read_bytes()
+        bad_archive.write_bytes(original + b"corrupted-after-checksum")
+        rejected_out = temp_root / f"rejected-linux-{arch}"
+        rejected = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "package_installers.py"),
+             "--dist", str(dist), "--output", str(rejected_out),
+             "--version", VERSION, "--arch", arch],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if rejected.returncode == 0 or "Linux archive checksum mismatch" not in rejected.stderr:
+            raise SystemExit(f"corrupt Linux {arch} archive was not refused (exit {rejected.returncode})")
+        if list(rejected_out.iterdir()):
+            raise SystemExit(f"corrupt Linux {arch} archive published release files")
+        bad_archive.write_bytes(original)
 
     # Neither the reclaim helper nor the tunnel client may be published after
     # its verified archive bytes change. Both use the common extraction boundary.
