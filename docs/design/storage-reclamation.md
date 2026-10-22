@@ -220,6 +220,33 @@ It retains a nonzero exit and is never proof that a worker did not start. Unknow
 malformed diagnostics keep the existing uncertain-result response. No automatic
 retry, record clearing, relaxed enrollment or change to disk ownership is introduced.
 
+On a `Cmd.Start` failure, the optional `job` receipt observes the actual launcher
+immediately before that single call and after its failure. Read-only
+`IsProcessInJob` and `QueryInformationJobObject(NULL, JobObjectExtendedLimitInformation)`
+provide `observed`, `not_in_job` or `unavailable`, three immediate-Job flags
+(`BREAKAWAY_OK`, `SILENT_BREAKAWAY_OK`, `KILL_ON_JOB_CLOSE`) and optional numeric
+query errors. Unavailable flags are not false. Outer Jobs and failure causation
+remain unknown; the query does not inspect the worker or ancestors. The original
+launch error/code, cleared context, flags and readiness protocol remain unchanged.
+Old receipts without this observation still decode. Invalid optional Job fields
+are discarded without losing a valid primary phase, stage or native error code.
+An old strict client cannot decode the new field and retains its generic
+unconfirmed failure; it loses those details, never claims success or retries.
+The owning CLI emits only
+validated structured fields; helper stderr remains discarded.
+
+The installed journey observes numeric `wsl.exe --version` values once before
+its first dispatch. Unknown/localized output remains unavailable. On the existing
+failed-public-dispatch branch, one Windows-direct `_status` observation reports
+only the registration's latest saved summary, not the exact invocation's outcome.
+It reuses the earlier version observation, retains the original failure and never
+reenters WSL, prepares, reviews, clears or retries work. An explicit uncertainty
+exception bypasses the shared terminal driver's force-termination for this branch;
+ordinary callback errors and timeouts keep their existing handling. It does not
+guarantee survival of the terminal or worker under outside supervision.
+These diagnostics are not
+native acceptance or proof that a particular WSL version caused the failure.
+
 A saved `compact_attached` result means the exact target distribution was
 terminated but its VHDX did not detach within the bounded observation window.
 Native compaction is not started, data remains retained, and explicit review is

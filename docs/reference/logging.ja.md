@@ -304,3 +304,13 @@ probe は実行しません。`listener_connect_failed` は既存の接続試行
 completion transport の起動・cancel と WSL init の状態は未観測のままです。native
 companion は共有 logger を初期化しておらず、この fixture は logger の追加や level の
 変更を行いません。
+
+## 容量回収の起動側Jobの観測
+
+CLIは検証済みの起動失敗応答だけから `operation=reclaim_storage`、
+`scope=launcher_immediate_job`、`outer_jobs=unknown` を出力します。
+`before_start` と `after_failure` は固定の観測状態、任意の直近Jobの真偽値と
+DWORDの問い合わせエラー番号だけです。PID、GUID、パス、コマンドライン、
+環境変数、生のエラーは含めません。取得不能はJobの不在ではなく、失敗原因の断定や、
+起動・キャンセル・準備完了の通信・再試行・保存状態の変更には使いません。
+[容量回収の失敗箇所の案内](../design/storage-reclamation.ja.md#失敗箇所の案内)を参照してください。

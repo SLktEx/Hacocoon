@@ -140,6 +140,10 @@ def responder(pattern: str, reply: str, *, repeat: bool = False) -> Responder:
     return Responder(re.compile(pattern, re.IGNORECASE | re.MULTILINE), reply, repeat)
 
 
+class RetainUncertainTerminalError(RuntimeError):
+    """Stop the journey without terminating a terminal with uncertain work."""
+
+
 class TerminalProcess:
     def __init__(self, *, cwd: Path | None = None):
         try:
@@ -226,6 +230,9 @@ class TerminalProcess:
                 dead_since = None
                 try:
                     self._consume(chunk, responders, on_output)
+                except RetainUncertainTerminalError:
+                    self.run_stop = "callback_failed"
+                    raise
                 except Exception:
                     self.run_stop = "callback_failed"
                     self.proc.terminate(force=True)

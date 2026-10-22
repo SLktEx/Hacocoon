@@ -387,3 +387,14 @@ not alter that control flow. A tunnel PASS precedes finally and does not establi
 graceful terminal exit or subsequent WSL health. Native completion-transport
 start/cancellation and WSL init state remain unobserved: the native companion does
 not initialize a shared logger, and this fixture does not add one or change levels.
+
+## Reclamation launcher Job observations
+
+The owning CLI emits `operation=reclaim_storage`, `scope=launcher_immediate_job`
+and `outer_jobs=unknown` only from a validated optional process-start failure
+receipt. `before_start` and `after_failure` contain fixed observation states,
+optional immediate-Job booleans and DWORD query errors. No PIDs, GUIDs, paths,
+command lines, environments or raw errors enter these fields. An unavailable
+query is not an absent Job; the observation never identifies the launch-failure
+cause or changes dispatch, cancellation, readiness, retries or saved state.
+See [reclamation failure diagnostics](../design/storage-reclamation.md#failure-diagnostics).

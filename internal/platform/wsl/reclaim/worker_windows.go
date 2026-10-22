@@ -91,11 +91,8 @@ func LaunchPreparedWorker(ctx context.Context, registrationID, operationID strin
 	defer read.Close()
 	defer write.Close()
 	child.Stdout = write
-	if err := ctx.Err(); err != nil {
+	if err := startObservedWorker(ctx, child.Start, observeLauncherJob); err != nil {
 		return 0, err
-	}
-	if err := child.Start(); err != nil {
-		return 0, &workerLaunchError{stage: "process_start", err: err}
 	}
 	pid = child.Process.Pid
 	// The launcher must release its write copy to observe worker EOF.
@@ -256,30 +253,4 @@ func publishWorkerReady() error {
 	// The native channel must be gone before shutdown. The persisted operation,
 	// rather than this pipe or launcher lifetime, carries the final result.
 	return os.Stdout.Close()
-}
-
-// Fixed diagnostics for the owning CLI boundary; never expose child output.
-type workerLaunchError struct {
-	stage string
-	err   error
-}
-
-func (e *workerLaunchError) Error() string {
-	return "Windows worker " + e.stage + " failed: " + e.err.Error()
-}
-func (e *workerLaunchError) Unwrap() error { return e.err }
-func WorkerLaunchFailure(err error) (stage string, nativeCode uint32) {
-	stage = "other"
-	var failure *workerLaunchError
-	if errors.As(err, &failure) {
-		switch failure.stage {
-		case "pin_executable", "process_start", "readiness":
-			stage = failure.stage
-		}
-	}
-	var code syscall.Errno
-	if errors.As(err, &code) {
-		nativeCode = uint32(code)
-	}
-	return
 }
