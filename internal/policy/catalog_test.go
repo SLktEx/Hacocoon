@@ -155,3 +155,21 @@ func TestCapabilityCatalogMatchingDescribesActualPolicy(t *testing.T) {
 		t.Fatal("extra attribute matched")
 	}
 }
+
+func TestCapabilityCatalogIdentifierAlphabetAndBounds(t *testing.T) {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+	for value := range 128 {
+		r := rune(value)
+		if got, want := catalogIdentifier(string(r)), strings.ContainsRune(alphabet, r); got != want {
+			t.Errorf("catalogIdentifier(%q) = %v, want %v", r, got, want)
+		}
+	}
+	if !catalogIdentifier(strings.Repeat("a", 128)) {
+		t.Fatal("rejected maximum-length identifier")
+	}
+	for _, value := range []string{"", strings.Repeat("a", 129), "é", "\u202e", "a\x00b", "a\xffb"} {
+		if catalogIdentifier(value) {
+			t.Errorf("accepted invalid identifier %q", value)
+		}
+	}
+}
