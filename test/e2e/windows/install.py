@@ -9,6 +9,7 @@ never prepare, repair, restart, remount, attach, detach, create, or delete state
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import ctypes
 import os
@@ -19,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Pattern, Sequence
@@ -453,6 +455,131 @@ def boot_guard_namespace() -> dict:
     return namespace
 
 
+DNSMASQ_RECORD = "/var/lib/incus/networks/haco-host0/dnsmasq.pid"
+BOOT_ARCHIVE = "/var/lib/incus/.hacocoon-boot-guard"
+
+
+def inspect_bytes(path: str) -> bytes:
+    # observe() strips text output; base64 preserves the exact provider bytes.
+    return base64.b64decode(inspect_root("base64", "--wrap=0", "--", path), validate=True)
+
+
+def dnsmasq_identity(record: bytes) -> tuple[int, int, str] | None:
+    """Read only the fixed scalars emitted by Incus shared/subprocess.Process.
+
+    This is deliberately not a general YAML loader. The upstream writer uses
+    top-level plain keys, decimal integers and a canonical unquoted boot UUID.
+    Unsupported serialization must fail, not silently select the legacy route.
+    """
+    if not record or len(record) > 65536 or any(byte < 32 and byte != 10 for byte in record):
+        raise RuntimeError("missing or oversized dnsmasq PID record")
+    fields = {}
+    allowed = {"name", "args", "apparmor", "cwd", "pid", "start_time", "boot_id",
+               "uid", "gid", "set_groups", "sysprocattr"}
+    section = None
+    for line in record.decode("utf-8").splitlines():
+        if not line:
+            continue
+        if line[0].isspace():
+            if section not in ("args", "sysprocattr"):
+                raise RuntimeError("unexpected indented dnsmasq PID record field")
+            continue  # Wrapped args or nested sysprocattr, never identity scalars.
+        match = re.fullmatch(r"([a-z_]+):(?: (.*))?", line)
+        if not match or match[1] not in allowed or match[1] in fields:
+            raise RuntimeError("malformed or duplicate dnsmasq PID record field")
+        section = match[1]
+        fields[section] = match[2]
+    if fields.get("name") != "dnsmasq" or not re.fullmatch(r"[1-9][0-9]{0,9}", fields.get("pid") or ""):
+        raise RuntimeError("invalid dnsmasq PID record")
+    pid = int(fields["pid"])
+    if pid > 2147483647:
+        raise RuntimeError("invalid dnsmasq PID")
+    if "start_time" not in fields and "boot_id" not in fields:
+        return None  # Legacy records still require exact archive retention.
+    started, boot = fields.get("start_time") or "", fields.get("boot_id") or ""
+    if (not re.fullmatch(r"[1-9][0-9]{0,19}", started)
+            or int(started) > 18446744073709551615
+            or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", boot)
+            or str(uuid.UUID(boot)) != boot):
+        raise RuntimeError("invalid dnsmasq process identity")
+    return pid, int(started), boot
+
+
+def dnsmasq_process(identity: tuple[int, int, str], namespace: dict) -> tuple:
+    pid, started, boot = identity
+    raw_stat = inspect_root("cat", f"/proc/{pid}/stat")
+    fields = raw_stat.rsplit(")", 1)
+    if (len(fields) != 2 or not raw_stat.startswith(f"{pid} (")
+            or len(fields[1].split()) < 20 or fields[1].split()[0] in ("Z", "X", "x")):
+        raise RuntimeError("invalid dnsmasq process stat")
+    actual_start = int(fields[1].split()[19])
+    pidns = int(inspect_root("stat", "-Lc", "%i", f"/proc/{pid}/ns/pid"))
+    executable = inspect_root("readlink", "--", f"/proc/{pid}/exe")
+    command = inspect_bytes(f"/proc/{pid}/cmdline")
+    argv = command.split(b"\0")
+    if (boot != namespace["boot"] or actual_start != started
+            or executable != "/usr/sbin/dnsmasq"
+            or started < namespace["init_start"] or pidns != namespace["pidns"]
+            or not command.endswith(b"\0") or argv[0].rsplit(b"/", 1)[-1] != b"dnsmasq"
+            or [arg for arg in argv if arg.startswith(b"--conf-file=") or arg == b"--conf-file" or arg.startswith(b"-C")]
+            != [b"--conf-file=/var/lib/incus/networks/haco-host0/dnsmasq.raw"]
+            or [arg for arg in argv if arg.startswith(b"--interface=") or arg == b"--interface" or arg.startswith(b"-i")]
+            != [b"--interface=haco-host0"]):
+        raise RuntimeError("dnsmasq PID record does not identify the current trusted-host process")
+    # dnsmasq legitimately drops privileges; its process UID need not be root.
+    return actual_start, pidns, executable, command
+
+
+def dnsmasq_archives() -> dict[str, bytes]:
+    paths = inspect_root("find", BOOT_ARCHIVE, "-type", "f",
+                         "-path", "*/networks/haco-host0/dnsmasq.pid").splitlines()
+    if len(paths) != len(set(paths)) or any(not re.fullmatch(
+            re.escape(BOOT_ARCHIVE) + r"/retired-[0-9a-f]{32}/networks/haco-host0/dnsmasq\.pid", path)
+            for path in paths):
+        raise RuntimeError("unexpected dnsmasq boot archive path")
+    return {path: inspect_bytes(path) for path in paths}
+
+
+def dnsmasq_restart_snapshot() -> dict:
+    namespace = boot_guard_namespace()
+    record = inspect_bytes(DNSMASQ_RECORD)
+    identity = dnsmasq_identity(record)
+    process = dnsmasq_process(identity, namespace) if identity is not None else None
+    archives = dnsmasq_archives()
+    version = json.loads(inspect_root("incus", "query", "/1.0"))["environment"]["server_version"]
+    if not isinstance(version, str) or not re.fullmatch(r"7\.0\.[1-9][0-9]*", version):
+        raise RuntimeError("restart evidence requires the supported Incus 7.0 LTS server")
+    # Bracket the observation. Missing/changing records, processes or marker,
+    # command errors and timeouts fail; there is no retry/repair or PID signal.
+    if ((identity is not None and dnsmasq_process(identity, namespace) != process)
+            or dnsmasq_archives() != archives
+            or json.loads(inspect_root("incus", "query", "/1.0"))["environment"]["server_version"] != version
+            or inspect_bytes(DNSMASQ_RECORD) != record or boot_guard_namespace() != namespace):
+        raise RuntimeError("dnsmasq restart evidence changed during observation")
+    return {"namespace": namespace, "record": record, "identity": identity,
+            "archives": archives, "version": version}
+
+
+def assert_dnsmasq_restart(previous: dict, current: dict) -> None:
+    if current["namespace"] == previous["namespace"]:
+        raise RuntimeError("WSL restart did not exercise a new PID namespace")
+    before, after = previous["archives"], current["archives"]
+    if any(after.get(path) != record for path, record in before.items()):
+        raise RuntimeError("existing dnsmasq boot archive was not retained exactly")
+    added = [record for path, record in after.items() if path not in before]
+    if added:
+        if added != [previous["record"]]:
+            raise RuntimeError("previous dnsmasq PID record was not retained exactly in the boot archive")
+        return
+    # Incus 7.0.2 removes the record after stopping dnsmasq. Absence alone is
+    # never acceptance: both snapshots must prove live provider-native identity,
+    # and the current record must name a new process in the new namespace.
+    if (any(int(snapshot["version"].split(".")[2]) < 2 for snapshot in (previous, current))
+            or previous["identity"] is None or current["identity"] is None
+            or previous["identity"] == current["identity"]):
+        raise RuntimeError("previous dnsmasq PID record lacks archive or fresh process identity evidence")
+
+
 def run_user_journey(package_root: Path, *, use_cached_wsl_image: bool, fresh_only: bool = False) -> None:
     run_phase("initial-install", run_bat, package_root, use_cached_wsl_image=use_cached_wsl_image)
     run_phase("installed-host-assertions", assert_host)
@@ -460,16 +587,12 @@ def run_user_journey(package_root: Path, *, use_cached_wsl_image: bool, fresh_on
     if fresh_only:
         print("Windows BAT / WSL entry / fresh installed host: PASS")
         return
-    previous_namespace = boot_guard_namespace()
+    previous_dnsmasq = dnsmasq_restart_snapshot()
     # A normal user stop, before any installer rerun that could repair startup.
     run_phase("terminate", subprocess.run, ["wsl.exe", "--terminate", INSTANCE], check=True, timeout=120)
     run_phase("restart-host-entry", host_session, create=False)
     run_phase("restarted-host-assertions", assert_host)
-    if boot_guard_namespace() == previous_namespace:
-        raise RuntimeError("WSL restart did not exercise a new PID namespace")
-    if not inspect_root("find", "/var/lib/incus/.hacocoon-boot-guard", "-type", "f",
-                        "-path", "*/networks/haco-host0/dnsmasq.pid"):
-        raise RuntimeError("previous dnsmasq PID record was not retained in the boot archive")
+    assert_dnsmasq_restart(previous_dnsmasq, dnsmasq_restart_snapshot())
     policy_before = sudo_policy_digest()
     run_phase("reinstall", run_bat, package_root, use_cached_wsl_image=use_cached_wsl_image)
     run_phase("reinstalled-host-entry", host_session, create=False)

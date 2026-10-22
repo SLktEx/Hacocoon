@@ -18,8 +18,9 @@ kernel boot UUID, namespace init start ticks and PID namespace inode under
 `/var/lib/incus/.hacocoon-boot-guard`. An unchanged namespace retains all records,
 including on ordinary service restarts. On a changed namespace, processes from
 the old namespace cannot survive as processes of the new namespace. The guard
-archives only `networks/*/dnsmasq.pid` and `devices/*/proxy.*` before Incus reads
-them. Contents are not interpreted and no process is signalled. Configuration,
+archives only existing `networks/*/dnsmasq.pid` and `devices/*/proxy.*` before Incus
+reads them. If normal provider shutdown already removed the records, the guard
+advances the namespace marker without creating an empty or fabricated archive. Contents are not interpreted and no process is signalled. Configuration,
 instances, disks, Workspaces and resource ownership remain unchanged.
 
 First installation adopts the current namespace only with the root Incus daemon
@@ -75,6 +76,26 @@ retained; automatic garbage collection is not included.
 
 Component tests cover reused PIDs, WSL/native boots, same-namespace restart,
 adoption, concurrency, interrupted moves and hostile metadata. The packaged
-Windows restart gate verifies current marker identity and retained dnsmasq records
-before an installer rerun. Repository tests, hosted provider acceptance and
-installation on an existing user's machine remain separate claims.
+Windows restart gate verifies changed namespace/current marker identity, ordinary
+Host entry, doctor, network and data retention before an installer rerun. It takes
+read-only snapshots around the ordinary WSL stop. Any new dnsmasq archive must
+contain the exact pre-stop record bytes; existing archives must stay unchanged.
+An unrelated historical archive is not evidence for this restart.
+
+[Incus stop cleanup](https://github.com/lxc/incus/commit/80774bd96b31737acf35b1bf6d1bb8592ba33a67)
+now removes the dnsmasq record, while
+[process identity](https://github.com/lxc/incus/commit/5472f997327b4c991a821f37ebaf004bc32e6850)
+records `pid`, `start_time` and `boot_id`. On supported 7.0 LTS servers at 7.0.2 or
+later, no new archive is accepted only with positive pre/post process identity:
+canonical current boot UUID, procfs start ticks at or after namespace init,
+matching PID namespace, the packaged `/usr/sbin/dnsmasq` executable, and its live
+command using the fixed `haco-host0` interface/configuration. The process identity
+must change. Bracketed rereads reject changing records, processes, archives,
+server versions or markers; failed reads do
+not mean absence. Legacy identityless records still require an exact new archive.
+No process UID of root is assumed because dnsmasq drops privileges. These checks
+prove current safe ownership, not which actor removed the old record. They never
+write provider metadata, fabricate archives, signal processes or repair startup.
+Component tests retain stale-record/no-signalling coverage and cover marker
+advancement after clean provider stop. Repository tests, hosted provider acceptance
+and installation on an existing user's machine remain separate claims.
