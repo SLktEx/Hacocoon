@@ -3,6 +3,10 @@
 Status: accepted; owned-provider nesting verified; OCI runtime acceptance pending
 Date: 2026-09-08
 
+First-boot configuration timing is refined by [ADR 0114](0114-trusted-host-nested-packer.md):
+new Hosts configure nesting before startup. The source ownership and tooling
+verification requirements below remain in force.
+
 ## Decision
 
 The maintained local OCI integration enables Incus `security.nesting=true`

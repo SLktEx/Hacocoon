@@ -18,7 +18,6 @@ import (
 	controlapi "github.com/SLktEx/Hacocoon/internal/controller/api"
 	control "github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	"github.com/SLktEx/Hacocoon/internal/workspace/workflow"
 )
 
 const desktopCommandHostKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f"
@@ -65,36 +64,7 @@ func desktopCommandFixture(t *testing.T, defaultWorkflow ...bool) (*desktopComma
 	}
 	state.listed = []core.Environment{state.environment}
 	server := control.NewServer()
-	if len(defaultWorkflow) != 0 && defaultWorkflow[0] {
-		if err := server.Register(controlapi.MethodRepositoryManage, func(context.Context, json.RawMessage) (any, error) {
-			return controlapi.RepositoryManageResponse{Sources: readySources("api", "web")}, nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if err := server.Register(controlapi.MethodWorkflow, func(_ context.Context, raw json.RawMessage) (any, error) {
-			var req controlapi.WorkflowRequest
-			if err := json.Unmarshal(raw, &req); err != nil {
-				return nil, err
-			}
-			state.Lock()
-			defer state.Unlock()
-			if req.Operation == "prepare" {
-				return controlapi.WorkflowResponse{Reference: &workflow.Reference{Name: req.Prepare.Name, Workspace: state.environment.Workspace.ID}}, nil
-			}
-			if req.Operation == "open" {
-				result := workflow.OpenResult{Reference: req.Open.Reference, Environment: state.environment}
-				if defaultWorkflowFailure := state.failures[controlapi.MethodWorkflow]; defaultWorkflowFailure != nil {
-					// Simulate replacement after preparation but before SSH setup.
-					state.environment.RuntimeRef = "recycled-runtime"
-				}
-				return controlapi.WorkflowResponse{Open: &result}, nil
-			}
-			return nil, control.ErrInvalidArgument
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, method := range []string{controlapi.MethodEnvironmentList, controlapi.MethodEnvironmentStatus, controlapi.MethodEnvironmentSSH, controlapi.MethodEnvironmentConnections} {
+	for _, method := range []string{controlapi.MethodOpen, controlapi.MethodGitConnect, controlapi.MethodEnvironmentList, controlapi.MethodEnvironmentStatus, controlapi.MethodEnvironmentSSH, controlapi.MethodEnvironmentConnections} {
 		if err := server.Register(method, func(_ context.Context, raw json.RawMessage) (any, error) {
 			state.Lock()
 			defer state.Unlock()
@@ -109,10 +79,18 @@ func desktopCommandFixture(t *testing.T, defaultWorkflow ...bool) (*desktopComma
 			if err := json.Unmarshal(raw, &request); err != nil {
 				return nil, err
 			}
-			if request.Environment != state.environment.Name {
+			if request.Environment != state.environment.Name && (method != controlapi.MethodOpen || request.Environment != "") {
 				return nil, control.NewStatusError("not_found", "Environment absent")
 			}
 			switch method {
+			case controlapi.MethodOpen:
+				selected := state.environment
+				if state.failures[controlapi.MethodWorkflow] != nil {
+					state.environment.RuntimeRef = "recycled-runtime"
+				}
+				return selected, nil
+			case controlapi.MethodGitConnect:
+				return nil, nil
 			case controlapi.MethodEnvironmentStatus:
 				return core.EnvironmentStatus{Environment: state.environment, State: core.EnvironmentStopped}, nil
 			case controlapi.MethodEnvironmentConnections:
@@ -316,7 +294,7 @@ func TestOpenCommandLaunchAndRetainedSSH(t *testing.T) {
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			code, out, diagnostic := captureRun(t, args...)
 			failed := strings.HasSuffix(mode, "fails")
-			if (failed && code != 1) || (!failed && code != 0) || out != "SSH ready: haco-dev\n" {
+			if (failed && code != 1) || (!failed && code != 0) || out != "Environment \"dev\" ready.\nSSH ready: haco-dev\n" {
 				t.Fatal("wrong launch outcome", code, out, diagnostic)
 			}
 			if failed && strings.Contains(diagnostic, "Editor process launched") {

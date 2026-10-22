@@ -4,7 +4,9 @@
 
 ## Current attached-Store commands
 
-Partial implementation; dedicated native runtime acceptance passed, installed-controller acceptance pending: use the existing plugin namespace:
+Partial implementation; dedicated native runtime acceptance passed. Installed
+attached-Store acceptance with an optional guest runtime remains pending; the
+Host/detached installed scope is recorded below. Use the existing plugin namespace:
 
 ```bash
 haco plugin oci image list dev
@@ -45,7 +47,9 @@ results are recorded in implementation status and the PR.
 
 ## Managed Host source
 
-Partial implementation; dedicated native runtime acceptance passed, installed-controller acceptance pending:
+Partial implementation; dedicated native runtime and the bounded installed Ubuntu
+nerdctl Host list/delete gate passed. Installed Docker acceptance remains incomplete;
+see [the scoped evidence](../status/acceptance-evidence.md#installed-oci-cli).
 
 ```bash
 haco plugin oci image list --host
@@ -123,16 +127,45 @@ Cache access is serialized; symlinks, hardlinks, unsafe permissions and corrupt
 entries are refused without silently replacing them. Archive paths never select
 Host output paths. Signed download URLs and response bodies are not included in
 transport errors. Non-Linux and non-amd64 tool provisioning are currently unsupported.
-Native tool delivery and the controller/CLI gate below are accepted; complete installed-controller acceptance remains pending.
+Native tool delivery and the bounded installed Ubuntu controller/CLI gate below
+passed; other installed/runtime configurations remain incomplete.
 There is no schema migration, automatic backup or arbitrary executable/socket option.
 
 ## Controller/CLI acceptance
 
 Production detached nerdctl composition and bare controller/CLI passed at `bd1c9a5`.
-Full installed Standard, ordinary-user/desktop and detached Docker acceptance remain
-incomplete. Native primitives, automatic tool delivery and fixture catalogs establish
-different scopes. [Acceptance evidence](../status/acceptance-evidence.md#storage)
-retains passes, failures and limits.
+The ordinary-user installed Ubuntu Host/detached nerdctl gate passed at `c745427`.
+Attached-Store guest execution, desktop/Windows and detached Docker acceptance
+remain incomplete. Native primitives, automatic tool delivery and fixture catalogs
+establish different scopes. [Acceptance evidence](../status/acceptance-evidence.md#installed-oci-cli)
+records the exact head/CI merge, scope, timing and remaining limits.
+
+The fresh Ubuntu installer journey includes `test/e2e/installed/oci_images.py`.
+It uses the ordinary user's installed CLI to build two nonce-tagged local
+`FROM scratch` images in trusted Host with its shipped nerdctl/BuildKit and
+`--network none`, then creates an Environment without an explicit Store.
+After deleting that Environment, shipped detached image list/delete checks the
+actual immutable IDs, independent deletion, same-Workspace automatic retained
+Store reuse, a separate Workspace's current Host copy, and populated-Host
+`--no-oci` selection/refusal. This bounded installed gate **passed** on its first
+Ubuntu run; its native result is separate from the pure fixture regressions.
+
+All mutations use ordinary product commands. A fixed read-only privileged probe
+on the installed Physical Host verifies that its saved Host recipe is absent,
+then checks the fixture recipe's hash and filesystem identity before clearing it
+and verifies absence afterward. Existing recipes, linked/unsafe parents, changed
+identities and uncertain mutations fail closed. These are point-in-time checks
+on an isolated disposable runner; the CLI has no atomic compare-and-clear.
+Cleanup never adopts a failed creation, retries an ambiguous deletion, or removes
+unknown/replaced resources. Private ownership receipts remain on failure and the
+primary error is preserved. BuildKit cache is left to disposable-runner teardown;
+the fixture removes only its reviewed images and independently owned Stores.
+
+This does not install an optional runtime into ordinary Environments, add guest
+Policy/network access, copy binaries or use image save/load for distribution.
+The shipped detached metadata tool download remains the ordinary product path.
+Default Base offline container execution, authenticated registries, Windows,
+Docker and broader runtime compatibility remain separate incomplete acceptance.
 
 ## Review unused image candidates
 

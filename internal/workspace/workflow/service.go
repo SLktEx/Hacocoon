@@ -98,7 +98,7 @@ func (s *Service) Reference(_ context.Context, name string) (Reference, error) {
 // Prepare is idempotent only for an already-ready copy with the same exact
 // repository membership. It never retries or replaces an incomplete copy.
 func (s *Service) Prepare(ctx context.Context, spec PrepareSpec) (Reference, error) {
-	if !gitadapter.ValidID(spec.Name) || len(spec.Repositories) < 1 || len(spec.Repositories) > 8 {
+	if !gitadapter.ValidID(spec.Name) || len(spec.Repositories) < 1 || len(spec.Repositories) > core.MaxWorkspaceRepositories {
 		return Reference{}, core.ErrInvalidArgument
 	}
 	expected := append([]string(nil), spec.Repositories...)

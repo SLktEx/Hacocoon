@@ -8,10 +8,18 @@ import (
 )
 
 func supportedEnvironmentStateVersion(version int) bool {
-	return version == 0 || (version >= previousEnvironmentStateVersion && version <= 8) || (version >= 10 && version <= 12) || version == environmentStateVersion
+	return version == 0 || (version >= previousEnvironmentStateVersion && version <= 8) || (version >= 10 && version <= 12) || version == 16 || version == environmentStateVersion
 }
 
 func normalizeEnvironmentState(data *environmentFileState) error {
+	if err := validateOwnedWorkspaceCleanup(*data); err != nil {
+		return err
+	}
+	// Version 17 adds ownership/preferences only. Preserve all version 16
+	// identities and retained-data lifetimes; older writers must reject new data.
+	if data.Version == 16 {
+		data.Version = environmentStateVersion
+	}
 	if !supportedEnvironmentStateVersion(data.Version) {
 		return fmt.Errorf("environment state version %d is unsupported (want %d): %w", data.Version, environmentStateVersion, core.ErrIncompatibleState)
 	}

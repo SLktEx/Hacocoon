@@ -14,6 +14,15 @@ class ContractTests(unittest.TestCase):
         for spec in self.specs.values():
             self.assertEqual(check((ROOT / ".github/workflows" / spec["file"]).read_text(), spec), [])
 
+    def test_real_packer_gate_cannot_disappear_or_be_conditional(self):
+        spec = self.specs["incus-core-e2e"]
+        source = (ROOT / ".github/workflows" / spec["file"]).read_text()
+        step = '[product] Build and import real Packer Incus images'
+        for mutation in (source.replace(step, 'removed real build'),
+                         source.replace('name: "' + step + '"',
+                                        'name: "' + step + '"\n        if: false')):
+            self.assertTrue(check(mutation, spec))
+
     def test_removed_trigger_paths_job_and_evidence_rejected(self):
         spec = self.specs["ubuntu-installer-e2e"]
         source = (ROOT / ".github/workflows" / spec["file"]).read_text()

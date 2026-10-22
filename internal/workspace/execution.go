@@ -66,29 +66,3 @@ func (s *Service) exec(ctx context.Context, name string, req core.ExecutionReque
 	}
 	return s.runtime.ExecEnvironment(ctx, environment.RuntimeRef, req)
 }
-
-func (s *Service) Shell(ctx context.Context, name string) (err error) {
-	started := time.Now()
-	ctx = logging.With(ctx, "operation", "shell_environment", "environment_id", name)
-	logger := logging.FromContext(ctx).With("component", "core")
-	logger.InfoContext(ctx, "opening environment shell")
-	defer func() {
-		if err != nil {
-			logger.ErrorContext(ctx, "environment shell failed",
-				"duration_ms", time.Since(started).Milliseconds(),
-				"error", err,
-			)
-			return
-		}
-		logger.InfoContext(ctx, "environment shell closed", "duration_ms", time.Since(started).Milliseconds())
-	}()
-
-	if _, err := validateEnvironmentName(name); err != nil {
-		return err
-	}
-	environment, err := s.store.GetEnvironment(ctx, name)
-	if err != nil {
-		return err
-	}
-	return s.runtime.ShellEnvironment(ctx, environment.RuntimeRef)
-}

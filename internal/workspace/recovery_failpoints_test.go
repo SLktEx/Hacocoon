@@ -30,8 +30,9 @@ var errInjectedFailure = errors.New("injected reliability failure")
 
 type failpointStore struct {
 	environmentStore
-	point semanticFailpoint
-	fired bool
+	point     semanticFailpoint
+	fired     bool
+	interrupt func()
 }
 
 func (s *failpointStore) arm(point semanticFailpoint) {
@@ -44,6 +45,9 @@ func (s *failpointStore) inject(point semanticFailpoint) error {
 		return nil
 	}
 	s.fired = true
+	if s.interrupt != nil {
+		s.interrupt()
+	}
 	return fmt.Errorf("%s: %w", point, errInjectedFailure)
 }
 
@@ -119,8 +123,6 @@ func (r *failpointRuntime) CreateEnvironment(_ context.Context, spec core.Enviro
 func (*failpointRuntime) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, nil
 }
-
-func (*failpointRuntime) ShellEnvironment(context.Context, string) error { return nil }
 
 func (r *failpointRuntime) DeleteEnvironment(_ context.Context, ref string) error {
 	if err := r.inject(failBeforeRuntimeDelete); err != nil {

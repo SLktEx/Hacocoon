@@ -34,16 +34,16 @@ func TestLifecycleRejectsInvalidEnvironmentNamesBeforeStateOrRuntimeAccess(t *te
 				}
 			})
 
-			t.Run("shell", func(t *testing.T) {
-				runtime := &fakeEnvironmentRuntime{}
+			t.Run("shell stream", func(t *testing.T) {
+				runtime := &shellStreamProvider{fakeEnvironmentRuntime: &fakeEnvironmentRuntime{}}
 				store := newFakeEnvironmentStore()
 				store.getErr = storeAccessErr
 
-				err := New(runtime, store).Shell(context.Background(), name)
+				prepared, err := New(runtime, store).PrepareShellStream(context.Background(), name)
 				if !errors.Is(err, core.ErrInvalidArgument) || errors.Is(err, storeAccessErr) {
 					t.Fatalf("error = %v", err)
 				}
-				if runtime.shellRef != "" {
+				if prepared != nil || runtime.calls != 0 || runtime.shellRef != "" {
 					t.Fatalf("runtime was reached: ref=%q", runtime.shellRef)
 				}
 			})

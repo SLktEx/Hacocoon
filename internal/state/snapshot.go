@@ -12,7 +12,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-var snapshotIDPattern = regexp.MustCompile(`^snap-[a-f0-9]{32}$`)
+var snapshotIDPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,39}[a-z0-9])?$`)
+var snapshotImageRevisionPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 var snapshotOwnerPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func validateSnapshot(s core.Snapshot) error {
@@ -44,6 +45,7 @@ func validateSnapshot(s core.Snapshot) error {
 		refs[c.NativeRef] = true
 		roles[c.Role] = true
 		switch {
+		case c.Role == "image":
 		case c.Role == "base":
 			base++
 		case c.Role == "rootfs":
@@ -68,6 +70,12 @@ func validateSnapshot(s core.Snapshot) error {
 		}
 	}
 	if len(expectedData) != 0 || root != 1 || work == 0 || base > 1 || (base != 0 && (s.Source.Environment.Base == nil || s.Source.Environment.Base.Name == "" || s.Source.Environment.Base.Revision == "")) {
+		return core.ErrInvalidArgument
+	}
+	if s.Image != nil && (!roles["image"] || string(s.Image.Name) != s.ID || !snapshotImageRevisionPattern.MatchString(string(s.Image.Revision))) {
+		return core.ErrInvalidArgument
+	}
+	if roles["image"] && s.State == "ready" && s.Image == nil {
 		return core.ErrInvalidArgument
 	}
 	hasOCI := s.Source.Environment.PersistentResource != (core.PersistentResourceRef{})
@@ -182,6 +190,16 @@ func (s *EnvironmentJSONStore) CommitSnapshot(ctx context.Context, id string) er
 			}
 		}
 		value.State = "ready"
+		return nil
+	})
+}
+
+func (s *EnvironmentJSONStore) RecordSnapshotImage(ctx context.Context, id string, image core.BaseRef) error {
+	return s.mutateSnapshot(ctx, id, func(value *core.Snapshot) error {
+		if value.State != "capturing" || image.Name == "" || image.Revision == "" {
+			return core.ErrIncompatibleState
+		}
+		value.Image = &image
 		return nil
 	})
 }

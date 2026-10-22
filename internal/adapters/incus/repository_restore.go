@@ -41,7 +41,7 @@ func (b *RepositoryBackend) SavedWorkspaces(ctx context.Context, saved core.Snap
 		}
 		out = append(out, gitrepo.SavedWorkspace{Component: c, Repository: p.SourceID, Remote: p.Remote, Branch: p.Branch})
 	}
-	if len(out) < 1 || len(out) > 8 {
+	if len(out) < 1 || len(out) > core.MaxWorkspaceRepositories {
 		return nil, core.ErrIncompatibleState
 	}
 	for _, source := range out {

@@ -99,8 +99,14 @@ Environment data and do not attach them to the trusted Host.
 
 ## Default Environment creation flow
 
-Status: **partial**. Default copy/reuse and opt-out are implemented; trusted Host
-existing-data migration and Docker/runtime acceptance remain incomplete. The explicit Store
+Status: **partial**. Default copy/reuse and opt-out are implemented. The bounded
+installed Ubuntu CLI gate passed automatic Host image copy, detached deletion,
+same-Workspace retained Store recreation and populated-Host opt-out; see
+[the exact evidence](../status/acceptance-evidence.md#installed-oci-cli).
+Guest offline execution and broader Docker/runtime acceptance remain incomplete.
+Old-version and custom OCI layout migration are outside the current [#275](https://github.com/SLktEx/Hacocoon/issues/275)
+scope; current-version Workspace/OCI data retention and ownership checks remain
+required. The explicit Store
 commands above are implemented advanced/recovery operations, not the intended
 ordinary create sequence. Environment creation must automatically make an independent
 Btrfs COW copy of the actual image storage area used by Docker/nerdctl in
@@ -112,8 +118,8 @@ same local images available immediately with a compatible runtime.
 A single optional `--no-oci` opt-out is implemented. Existing wiring consumes a
 ready source-only `oci-source:host`. Ordinary `haco setup` now connects the
 managed area for a fresh Host and configures its rootful containerd/Docker data
-roots. No extra daily command is required. Existing data or custom configuration
-is refused pending an area-preserving migration; do not remove it to bypass the
+roots. No extra daily command is required. Unsupported existing data or custom
+configuration is refused; do not remove existing data to bypass the
 check. Repeat setup verifies the binding without rewriting the source. The copy
 provider repeats readiness/configuration validation immediately before its journal
 and pause, so a changed Host layout is not silently treated as the managed source. The proposed image-inventory producer was withdrawn because it did not
@@ -140,7 +146,7 @@ reattached to Host. Reusing a Workspace's retained Store preserves guest changes
 Copy failure must retain source/target identities and the writer-stopped state
 until completion or absence is proven. The backend now permits the exact owned Host area only through the pause/copy/resume
 protocol in ADR 0031; other attached sources remain refused. This is a provider
-slice with fresh Host binding, not existing-data migration or application recovery acceptance. Dedicated Host-area copy and independent image-use/mutation/deletion fixtures passed. Existing-data migration, full installed recreation and interrupted-operation combinations remain incomplete; see [acceptance evidence](../status/acceptance-evidence.md#storage).
+slice with fresh Host binding, not existing-data migration or application recovery acceptance. Dedicated Host-area copy and independent image-use/mutation/deletion fixtures passed. The installed Ubuntu CLI also passed exact image/Store identity retention through deletion and same-Workspace recreation. Guest offline execution, broader installed/runtime configurations and interrupted-operation combinations remain incomplete; see [acceptance evidence](../status/acceptance-evidence.md#installed-oci-cli).
 
 ## Independent offline copies
 
@@ -214,10 +220,13 @@ The owned Host-area E2E can build and run actual Docker/nerdctl images in the Ho
 copy its area through the canonical resource service, and run the same identities
 in a separate networkless instance with `--pull never`. The copy path does not
 export/import images. Docker 28.5.2 uses vfs and nerdctl 2.3.5/containerd 2.3.3 uses
-the native snapshotter in this fixture; other drivers/versions and full installed
-CLI recreation are separate acceptance scopes. It verifies independent image
-deletion and exact owned cleanup. Runtime binaries and build context are fixture
-inputs, not shared Host management sockets or credentials.
+the native snapshotter in this fixture. It verifies independent image deletion and
+exact owned cleanup. Runtime binaries and build context are fixture inputs, not
+shared Host management sockets or credentials.
+
+The separate [installed Ubuntu CLI gate](../status/acceptance-evidence.md#installed-oci-cli)
+passed image identity and retained-Store recreation without guest runtime execution.
+Other drivers/versions and full installed runtime use remain separate scopes.
 
 The maintained Btrfs GHA job enables this extension. On a dedicated root
 Linux/WSL Incus host, prepare a new fixture directory and run:

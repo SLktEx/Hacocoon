@@ -61,7 +61,7 @@ func (s *Importer) Import(ctx context.Context, source io.Reader, name string, li
 	if manifest.HasOCI {
 		count--
 	}
-	if count > 8 || (manifest.HasOCI && (s.Stores == nil || s.StoreKind == "")) {
+	if count > core.MaxWorkspaceRepositories || (manifest.HasOCI && (s.Stores == nil || s.StoreKind == "")) {
 		return result, core.ErrUnsupported
 	}
 	dataEnvironments, supportsData := s.Environments.(dataImportEnvironments)

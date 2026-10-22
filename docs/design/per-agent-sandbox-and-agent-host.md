@@ -109,7 +109,7 @@ v0.9 is additive. These paths remain available:
 
 ```text
 haco env create / status / delete; haco open --client ssh
-haco run
+haco open --new [IMAGE]
 haco-vscode open / delete
 ```
 

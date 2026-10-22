@@ -27,6 +27,9 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 		if err != nil {
 			return basebuild.Result{}, err
 		}
+		if req.MaxBytes != 2<<40 {
+			t.Error("image limit not forwarded", req.MaxBytes)
+		}
 		if string(data) != "archive bytes" {
 			t.Error("wrong input")
 		}
@@ -56,8 +59,8 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 	}
 	for _, lang := range []string{"en", "ja"} {
 		t.Setenv("HACO_UI_LANGUAGE", lang)
-		code, out, diagnostic := captureRun(t, "base", "import", "--name", "tools", file)
-		if code != 0 || diagnostic != "" || !strings.Contains(out, "--base tools") {
+		code, out, diagnostic := captureRun(t, "base", "import", "--name", "tools", "--max-image-size", "2TiB", file)
+		if code != 0 || diagnostic != "" || !strings.Contains(out, "haco open --new tools") {
 			t.Fatal(code, out, diagnostic)
 		}
 		want := "is ready"
@@ -69,7 +72,7 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 		}
 	}
 	fail = true
-	code, out, diagnostic := captureRun(t, "base", "import", "--name", "tools", "--json", file)
+	code, out, diagnostic := captureRun(t, "base", "import", "--name", "tools", "--max-image-size", "2TiB", "--json", file)
 	var result basebuild.Result
 	if code != 1 || diagnostic == "" || json.Unmarshal([]byte(out), &result) != nil || result.Builder == "" {
 		t.Fatal(code, out, diagnostic)
@@ -80,7 +83,7 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, input := range []string{link, filepath.Dir(file)} {
-		code, _, _ := captureRun(t, "base", "import", "--name", "tools", input)
+		code, _, _ := captureRun(t, "base", "import", "--name", "tools", "--max-image-size", "2TiB", input)
 		if code != 1 {
 			t.Fatal(input, code)
 		}
@@ -92,5 +95,74 @@ func TestBaseImportCLIStreamsChosenFileAndShowsNextStep(t *testing.T) {
 	original, err := os.ReadFile(file)
 	if err != nil || string(original) != "archive bytes" {
 		t.Fatal("source changed", err)
+	}
+}
+
+type largeArchiveImporter struct {
+	t     *testing.T
+	calls int
+	size  int64
+	limit int64
+}
+
+func (f *largeArchiveImporter) ImportBase(_ context.Context, reader io.Reader, request basebuild.ImportRequest) (basebuild.Result, error) {
+	f.calls++
+	stream, ok := reader.(*io.SectionReader)
+	if !ok || stream.Size() != f.size || request.MaxBytes != f.limit {
+		f.t.Fatal("large archive was not bounded", request)
+	}
+	return basebuild.Result{}, nil
+}
+func TestBaseImportLargeSparseFileDoesNotRequireWholeFileRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.tar")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(65 << 30); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client := &largeArchiveImporter{t: t, size: 65 << 30, limit: 2 << 40}
+	if _, err := loadBaseImport(context.Background(), client, path, basebuild.ImportRequest{Name: "large", MaxBytes: 2 << 40}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadBaseImport(context.Background(), client, path, basebuild.ImportRequest{Name: "large", MaxBytes: 64 << 30}); err == nil {
+		t.Fatal("limit ignored")
+	}
+	if client.calls != 1 {
+		t.Fatal("oversized input reached controller")
+	}
+}
+
+func TestBaseImportUnlimitedSparseFileAboveTiB(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.tar")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	size := int64(2<<40) + 1
+	if err := file.Truncate(size); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client := &largeArchiveImporter{t: t, size: size}
+	if _, err := loadBaseImport(context.Background(), client, path, basebuild.ImportRequest{Name: "large"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadBaseImport(context.Background(), client, path, basebuild.ImportRequest{Name: "large", MaxBytes: 1 << 40}); err == nil {
+		t.Fatal("explicit limit ignored")
+	}
+	if client.calls != 1 {
+		t.Fatal("over-limit request reached controller")
+	}
+	if limit, err := baseArchiveLimit("unlimited"); err != nil || limit != 0 {
+		t.Fatal(limit, err)
 	}
 }

@@ -55,7 +55,7 @@ func (p *BaseProvider) listBaseImages(ctx context.Context) ([]basemanage.Image, 
 		if !validBaseImageIdentity(id) || image.Public || image.Type != "container" {
 			return nil, core.ErrCapabilityStale
 		}
-		v := basemanage.Image{Identity: id, Aliases: []string{}, NativeUsers: []string{}, ProtectedAliases: []string{}}
+		v := basemanage.Image{Identity: id, BuildEnvironment: image.Properties["user.hacocoon.build-environment"], Aliases: []string{}, NativeUsers: []string{}, ProtectedAliases: []string{}}
 		for _, a := range aliases {
 			if a.Target != id.Fingerprint {
 				continue

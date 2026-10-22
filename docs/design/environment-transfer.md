@@ -97,7 +97,7 @@ The protected Workspace metadata reader is required before capture starts; missi
 configuration cannot silently produce an archive without repository mappings.
 Version 1 remains readable and imports offline. Older readers reject version 2.
 Source local-file routes import offline; missing routing cannot grant destination
-Host access. Current aggregate import supports at most **eight** Workspace members;
+Host access. Current aggregate import supports at most **253** Workspace members;
 larger valid envelopes fail before native mutation. Partial routing is invalid.
 Online reconnect requires an exact current Host repository remote/branch match.
 

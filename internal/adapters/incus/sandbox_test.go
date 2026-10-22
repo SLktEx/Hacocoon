@@ -14,7 +14,7 @@ import (
 const sandboxTestFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
-	for label, built := range map[string]bool{"default": false, "built": true} {
+	for label, built := range map[string]bool{"default": false, "built": true, "deferred": true} {
 		t.Run(label, func(t *testing.T) {
 
 			initialized, recorded := false, false
@@ -103,7 +103,7 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 				PIDs:        core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 1024},
 				RootBytes:   core.ResourceLimit{Mode: core.ResourceLimitFinite, Value: 40 << 30},
 			}
-			created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{Base: baseName, InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget}, func(v core.EnvironmentRuntime) error {
+			created, err := provider.CreateEnvironmentWithReceipt(context.Background(), core.EnvironmentRuntimeSpec{DeferStart: label == "deferred", Base: baseName, InstanceID: testEnvironmentInstance, Name: "demo", WorkspacePath: "/tmp/work", Resources: budget}, func(v core.EnvironmentRuntime) error {
 				if !initialized || recorded || v.Ref != "haco-demo" || v.Resources != budget || v.Base == nil {
 					t.Fatal("invalid creation receipt", v)
 				}
@@ -112,6 +112,17 @@ func TestSandboxProviderAppliesFiniteLimitsBeforeStart(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if label == "deferred" {
+				if renewed || values["user.hacocoon.creation"] != "stopped" {
+					t.Fatal("deferred guest initialized", values)
+				}
+				for _, call := range runner.calls {
+					if call.args[0] == "start" || call.args[0] == "exec" {
+						t.Fatal("create booted guest", call.args)
+					}
+				}
+				return
 			}
 			if created.Resources != budget {
 				t.Fatalf("resources = %#v, want %#v", created.Resources, budget)

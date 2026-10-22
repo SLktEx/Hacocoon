@@ -75,9 +75,6 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 	runtimeAdapter.project = project
 	var shellStdout bytes.Buffer
 	var shellStderr bytes.Buffer
-	runtimeAdapter.stdin = strings.NewReader("exit\n")
-	runtimeAdapter.stdout = &shellStdout
-	runtimeAdapter.stderr = &shellStderr
 
 	if err := runtimeAdapter.ConfigureStorageProvider(func(context.Context) (map[string]string, error) {
 		return map[string]string{"incus_pool": "default"}, nil
@@ -151,7 +148,7 @@ func TestRealIncusWorkspaceLifecycleE2E(t *testing.T) {
 		t.Fatalf("expected exit code 17, got %T %v", err, err)
 	}
 
-	if err := service.Shell(ctx, "demo"); err != nil {
+	if err := service.ShellStream(ctx, "demo", strings.NewReader("exit\n"), &shellStdout, &shellStderr); err != nil {
 		t.Fatalf("shell connectivity: %v\nstderr=%s", err, shellStderr.String())
 	}
 

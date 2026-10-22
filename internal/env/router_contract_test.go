@@ -39,7 +39,7 @@ func (p *contractProvider) CreateEnvironment(ctx context.Context, spec core.Envi
 func (p *contractProvider) ExecEnvironment(ctx context.Context, ref string, req core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{ExitCode: 17, Stdout: string(req.Stdin)}, p.observe(ctx, ref, req)
 }
-func (p *contractProvider) ShellEnvironment(ctx context.Context, ref string) error {
+func (p *contractProvider) ShellEnvironmentStream(ctx context.Context, ref string, _ io.Reader, _, _ io.Writer) error {
 	return p.observe(ctx, ref, nil)
 }
 func (p *contractProvider) DeleteEnvironment(ctx context.Context, ref string) error {
@@ -115,9 +115,9 @@ func TestPersistedEnvironmentRoutePinsOperationsAfterDefaultChanges(t *testing.T
 		{"exec", func(ctx context.Context, r *Router, ref string) (any, error) {
 			return r.ExecEnvironment(ctx, ref, execution)
 		}, core.ExecutionResult{ExitCode: 17, Stdout: string(execution.Stdin)}, execution, false},
-		{"shell", func(ctx context.Context, r *Router, ref string) (any, error) {
-			return nil, r.ShellEnvironment(ctx, ref)
-		}, nil, nil, false},
+		{"shell stream", func(ctx context.Context, r *Router, ref string) (any, error) {
+			return nil, r.ShellEnvironmentStream(ctx, ref, strings.NewReader(""), io.Discard, io.Discard)
+		}, nil, nil, true},
 		{"delete", func(ctx context.Context, r *Router, ref string) (any, error) {
 			return nil, r.DeleteEnvironment(ctx, ref)
 		}, nil, nil, false},
@@ -242,7 +242,7 @@ func TestProcessRoutePreservesStreamsExitAndCancellation(t *testing.T) {
 
 func TestShellStreamRouteRejectsUnavailableProvider(t *testing.T) {
 	p := &contractProvider{}
-	r, err := NewRouter(testProvider, Register(testProvider, p))
+	r, err := NewRouter(testProvider, Register(testProvider, requiredOnlyProvider{p}))
 	if err != nil {
 		t.Fatal(err)
 	}

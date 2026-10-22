@@ -3,6 +3,7 @@ package incus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -98,7 +99,13 @@ func (p *BaseProvider) builtBases(ctx context.Context) (map[core.BaseName]core.B
 		if _, exists := p.sources[name]; exists {
 			return nil, core.ErrAlreadyExists
 		}
-		image, err := p.ownedBaseImage(ctx, name, a)
+		var image baseImage
+		var err error
+		if a.Description == imageTagDescription {
+			image, err = p.taggedImage(ctx, a)
+		} else {
+			image, err = p.ownedBaseImage(ctx, name, a)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +180,7 @@ func (p *BaseProvider) PublishBase(ctx context.Context, env core.Environment, le
 			return result, core.ErrAlreadyExists
 		}
 	}
-	properties := map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": string(name), "user.hacocoon.build-instance": lease.InstanceID}
+	properties := map[string]string{"user.hacocoon.kind": "base-image", "user.hacocoon.base-name": string(name), "user.hacocoon.build-instance": lease.InstanceID, "user.hacocoon.build-environment": env.Name}
 	data := map[string]any{"public": false, "auto_update": false, "properties": properties, "source": map[string]string{"type": "instance", "name": env.RuntimeRef}, "aliases": []map[string]string{{"name": buildAlias, "description": builtBaseDescription}}}
 	if err := p.baseQuery(ctx, "POST", p.basePath(""), data, nil); err != nil {
 		return result, fmt.Errorf("image publication unconfirmed; inspect Incus alias %s: %w", buildAlias, core.ErrRecoveryRequired)
@@ -196,6 +203,12 @@ func (p *BaseProvider) PublishBase(ctx context.Context, env core.Environment, le
 	image, err := p.ownedBaseImage(ctx, name, *published)
 	if err != nil {
 		return result, err
+	}
+	// The build alias is an observation, not proof that the returned image
+	// belongs to this publication. Match its durable receipt to the exact
+	// builder lease before exposing a revision or moving the logical pointer.
+	if image.Properties["user.hacocoon.build-instance"] != lease.InstanceID || image.Properties["user.hacocoon.build-environment"] != env.Name {
+		return result, errors.Join(core.ErrCapabilityStale, core.ErrRecoveryRequired)
 	}
 	result.Revision = core.BaseRevision("sha256:" + image.Fingerprint)
 	current := map[string]string{"name": aliasName, "target": image.Fingerprint, "description": builtBaseDescription}

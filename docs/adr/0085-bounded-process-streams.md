@@ -1,5 +1,8 @@
 # ADR 0085: Bounded process streams through the canonical run lifecycle
 
+Public CLI/RPC decisions are superseded by [ADR 0113](0113-unified-environment-creation.md). The original rationale below is historical.
+
+
 Status: accepted for the development candidate; native stdin/TTY acceptance pending.
 
 Date: 2026-09-13

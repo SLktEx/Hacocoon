@@ -147,7 +147,7 @@ func (p *SandboxProvider) createEnvironment(ctx context.Context, spec core.Envir
 	if err := p.configureSandboxEnvironment(ctx, ref, spec, resources); err != nil {
 		return cleanup(err)
 	}
-	if resolved.built {
+	if resolved.built && !spec.DeferStart {
 		if err := p.renewGuestSSHIdentity(ctx, ref); err != nil {
 			return cleanup(err)
 		}

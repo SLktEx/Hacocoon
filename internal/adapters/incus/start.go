@@ -73,7 +73,10 @@ func (p *SandboxProvider) startEnvironment(ctx context.Context, ref string, bind
 		return fmt.Errorf("disable automatic Environment startup: %w", err)
 	}
 	if status.State == core.EnvironmentRunning {
-		return p.provisionEnvironmentDNS(ctx, ref)
+		if err := p.provisionEnvironmentDNS(ctx, ref); err != nil {
+			return err
+		}
+		return p.initializeCreatedEnvironment(ctx, ref)
 	}
 	if err := p.Start(ctx, ref); err != nil {
 		return err
@@ -87,6 +90,9 @@ func (p *SandboxProvider) startEnvironment(ctx context.Context, ref string, bind
 	}
 	if err == nil {
 		err = p.provisionEnvironmentDNS(ctx, ref)
+	}
+	if err == nil {
+		err = p.initializeCreatedEnvironment(ctx, ref)
 	}
 	if err == nil {
 		return nil

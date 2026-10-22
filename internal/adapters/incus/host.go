@@ -76,6 +76,9 @@ func (r *Runtime) EnsureTrustedHost(ctx context.Context) error {
 			"--storage", rootPool,
 			"--no-profiles", "--network", trustedHostNetwork,
 			"--config", trustedHostRoleKey+"="+trustedHostRoleValue,
+			// Incus prepares nesting mounts and AppArmor namespaces at startup.
+			// Enabling nesting after the first boot cannot establish all of them.
+			"--config", "security.nesting=true",
 			"--config", trustedHostControlEnvKey+"="+trustedHostControlSocket,
 		)
 		return err

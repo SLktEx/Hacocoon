@@ -19,6 +19,7 @@ type SnapshotComponent struct {
 	State     string `json:"state"`
 }
 type Snapshot struct {
+	Image *BaseRef `json:"image,omitempty"`
 	// CreatedAt is capture reservation time, not a provider ordering or authority.
 	CreatedAt  time.Time           `json:"created_at,omitzero"`
 	ID         string              `json:"id"`

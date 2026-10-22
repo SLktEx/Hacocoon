@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"sort"
 	"strings"
@@ -130,4 +131,32 @@ func (s *Service) DeleteManagedWorkspace(ctx context.Context, work core.Workspac
 		}
 	}
 	return provider.DeleteWorkspace(ctx, work)
+}
+
+// DeleteOwnedWorkspace removes only resources durably bound to this exact
+// Workspace. Each resource transition independently excludes current consumers.
+func (s *Service) DeleteOwnedWorkspace(ctx context.Context, work core.Workspace) error {
+	catalog, ok := s.store.(managedWorkspaceCatalog)
+	if !ok {
+		return core.ErrUnsupported
+	}
+	all, err := catalog.ListPersistentResources(ctx)
+	if err != nil {
+		return err
+	}
+	for _, resource := range all {
+		if resource.WorkspaceID != work.ID {
+			continue
+		}
+		if s.deleteWorkspaceResource == nil {
+			return core.ErrUnsupported
+		}
+		if err := s.deleteWorkspaceResource(ctx, resource.ID, work.ID); err != nil {
+			return fmt.Errorf("cleanup Workspace %s resource %s: %w", work.Path, resource.ID, err)
+		}
+	}
+	if err := s.DeleteManagedWorkspace(ctx, work); err != nil {
+		return fmt.Errorf("cleanup Workspace %s: %w", work.Path, err)
+	}
+	return nil
 }

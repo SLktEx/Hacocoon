@@ -104,3 +104,16 @@ func TestReferencesUseImmutableRevisionAndSortedNames(t *testing.T) {
 		t.Fatalf("incorrect revision users: %+v", got)
 	}
 }
+
+func TestSnapshotOwnedImageCannotBeRemovedDirectly(t *testing.T) {
+	f := &fixture{id: Identity{Name: "snapshot-image", Fingerprint: "saved"}}
+	f.snapshots = []core.Snapshot{{ID: "snapshot", Image: &core.BaseRef{Name: "snapshot-image", Revision: "sha256:saved"}}}
+	s := &Service{Backend: f, Catalog: f}
+	if err := s.Delete(context.Background(), f.id); !errors.Is(err, core.ErrStorageBusy) || f.deleted {
+		t.Fatalf("deleted Snapshot image: %v", err)
+	}
+	f.snapsErr = errors.New("catalog unavailable")
+	if err := s.Delete(context.Background(), f.id); !errors.Is(err, f.snapsErr) || f.deleted {
+		t.Fatalf("ignored unavailable Snapshot catalog: %v", err)
+	}
+}

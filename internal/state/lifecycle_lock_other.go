@@ -17,7 +17,7 @@ func (s *EnvironmentJSONStore) LockLifecycle(ctx context.Context, domain, id str
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if (domain != "environment" && domain != "workspace") || id == "" {
+	if (domain != "environment" && domain != "workspace" && domain != "resource-name") || id == "" {
 		return nil, fmt.Errorf("invalid lifecycle lock identity")
 	}
 	path, err := filepath.Abs(s.path)

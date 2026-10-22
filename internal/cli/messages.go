@@ -23,7 +23,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 	_, _ = fmt.Fprintln(out, "Hacocoon")
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, language.Text("help.simple"))
-	_, _ = fmt.Fprint(out, "  haco repo add first https://github.com/OWNER/FIRST.git\n  haco repo add second https://github.com/OWNER/SECOND.git\n  haco open\n\n")
+	_, _ = fmt.Fprint(out, "  haco repo add https://github.com/OWNER/REPO.git\n  haco open\n\n")
 	_, _ = fmt.Fprintln(out, language.Text("help.usage"))
 	_, _ = fmt.Fprintln(out, "  haco <command>")
 	_, _ = fmt.Fprintln(out)
@@ -40,11 +40,16 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		{"reclaim", "help.reclaim"},
 		{"env", "help.env"},
 		{"snapshot", "help.snapshot"},
-		{"run", "help.run"},
 		{"ssh setup", "help.ssh"},
 		{"ssh cleanup", "command.ssh.cleanup"},
 		{"open", "command.open"},
-		{"base", "help.base"},
+		{"image", "command.image"},
+		{"volume", "command.volume"},
+		{"create", "command.create"},
+		{"exec", "command.exec"},
+		{"restart", "command.restart"},
+		{"commit", "command.commit"},
+		{"ps", "help.daily.list"},
 		{"plugin", "help.plugin"},
 		{"repo", "help.repo"},
 		{"workspace", "command.workspace"},
@@ -64,7 +69,7 @@ func writeLocalizedHelp(out io.Writer, language cliui.Language) {
 		_, _ = fmt.Fprintln(out, "  "+step.command)
 		_, _ = fmt.Fprint(out, cliui.HelpLines("    ", language.Text(step.message), 60))
 	}
-	_, _ = fmt.Fprintln(out, "  haco env create --workspace <controller-path|managed:name> <name>")
+	_, _ = fmt.Fprintln(out, "  haco repo add https://github.com/example/project.git\n  haco open")
 	_, _ = fmt.Fprint(out, cliui.HelpLines("", language.Text("help.daily.footer"), 60))
 }
 

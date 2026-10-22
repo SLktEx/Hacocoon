@@ -100,6 +100,271 @@ Repository CI drives the shipped `haco` and `haco-host` controller clients as an
 
 These checks establish lifecycle and policy behavior on the hosted environment. They do not by themselves establish compression ratio, COW efficiency, Windows-host VHDX compaction effectiveness, or every supported Host configuration.
 
+## Host OCI copy measurement
+
+`TestRealIncusHostToolingE2E` extends the existing standard Host fixture with
+byte measurements. It pulls BusyBox, builds and executes a real image with
+BuildKit, copies the actual Host OCI area through the canonical resource service,
+and reuses the image in an independent networkless receiver. It does not turn the
+older synthetic cache/Store fixtures into real-image acceptance.
+
+The fixture samples the Host area before copying, both areas after native copy,
+and both areas before/after an 8 MiB random write to a retained container's writable
+layer. It then deletes that container and one image tag and samples again while
+the Host image and the receiver's second tag remain. Native clone ancestry and
+nonzero shared extents in the copied image-content and BuildKit directories are
+required. Allocation and exclusive extents must increase after the write; the
+Host image must still execute with unchanged content and no copied write.
+
+Each `storage_measurement` record identifies its operation and area. The whole
+Store, containerd content blobs and BuildKit directory are reported separately:
+
+| Observation | Command and meaning |
+|---|---|
+| `logical_bytes` | `du --summarize --apparent-size --block-size=1`: apparent directory contents |
+| `allocated_bytes` | `du --summarize --block-size=1`: referenced allocated blocks, including CoW duplicates across copies |
+| `extent_total_bytes`, `extent_exclusive_bytes`, `extent_set_shared_bytes` | `btrfs filesystem du --raw --summarize`: FIEMAP extent accounting; set-shared counts overlapping shared extents once within each argument |
+| `pool_logical_bytes`, `pool_allocated_bytes` | File size and `du --block-size=1` allocation of this fixture's Incus-owned sparse backing image |
+
+Do not sum per-copy allocation or shared extents to infer unique physical usage.
+FIEMAP extent lengths are not a compressed-byte measurement. The pool observation
+includes rootfs, metadata and runtime activity; differences are observed allocation
+changes, not device write counters or export/import write amplification. Image/tag
+absence does not prove physical reclamation, especially while other references
+remain. See the [Btrfs command contract](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand) and the
+[versioned summary format](https://github.com/kdave/btrfs-progs/blob/v6.17/cmds/filesystem-du.c#L496-L508).
+
+The observer verifies exact volume ownership and consumers, pauses only those
+fixture instances through Incus, synchronizes the filesystem, reads the counters,
+and resumes the same instances. All fixture writes use guest/runtime operations;
+the observer does not modify backing subvolumes, loop devices or mounts. Failure
+retains the printed project/catalog and may retain paused consumers for inspection.
+It never adopts an existing installation or deletes an unrelated pool.
+
+Run from the repository root on a dedicated root Linux/WSL Incus/Btrfs host with
+normal Host-tool provisioning/network access. The maintained Incus workflow runs
+this same test; no separate benchmark workflow is required:
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go test -c -o /tmp/haco-host-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_HOST_TOOLING=1 /tmp/haco-host-storage.test \
+  -test.run='^TestRealIncusHostToolingE2E$' -test.v -test.timeout=25m
+```
+
+Keep the full test/CI receipt with its exact tested commit. The fixture additionally
+reports OS/kernel, Go, Incus, Btrfs-progs, nerdctl/containerd/BuildKit versions,
+native snapshotter and built-image identity. Compile from the recorded clean
+checkout; a current worktree revision alone does not authenticate an older binary.
+Native measurements must be recorded in [acceptance evidence](../status/acceptance-evidence.md#storage)
+before claiming measured acceptance. The following sections define separate
+managed-Workspace, rootfs/Image and retained-archive slices of
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241). General Base-build
+workloads, Docker drivers, completed reclamation and large workloads remain
+unverified limits, not additional completion requirements for that representative
+measurement issue. Do not generalize Btrfs observations to other filesystems or
+Windows VHDX allocation.
+
+## Managed Workspace lifecycle measurement
+
+The existing required `TestRealIncusSnapshotAggregateE2E` fixture now samples
+one managed repository volume through running Snapshot capture, public
+`open --new --snapshot`, stopped `env copy`, independent write and deletion.
+This is a bounded synthetic Workspace workload; the real OCI workload remains
+in the separate Host fixture above. Native acceptance and actual values belong
+in [acceptance evidence](../status/acceptance-evidence.md#storage).
+
+The measurement interval starts after the older aggregate fixture's synthetic
+Git/rootfs/OCI setup. New payload writes and unlinks use only the exact owned
+guest; Snapshot, copy and resource deletion use the existing public lifecycle.
+An 8 MiB random file is captured, unlinked from its original Workspace while
+saved data remains, restored and copied. A second 8 MiB random file is written
+only in the final copy. The fixture then deletes the saved Snapshot and restored
+source, samples the surviving copy, and unlinks both payload files there. It
+preserves the aggregate fixture's original Git/content/ownership/cleanup checks.
+
+Each named phase reports the whole selected Workspace volume and its fixed
+payload directory separately, using the `du` and FIEMAP fields defined above.
+Bounded SHA-256 reads connect content to those measurements; identical hashes
+alone never establish sharing. Source/saved/restored/copy labels have stable
+hashes of their exact project/pool/volume/owner identity. The durable fixture
+catalog retains the original ownership records. Capture, restore and copy must
+show actual shared extents; the independent write must increase referenced
+allocation and exclusive extents without changing the saved or source payload.
+
+Observation holds the canonical Environment-then-Workspace locks, checks native
+volume ownership and exclusive attachment, and pauses only the exact running
+fixture consumers through Incus. Stopped consumers remain stopped. Identity,
+generation, attachment and pause state are checked again before physical reads
+and resume. Unexpected state or failed observation retains the fixture, including
+paused instances, rather than guessing cleanup. Each sampling phase is bounded
+by two minutes and each command by one minute; fixed payload files must be
+regular, single-link and exactly 8 MiB. Nothing modifies a backing subvolume,
+loop device or mount directly.
+
+Pool counters are marked `pool_scope=whole_shared_pool`. This managed pool also
+contains rootfs, Images, metadata and unrelated fixture/Host activity; its deltas
+cannot be attributed to the Workspace operation. A single filesystem sync
+precedes each sample. [Btrfs documents](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)
+that this starts deleted-subvolume cleaning but does not wait for completion.
+Native object absence therefore proves logical deletion only. Surviving-copy
+exclusive/shared transitions and backing allocation after the last live unlink
+are observations, with no sleep, retry-to-green or required capacity reduction.
+They do not prove completed extent retirement, discard or Windows reclamation.
+
+On a dedicated Linux/WSL Incus Host with the normal managed Btrfs pool and a
+cached container image, build from the recorded clean commit and supply the
+verified pool name and full image fingerprint:
+
+```bash
+git rev-parse HEAD
+git diff --exit-code
+go build -o /tmp/haco-snapshot-cli ./cmd/haco
+go test -c -o /tmp/haco-snapshot-storage.test ./internal/adapters/incus
+sudo env HACO_E2E_SNAPSHOT_AGGREGATE=1 \
+  HACO_E2E_SNAPSHOT_CLI=/tmp/haco-snapshot-cli \
+  HACO_E2E_INCUS_RESUME_POOL=<managed-pool> \
+  HACO_E2E_INCUS_RESUME_IMAGE=<full-cached-image-fingerprint> \
+  /tmp/haco-snapshot-storage.test \
+  -test.run='^TestRealIncusSnapshotAggregateE2E$' -test.v -test.timeout=55m
+```
+
+The maintained `incus-snapshots` job already requires this test and supplies the
+CLI; no additional workflow or opt-in measurement gate is introduced. The test
+prints its private failure-recovery catalog before resource creation and cleans
+only exact owned resources on success. Retain the complete receipt and exact
+compiled commit. This measures Workspace data, not the separate rootfs/Image
+branch and retained-archive interval below. General Base-build efficiency,
+completed physical reclamation and larger workloads remain unverified; logical
+deletion does not require a capacity reduction to be reported faithfully.
+
+## Rootfs capture and ordinary Image reuse measurement
+
+The same required `TestRealIncusSnapshotAggregateE2E` fixture has a distinct
+rootfs observer. It measures a bounded synthetic rootfs workload through two
+branches; neither branch infers physical sharing from matching content alone:
+
+1. Before running Snapshot capture, the source guest writes an 8 MiB random
+   rootfs payload. The observer samples the source and independent saved rootfs,
+   then checks that unlinking the source payload leaves the saved bytes intact.
+   Public `open --new --snapshot` copies the saved rootfs directly, and stopped
+   `env copy` creates another independent rootfs. Capture, restore and copy must
+   show shared payload extents. An 8 MiB copy-only write must increase referenced
+   allocation and exclusive extents while saved/restored payloads stay unchanged.
+2. The Snapshot's generated ordinary Image is pinned by its full immutable
+   fingerprint. Two ordinary `open --new IMAGE` Environments use the existing
+   creation controller. Read-only Incus API observations bind the optimized image
+   cache to that fingerprint, project and pool; the native cache subvolume must
+   be read-only. Cache and Environment payloads must show shared extents. An
+   independent 8 MiB write in one Environment must increase its referenced
+   allocation and exclusive extents without changing the peer or cached payload.
+
+The saved-rootfs and ordinary-Image branches have separate baselines. Image
+publication, export and cache materialization may rewrite the data, so the test
+does **not** require or claim sharing from the saved rootfs into the image cache.
+The cache is Incus-owned; observation grants no Hacocoon authority to edit it.
+This Image was generated by Snapshot capture, not by a general Base-build or
+Packer workload. The fixture's earlier synthetic OCI setup is not real OCI
+image-content acceptance.
+
+Each fixed phase reports the whole rootfs and its fixed payload directory
+separately using the logical, referenced-allocation and FIEMAP fields defined
+above. Bounded SHA-256 reads cover only the known 8 MiB regular, single-link
+payload files. Area identities are hashes of the verified project, pool and
+typed runtime/owner or Image identity; the durable catalog retains exact owned
+resources. The ordinary Image fingerprint and origin are recorded explicitly.
+
+Observation holds canonical lifecycle locks, verifies the exact rootfs ownership
+and current state, and pauses only running fixture consumers through Incus.
+Stopped saved instances remain stopped. A bounded flat kernel mount inventory
+in the observer's Host namespace must contain exactly one verified pool mount.
+Any submount overlapping a measured rootfs (ancestor, exact path or descendant)
+is refused before and after recursive reads, including same-filesystem bind
+mounts. Guest device metadata is not evidence of Host mount topology. Rootfs and
+parent directory identities are pinned across each observation. Identity and pause state are rechecked
+before reads and resume; a failed or ambiguous observation retains the fixture,
+including paused consumers, for inspection. Payload writes and unlinks run only
+in the owned guest. The observer never writes into backing rootfs/cache
+subvolumes or changes loop devices, mounts or production provisioning.
+
+Source deletion and the surviving copy's final payload unlink are logical
+deletion observations. A single sync and sample do not wait for completed extent
+retirement. Whole-pool allocation remains `pool_scope=whole_shared_pool` and
+includes other rootfs, Image, metadata and Host activity. Do not sum per-area
+allocation to infer unique storage, attribute pool deltas to one operation, or
+interpret FIEMAP lengths as compressed bytes, device writes, publication/export
+amplification, discard or Windows VHDX reclamation.
+
+Use the same clean-commit build and aggregate invocation above; there is no new
+workflow, provisioning route or measurement flag. Native values and the exact
+tested commit/run must be recorded in
+[acceptance evidence](../status/acceptance-evidence.md#rootfs-image-sharing)
+before claiming this slice passed. Repository checks and prior Workspace/Host
+receipts do not establish rootfs/Image acceptance. General Base-build/Packer
+efficiency, real OCI workloads, completed physical reclamation, large workloads
+and other filesystems remain outside this bounded slice of
+[issue #241](https://github.com/SLktEx/Hacocoon/issues/241).
+
+## Retained native archive and import materialization measurement
+
+The ordinary Image branch now exports Env B after its existing 8 MiB delta
+write and before its canonical cleanup. Normal stop, shipped `haco env export`
+and `haco env import` use the existing private controller and canonical transfer
+services. The actual `.haco` output stays in the private fixture directory while
+one required fresh destination is created, measured and deleted. On complete
+aggregate success, the existing fixture-directory cleanup removes the archive;
+a failed interval retains it with the recovery catalog. No synthetic
+source, Base build, pool, permission, mount change or measurement flag is added.
+The older aggregate export precedes the controlled payloads and remains a separate
+functional check; its bytes are not attributed to this interval.
+
+The receipt keeps these observations separate:
+
+- Retained archive: regular single-link file and filesystem identity hashes,
+  numeric filesystem type, logical bytes, referenced allocation (`st_blocks *
+  512`) and whole-file SHA-256. Read-only descriptor/path/ancestor ownership is
+  checked around bounded reads before and after import and destination cleanup.
+  The archive may be on a different filesystem from the managed Btrfs pool.
+- Native components: the complete envelope is verified with the existing bundle
+  inspector. Only each fixed manifest role's `bytes` and `sha256`, their total
+  and outer-envelope overhead (file size minus component total) are reported.
+  Components are neither extracted nor copied solely for counting.
+- Source/imported data: whole-rootfs and payload-directory counters plus separate
+  `base`/`delta` file counters and unchanged hashes. Existing exact ownership,
+  Environment-then-Workspace locking, pause/read/resume and Host mount-scope
+  guards apply. Guest numeric payload ownership must remain `0:0`.
+- Context and cleanup: the existing `whole_shared_pool` samples remain contextual.
+  Export's temporary Snapshot and image receipts must be cleared through normal
+  lifecycle success; fresh destination Env, Workspace and optional Store cleanup
+  must establish exact native/catalog absence while the archive remains readable.
+
+A `separately_materialized_from_source` result requires the same bounded delta
+bytes in source and destination, with the source delta wholly exclusive both
+before export and after import. Destination extents may still share with its own
+import cache. If the source or baseline reports sharing, the fixed relationship
+is `inconclusive_source_shared` or `inconclusive_baseline_shared`; no retry waits
+for exclusivity. Equal hashes and nonzero set-shared values in separate samples
+never identify a pair of shared files. No physical-extent mapping is inferred.
+
+Transfer publishes uncompressed native rootfs/volume archives. Ordinary Base
+publication uses its distinct compressed path; this interval is not a Base-build
+or Packer efficiency measurement. Component archives, bundle staging and
+metadata-rewritten import archives are transient materialization stages visible
+in the implementation. Their peak allocated bytes, peak memory and device-write
+amplification are not measured here. Retained output and destination allocation
+must not be summed into a transient-peak or unique-physical-storage claim.
+
+Use the [same aggregate build/invocation](#managed-workspace-lifecycle-measurement).
+The added archive interval passed in PR #753's first native run at tested merge
+`c9ba3ac33323c091c1c2450beafc3515dc65b1e1`; the
+[exact-run acceptance evidence](../status/acceptance-evidence.md#archive-materialization)
+records retained bytes, source/imported counters, separate delta materialization
+and logical cleanup without a physical-reclaim claim. Representative
+materialization and the distinction between logical deletion and capacity recovery
+are the issue's scope; universal scaling, every builder and successful physical
+reclamation are not additional requirements.
+
 ## Workspace boundary
 
 Managed product Workspaces use independent Incus custom volumes in the managed pool, with canonical leases and separate data ownership. Retained external-path Workspaces instead bind an explicitly selected caller-owned directory; they need not live in the pool. Never move arbitrary user source trees into managed storage merely to match the rootfs layout.

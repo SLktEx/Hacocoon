@@ -116,10 +116,11 @@ Managed Environments                   UNTRUSTED
 - 信頼された instanceだけに付与する専用`haco-control` proxy
 - ダイジェスト / 所有権を検証した`/usr/local/bin/haco-host` 配備
 - 同じ元データ / ダイジェスト / メタデータ基準を使う同じリリースの `/usr/local/bin/haco` 配備
-- 未移行`haco` コマンドがguest-local 構成へ暗黙のに落ちることを防ぐ`environment.HACO_CLIENT_MODE=controller`
+- 実行場所を示す`environment.HACO_CLIENT_MODE=controller`（認可情報ではありません）。
+  製品`haco`にはguest-local構成経路はありません。
 - `haco-host doctor`を確認してから既定 interactive entryを有効化する対応している WSL 初期設定
 
-Trusted Host全体の名前空間整理、cloud 認証情報、汎用external ツールはまだ部分実装。上記のGit/GitHubとWindows連携は実装済み。標準のローカル setup は下記の Host ツールを導入します。Core と Environment の実行基盤の選択は独立したままです。
+クラウドの認証情報と汎用の外部ツールはまだ部分実装です。上記のGit/GitHubとWindows連携は実装済み。標準のローカル setup は下記の Host ツールを導入します。Core と Environment の実行基盤の選択は独立したままです。
 
 ## Trust と authority
 
@@ -250,15 +251,15 @@ wsl -d Hacocoon -u root
 
 ## 今後の follow-up
 
+現在のCLIとtrusted Hostの責務は
+[ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md)で定めています。
+
 別workとして残るもの:
 
 - 実装済みの Git/GitHub 以外へ、Host で使う外部サービスツールを拡張する
 - 任意OCI 実行基盤の対応範囲を拡張（Host の元データ領域と Environment の独立 Store は実装済み）
 - 再利用可能な認証情報を通常Environmentへ置かない認証情報 broker
 - 実機確認したCLI以外のWindows application互換性を評価
-- 残る適切な`haco` コマンドをclassifyしてコントローラークライアントパスへ移行
-- 信頼された Host-local operationをlong-termの`haco-host` 名前空間へ移しtemporary ambiguityをなくす
-- `haco` / `haco-host` CLI responsibility splitを完了
 - Coreがリポジトリを永久に`haco-host`へ固定すると仮定しないWorkspace / リポジトリ location seam
 
 ## Acceptance boundary
@@ -334,8 +335,10 @@ process終了値がない状態です。controller crashでは出力なしのrun
 
 ## ネストした OCI runtime
 
-通常の OCI setup は、非特権の所有確認済み Host と正規の ready 元データ
-領域を検証してから `security.nesting=true` を設定します。所有権の欠落、継承
+新規 trusted Host は初回起動前に `security.nesting=true` を設定し、Incus が
+nesting 用 mount と AppArmor namespace を初期化できるようにします。通常の OCI setup は、
+非特権の所有確認済み Host と正規の ready 元データ領域を検証してから nested tooling を
+有効化・再利用します。所有権の欠落、継承
 プロファイル、pause 中・コピー未完了の状態、曖昧なプロバイダー応答は setup を拒否します。
 設定は永続化され、再 setup で確認して再利用します。
 [ADR 0032](../adr/0032-owned-host-nested-runtime.md) を参照してください。
@@ -457,3 +460,10 @@ Host setupには承認操作はありません。busyは別setupの実行中を�
 Hostセットアップの完了、保存手順の結果、復旧方法はclientの日本語・英語設定に従う。
 診断用のstate/reason値と要求の対応関係を保ち、明示した`--script-result`の出力はそのまま表示する。
 翻訳によって保存手順の明示的な再実行の契約を変えない。
+
+## Packerとnested Incus
+
+通常のHost setupが固定版Packer 1.16.0と共通の署名検証付きIncus 7.0 LTSを
+haco-host内へ導入します。nested daemonはHost内の独立状態、所有属性付きdir poolと
+NAT bridgeを持ち、既存security.nesting=trueを再利用します。Physical Hostの
+Incusや管理状態はマウントしません。[Packer](packer-base-builds.ja.md)を参照してください。

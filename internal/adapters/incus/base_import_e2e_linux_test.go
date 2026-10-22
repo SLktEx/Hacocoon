@@ -73,7 +73,7 @@ func TestRealIncusBaseArchiveImportE2E(t *testing.T) {
 	must(r.verifySnapshotRootfs(ctx, plan))
 	component.State = "verified"
 	// This private test source has a single owner and no concurrent deletion path.
-	archive, err := r.ExportSnapshotRootfs(ctx, component, dir, basebuild.MaxArchiveBytes)
+	archive, err := r.ExportSnapshotRootfs(ctx, component, dir, basebuild.DefaultArchiveLimitBytes)
 	must(err)
 	file := filepath.Join(dir, "input.tar")
 	output, err := os.OpenFile(file, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)

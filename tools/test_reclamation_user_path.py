@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """Refusal tests for the native gate's resume decision, without WSL mutation."""
 import importlib.util
+import base64
+import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import json
 import os
+import re
 import subprocess
+import sys
+import tempfile
+import threading
+import time
+from types import FunctionType, SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 spec = importlib.util.spec_from_file_location("reclaim_gate", Path(__file__).resolve().parents[1] / "test/e2e/windows/reclamation.py")
 gate = importlib.util.module_from_spec(spec)
@@ -16,6 +25,332 @@ PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_observation_requires_success_and_complete_bounded_json(self):
+        valid = b'\xef\xbb\xbf{"state":"none","operation":""}\n'
+        exact_limit = json.dumps("x" * 16382).encode()
+        self.assertEqual(len(exact_limit), 16384)
+        for payload, code, accepted in ((valid, 0, True), (exact_limit, 0, True),
+                                        (valid, 17, False), (b'', 0, False),
+                                        (b'{"state":', 0, False), (b'{}\n{}', 0, False),
+                                        (b'\xff', 0, False), (exact_limit + b' ', 0, False)):
+            command = [sys.executable, '-c',
+                       'import base64,sys;sys.stdout.buffer.write(base64.b64decode(sys.argv[1]));sys.exit(int(sys.argv[2]))',
+                       base64.b64encode(payload).decode(), str(code)]
+            with self.subTest(size=len(payload), code=code, accepted=accepted):
+                if accepted:
+                    self.assertEqual(gate.read_json(command), json.loads(payload.decode('utf-8-sig')))
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'Windows read-only observation'):
+                        gate.read_json(command)
+
+    def test_observation_timeout_never_accepts_captured_json(self):
+        command = ['private-observation-path']
+        for failure in ('none', 'wait', 'kill', 'exited'):
+            process = Mock()
+            process.poll.return_value = 0 if failure == 'exited' else None
+            process.wait.side_effect = [subprocess.TimeoutExpired(command, 25),
+                                        subprocess.TimeoutExpired(command, 5) if failure == 'wait' else 0]
+            if failure == 'kill':
+                process.kill.side_effect = OSError('private kill failure')
+            output = io.BytesIO()
+
+            def start(*args, **kwargs):
+                self.assertIs(kwargs['stdout'], output)
+                self.assertEqual(kwargs['stderr'], subprocess.DEVNULL)
+                output.write(b'{"state":"complete"}')
+                return process
+
+            with self.subTest(failure=failure), \
+                 patch.object(gate.tempfile, 'TemporaryFile', return_value=output), \
+                 patch.object(gate.subprocess, 'Popen', side_effect=start):
+                expected = 'timed out' + ('; termination unconfirmed' if failure in ('wait', 'kill') else '')
+                with self.assertRaisesRegex(RuntimeError, expected) as raised:
+                    gate.read_json(command)
+            self.assertNotIn('private', str(raised.exception))
+            self.assertTrue(output.closed)
+            self.assertEqual(process.wait.call_args_list,
+                             [call(timeout=25)] if failure == 'kill' else [call(timeout=25), call(timeout=5)])
+            self.assertEqual(process.kill.call_count, 0 if failure == 'exited' else 1)
+            process.communicate.assert_not_called()
+
+    def test_observation_start_and_wait_failures_are_private_and_close_capture(self):
+        for failure in ('start', 'wait'):
+            process = Mock()
+            process.poll.return_value = None
+            process.wait.side_effect = [OSError('private wait failure'), 0]
+            output = io.BytesIO()
+            with self.subTest(failure=failure), \
+                 patch.object(gate.tempfile, 'TemporaryFile', return_value=output), \
+                 patch.object(gate.subprocess, 'Popen',
+                              side_effect=OSError('private start failure') if failure == 'start' else None,
+                              return_value=process):
+                with self.assertRaisesRegex(RuntimeError, 'observation unavailable') as raised:
+                    gate.capture_observation(['private-command'])
+            self.assertNotIn('private', str(raised.exception))
+            self.assertTrue(output.closed)
+            self.assertEqual(process.kill.call_count, 0 if failure == 'start' else 1)
+
+    def test_capture_close_failure_preserves_timeout_and_refuses_success(self):
+        class CloseFailure(io.BytesIO):
+            def close(self):
+                super().close()
+                raise OSError('private file failure')
+
+        for timed_out in (False, True):
+            output = CloseFailure(b'{}')
+            process = Mock()
+            process.poll.return_value = 0
+            process.wait.side_effect = [subprocess.TimeoutExpired('private', 25), 0] if timed_out else [0]
+            with self.subTest(timed_out=timed_out), \
+                 patch.object(gate.tempfile, 'TemporaryFile', return_value=output), \
+                 patch.object(gate.subprocess, 'Popen', return_value=process):
+                with self.assertRaisesRegex(RuntimeError, 'timed out' if timed_out else 'capture cleanup failed') as raised:
+                    gate.capture_observation(['private-command'])
+            self.assertNotIn('private', str(raised.exception))
+            self.assertTrue(output.closed)
+
+    def test_observation_does_not_wait_for_inherited_output_after_emitter_exit(self):
+        # The fixed observation process is the only emitter. A descendant holds
+        # stdout open but never writes it. Exercise real pipes, not fake output.
+        with tempfile.TemporaryDirectory() as directory:
+            ready, release, released = [Path(directory) / name for name in ("ready", "release", "released")]
+            holder = ("import os,pathlib,sys,time;ready,release,released=map(pathlib.Path,sys.argv[1:]);"
+                      "ready.touch();end=time.monotonic()+10\n"
+                      "while not release.exists() and time.monotonic()<end: time.sleep(0.01)\n"
+                      "os.close(1);os.close(2);released.touch()")
+            emitter = ("import subprocess,sys;subprocess.Popen([sys.executable,'-c',sys.argv[1],*sys.argv[2:]],"
+                       "close_fds=False);print('{\"fixture\":\"complete\"}',flush=True)")
+            command = [sys.executable, "-c", emitter, holder, str(ready), str(release), str(released)]
+            processes, waits, result, errors, captures = [], [], [], [], []
+            finished = threading.Event()
+            original_temporary_file = tempfile.TemporaryFile
+
+            def temporary_file():
+                output = original_temporary_file()
+                captures.append(output)
+                return output
+
+            class TrackedProcess(subprocess.Popen):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    processes.append(self)
+                    end = time.monotonic() + 3
+                    while not ready.exists() and time.monotonic() < end:
+                        time.sleep(0.01)
+                    if self.wait(timeout=3) != 0:
+                        raise RuntimeError("fixture emitter failed")
+
+                def communicate(self, input=None, timeout=None):
+                    waits.append(timeout)
+                    return super().communicate(input, timeout)
+
+            # Keep the real platform Popen and real pipes. Only select CPython's
+            # Windows run() cleanup branch on non-Windows hosts. Never alter the
+            # subprocess module globals used by the actual Popen implementation.
+            namespace = dict(subprocess.run.__globals__, _mswindows=True, Popen=TrackedProcess)
+            windows_run = FunctionType(subprocess.run.__code__, namespace,
+                                       argdefs=subprocess.run.__defaults__)
+            windows_run.__kwdefaults__ = subprocess.run.__kwdefaults__
+
+            def shortened_run(*args, **kwargs):
+                self.assertEqual(kwargs.pop("timeout"), 25)
+                return windows_run(*args, timeout=0.1, **kwargs)
+
+            def observe():
+                try:
+                    result.append(gate.read_json(command))
+                except BaseException as error:
+                    errors.append(error)
+                finally:
+                    finished.set()
+
+            facade = SimpleNamespace(run=shortened_run, Popen=TrackedProcess,
+                                     TimeoutExpired=subprocess.TimeoutExpired, DEVNULL=subprocess.DEVNULL)
+            worker = threading.Thread(target=observe, daemon=True)
+            try:
+                with patch.object(gate, "subprocess", facade), \
+                     patch.object(gate, "tempfile", SimpleNamespace(TemporaryFile=temporary_file), create=True):
+                    worker.start()
+                    end = time.monotonic() + 4
+                    while not ready.exists() and time.monotonic() < end:
+                        time.sleep(0.01)
+                    self.assertTrue(ready.exists(), "fixture holder did not start")
+                    self.assertTrue(finished.wait(1),
+                                    "observation blocked after emitter exit; cleanup waits=" + str(waits))
+                    self.assertEqual(errors, [])
+                    self.assertEqual(result, [{"fixture": "complete"}])
+                    self.assertFalse(released.exists(), "holder ended before the observation returned")
+                    self.assertEqual(len(captures), 1)
+                    self.assertTrue(captures[0].closed)
+                    # Windows O_TEMPORARY deletion belongs to the last inherited
+                    # handle close. Do not infer immediate deletion from ours.
+            finally:
+                release.touch()
+                worker.join(3)
+                for process in processes:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=3)
+                end = time.monotonic() + 3
+                while not released.exists() and time.monotonic() < end:
+                    time.sleep(0.01)
+            self.assertFalse(worker.is_alive())
+            self.assertTrue(released.exists())
+            if os.name == 'nt' and captures:
+                name = Path(captures[0].name)
+                end = time.monotonic() + 3
+                while name.exists() and time.monotonic() < end:
+                    time.sleep(0.01)
+                self.assertFalse(name.exists(), 'capture remained after the fixture released its handle')
+
+    def test_phase_receipt_has_its_own_line_after_a_terminal_prompt(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            print("root@haco-host:~# ", end="")
+            gate.report_phase("host_entry")
+        self.assertEqual(json.loads(output.getvalue().splitlines()[1]),
+                         {"component": "ci", "operation": "reclamation_user_path", "phase": "host_entry"})
+
+    def test_failed_receipts_cannot_skip_cleanup_or_replace_primary_failure(self):
+        for error in (BrokenPipeError("private output error"), ValueError("closed runner stream")):
+            observer = gate.ProcessStartObserver()
+            observer.process = Mock()
+            observer.process.poll.return_value = None
+            observer.thread = Mock()
+            observer.thread.is_alive.return_value = True
+            with self.subTest(error=error), \
+                 patch.object(gate.ProcessStartObserver, "__enter__", return_value=observer), \
+                 patch("builtins.print", side_effect=error):
+                gate.report_phase("host_entry")
+                with self.assertRaisesRegex(RuntimeError, "original worker failure"):
+                    with observer:
+                        raise RuntimeError("original worker failure")
+            observer.process.terminate.assert_called_once_with()
+            observer.process.wait.assert_called_once_with(timeout=5)
+            observer.thread.join.assert_called_once_with(timeout=5)
+            observer.process.stdout.close.assert_not_called()
+
+    def test_phase_receipts_are_fixed_vocabulary_and_flushed(self):
+        with patch("builtins.print") as output:
+            for phase in sorted(gate.USER_PHASES):
+                gate.report_phase(phase)
+            self.assertEqual([json.loads(call.args[0]) for call in output.call_args_list],
+                             [{"component": "ci", "operation": "reclamation_user_path", "phase": phase}
+                              for phase in sorted(gate.USER_PHASES)])
+            self.assertTrue(all(call.kwargs == {"flush": True} for call in output.call_args_list))
+            with self.assertRaises(ValueError):
+                gate.report_phase("private child text")
+            self.assertNotIn("private", str(output.call_args_list))
+
+    def test_workflow_identifies_each_regression_before_the_user_journey(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/windows-all-scripts-e2e.yml").read_text()
+        section = workflow.split('name: "[product] Verify public reclamation through ordinary Host entry"', 1)[1]
+        section = section.split('      - name:', 1)[0]
+        receipts = [json.loads(raw) for raw in re.findall(r"Write-Host '(\{[^\n]+\})'", section)]
+        operations = ("reclamation_retention_regressions", "reclamation_observer_regressions", "reclamation_journey")
+        self.assertEqual(receipts, [{"component": "ci", "operation": op, "state": state}
+                                    for op in operations for state in ("started", "passed")])
+        commands = ("python ./tools/test_reclamation_retention.py",
+                    "python ./tools/test_reclamation_user_path.py",
+                    "python ./test/e2e/windows/reclamation.py")
+        for operation, command in zip(operations, commands):
+            start = section.index('"operation":"' + operation + '","state":"started"')
+            invoked = section.index(command)
+            checked = section.index('if ($LASTEXITCODE -ne 0)', invoked)
+            passed = section.index('"operation":"' + operation + '","state":"passed"')
+            self.assertLess(start, invoked)
+            self.assertLess(invoked, checked)
+            self.assertLess(checked, passed)
+
+    def test_observer_teardown_preserves_primary_failure_and_owned_process(self):
+        for waiting in (None, subprocess.TimeoutExpired("private observer command", 5)):
+            observer = gate.ProcessStartObserver()
+            observer.process = Mock()
+            observer.process.poll.return_value = None
+            observer.process.wait.side_effect = waiting
+            observer.thread = Mock()
+            observer.thread.is_alive.return_value = True
+            with self.subTest(waiting=waiting), \
+                 patch.object(gate.ProcessStartObserver, "__enter__", return_value=observer), \
+                 patch("builtins.print") as output:
+                with self.assertRaisesRegex(RuntimeError, "original worker failure"):
+                    with observer:
+                        raise RuntimeError("original worker failure")
+            observer.process.terminate.assert_called_once_with()
+            observer.process.wait.assert_called_once_with(timeout=5)
+            observer.process.stdout.close.assert_not_called()
+            self.assertIn({"state": "unavailable"}, observer.rows)
+            self.assertNotIn("private", str(output.call_args_list))
+
+    def test_finished_observer_reader_closes_its_stream(self):
+        observer = gate.ProcessStartObserver()
+        observer.process = Mock()
+        observer.process.poll.return_value = 0
+        stream = io.BytesIO(b'{"state":"ready"}\n')
+        observer.process.stdout = stream
+        observer.thread = threading.Thread(target=observer.read)
+        observer.thread.start()
+        observer.close()
+        self.assertFalse(observer.thread.is_alive())
+        self.assertTrue(stream.closed)
+        observer.process.terminate.assert_not_called()
+
+    def test_observer_close_does_not_close_a_live_readers_buffer(self):
+        entered = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors = []
+
+        class HeldRead(io.RawIOBase):
+            def readable(self):
+                return True
+
+            def readinto(self, buffer):
+                entered.set()
+                if not release.wait(5):
+                    raise OSError("bounded fixture release expired")
+                return 0
+
+        observer = gate.ProcessStartObserver()
+        stream = io.BufferedReader(HeldRead())
+        observer.process = SimpleNamespace(stdout=stream, poll=lambda: 0,
+                                           wait=lambda timeout: 0)
+        reader = threading.Thread(target=observer.read, daemon=True)
+        observer.thread = reader
+        reader.start()
+        original_join = reader.join
+
+        def close():
+            try:
+                observer.close()
+            except BaseException as exc:
+                errors.append(exc)
+            finally:
+                finished.set()
+
+        closer = threading.Thread(target=close, daemon=True)
+        try:
+            self.assertTrue(entered.wait(1), "fixture reader did not begin")
+            # Exercise the production join-timeout branch without a five-second
+            # unit-test delay. The real BufferedReader still owns its read lock.
+            with patch.object(reader, "join", side_effect=lambda timeout: original_join(0.01)) as join:
+                closer.start()
+                self.assertTrue(finished.wait(1), "observer close blocked on a live reader")
+                join.assert_called_once_with(timeout=5)
+            self.assertEqual(errors, [])
+            self.assertTrue(reader.is_alive())
+            self.assertFalse(stream.closed)
+            self.assertIn({"state": "unavailable"}, observer.rows)
+        finally:
+            release.set()
+            original_join(1)
+            if closer.ident is not None:
+                closer.join(1)
+        self.assertFalse(reader.is_alive())
+        self.assertFalse(closer.is_alive())
+        self.assertTrue(stream.closed)
+
     def test_start_event_projection_rejects_private_fields_and_unbounded_values(self):
         valid = {"state": "observed", "kind": "wsl", "chain": "notification/powershell/other", "duration_ms": 12}
         self.assertEqual(gate.observed_start_event(valid), valid)
@@ -70,14 +405,13 @@ function Get-CimInstance {
 }
 """
         powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-        result = subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-Command',
-                                 fixture + gate.process_event_query()], capture_output=True, timeout=25)
-        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
-        rows = [json.loads(line) for line in result.stdout.decode('utf-8-sig').splitlines()]
+        output = gate.capture_observation([str(powershell), '-NoProfile', '-NonInteractive', '-Command',
+                                           fixture + gate.process_event_query()])
+        rows = [json.loads(line) for line in output.decode('utf-8-sig').splitlines()]
         events = [row for row in rows if row['state'] == 'observed']
         self.assertEqual([row['chain'] for row in events], ['notification/unavailable', 'unavailable'])
         self.assertTrue(all(gate.observed_start_event(row) == row for row in rows))
-        self.assertNotIn('private', result.stdout.decode('utf-8-sig'))
+        self.assertNotIn('private', output.decode('utf-8-sig'))
 
     def test_host_origins_remain_visible_without_a_live_launcher(self):
         snapshot = {"counts": {"wslhost.exe": 2, "wsl.exe": 0, "vmmemWSL": 1},
@@ -125,10 +459,8 @@ function Get-CimInstance {
 }
 """
         powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-        result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command",
-                                 fixture + gate.process_query()], capture_output=True, timeout=25)
-        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
-        snapshot = json.loads(result.stdout.decode("utf-8-sig"))
+        snapshot = gate.read_json([str(powershell), "-NoProfile", "-NonInteractive", "-Command",
+                                   fixture + gate.process_query()])
         self.assertEqual(snapshot["origins"], {"ssh/editor/other": 1,
                          "wsl/ssh/editor/other": 1, "unavailable": 2, "wsl/unavailable": 1,
                          "notification/other": 1, "wsl-relay/other": 1})

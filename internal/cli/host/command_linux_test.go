@@ -104,8 +104,8 @@ func TestHostCommandsPreserveControllerResultsAndMachineOutput(t *testing.T) {
 				}
 				return status, nil
 			},
-			controlapi.MethodEnvironmentDelete: func(_ context.Context, raw json.RawMessage) (any, error) {
-				var request controlapi.EnvironmentNameRequest
+			controlapi.MethodEnvironmentRemove: func(_ context.Context, raw json.RawMessage) (any, error) {
+				var request controlapi.RemoveRequest
 				if err := json.Unmarshal(raw, &request); err != nil {
 					return nil, err
 				}
@@ -213,7 +213,7 @@ func TestHostExecPreservesLiteralArgumentsStreamsAndExitStatus(t *testing.T) {
 
 func TestHostControllerFailuresNeverReportSuccess(t *testing.T) {
 	client := hostCommandClient(t, func(server *control.Server) {
-		for _, method := range []string{controlapi.MethodPing, controlapi.MethodEnvironmentCreate, controlapi.MethodEnvironmentList, controlapi.MethodEnvironmentStatus, controlapi.MethodEnvironmentDelete, controlapi.MethodEnvironmentExec} {
+		for _, method := range []string{controlapi.MethodPing, controlapi.MethodEnvironmentCreate, controlapi.MethodEnvironmentList, controlapi.MethodEnvironmentStatus, controlapi.MethodEnvironmentRemove, controlapi.MethodEnvironmentExec} {
 			if err := server.Register(method, func(context.Context, json.RawMessage) (any, error) {
 				return nil, control.NewStatusError("unavailable", "operation did not complete")
 			}); err != nil {

@@ -46,14 +46,13 @@ haco doctor
 ## リポジトリを登録してHacoを開く
 
 インストール後、**信頼された管理ターミナル**で実行します。
-OWNER/API・OWNER/WEBは利用できるリポジトリに置き換えてください。1個だけでも使えます。
+OWNER/APIは利用できるリポジトリに置き換えてください。登録なしでも空の作業領域で開始できます。
 非公開リポジトリの認証は信頼されたhaco-host内で
 `gh auth login --hostname github.com --git-protocol https`を実行します。
 GitとGitHub CLIはインストール時に標準Hostツールとして準備されます。
 
 ```bash
-haco repo add api https://github.com/OWNER/API.git
-haco repo add web https://github.com/OWNER/WEB.git
+haco repo add https://github.com/OWNER/API.git
 haco open
 ```
 
@@ -63,9 +62,11 @@ haco open
 SSH接続を設定してクライアントを起動します。端末の進捗を確認してください。
 Workspace・Envの作成やBaseのbuildを手動で行う必要はありません。
 
-2個なら`/workspace/api`と`/workspace/web`で編集します。1個なら`/workspace`です。
-Git情報も独立しており、remoteは`haco://<id>`を使います。Git brokerは自動接続し、
-Hostの認証情報はコピーしません。
+1個なら`/workspace`、複数なら`/workspace/<repository-id>`で編集します。
+自動生成されたIDは`haco repo ls`で確認できます。Git情報も独立しており、
+remoteは`haco://<id>`を使います。Git brokerは自動接続し、Host認証情報はコピーしません。
+`haco open`は最後に開いたEnvironmentへ戻り、まだなければ既定Imageから作成します。
+`haco image default [IMAGE]`で既定値を確認・変更し、`haco open --new [IMAGE]`で新しい作業を始めます。
 
 ## 必要な権限を確認する
 
@@ -88,7 +89,7 @@ fetch/pullや承認付きpushは[Git権限](git-workflow.ja.md#gitの権限設�
 **Environment内**で対象リポジトリへ移動します。
 
 ```bash
-cd /workspace/api
+cd /workspace
 git status
 # 編集し、このリポジトリのbuild/testを実行します。
 ```
@@ -121,14 +122,16 @@ haco open
 ```
 
 一覧の実際の名前を指定します。停止なら導入したパッケージ、編集内容、設定済みの保存領域が
-残ります。`haco env delete <environment>`はrootfsを削除し、作業ファイルとOCIデータは
-保持します。削除前に[データの寿命](data-lifetime.ja.md)を確認してください。
-明示的なディレクトリopen、Baseの選択、独立forkは[Workspace手順](../design/workspace-workflow.md)に記載しています。
+残ります。`haco env delete <environment>`はrootfsと自動生成したWorkspace・OCIデータを
+削除し、明示Volumeは保持します。先に停止するか`-f`を指定します。
+削除前に[データの寿命](data-lifetime.ja.md)を確認してください。
+独立管理データを使う明示的なディレクトリ操作も利用できます。
 
-通常の環境にまとめるリポジトリは1〜8個です。最初のopen前に作業対象を登録してください。
-後から登録を変更しても既存構成を上書きしません。編集内容を保持して構成を変えるには
-明示的なforkを使います。所有権が未確定なら状態を確認し、カタログを編集したり推測で
-providerのリソースを削除したりしないでください。[通常の開発環境の制限](../design/default-development-session.ja.md)を参照してください。
+登録変更は今後作るEnvironmentだけに反映します。現在の登録集合を使うなら
+`haco open --new`、保存済み構成・データを使うなら`haco open --new --snapshot SNAPSHOT`です。
+既存作業を自動で作り直すことはありません。所有権が未確定なら状態を確認し、
+カタログを編集したり推測でprovider資源を削除したりしないでください。
+[作成仕様](../design/environment-creation.ja.md)を参照してください。
 
 リポジトリテストと実機確認は別です。この一連の操作の新規インストール済みIncus・
 Windows/WSL・デスクトップでの確認は未実施です。

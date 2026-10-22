@@ -130,7 +130,7 @@ func (b *Broker) Start(ctx context.Context) error {
 			return err
 		}
 		var bound binding
-		if len(data) > 16384 || json.Unmarshal(data, &bound) != nil || !gitadapter.ValidID(bound.Environment.Name) {
+		if len(data) > 2<<20 || json.Unmarshal(data, &bound) != nil || !gitadapter.ValidID(bound.Environment.Name) {
 			return core.ErrIncompatibleState
 		}
 		if err := b.validateBinding(ctx, bound); err != nil {
@@ -171,6 +171,11 @@ func (b *Broker) connectionBinding(ctx context.Context, name string) (binding, e
 		}
 		repo, err := b.Repositories.Get("repo", member.Repository)
 		if err != nil {
+			if errors.Is(err, core.ErrNotFound) && validSavedID(workspace.RestoredFrom) {
+				// Saved data remains usable without today's source registry. No
+				// route or credentials are granted until the exact source exists.
+				return binding{}, core.ErrUnsupported
+			}
 			return binding{}, err
 		}
 		if repo.Remote != member.Remote {

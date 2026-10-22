@@ -70,7 +70,7 @@ func validateSnapshotRootfsObservation(p snapshotRootfsPlan, target bool, instan
 		if i.Name != ref {
 			continue
 		}
-		if found != nil || i.Type != "container" || strings.ToUpper(i.Status) != "STOPPED" || i.Config == nil || i.ExpandedConfig == nil || i.Devices == nil || i.ExpandedDevices == nil {
+		if found != nil || i.Type != "container" || (strings.ToUpper(i.Status) != "STOPPED" && (target || strings.ToUpper(i.Status) != "RUNNING")) || i.Config == nil || i.ExpandedConfig == nil || i.Devices == nil || i.ExpandedDevices == nil {
 			return nil, core.ErrIncompatibleState
 		}
 		expected := map[string]string{environmentInstanceKey: p.SourceInstanceID, managedEnvironmentMarkerKey: managedEnvironmentMarkerValue}

@@ -65,39 +65,11 @@ func TestApplicationCodeUsesCanonicalLifecycleAndProviderBoundaries(t *testing.T
 			providerCommands := strings.HasPrefix(filepath.ToSlash(rel), "internal/adapters/incus/") ||
 				strings.HasPrefix(filepath.ToSlash(rel), "internal/platform/")
 
-			file, err := parser.ParseFile(fset, path, nil, 0)
+			file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 			if err != nil {
 				return err
 			}
-			ast.Inspect(file, func(node ast.Node) bool {
-				call, ok := node.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
-					if _, forbidden := forbiddenStateMutations[selector.Sel.Name]; forbidden {
-						position := fset.Position(call.Pos())
-						violations = append(violations, position.String()+": direct low-level Environment/Workspace state mutation "+selector.Sel.Name+" bypasses the lifecycle transition API")
-					}
-					if !providerCommands && selector.Sel.Name == "Run" && len(call.Args) >= 2 {
-						if command, ok := stringLiteral(call.Args[1]); ok {
-							if _, forbidden := infrastructureCommands[command]; forbidden {
-								position := fset.Position(call.Pos())
-								violations = append(violations, position.String()+": direct infrastructure command "+strconv.Quote(command)+" belongs behind a provider/platform adapter")
-							}
-						}
-					}
-				}
-				if ident, ok := call.Fun.(*ast.Ident); !providerCommands && ok && ident.Name == "Command" && len(call.Args) > 0 {
-					if command, ok := stringLiteral(call.Args[0]); ok {
-						if _, forbidden := infrastructureCommands[command]; forbidden {
-							position := fset.Position(call.Pos())
-							violations = append(violations, position.String()+": direct infrastructure command "+strconv.Quote(command)+" belongs behind a provider/platform adapter")
-						}
-					}
-				}
-				return true
-			})
+			violations = append(violations, sourceBoundaryViolations(fset, file, providerCommands)...)
 			return nil
 		})
 		if err != nil {
@@ -108,6 +80,85 @@ func TestApplicationCodeUsesCanonicalLifecycleAndProviderBoundaries(t *testing.T
 	if len(violations) != 0 {
 		t.Fatalf("architecture boundary violations:\n%s", strings.Join(violations, "\n"))
 	}
+}
+
+func sourceBoundaryViolations(fset *token.FileSet, file *ast.File, providerCommands bool) []string {
+	var violations []string
+	imports := execImportNames(file)
+	shadows := execImportShadows(file, imports)
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		position := fset.Position(call.Pos()).String()
+		if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if _, forbidden := forbiddenStateMutations[selector.Sel.Name]; forbidden {
+				violations = append(violations, position+": direct low-level Environment/Workspace state mutation "+selector.Sel.Name+" bypasses the lifecycle transition API")
+			}
+		}
+		if !providerCommands {
+			if command, ok := infrastructureCommand(call, imports, shadows); ok {
+				violations = append(violations, position+": direct infrastructure command "+strconv.Quote(command)+" belongs behind a provider/platform adapter")
+			}
+		}
+		return true
+	})
+	return violations
+}
+
+func execImportNames(file *ast.File) map[string]bool {
+	names := make(map[string]bool)
+	for _, spec := range file.Imports {
+		path, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || path != "os/exec" {
+			continue
+		}
+		name := "exec"
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		if name != "_" {
+			names[name] = true
+		}
+	}
+	return names
+}
+
+// Keep the existing runner.Run convention. The os/exec check is deliberately
+// limited to direct imported calls with literal command names: dynamic names,
+// function values and wrappers require other checks or review, not call tracing.
+func infrastructureCommand(call *ast.CallExpr, imports map[string]bool, shadows commandShadows) (string, bool) {
+	var argument ast.Expr
+	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && selector.Sel.Name == "Run" && len(call.Args) >= 2 {
+		argument = call.Args[1]
+	} else {
+		name := execFunctionName(call.Fun, imports, shadows)
+		switch {
+		case name == "Command" && len(call.Args) > 0:
+			argument = call.Args[0]
+		case name == "CommandContext" && len(call.Args) > 1:
+			argument = call.Args[1]
+		}
+	}
+	command, literal := stringLiteral(argument)
+	_, forbidden := infrastructureCommands[command]
+	return command, literal && forbidden
+}
+
+func execFunctionName(fun ast.Expr, imports map[string]bool, shadows commandShadows) string {
+	switch fun := ast.Unparen(fun).(type) {
+	case *ast.SelectorExpr:
+		receiver, ok := fun.X.(*ast.Ident)
+		if ok && imports[receiver.Name] && !shadows.contains(receiver.Name, receiver.Pos()) {
+			return fun.Sel.Name
+		}
+	case *ast.Ident:
+		if imports["."] && !shadows.contains(fun.Name, fun.Pos()) {
+			return fun.Name
+		}
+	}
+	return ""
 }
 
 func repositoryRoot(t *testing.T) string {

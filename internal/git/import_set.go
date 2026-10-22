@@ -22,7 +22,7 @@ type WorkspaceImport struct {
 // as normal Workspace copies, without running Git population. Partial collections
 // retain their exact member receipts and cannot be leased, replayed or adopted.
 func (s *RepositoryService) ImportWorkspaceSet(ctx context.Context, id string, inputs []WorkspaceImport) (Object, error) {
-	if !gitadapter.ValidID(id) || len(inputs) < 2 || len(inputs) > 8 {
+	if !gitadapter.ValidID(id) || len(inputs) < 2 || len(inputs) > core.MaxWorkspaceRepositories {
 		return Object{}, core.ErrInvalidArgument
 	}
 	// Copy descriptors before planning; caller-owned slice entries are not state.

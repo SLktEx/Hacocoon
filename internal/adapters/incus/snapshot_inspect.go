@@ -16,6 +16,18 @@ func (r *Runtime) InspectSnapshotComponent(ctx context.Context, c core.SnapshotC
 		return result, err
 	}
 	result.Project, result.Object = b.Project, c.NativeRef
+	if b.Image != nil {
+		_, err := r.snapshotImage(ctx, *b.Image)
+		result.Object = b.Image.Name
+		if err != nil {
+			result.Presence = "unknown"
+			result.Check = "unconfirmed"
+			return result, err
+		}
+		result.Presence = "present"
+		result.Check = "verified"
+		return result, nil
+	}
 	if b.Volume != nil {
 		result.Pool = b.Volume.Pool
 		return r.inspectSnapshotVolume(ctx, *b.Volume, result)

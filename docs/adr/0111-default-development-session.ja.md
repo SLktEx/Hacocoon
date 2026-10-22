@@ -1,5 +1,7 @@
 # ADR 0111: 通常の開発環境をクライアントで組み立てる
 
+既定環境の選択・作成・データ寿命は[ADR 0113](0113-unified-environment-creation.ja.md)に置き換えられました。明示的な権限確認・進捗・所有者検査は維持します。
+
 日本語 | [English](0111-default-development-session.md)
 
 状態: accepted。#715に対応し、ブランチ非依存の登録（#709）を前提とします。

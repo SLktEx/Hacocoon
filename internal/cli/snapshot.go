@@ -36,14 +36,15 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 		usage()
 		return 0
 	}
-	if args[0] == "restore" {
-		return snapshotRestoreCommand(ctx, args[1:], out, diagnostic)
-	}
 	flags := flag.NewFlagSet("haco snapshot "+args[0], flag.ContinueOnError)
 	flags.SetOutput(diagnostic)
 	var machine, details bool
+	var name string
 	switch args[0] {
-	case "create", "list":
+	case "create":
+		flags.StringVar(&name, "name", "", "Snapshot name")
+		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
+	case "list":
 		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
 	case "inspect":
 		flags.BoolVar(&machine, "json", false, cliMessage("flag.json"))
@@ -52,7 +53,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	default:
 		return usage()
 	}
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := parseInterspersed(flags, args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
@@ -62,7 +63,7 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	if (args[0] == "list" && len(pos) > 1) || (args[0] != "list" && len(pos) != 1) {
 		return usage()
 	}
-	req := controlapi.SnapshotRequest{Operation: args[0]}
+	req := controlapi.SnapshotRequest{Operation: args[0], Name: name}
 	if len(pos) > 0 {
 		if args[0] == "delete" || args[0] == "inspect" {
 			req.ID = pos[0]
@@ -97,79 +98,13 @@ func snapshotCommand(ctx context.Context, args []string, out, diagnostic io.Writ
 	}
 	if err != nil {
 		fmt.Fprintf(diagnostic, "haco: %v\n", err)
-		if args[0] == "delete" && regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(req.ID) {
+		if args[0] == "delete" && regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,39}[a-z0-9])?$`).MatchString(req.ID) {
 			_, _ = fmt.Fprintf(diagnostic, cliLanguage().Text("snapshot.inspect.next"), req.ID)
 		}
 		return 1
 	}
 	if writeErr != nil {
 		_, _ = fmt.Fprintln(diagnostic, cliMessage("snapshot.write_failed"))
-		return 1
-	}
-	return 0
-}
-
-func snapshotRestoreCommand(ctx context.Context, args []string, out, diagnostic io.Writer) int {
-	flags := flag.NewFlagSet("haco snapshot restore", flag.ContinueOnError)
-	flags.SetOutput(diagnostic)
-	flags.Usage = func() {
-		commandHelp(diagnostic, "snapshot restore", cliLanguage())
-	}
-	machine := flags.Bool("json", false, cliMessage("flag.json"))
-	latest := flags.Bool("latest", false, cliMessage("snapshot.latest_flag"))
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	pos := flags.Args()
-	if len(pos) < 1 || len(pos) > 2 || (!*latest && !regexp.MustCompile(`^snap-[a-f0-9]{32}$`).MatchString(pos[0])) {
-		flags.Usage()
-		return 2
-	}
-	req := controlapi.SnapshotRestoreRequest{ID: pos[0]}
-	if len(pos) == 2 {
-		req.Environment = pos[1]
-	}
-	client := controlapi.NewDefaultClient()
-	if *latest {
-		saved, listErr := client.Snapshot(ctx, controlapi.SnapshotRequest{Operation: "list", Environment: pos[0]})
-		if listErr != nil {
-			_, _ = fmt.Fprintf(diagnostic, "haco: %v\n", listErr)
-			return 1
-		}
-		selected, selectionError := selectLatestSnapshot(saved.Snapshots, pos[0])
-		if selectionError != "" {
-			_, _ = fmt.Fprintln(diagnostic, cliMessage(selectionError))
-			return 1
-		}
-		req.ID = selected.ID
-		if !*machine {
-			if _, err := fmt.Fprintf(diagnostic, cliLanguage().Text("snapshot.latest_selected"), selected.Environment, selected.CreatedAt.Format(time.RFC3339Nano), selected.ID); err != nil {
-				return 1
-			}
-		}
-	}
-	response, err := client.RestoreSnapshot(ctx, req)
-	var writeErr error
-	if *machine {
-		writeErr = json.NewEncoder(out).Encode(response.Result)
-	} else if response.Result.Environment != "" {
-		_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_environment"), response.Result.Environment, response.Result.State)
-		if writeErr == nil && response.Result.Workspace != "" {
-			_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_workspace"), response.Result.Workspace)
-		}
-		if writeErr == nil && response.Result.OCI != "" {
-			_, writeErr = fmt.Fprintf(out, cliLanguage().Text("snapshot.restored_oci"), response.Result.OCI)
-		}
-	}
-	if err != nil {
-		fmt.Fprintf(diagnostic, "haco: %v\n", err)
-		return 1
-	}
-	if writeErr != nil {
-		_, _ = fmt.Fprintln(diagnostic, cliMessage("snapshot.restore_write_failed"))
 		return 1
 	}
 	return 0

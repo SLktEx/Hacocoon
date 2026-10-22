@@ -62,6 +62,7 @@ func TestEnsureTrustedHostCreatesMarkedInstanceWithNarrowControlProxyAndStartsIt
 		"--storage", "haco-local-default",
 		"--no-profiles", "--network", trustedHostNetwork,
 		"--config", trustedHostRoleKey + "=" + trustedHostRoleValue,
+		"--config", "security.nesting=true",
 		"--config", trustedHostControlEnvKey + "=" + trustedHostControlSocket,
 	})
 	assertCallContaining(t, runner.calls, "incus", []string{

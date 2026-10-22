@@ -2,9 +2,145 @@
 
 [日本語](acceptance-evidence.ja.md) | English
 
-Status: recorded acceptance evidence. These tests ran on the identified historical commits; this documentation refactor does not rerun or claim real-host acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md) for current availability.
+Status: recorded acceptance evidence. Except for explicitly marked local candidates, these tests ran on the identified historical commits; this documentation refactor does not rerun or claim real-host acceptance. See [implementation status](../IMPLEMENTATION_STATUS.md) for current availability.
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
+
+<a id="incus-vm-hosted"></a>
+## Optional Incus VM on GitHub-hosted Ubuntu
+
+On 2026-10-09, source `19ceda9ecd17a77f6512da276e5cfce2397bf632`
+([#744](https://github.com/SLktEx/Hacocoon/pull/744), checked PR merge
+`035d5c16d810c9c1ce0c38c772fd2cbe94d1015e`) passed the new
+[VM discovery job](https://github.com/SLktEx/Hacocoon/actions/runs/37927938220/job/113811304884),
+run `37927938220`, attempt 1. The result is **supported on this runner**:
+Ubuntu 26.04.1, image `ubuntu26/20260927.149.1`, x86_64 kernel
+`7.0.0-1012-azure`, Incus 7.0.1 package `1:7.0.1-ubuntu26.04-202609250211`
+and QEMU 11.1.1. AMD `svm` was exposed. `/dev/kvm` was a character device
+owned by root, mode 0660; the ordinary client lacked direct access (errno 13),
+while the root Incus daemon successfully ran the VM. Client access was correctly
+kept separate from daemon capability.
+
+The ordinary repository probe launched an Ubuntu 26.04 VM with 2 CPUs,
+1 GiB memory and only a root disk on the initialized `dir` pool. No inherited
+profile, NIC, Host bind mount or management socket was supplied. Its immutable
+image fingerprint was
+`4d2727c7480d2f54d916a18bb092af876dd089df2fdc9de69beda9248b434f25`.
+Agent exec confirmed systemd PID 1 and readiness, then repeated after verified
+stop/start. Exact nonce-owned deletion passed, the always-run cleanup check
+passed, and the final independent instance inventory was empty.
+
+Artifact `incus-vm-probe-1` (`11614369907`) contains `status=supported`,
+`guest_systemd=ready_after_restart` and `cleanup=verified_absent`, plus the
+runner/SHA receipt. The downloaded archive SHA256 is
+`788285fa59881ac978fdf848e54357e9037d2d835b0759718fc47b0f08900cd6`.
+This is evidence that a future optional Incus VM backend is practical on the
+sampled GitHub-hosted runner; it is not a Hacocoon VM implementation, guest
+network/storage-policy acceptance, a universal runner guarantee or the complete
+PR gate. Unsupported-KVM classification was covered by repository regressions,
+not a native no-KVM runner. See the [discovery contract](../reliability/ci-contracts.md#optional-incus-vm-capability).
+
+<a id="unified-creation-local"></a>
+
+## Unified creation: local Issue #728 candidate
+
+On 2026-09-26, the uncommitted Issue #728 working tree based on `9d63f193`
+passed `TestRealIncusSnapshotAggregateE2E` on Windows/WSL2, Ubuntu 26.04.1,
+Incus 7.0.1 and Btrfs. The shipped CLI used a private test controller/catalog.
+The run verified running/stopped Snapshot capture with a new Image, export/import,
+`open --new --snapshot`, independent rootfs/Git/Workspace/OCI bytes, fresh authority,
+source-state preservation, deletion of generated data and exact owned cleanup.
+Uncommitted/untracked files and unpushed commits survived. The original 20-minute
+fixture budget expired after import; the bounded 45-minute rerun passed in 1,754
+seconds. The first fixture was cleaned through canonical ownership-checked APIs.
+Existing user Environments were not used as fixtures.
+
+Local CI stages covered Go tests/vet/race with Go 1.26.7, command/orchestration E2E,
+isolated kernel forwarding, documentation/workflow checks and Linux/Windows
+snapshot packaging. Windows native installer components also passed locked-file,
+ownership and junction refusal, PowerShell 5.1-to-WSL literal argument transport
+and WSL stop-readiness checks. This is local working-tree evidence, not a published
+release or hosted CI result. Fresh standard-Image installation, VS Code/SSH GUI
+acceptance, authenticated Git network operations and live OCI consistency were
+not rerun. The native aggregate deliberately skipped cached-source-image deletion,
+live containerd transfer and the separately gated installed-controller import.
+
+### Integration with updated main
+
+On 2026-09-27, candidate `f2a2b78f` integrated main `4cbe853f`, including
+Repository retry/progress and Windows restart changes. Documentation, workflow
+policy, shipped-command/orchestrator E2E and isolated kernel forwarding passed.
+The normal bootstrap Image acquisition path also passed against real Incus with a
+private preferences catalog: the downloaded standard Image became the persisted
+initial default and repeated setup succeeded. This used the existing image cache,
+not a fresh Host installation. Native Windows component tests passed GUID/name
+termination routing and preservation of primary/resume failures; they did not run
+an actual VHD reclamation cycle.
+
+All Go packages passed normal and race tests, followed by vet, 32 notification
+client JavaScript tests and two VS Code packaging tests. The maintained `test`
+and `race` invocations first hit the existing checkpoint black-box package's
+10-minute limit on the Windows-mounted source. Only that package was rerun with
+`go test [-race] -v -count=1 -timeout=30m ./tools/milestone`; it passed in 1,060
+and 1,032 seconds respectively. Product deadlines were not changed.
+
+The maintained `release-config` entry point passed in a local Ubuntu 26.04
+container for the same production tree: Linux/Windows amd64/arm64 snapshot
+artifacts, installer bundles and every generated checksum validated. The initial
+minimal-container attempt lacked the fixture's `/usr/bin/python3`; installing
+that test prerequisite fixed the preparation without changing installer code.
+
+The first live-containerd aggregate saved writable data and exported successfully,
+then its Host-side Git observer refused an Incus-shifted UID. The fixture now trusts
+only each provider-verified path for that Git invocation, matching its existing
+import/copy checks; product ownership checks and global Git configuration are
+unchanged. Canonical cleanup removed the failed fixture's saved/copy resources,
+and an independent inventory confirmed its original/restored volumes absent.
+An earlier attempt with an auto-expired cached source fingerprint was refused
+before creating any fixture resources.
+
+The next native run verified containerd Image identity and stopped-container
+writable data after shipped CLI export/import, then successfully created a new
+Environment from a running-source Snapshot. Its JSON observer incorrectly mixed
+stderr progress with stdout. Correction `5b5336cd` separates those streams and
+adds a focused regression, which also passed with race detection. A temporary,
+exact-fixture continuation repeated the original remaining assertions against the
+retained catalog and passed in 619 seconds: Snapshot open, independent copy,
+Git/rootfs/OCI contents, unchanged source, attached-data deletion refusal and
+canonical cleanup. It was removed after compilation. An independent Incus
+inventory retained all pre-existing user instances/volumes and found both fixture
+names absent; the completed catalog retained only lifecycle lock identities.
+
+This is segmented local native evidence, not an uninterrupted corrected aggregate
+run. Cached-source-image deletion and the separately gated installed-controller
+import remained skipped. Explicitly starting saved containerd work passed; running
+task migration, arbitrary application consistency, restored SSH/VS Code GUI and
+authenticated Git acceptance are not established by these tests.
+
+### Hosted unified-creation acceptance and preview timeout
+
+On 2026-09-27, `f43b9f7095cd1c6ad977326d5dd02876880acebc` passed
+[repository tests](https://github.com/SLktEx/Hacocoon/actions/runs/36299877273),
+[quality checks](https://github.com/SLktEx/Hacocoon/actions/runs/36299877282),
+[real Incus](https://github.com/SLktEx/Hacocoon/actions/runs/36299877261) and
+[packaged Ubuntu installation](https://github.com/SLktEx/Hacocoon/actions/runs/36299877263).
+Incus included the uninterrupted aggregate Snapshot and installed-controller
+transfer paths. SonarCloud reported 80.9% new-code coverage and a passing gate.
+
+The [Windows run](https://github.com/SLktEx/Hacocoon/actions/runs/36299877270)
+passed installation, lifecycle, egress, interop, customization, notification and
+reclamation. Its first access job failed at the existing 30-second Edge headless
+process deadline (`test_windows_environment_ssh.ps1:470`). Windows HTTP access
+and the exact Workspace marker had already passed; independent SSH, VS Code,
+transfer and tunnel probes also passed. The failed-job retry on the same code
+passed the full access job, including Edge rendering and preview reuse/refusal.
+No timeout, assertion or product behavior changed for that retry.
+
+The evidence gate correctly retained the initial failure after the successful
+retry. The Edge timeout's root cause remains unproven; a later pass does not fix
+or erase it. This record preserves that limitation for the next candidate rather
+than weakening the gate. These hosted substrates do not establish authenticated
+Git, private-registry, live-workload migration or every physical Host configuration.
 
 <a id="portless-ssh"></a>
 
@@ -144,12 +280,383 @@ The local `71dbb4f` configuration/preview fixture kept default deny and eight ad
 |---|---|
 | PR #493, #501; `a2fcb72` / runs 34297739368, 34297739417 | Snapshot restore is independent of Base filesystem retention and source deletion; fresh authority is created. Base build/create/SSH passed after earlier machine-ID/stdio and 600-second timeout failures. Exact ownership was cleaned only after absence checks; diagnostics remain historical receipts. |
 | PR #504–507; `c4842c2` | Workspace, built Base, whole Store and source-repository cleanup passed their native gates. Base Windows alias SSH initially failed; source-repository tests initially stopped at instance initialization. Downstream skips in those failures are not passes. |
-| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | Attached/Host image operations passed runtime-adapter fixtures. Detached nerdctl delivery and bare controller/CLI passed in 588.51s; reviewed unused-image deletion also passed. Full installed-controller/Standard composition and detached Docker are still incomplete. |
+| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | Attached/Host image operations passed runtime-adapter fixtures. Detached nerdctl delivery and bare controller/CLI passed in 588.51s; reviewed unused-image deletion also passed. These runs did not establish installed-controller/Standard composition; the [scoped installed gate below](#installed-oci-cli) adds later evidence. Detached Docker remains incomplete. |
 | `f3f5557`, `ae0c245` | Host OCI area isolation, offline copy and bounded completed-copy recovery passed with Docker 28.5.2/vfs and nerdctl 2.3.5/containerd 2.3.3 fixtures. An initial root mismatch failed before correction. Unknown provider completion still blocks release; broad runtime/version/installed acceptance is not implied. |
 | `5100d86` / run 34623036552, job 103341362151 | Public reclaim dispatch/status passed: Windows allocation 7,964,983,296 → 4,224,712,704 bytes (3,740,270,592 recovered), 1 TiB virtual and 128 GiB Incus capacity unchanged. Linux discard, exact-distribution stop/compact/resume and retained Workspace/OCI/snapshot restore passed. |
 | `4369fdb`, `d675c5a`, `de72119`; earlier Windows trials | Job-related launch errors have unconfirmed causes. `d675c5a` retained pending with access-denied 5 and no Linux start; `de72119` saved a worker failure without reporting it to the launcher. Earlier OpenVirtualDisk error 32 and partial disk-only successes do not prove combined reclaim. Junction refusal passed; some symlink checks skipped for privilege. Existing-installation, power-loss, cross-session and real interrupted-worker review remain unverified. |
 
 Full original receipts, fixture identities and log/artifact links remain in [the original implementation record](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) and [the original feature evidence](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md). These immutable records are historical evidence, not current operating instructions.
+
+<a id="installed-oci-cli"></a>
+
+### Installed Host image copy and retained Store recreation
+
+PR #757 head `c745427d3c63d8db844eb3142786421b71c26b82`, checked out and
+built as merge `28b69814d30eba16b9cbcbe3fb8a94c241d9caba` into
+`ce7860473e62409f9cf6c9649ba291dcb8c040fa`, passed the
+[fresh Ubuntu installed-user journey on its first attempt](https://github.com/SLktEx/Hacocoon/actions/runs/38022165364/job/114125296512).
+The merge tree equals the reviewed head tree. The installed
+`test/e2e/installed/oci_images.py` fixture used ordinary-user `haco` commands
+and the Host's already provisioned nerdctl/BuildKit.
+
+Two nonce-tagged `FROM scratch` images built with `--network none` supplied real
+Host image data. Ordinary Environment creation automatically copied the Host
+area, with independent Store ownership and no explicit Store override or image
+save/load. After Environment deletion, shipped detached list/delete verified the
+actual immutable image IDs, removal from the copy while Host inventory stayed
+intact, and preservation of the changed inventory and exact Store on automatic
+same-Workspace recreation. A separate Workspace copied the current Host inventory.
+Populated-Host `--no-oci`, image-access refusal without a Store, contradictory
+Store-selection refusal, and exact-owned Environment/Store/Host-image cleanup
+also passed.
+
+The new OCI interval, from Host-image build through cleanup and PASS, took
+approximately 145 seconds within the unchanged 40-minute Ubuntu job deadline.
+This is a two-image fixture result, not a large-image, large-batch or throughput
+claim. The fixture added no runtime/packages or Policy/network grants to ordinary
+Environments and exposed no Host management socket. Detached metadata tools used
+the shipped preparation path. The fixed read-only recipe observer and ordinary
+CLI save/clear succeeded; BuildKit cache remained for disposable-runner teardown.
+
+Guest offline container execution was explicitly **not tested**: the default
+Base lacks the optional runtime. Current authenticated-registry acquisition and
+credential cleanup, Docker, Windows/WSL OCI recreation, broader runtime/driver
+compatibility and interrupted-operation combinations remain incomplete. This
+bounded result does not close #275 or replace the historical failures/skips above.
+Old-version and custom-layout migration remain outside the current issue scope.
+
+<a id="host-oci-sharing"></a>
+
+### Real Host OCI sharing measurements
+
+PR #743 head `6af9764d2ea4c7b0a01aa931c2cb1ec071ddb35e`, tested as merge
+`0785baf61d9552fcd6f8de0972298a7427db5906`, passed
+[`TestRealIncusHostToolingE2E` in 104.17 s](https://github.com/SLktEx/Hacocoon/actions/runs/37928748494/job/113813959793).
+The dedicated pool/project was `haco-area-6e4bcd1e35bce84c`; exact fixture cleanup
+passed. Substrate: Ubuntu 26.04, Linux `7.0.0-1012-azure` x86_64, Go 1.27.0,
+Incus 7.0.1, Btrfs-progs 6.17.1, nerdctl 2.3.5, containerd 2.3.3 and BuildKit
+0.31.2 with the native snapshotter. The actual BusyBox/BuildKit-built image was
+`sha256:964017daedcd872403b9aef02dd51e47a727d2c42bfce6d57495e6f63f9980f7`.
+
+The [reproducible measurement procedure](../design/btrfs-storage-layout.md#host-oci-copy-measurement)
+uses `du --apparent-size --block-size=1`, `du --block-size=1`, and
+`btrfs filesystem du --raw --summarize` while the exact owned consumers are paused
+through Incus. Selected whole-Store results, in bytes:
+
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Host before copy | 23,136,518 | 23,183,360 | 22,994,944 | 5,120,000 | 8,937,472 |
+| Host after native copy | 23,136,518 | 23,183,360 | 22,994,944 | 0 | 14,057,472 |
+| Copy after native copy | 23,136,518 | 23,175,168 | 22,994,944 | 0 | 14,057,472 |
+| Copy before container write | 23,136,518 | 23,179,264 | 22,999,040 | 307,200 | 13,754,368 |
+| Copy after 8 MiB container write | 35,970,962 | 36,069,376 | 35,856,384 | 8,732,672 | 13,717,504 |
+| Copy after container/tag deletion | 23,136,518 | 23,179,264 | 22,999,040 | 352,256 | 13,709,312 |
+
+After native copy, actual containerd content blobs had 2,240,512 shared extent
+bytes and zero exclusive bytes in each area; copied BuildKit data had 7,147,520
+set-shared bytes and zero exclusive bytes. Native parent-UUID ancestry, same image
+identity, offline execution, independent writes and source deletion passed.
+The 8,388,608-byte random writable-layer payload increased referenced allocation
+by 12,890,112 bytes and exclusive extents by 8,425,472 bytes; native snapshot/image
+references and runtime metadata explain why those counters are not payload size.
+The source image remained usable and did not contain the receiver's write.
+
+The 4,294,967,296-byte sparse pool backing file's allocation changed from
+2,462,105,600 to 2,462,134,272 bytes across native copy (+28,672). Receiver
+provisioning occurred before the next baseline: 3,013,103,616 bytes before the
+container write and 3,021,672,448 afterward (+8,568,832). After deleting the
+container and one image tag, the source image and receiver's second tag remained;
+backing allocation was 3,021,905,920 bytes, not a measured physical decrease.
+These are whole-pool observations including rootfs/metadata activity, not isolated
+device-write counters, compressed-extent sizes or export/import amplification.
+The full log retains both areas and their content/BuildKit subarea samples.
+
+The first head `ae95116bb04122f672baf9046cc7597ab374b007`
+[failed before byte measurements](https://github.com/SLktEx/Hacocoon/actions/runs/37927891326/job/113811150446):
+pull/build/reuse passed, but the observer rejected Btrfs' standard feature-bearing
+version banner. The first-line version parser and its regression fixed that
+observer defect; the earlier failure and skipped Packer stage remain distinct.
+Local focused/race/vet/lint and documentation checks passed; local native cases
+were skipped because Incus/Btrfs were unavailable. The hosted result above is the
+native Host evidence. The next section adds bounded managed-Workspace
+capture/restore/copy measurements. Base/multiple-Env and saved-rootfs restore byte
+accounting, archive/publish amplification, Docker drivers, completed physical
+reclamation and large-workload measurements remain open under
+[#241](https://github.com/SLktEx/Hacocoon/issues/241).
+The [rootfs/Image receipt below](#rootfs-image-sharing) covers a further
+bounded slice; it does not extend this Host OCI receipt.
+
+<a id="workspace-sharing"></a>
+
+### Managed Workspace sharing and logical deletion
+
+PR #751 head `729b3009495e76dc8db09df990eb83e55f63c9c8`, tested as merge
+`a7060f189fadc98dc005bd7af75d8c3b41cc8d0e` into `f05d3d1554b405bfa2db5b83b7f1dd4f226992ca`,
+passed [`TestRealIncusSnapshotAggregateE2E` in 229.01 s](https://github.com/SLktEx/Hacocoon/actions/runs/37964529331/job/113935434154).
+The [tested fixture source](https://github.com/SLktEx/Hacocoon/blob/729b3009495e76dc8db09df990eb83e55f63c9c8/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L804)
+retains its original Git/content/ownership assertions and confirmed exact-owned
+cleanup. Fixture `haco-aggregate-11705984157cdfa3` used Ubuntu 26.04,
+Linux `7.0.0-1012-azure` x86_64, Go 1.27.0, Incus 7.0.1 and
+Btrfs-progs 6.17.1. The cached input image fingerprint was
+`ffb1a536af31961dbc1976f5e0ca9a900ae43dbe50619fa179ad2963bd9d4173`.
+
+The [measurement procedure](../design/btrfs-storage-layout.md#managed-workspace-lifecycle-measurement)
+uses bounded guest writes in the selected managed repository, canonical capture,
+public restore/copy and exact-owned deletion. Historical synthetic setup writes
+occur before this interval. Each physical sample holds lifecycle locks and pauses
+only the exact running consumers. Whole selected-Workspace results, in bytes;
+combined labels below mean each listed area had the same values, not their sum:
+
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source before Snapshot | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| Source and saved after Snapshot, each | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Source after unlink, Snapshot retained | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+| Saved after source unlink | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| Saved and restored after public restore, each | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Copy after public copy | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| Copy after independent 8 MiB write | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| Copy after Snapshot deletion, restored source retained | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| Copy after source and Snapshot deletion | 16,805,228 | 16,900,096 | 16,793,600 | 16,777,216 | 12,288 |
+| Copy after last live payload unlink | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+
+The original random payload was 8,388,608 logical/referenced/extent bytes. It
+changed from wholly exclusive before capture to zero exclusive and 8,388,608
+set-shared bytes in each captured/restored/copied payload directory. Its SHA-256
+remained `c2d6ac8279f1a8189b1a6513aa10baecc10b48ea167e4940bcca9fc98f9d09b7`.
+The copy-only 8 MiB write increased both whole-Workspace referenced allocation
+and exclusive extents by exactly 8,388,608 bytes; saved/restored payloads remained
+unchanged. After logical source/Snapshot deletion, this run observed all
+16,777,216 payload extent bytes exclusive in the surviving copy. Final guest
+unlink reduced its payload's logical, referenced and extent counts to zero;
+the separate Git/Workspace data remained.
+
+The shared pool's sparse backing file stayed 137,438,953,472 bytes long. Its
+observed allocation was:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before Snapshot | 745,246,720 |
+| After Snapshot | 748,982,272 |
+| Source unlink, Snapshot retained | 750,309,376 |
+| After public restore | 1,455,939,584 |
+| After public copy | 1,463,418,880 |
+| After copy-only write | 1,472,823,296 |
+| Snapshot deleted, restored source and copy retained | 1,474,723,840 |
+| Source and Snapshot deleted, copy retained | 1,476,001,792 |
+| Last live payload unlinked | 1,477,312,512 |
+
+These counters include other rootfs, Image, metadata and Host activity. Aggregate
+transfer/runtime steps also intervene between source-unlink and restore samples;
+the large increase is not attributed to Workspace restore. The final unlink
+removed 16 MiB of live payload references while backing allocation increased
+1,310,720 bytes. No isolated physical-write cost, compressed-byte saving, discard
+or Windows VHDX reclamation is established. FIEMAP counts remain separate from
+referenced allocation and are not summed across copies.
+
+Each phase performs one filesystem sync and one observation, without waiting or
+retrying for capacity reduction. [Btrfs filesystem sync](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)
+starts deleted-subvolume cleaning but does not wait for it. Provider absence and
+the observed exclusive transition therefore do not establish a general completed
+physical-retirement fence. The full job receipt retains 17 area samples, nine
+pool samples, exact ownership-identity hashes and successful cleanup. This
+bounded Workspace-data result leaves saved-rootfs byte accounting, Base/multiple
+Env, archive/publish amplification, completed reclamation and large workloads open.
+
+<a id="rootfs-image-sharing"></a>
+
+### Saved-rootfs sharing and ordinary Image reuse
+
+PR #752 head `de3817208964ab0c0d0cbdb4123567b4a9e59bd2`, checked out and
+built as merge `031d0a7b9996a661f7b9dda6e54a748320ccda5b` into
+`932790322bcd54d8b8aa6fda5a13eaec030c0f67`, passed
+[`TestRealIncusSnapshotAggregateE2E` in 272.24 s on its first attempt](https://github.com/SLktEx/Hacocoon/actions/runs/37992973385/job/114031637967).
+The [tested fixture](https://github.com/SLktEx/Hacocoon/blob/de3817208964ab0c0d0cbdb4123567b4a9e59bd2/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L886)
+used `haco-aggregate-b632059ba14ffa2d`, Ubuntu 26.04.1 (OS identity 26.04),
+Linux `7.0.0-1012-azure` x86_64, Go 1.27.0, Incus 7.0.1 and
+Btrfs-progs 6.17.1. The input cached image fingerprint was
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`;
+the independently published ordinary Image had
+`origin=snapshot-generated-image` and fingerprint
+`d26206bc2cb3722868879881e882fbe8169178548a1883f3aab276aae35de4a4`.
+
+The [measurement contract](../design/btrfs-storage-layout.md#rootfs-capture-and-ordinary-image-reuse-measurement)
+keeps two paths separate: native saved-rootfs capture/restore/copy, and normal
+positional `open --new IMAGE` initialization from the immutable optimized cache.
+Exact ownership, canonical locks, verified pause/resume, read-only cache identity,
+root/parent identity and Host mount-scope checks passed. Whole-rootfs samples
+below are in bytes; they include runtime files, not only the controlled payload:
+
+| Area / operation | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source before capture | 671,568,712 | 731,987,968 | 672,321,536 | 12,496,896 | 275,742,720 |
+| Saved after capture (source identical) | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 288,100,352 |
+| Image cache after two ordinary Envs | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 281,776,128 |
+| Ordinary Image Env A | 680,050,419 | 740,478,976 | 680,804,352 | 8,486,912 | 281,776,128 |
+| Ordinary Image Env B before write | 679,957,417 | 740,384,768 | 680,710,144 | 8,388,608 | 281,776,128 |
+| Ordinary Image Env B after write | 688,441,496 | 748,871,680 | 689,197,056 | 16,879,616 | 281,776,128 |
+| Cache after both Image Envs deleted | 671,568,712 | 731,987,968 | 672,321,536 | 672,321,536 | 0 |
+| Restored from saved rootfs | 680,047,008 | 740,474,880 | 680,800,256 | 8,482,816 | 288,096,256 |
+| Copy before independent write | 680,142,757 | 740,564,992 | 680,894,464 | 4,083,712 | 292,585,472 |
+| Copy after independent write | 688,531,365 | 748,953,600 | 689,283,072 | 12,472,320 | 292,585,472 |
+| Copy after source/Snapshot deletion | 688,531,355 | 748,953,600 | 689,283,072 | 29,458,432 | 275,742,720 |
+| Copy after final payload unlink | 671,754,139 | 732,176,384 | 672,505,856 | 12,681,216 | 275,742,720 |
+
+The original rootfs payload was exactly 8,388,608 logical, referenced and extent
+bytes, wholly exclusive before capture. After capture, saved-rootfs restore and
+copy, each corresponding payload had zero exclusive and 8,388,608 set-shared
+bytes. The same shared-payload counts were independently observed in the generated
+Image cache and both ordinary Envs. Its SHA-256 stayed
+`b7c7e4e6f5421e7f8ecec0aded73211eeafc25e52e6db5a00d84512f4c103618`.
+After unlinking the source file, the saved payload was intact and wholly exclusive,
+even while the separately materialized Image cache/Envs shared their payload.
+This does not establish sharing across Image publication.
+
+Each independent 8 MiB write added exactly 8,388,608 payload referenced/exclusive
+bytes: once in ordinary Env B and once in the restored copy. Peer, cache and
+saved payloads remained unchanged. Env B's whole-rootfs allocation increased
+8,486,912 bytes and exclusive extents 8,491,008 bytes; runtime activity makes
+these different from the fixed payload change. The restored copy's whole-rootfs
+allocation and exclusive extents each increased 8,388,608 bytes.
+After deleting both ordinary Image Envs, this run observed the retained cache's
+entire rootfs exclusive. After deleting the Snapshot and restored source, the
+surviving copy's 16,777,216 payload extent bytes were exclusive. Final guest
+unlink reduced all payload counters to zero while other rootfs data remained.
+These exclusive transitions are observations, not a required retirement fence.
+
+The shared sparse backing file remained 137,438,953,472 bytes long:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before capture | 748,027,904 |
+| After capture | 760,381,440 |
+| Source unlink, Snapshot retained | 761,937,920 |
+| After two ordinary Image Envs | 1,108,312,064 |
+| After Image Env B write | 1,118,994,432 |
+| Both Image Envs deleted, cache retained | 1,119,551,488 |
+| After public restore | 1,816,449,024 |
+| After public copy | 1,824,456,704 |
+| After copy-only write | 1,833,926,656 |
+| Snapshot deleted, restored source/copy retained | 1,845,264,384 |
+| Source/Snapshot deleted, copy retained | 1,847,066,624 |
+| After final live payload unlink | 1,848,442,880 |
+
+Other rootfs, Image, Workspace, metadata and Host activity share this pool.
+Aggregate transfer/import also intervenes before the restore sample. No pool
+delta is attributed to one operation. Final live unlink removed 16 MiB of payload
+references while pool allocation increased 1,376,256 bytes; no completed physical
+reclamation was observed. FIEMAP lengths are not compressed-byte or device-write
+counters, and per-area values are never summed as unique storage.
+
+The full receipt retains 27 rootfs/payload area samples, 12 whole-pool samples,
+identity hashes and the existing 17 Workspace area/nine pool samples. Exact-owned
+Env/automatic Workspace cleanup, saved aggregate cleanup and final fixture
+absence passed; the job then deleted its pool and project. Persistent catalog
+lock identities were intentionally retained. Original cached input-image deletion
+was explicitly skipped because dedicated-image permission was not enabled.
+No retry was used. Local sandbox failures remain distinct from this hosted pass.
+General Base-build/Packer efficiency, archive/publish amplification, broader OCI
+workloads, restored SSH/live application consistency, completed reclamation,
+large workloads and Windows VHDX effects remain outside this bounded result for
+[#241](https://github.com/SLktEx/Hacocoon/issues/241).
+
+<a id="archive-materialization"></a>
+
+### Retained native archive and import materialization
+
+PR #753 head `375c4f0e3706d0bca697745164710532fddbe087`, checked out and
+built as merge `c9ba3ac33323c091c1c2450beafc3515dc65b1e1` into
+`83d8d91695a04f3c26f8f331d2eeec03428fa6c8`, passed the added archive interval in
+[native run 38001081322, job 114059018186, attempt 1](https://github.com/SLktEx/Hacocoon/actions/runs/38001081322/job/114059018186) on 2026-10-09.
+`TestRealIncusSnapshotAggregateE2E` passed in 359.70 s; its existing
+`shipped-controller-import` subtest passed in 23.71 s. The
+[tested interval](https://github.com/SLktEx/Hacocoon/blob/375c4f0e3706d0bca697745164710532fddbe087/internal/adapters/incus/rootfs_archive_reuse_e2e_test.go#L21-L177) used fixture `haco-aggregate-5d8450302b0f769c`,
+Ubuntu 26.04.1 (OS identity 26.04), Linux `7.0.0-1012-azure` x86_64,
+Go 1.27.0, Incus 7.0.1 and Btrfs-progs 6.17.1. The cached input fingerprint was
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`; the ordinary
+Image had `origin=snapshot-generated-image` and fingerprint
+`ff8534d6dcc9812f9bb91fcd35d7f7ae2d168152d16c76180ca2465b960fdcf6`.
+Reproduction uses the [existing aggregate recipe](../design/btrfs-storage-layout.md#managed-workspace-lifecycle-measurement),
+with the [archive measurement contract](../design/btrfs-storage-layout.md#retained-native-archive-and-import-materialization-measurement).
+
+The shipped CLI/controller exported ordinary Image Env B after its 8 MiB delta
+write, then imported one fresh destination. The retained `.haco` file was
+**707,051,008 logical bytes and 707,055,616 referenced allocated bytes**
+(`st_blocks * 512`). Its filesystem type was `61267`, distinct from the
+managed Btrfs pool. All three samples, after export, after import and after
+destination deletion, had identical counters, component digests and identities:
+
+- Archive SHA-256: `7a2563cce037bf1f76f01e2c83895292e943b2e5cd4251e58655985ef2747436`
+- `filesystem_identity_sha256`: `0ea4ec481550c1f15778cbb9377d5cc9b1ed9c1618bc483b6878bf807bbf3804`
+- `file_identity_sha256`: `e623bc1b1b4e7417f27f26308ccaee44ca57038cdc431eac25a2b3038e87dfeb`
+
+| Verified component role | Bytes | SHA-256 |
+|---|---:|---|
+| `rootfs` | 707,044,352 | `aba634edadad8f15172559466e1d3e2be5eda671519375f177e3da98af5c6352` |
+| `workspace` | 3,584 | `bbcf3c547eef1e4150f975b841528a8cc1233a5232478234ccacbbd1e5401563` |
+
+The two components totalled 707,047,936 bytes; the outer envelope added
+3,072 bytes. No OCI component was present in this interval. The earlier
+aggregate export and its controller-import subtest remain separate functional checks.
+
+Whole-rootfs counters below are bytes. All four source samples (before export,
+after export/import and after destination deletion) were identical. The receipt's
+source identity hash was `ccf0385cac8a126aea407bc4b7d418b34e6cdc9681cffebcc8c9b96721a77580`;
+the fresh imported identity hash was
+`35d0b29d5cfb3b7c3c2b48a59b3c553b19219ec954cf7acab67ac510b6bc361f`.
+
+| Area | Logical | Referenced allocation | Extent total | Exclusive | Set-shared |
+|---|---:|---:|---:|---:|---:|
+| Source | 688,443,469 | 748,875,776 | 689,197,056 | 16,879,616 | 281,337,856 |
+| Imported | 688,538,187 | 748,965,888 | 689,291,264 | 689,291,264 | 0 |
+
+Each `base`/`delta` file had exactly 8,388,608 logical, allocated and extent bytes.
+The source `base` had 0 exclusive / 8,388,608 set-shared bytes; its `delta` had
+8,388,608 exclusive / 0 set-shared bytes at every sample. Each imported file had
+8,388,608 exclusive / 0 set-shared bytes. Both payload directories totalled
+16,777,216 logical, allocated and extent bytes; source exclusive/set-shared were
+8,388,608 each, while imported exclusive was 16,777,216 and set-shared was 0.
+Guest ownership `0:0` was verified in source and destination. The respective
+SHA-256 values matched in every source/imported sample:
+
+- `base`: `293bf8567227610fc453daa3f7989e8b860b54b7e5d44d26e753848a9d1dbf49`
+- `delta`: `1ff32bf51e7e9472443465c9b93557dc24c716531c0aef8b606fa13ef23ea584`
+
+The recorded delta relationship was `separately_materialized_from_source`:
+source exclusivity before export and after import supports that bounded result.
+The source whole-rootfs was not wholly exclusive. Equal hashes or separate
+set-shared counters do not establish pairwise sharing, and these observations
+are not unique-physical-byte or compression measurements.
+
+The four `whole_shared_pool` samples retained a logical backing-file length of
+137,438,953,472 bytes:
+
+| Phase | Whole-pool allocated bytes |
+|---|---:|
+| Before export | 1,117,982,720 |
+| After export | 1,121,533,952 |
+| After import | 1,478,545,408 |
+| Destination deleted, archive retained | 1,481,560,064 |
+
+Allocation rose 3,014,656 bytes after destination deletion. Other objects and
+metadata share this pool; no delta is assigned solely to export/import or cleanup,
+and no completed physical reclamation is claimed. Archive allocation on the
+other filesystem is not pool allocation and is not added to these counts.
+
+Exact temporary Snapshot/image cleanup and fresh destination Env/Workspace
+native/catalog absence passed while the same archive remained readable. The
+existing final fixture cleanup then removed it; aggregate resources were absent,
+with persistent catalog lock identities intentionally retained. Cached input-image
+deletion was explicitly skipped because dedicated-image permission was not enabled.
+Earlier failures remain separate; this result is native interval acceptance.
+
+Transfer's uncompressed native archives remain distinct from normal compressed
+Base publication. Retained counters do not measure transient component/staging/import
+peaks, peak memory, device-write amplification or universal Base/Packer efficiency.
+This is a representative materialization/deletion result for
+[#241](https://github.com/SLktEx/Hacocoon/issues/241), not whole-installation or
+disaster-backup acceptance; universal scaling and physical-reclaim success are
+not additional completion requirements.
 
 <a id="transfer"></a>
 
@@ -551,6 +1058,32 @@ then updated; the prior source-bound results are preserved, not relabeled as CI
 success for a new head.
 
 
+<a id="environment-exec-cancellation"></a>
+## Persistent Environment execution cancellation
+
+PR [#754](https://github.com/SLktEx/Hacocoon/pull/754) head
+[`bf699cec300e`](https://github.com/SLktEx/Hacocoon/commit/bf699cec300e119eb483dbaaf1abf3174ba595a6)
+over base [`5efd8b15e08b`](https://github.com/SLktEx/Hacocoon/commit/5efd8b15e08b7ec118bbd1e75aa62a33454d8271)
+was checked out as merge
+[`84c9d182be6a`](https://github.com/SLktEx/Hacocoon/commit/84c9d182be6a4f4253dca9e8c2f081a630a1231f).
+[Incus run 38007854895, job 114080710610](https://github.com/SLktEx/Hacocoon/actions/runs/38007854895/job/114080710610)
+passed on attempt 1 with Ubuntu 26.04.1 and Incus 7.0.1. At 2026-10-10
+00:11:41 UTC it emitted `ENVIRONMENT EXEC CANCEL / EXACT EXECUTION ABSENT / RUNNING ENV RETAINED: PASS`;
+the existing binary stream, real PTY edit/resize, exit 17, terminal restoration
+and stopped-Environment refusal receipts also passed.
+
+Before any Environment stop, cancellation returned CLI exit 130 and ordinary
+`haco exec` observed the launched shell-to-exec PID/start-time identity disappear
+within the shared 30-second budget. The saved Environment identity, running state
+and guest PID1 start time were unchanged. Captured output and identity/observation
+receipts were bounded. No surviving execution was found in this fixture, and no
+product fix is asserted. This does not prove that `sleep` had already entered or
+that arbitrary descendants were reaped. This native observation is separate from
+the 18 local fixture unit tests; those alone do not establish native acceptance.
+This scoped native receipt does not substitute for verification of the final
+head across all workflows.
+
+
 <a id="cache-generation-foundation"></a>
 ## Cache generation foundation
 
@@ -834,6 +1367,104 @@ the dedicated test binary was used, not the installed CLI. No Policy relaxation
 or guest management authority was added. Authenticated Git, human GUI answers,
 installed input and giant-repository measurements were not exercised.
 
+### Installed Linux input gate
+
+The candidate based on main `7a3a6b8b` adds
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py) to the existing
+mandatory Ubuntu installed lifecycle journey. It uses ordinary `repo add`,
+`workspace import`, path `open`, `exec`, stop/reopen, explicit Environment/Workspace
+deletion and source unregistration against the installed controller. The upstream
+is the public Hacocoon repository; input
+is a small local checkout and an actual linked worktree. No credential, private
+registry, replacement controller, catalog edit or product setup repair is needed.
+Git is an optional selected-Image prerequisite under [getting started](../guides/getting-started.md#develop-and-return-later).
+For its two exact-owned Environments only, the fixture uses public `config` and
+`exec` commands to install missing Git through ordinary Ubuntu package access.
+Four temporary rules per Environment permit only `archive.ubuntu.com` and
+`security.ubuntu.com`, HTTP/80 and HTTPS/443, with a 15-minute expiry. No wildcard,
+global or DNS grant is added. These administrator grants are name-scoped: safety
+is bounded to the fresh single-runner fixture's unique nonce names, with recorded
+receipts checked before configuration and immediately before `exec`. This does
+not claim instance-bound permission or atomic name-based execution. Each package
+operation removes its exact rules in `finally`, preserving unrelated Policy;
+changed/ambiguous rules fail closed and prevent Env deletion/name reuse before
+runner teardown.
+Configuration uses revision-bound public snapshots, never direct protected-file
+writes or save replay. An absent snapshot cannot complete an unconfirmed add:
+a delayed save may still commit. Such ambiguity retains pending grants and Env
+names. A pending removal is reconciled only by observing absence after the add
+was confirmed; an uncertain save is never automatically resent. Package failures
+remain failures; Git/data assertions are unchanged. The fixture does not require Git in every Base or change the default Image.
+
+Freshness is an execution precondition: this fixture runs only in that disposable
+GitHub-hosted installer journey. It refuses execution without both `GITHUB_ACTIONS=true`
+and `HACO_CI_RUNNER_ENVIRONMENT=github-hosted`; those markers do not prove freshness.
+The empty `repo list --json` check is additional protection only. The public list
+hides excluded sources, and registration can reuse equivalent HTTPS/SSH/scp
+remotes. Do not run it against an existing installation. Unexpected registration
+receipts are not adopted or unregistered; the requested identity and local receipts
+remain for inspection. No test claims to detect records hidden by the public API.
+Import/open observations are saved separately before validation; only validated
+responses enter cleanup ownership. Nonzero import JSON can carry a recovery
+reference, while the current open command emits JSON only on success. Records
+retain bounded public identity/status fields, never raw command output or secrets.
+On handled failures, an `INSTALLED_INPUT_FAILURE` JSON line preserves that bounded
+report in the existing Actions logs after runner teardown. Local source trees
+are not uploaded; abrupt runner termination may prevent the failure report.
+
+Assertions distinguish selected HEAD, staged/dirty/untracked files, independent
+guest commits, another managed Workspace and unchanged client/common Git state.
+Repeated open and stopped resume must retain the same Environment/Workspace
+identity; a mismatched path reference must be refused. Environment/Workspace
+cleanup checks exact recorded owners and positive absence, preserving unconfirmed
+creation receipts. `repo delete` only unregisters the exact owned source from
+active selection. Its absence from `repo list` does not prove physical deletion:
+native source data is intentionally retained until the disposable runner is torn
+down. No purge or older repository-deletion behavior is used.
+Fixture/cleanup regressions are repository evidence only. The installed success
+below covers this added slice; it does not complete issue #344's Linux SSH,
+connection-enumeration/forwarding or editor requirements. Existing Windows
+acceptance remains separate and is not rerun or replaced by this fixture.
+
+At `be032d9f`, [Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)
+passed installation and the existing lifecycle, then failed the first Workspace
+import with a connection reset and a retained recovery-required identity. The
+bounded report survived in the job log; no imported Env was opened. A component
+regression reproduces the missing `$HACO_ROOT/transfers` directory through the
+actual receiver, upload framing over `net.Pipe` and native archive staging.
+The receiver now initializes that private directory like the other import handlers.
+Missing/existing roots, unsafe existing paths and retained failure identities pass
+locally with race; installed acceptance at this stage remained pending. The initial
+native failure is not relabeled a pass or bypassed by fixture-side preparation.
+
+At `4e8f9464`, [Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)
+passed both independent imports and their first opens. The next guest Git assertion
+failed with `git: not found`; exact-owned cleanup completed and bounded receipts
+were retained. This is the documented optional Git prerequisite, not an import
+failure or a requirement to modify all Bases. The corrected fixture follows the
+package-permission path above. Local regressions reproduce the earlier missing
+prerequisite, preserve all Git assertions, and check bounded grants, cleanup,
+uncertain saves and concurrent Policy edits. Installed execution of this follow-up
+is recorded below. A separate default/custom-root registration regression verifies lazy
+staging initialization without touching the default root or invoking the service.
+
+
+At `23241a4`, [Ubuntu run 37954236509](https://github.com/SLktEx/Hacocoon/actions/runs/37954236509)
+and its evidence gate passed. The installed linked-worktree fixture completed
+selected HEAD/index/working-file checks, ordinary guest commits, independent
+Workspace/client/common-Git isolation, mismatched-owner refusal, repeated open,
+stop/resume, exact-owned Environment/Workspace deletion and source unregistration.
+The job recorded both owned Env deletions, both Workspace deletions and final
+fixture PASS at 2026-10-09 15:52:58 UTC. That PASS is reachable only after both
+package setup `finally` blocks and fresh configuration reads confirm exact
+removal, followed by positive resource-absence checks. This is code-bound
+assertion evidence; no separate raw Policy snapshot is retained. The same job's
+installed network checks also passed. External SonarCloud passed at 100% new-code
+coverage. Other historical Windows/network failures are not resolved by these
+results, and issue #344's remaining client/connection requirements stay open.
+
+The final candidate normally merges main `23499701` after this scoped success;
+its combined exact-head CI is separate and pending.
 
 ## Retained cache catalog maintenance
 
@@ -1493,6 +2124,34 @@ One failed-jobs rerun was requested for this exact head to check reproducibility
 it cannot erase the first attempt. No timeout, disk-attachment check or WSL-wide
 setting was relaxed. Person-dependent acceptance remains post-release.
 
+<a id="tcp-listener-cancellation-close"></a>
+
+## TCP listener cancellation waits for closure
+
+PR #748 head `9172e2bbe3337e85c53a25187e154d7bdd1568ec` failed
+[test run 37935376919 / Go 1.26 job 113835981590](https://github.com/SLktEx/Hacocoon/actions/runs/37935376919/job/113835981590)
+on 2026-10-09. `TestNetworkListenerValidatesLoopbackAndClosesOnCancellation`
+returned from the command, then failed the immediate exact-address TCP rebind
+with `address already in use`. The Workspace package, including the new
+process-recovery cases, passed in that same job. This failure is retained;
+the head was not rerun to obtain a pass.
+
+A separate local follow-up based on `7a3a6b8b33b0265f2e79d46015836739542680c6`
+reproduced the ownership gap with a channel-backed listener and Go `testing/synctest`:
+`Accept` can unblock before an asynchronous `Close` finishes. The previous
+`ServeTCP` stopped the callback without joining it; another caller's `Close`
+could return while the first still held the socket. Three deterministic cases
+failed on unchanged main and passed after joining the callback or closing
+synchronously when cancellation preceded its start. Non-canceled accept errors
+and invalid-listener refusal preserve caller ownership. No timing sleeps or
+real sockets select the injected failure.
+
+The local candidate passed the complete network package and unchanged CLI
+listener/rebind tests on Go 1.26.7 and 1.27.2, plus focused race, repository vet
+and differential lint. The strict immediate-rebind assertions, product deadlines
+and retry policy are unchanged. This is component evidence; the corrected
+published head and native provider/Windows acceptance remain separate.
+
 ## Network command language
 
 `0387258d` adds shared English/Japanese network result and next-action messages.
@@ -2131,3 +2790,166 @@ restricted process environment, history clearing and all existing deadlines.
 The original CI failure remains evidence, not a successful notification run.
 
 Local Windows acceptance passed native owned-history clear, English/Japanese toast display and removal (34.81 s), plus input decoding without module autoload, malformed-frame rejection, cancellation/reaping and diagnostic redaction. An initial confined test process rejected .NET calls under ConstrainedLanguage; normal native execution passed without changing Windows policy or product environment. The hosted failure remains pending the updated CI run; no human answer was submitted.
+
+<a id="nested-packer"></a>
+
+## Nested Incus Packer replacement
+
+Initial Issue #566 candidate based on main `d2bdbdff`: actual nested Packer acceptance was pending at this point.
+The historical ordinary-builder failures and unverified records above remain historical
+evidence; the new architecture does not retroactively turn them into passes.
+
+Local validation on 2026-09-27 used Go 1.26.7 and golangci-lint 2.13.2.
+Packer, Base build/import/manage, Incus, controller API and CLI tests, including
+race checks, passed. Changed-code lint reported zero issues; whole-repository
+`go vet ./...`, documentation checks (including 19 regressions), workflow-policy
+checks and `git diff --check` passed. The full local test entry point failed at
+`TestOrdinaryLargeGitFetchAndApprovedPush` (approval request timeout); the same
+failure reproduced on unmodified main `d2bdbdff`. The initial Windows-share run
+also timed out in the milestone black-box test; that test passed from the native
+WSL validation checkout. The broad race attempt also observed the existing
+transport timing failure `TestClientCannotSendInvalidRequests`; relevant candidate
+package race checks passed separately. These are not full-suite passes.
+
+The real Incus Packer E2E attempt failed during normal trusted-Host networking:
+the existing `haco-host0` belongs to the installed Host in another project, so
+ownership validation correctly refused reuse. No Packer stage ran. Exact retained
+fixture project/pool: `haco-packer-e2e-b17070ddb4eaf6f0`.
+An independent unprivileged test substrate `haco-566-physical` was then created on
+its dedicated owned bridge `haco-566-test` (`10.71.201.0/24`). Outbound package
+fetching timed out under the existing Docker forwarding policy. Fixture-only
+firewall changes required explicit approval and had not yet been applied.
+
+Consequently fresh nested daemon setup, actual Packer/plugin download and execution,
+export/stream/import, immutable revision reuse, cleanup, and the added real failure
+cases remained **unaccepted** at that stage. The maintained CI now requires
+`TestRealIncusPackerBaseBuildE2E` through `ci_required_tests.py`; hosted CI has not run
+for this candidate. No SKIP or partial run is counted as a successful Packer build.
+
+Follow-up on 2026-09-27: the user approved two temporary forwarding rules limited
+to `haco-566-test` and its established replies. The independent substrate then
+installed and started Incus 7.0.1. Initial fresh-Host attempts exposed missing
+`nftables` and an over-wide subordinate ID allocation in the extra nested test
+substrate. Product Host setup now includes `nftables`; build profiles bound their
+ID range to 65,536. The substrate's allocation was confined to its parent's range.
+
+Fixture `haco-packer-e2e-fbe80b3c42466d65` passed normal fresh Host setup, actual
+Packer 1.16.0 installation, nested daemon initialization, real Incus plugin 1.0.5
+initialization/loading, validation and build instance creation. Build
+`228843315a966b96e64b545df11a7078` FAILED during shell provisioning because guest
+boot initialized `/tmp` after script upload. This is not a successful build.
+Its stopped Host, nested instance and receipt are retained; its NIC was detached
+only to release the fixture bridge. Templates now use Packer's documented
+`remote_folder = "/root"`. A separate real Incus probe confirmed the default
+profile must be removed with the private project, not deleted independently;
+the worker and regression fixture were corrected accordingly.
+
+The 64 GiB archive ceiling was replaced with a 1 TiB default and explicit
+`--max-image-size` override. Size arithmetic, bounded stream rejection, a 65 GiB
+sparse-file CLI check, related race tests, vet, changed-code lint, docs and workflow
+checks passed. This does not establish TB-scale image acceptance. Re-running the
+full local test entry point still failed the previously reproduced Git approval
+timeout (`TestOrdinaryLargeGitFetchAndApprovedPush`, 89.81 s).
+
+The corrected run in `haco-packer-e2e-ff391d7466b03e08` reached real shell script
+execution, image publication and native export (561,748,480 bytes, nested image
+`19964f9c33ccaa6344e485a2f9e1fe1689f6bb0f1bf2621250d26dc01b3cdf34`). Build
+`d057e6789fdd9c195abd8ca75026b4c9` then FAILED at the canonical import Env's root-disk
+quota: the unprivileged Physical Host fixture cannot apply the Btrfs quota.
+The controller stream and validation ran; no canonical Base revision or normal Env
+success is claimed. The transport artifact and receipt remain recovery-required.
+No product resource limit was disabled. A separate privileged Physical Host
+fixture was prepared; its product `haco-host` and ordinary Environments retain
+normal unprivileged settings and trust boundaries.
+
+Final run on 2026-09-27: `TestRealIncusPackerBaseBuildE2E` **PASS**, 2302.13 s,
+in exact project/pool `haco-packer-e2e-5405bbdd220ba630`. Incus 7.0.1 ran in the
+independent WSL Physical Host fixture `haco-566-physical-root`. Normal fresh Host
+setup installed Packer 1.16.0 and initialized nested Incus; the real plugin 1.0.5
+was downloaded/loaded, HCL validated, and `setup.sh` executed in a separate instance.
+Native image export, bounded controller API stream, canonical archive import and
+immutable Base publication all passed. A normal Env returned `hello-from-packer`.
+A second build changed the new Env to `hello-from-packer-two`, while the original
+Env retained its original revision and output. Both successful builds left no
+nested temporary instance/image/project, artifact or context. Test Envs and
+published test Bases were then deleted through existing lifecycle APIs.
+
+Real invalid-HCL, plugin initialization and provisioner failures preserved the
+current Base pointer and original Env. Their exact receipts were retained:
+`7a666170a99a7cdc54b2a17af9437f0c`, `0e5b22a4938be0e81d0aee2c0e1e0b5f`,
+`f29e7a76901f05b296049d0d597a941f`. Component regressions separately cover export,
+interrupted stream, import/unknown acknowledgement, cleanup and cancellation;
+these injected failures are not represented as real-provider failure acceptance.
+
+The fixture's first publication used Incus's default compression. Its second
+publication used supported `images.compression_algorithm=none` to reduce slow WSL
+compression; production daemon settings were untouched. The Physical Host fixture
+was privileged to exercise real Btrfs quota, while product Host/build/ordinary
+instances remained unprivileged. The controller endpoint used the standard
+transport/API/service with fixture-owned state, not the installed production catalog.
+Both approved bridge firewall rules were removed and positively checked absent.
+Both Physical Host fixtures were stopped. Failed-attempt resources remain for
+diagnosis; no guessed cleanup was performed.
+
+The maintained CI requires the real test and rejects a missing/conditional Packer
+step, missing test or SKIP. Its bounded timeout was increased after the measured
+38-minute local run. Workflow policy and contract regressions passed. Hosted CI,
+arm64, TB-scale performance and installed production-controller acceptance remain
+unverified. The previously recorded full-suite Git timeout remains a failure.
+
+Follow-up on 2026-09-28: at the user's request, Base build/import now defaults to
+no configured image-size or overall duration cap. Explicit `--max-image-size`
+limits remain available. Inspection found the shared transfer still inherited the
+Environment 64 GiB wire ceiling and 30-minute client/server deadline; the earlier
+1 TiB CLI/sparse-file checks had not proved that full path. Base now selects its
+own wire limit/deadline policy while Environment/Workspace retain theirs.
+The prior 2302.13-second real Packer PASS remains evidence for that earlier revision,
+not a newly executed unlimited-size or unlimited-duration acceptance run.
+A real short-lived systemd probe confirmed `RuntimeMaxUSec=infinity` and
+`LimitFSIZE=infinity`, then exited inactive. No Packer/HCL ran on the Physical Host.
+Large-image acceptance remains unverified; arm64 is outside the requested scope.
+
+Follow-up validation passed: related Go tests (including Incus), Base/Packer/CLI/controller race checks, whole-repository vet, changed-code lint (zero findings), docs consistency and diff whitespace checks. A 2 TiB-plus sparse file exercised metadata-only CLI streaming; real socket tests verified deadline policy, and frame-counter boundary tests crossed the former 64 GiB wire cap without claiming that volume of transferred data. The full Packer E2E was not rerun for this limit-policy change.
+
+### Main integration and first hosted attempt
+
+Candidate `8584817d22025204e91f3c83bb98d86d2d9f822e` integrates the current
+Image/Environment creation contract. Its hosted Go 1.26/1.27 tests, race, vet,
+lint, documentation and Ubuntu installer jobs passed. The new required Packer
+step in [run 36360380538](https://github.com/SLktEx/Hacocoon/actions/runs/36360380538)
+failed at Packer build after fresh Host setup, pinned tooling and nested daemon
+initialization succeeded. The test failed after 80.32 seconds; this is not image
+build/import acceptance. The first Sonar new-code coverage gate also failed
+(61.7%). Follow-up regression coverage and fixed-category diagnostics address
+these gaps without publishing raw subprocess output or weakening required tests.
+
+### Fresh Ubuntu hosted Packer acceptance
+
+Candidate `dced0b45eb83349cd107d51614891b9ae68f3b83` passed the mandatory real
+Packer E2E in **250.81 seconds**, [run 36363265837 / job 108744536151](https://github.com/SLktEx/Hacocoon/actions/runs/36363265837/job/108744536151),
+on 2026-09-28. Exact fixture project/pool: `haco-packer-e2e-c9f0f66fdab2131f`.
+The initial hosted failure was reproduced with scoped AppArmor namespace denials.
+The fresh Host had enabled nesting only after boot. Configuring nesting before
+first boot lets Incus initialize its nesting mounts and AppArmor namespaces;
+no privileged Host or AppArmor bypass was added. The creation regression requires
+that configuration in the initial instance request.
+
+Fresh normal setup, pinned Packer/plugin download and loading, validate/build,
+actual shell provisioning, nested image generation/native export, controller
+stream/validation/import and immutable publication passed. A normal Env returned
+`hello-from-packer`. Rebuilding preserved that Env's revision and output while a
+new Env used the new revision and returned `hello-from-packer-two`. Both successful
+builds left no nested temporary instance/image/project, transport artifact or
+build context. Real invalid HCL, plugin-init and provisioner failures preserved
+the current Base and old Env; their diagnostic receipts remained owned.
+
+The same candidate passed hosted Go 1.26/1.27, race, vet, lint/Sonar quality gate,
+docs, Ubuntu installer and all Incus jobs, including JSON Base builds, snapshots,
+Workspace/OCI transfer and cleanup. Integrated native WSL `ci-local.sh test` and
+`ci-local.sh race` passed before the final setup-order fix; focused Host creation,
+ownership and diagnostic race tests and changed-code lint passed after it. These
+results supersede the earlier full-suite failures only for the integrated code.
+Windows jobs were still running at this observation.
+The earlier failures above remain historical failures. The E2E uses the standard
+controller API/service with isolated fixture state; it is not installed production
+controller acceptance. No >64 GiB/TB payload transfer or arm64 acceptance is claimed.

@@ -30,6 +30,14 @@ install-ubuntu.sh post
 
 WSL lifecycle and login integration stay in PowerShell. Native-Ubuntu-only checks and post-install behavior stay in `install-ubuntu.sh`.
 
+`install-windows.ps1 -DownloadWslImageOnly` prepares `ubuntu.wsl` beside the
+installer using the same Ubuntu 26.04 download and vendor SHA256 verification
+as normal cached-image installation. An existing cache file is reused. This
+mode needs neither WSL nor the bundled Linux release; it returns before WSL
+discovery, distribution registration or user setup. The main-branch cache warmer
+uses this mode. `-UseCachedWslImage` still performs the complete installation.
+Both image modes require the Ubuntu 26.04 selection and reject `-WebDownload`.
+
 After terminating the owned WSL distribution for default-user or systemd changes,
 the installer observes successful registered/running distribution lists before
 starting it again. Fixed delay is not evidence of stop completion. Missing

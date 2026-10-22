@@ -35,3 +35,76 @@ try {
         }
     }
 }
+
+# Load diagnostic helpers without launching VS Code or entering WSL.
+foreach ($name in @('Select-VSCodeDiagnosticValue','Get-VSCodeDiagnosticDuration','Write-VSCodeFailureDiagnostic')) {
+    $definition=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
+    . ([scriptblock]::Create($definition.Extent.Text))
+}
+function Get-DiagnosticText($Result) {
+    $previous=[Console]::Out
+    $output=[IO.StringWriter]::new()
+    try {
+        [Console]::SetOut($output)
+        Write-VSCodeFailureDiagnostic $Result
+    } finally { [Console]::SetOut($previous) }
+    return $output.ToString()
+}
+$receipt=[pscustomobject]@{
+    checks=@('workspace-marker','SECRET','workspace-marker',7,@('editor-file-read-write'))
+    filesystemFailure=[pscustomobject]@{suboperation='editor-open';error_category='unavailable';duration_ms=25;error='SECRET'}
+    authority='SECRET';nonce='SECRET';stack='SECRET'
+}
+$text=Get-DiagnosticText $receipt
+$record=$text | ConvertFrom-Json
+if ($text.Contains('SECRET') -or $record.suboperation -cne 'editor-open' -or
+    $record.error_category -cne 'unavailable' -or $record.duration_ms -ne 25 -or
+    ($record.completed_checks -join ',') -cne 'workspace-marker' -or
+    ($record.PSObject.Properties.Name -join ',') -cne 'component,operation,suboperation,completed_checks,error_category,duration_ms') { throw 'Diagnostic projection changed or leaked arbitrary data' }
+foreach ($step in @('marker-read','marker-validate','editor-write','editor-open','editor-validate','editor-show')) {
+    $receipt.filesystemFailure.suboperation=$step
+    if (((Get-DiagnosticText $receipt | ConvertFrom-Json).suboperation) -cne $step) { throw 'Known filesystem operation was lost' }
+}
+foreach ($category in @('type','not-found','exists','not-directory','is-directory','no-permissions','unavailable','other','unobserved')) {
+    $receipt.filesystemFailure.error_category=$category
+    if (((Get-DiagnosticText $receipt | ConvertFrom-Json).error_category) -cne $category) { throw 'Known filesystem error category was lost' }
+}
+$receipt.filesystemFailure.suboperation='SECRET'
+$receipt.filesystemFailure.error_category='SECRET'
+foreach ($duration in @('SECRET','25',-1,0.5,[double]::NaN,[double]::PositiveInfinity,9007199254740992,$true,@(25))) {
+    $receipt.filesystemFailure.duration_ms=$duration
+    $text=Get-DiagnosticText $receipt
+    $record=$text | ConvertFrom-Json
+    if ($text.Contains('SECRET') -or $record.suboperation -cne 'unobserved' -or
+        $record.error_category -cne 'unobserved' -or $null -ne $record.duration_ms) { throw 'Malformed diagnostic value escaped projection' }
+}
+if ((Get-DiagnosticText ([pscustomobject]@{checks=@()})) -ne '') { throw 'Missing diagnostics fabricated a result' }
+Add-Type @'
+using System;
+using System.IO;
+public sealed class BrokenEditorDiagnosticWriter : StringWriter {
+    public bool FailFlush;
+    public override void WriteLine(string value) { if (!FailFlush) throw new IOException("SECRET sink"); }
+    public override void Flush() { if (FailFlush) throw new IOException("SECRET flush"); }
+}
+'@
+foreach ($flush in @($false,$true)) {
+    $previous=[Console]::Out
+    $output=[BrokenEditorDiagnosticWriter]::new()
+    $output.FailFlush=$flush
+    $cleaned=$false; $primary=$null
+    try {
+        [Console]::SetOut($output)
+        try {
+            Write-VSCodeFailureDiagnostic $receipt
+            throw 'Original editor refusal'
+        } finally { $cleaned=$true }
+    } catch { $primary=$_.Exception.Message }
+    finally { [Console]::SetOut($previous) }
+    if ($primary -cne 'Original editor refusal' -or -not $cleaned) { throw 'Diagnostic sink replaced refusal or cleanup' }
+}
+function ConvertTo-Json { throw 'SECRET serialization' }
+try {
+    if ((Get-DiagnosticText $receipt) -ne '') { throw 'Failed serialization emitted output' }
+} finally { Remove-Item Function:ConvertTo-Json }
+Write-Host 'Editor filesystem diagnostic projection / hostile values / failed sinks: PASS'

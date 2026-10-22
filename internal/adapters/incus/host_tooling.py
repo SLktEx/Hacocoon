@@ -127,7 +127,7 @@ def run(argv, timeout=120):
 def packages():
     # Ubuntu's signed configured repositories, including universe. Do not add
     # third-party apt keys/sources or install/upgrade unrelated runtime packages.
-    required = ("git", "gh", "ca-certificates", "iptables")
+    required = ("git", "gh", "ca-certificates", "iptables", "nftables", "curl", "gnupg", "dnsmasq-base", "uidmap")
     missing = []
     for name in required:
         result = subprocess.run(["/usr/bin/dpkg-query", "-W", "-f=${Status}", name],
@@ -241,7 +241,10 @@ WantedBy=multi-user.target
 
 if __name__ == "__main__":
     try:
-        {"host_packages": packages, "host_tooling": tooling, "host_services": services}[sys.argv[1]]()
+        if sys.argv[1] == "host_packer":
+            packer_setup()
+        else:
+            {"host_packages": packages, "host_tooling": tooling, "host_services": services}[sys.argv[1]]()
     except Exception:
         # Fixed failure only: package/download/helper errors can contain secrets.
         raise SystemExit(1) from None

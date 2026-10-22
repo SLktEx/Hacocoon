@@ -1,124 +1,19 @@
-# Temporary execution
+# Internal temporary execution
 
 [日本語](temporary-execution.ja.md) | English
 
-Status: **captured and interactive product CLI implemented in the candidate; fresh stream acceptance pending**. Prior captured-run real-Incus evidence remains scoped to 4adfe19.
+Temporary execution is an internal facility for Image building and OCI maintenance.
+The public daily entry is [open/create](environment-creation.md). Internal callers
+still use canonical creation, exact generation ownership and bounded cleanup.
 
-Run one command without first naming or creating an Environment:
+A temporary Workspace contains only disposable internal work. Retained user data
+must never be adopted by name or deleted merely because cleanup was attempted.
+Provider absence is positively verified before ownership and leases are released.
+Unknown cleanup keeps recovery-required ownership. Cancellation uses a bounded
+cleanup context independent of execution cancellation. Live-owner locks prevent
+startup reconciliation from deleting work still in progress.
 
-```sh
-haco run --rm -- uname -a
-haco run -- sh -c 'echo hello > message.txt; cat message.txt'
-```
-
-Removal is the default, so --rm is optional. Commands start in /workspace.
-When --workspace is omitted, that directory belongs to the temporary Environment;
-its contents disappear with the Environment. The default configured Hacocoon Base
-is used; --base selects another Base. This is not a Docker image selector.
-
-To keep project files, select an existing Workspace:
-
-```sh
-haco run --workspace managed:dev -- sh -c 'echo result > result.txt'
-haco run --workspace managed:dev --read-only -- ls
-```
-
-The selected Workspace and its OCI Store survive. A retained Environment already
-leasing it must be deleted before lending it to another Environment; stop retains
-the lease. Alternatively use an independent Workspace copy.
-
-On failure, stderr reports a bounded reason category without raw backend details.
-For `busy`, the CLI explains retained Workspace leases and routes to the existing
-Env or an independent copy. This guidance never authorizes deletion, releases a
-lease, retries execution or changes the cleanup receipt. JSON remains on stdout;
-unknown cleanup remains unknown even when the refusal reason is known.
-
-Published OCI content is copied automatically, including for a temporary
-Workspace; --no-oci opts out. With no published content there is nothing to copy.
-Only the default copy bound to a temporary Workspace is removed after runtime
-deletion. Host Docker/nerdctl publication and real image-use acceptance retain their
-separate implementation limits in [status](../IMPLEMENTATION_STATUS.md).
-
-Command stdout/stderr and exit status are preserved. By default output is captured
-with the existing size limits; truncation is reported. Use `-i` for pipe input and
-separate output streams, or `-it` for terminal input, editing and resize.
---json returns execution metadata and cleaned_up. A nonzero command exit remains
-a failure even when cleanup succeeds. Cleanup failure is reported separately and
-is never converted into success. `--rm=false` is unsupported. Streaming cannot use
-`--json`; use captured output when a machine-readable receipt is needed.
-
-Ctrl+C requests controller cancellation and returns 130. Because the client has
-disconnected, it does not claim deletion was confirmed. Use haco env list and
-haco env status <name> to inspect remaining work. The controller retains recovery
-markers on incomplete cleanup and retries them on startup or the next run.
-Do not remove state files to silence recovery errors. Incomplete OCI copies may
-require provider-specific inspection before their existing reservations can clear.
-
-The canonical lifecycle preserves ownership and leases until runtime absence.
-Temporary resource cleanup compares Workspace ownership atomically. Reusing an
-Environment name cannot redirect cleanup to retained work. See
-[ADR 0020](../adr/0020-runtime-owned-temporary-workspaces.md) and
-[connection cancellation](../adr/0018-ephemeral-run-cancellation.md).
-
-Repository tests cover argument preservation, default temporary selection,
-retained Workspace ownership, cleanup failure/retry and OCI source retention.
-The maintained Incus GHA fixture passed at 4adfe19 (run 34115004878, job
-101719650209), using ordinary product commands for success, exit 17, retained file
-writes and actual cancellation followed by verified provider absence. Interactive sessions, local installed acceptance and a populated OCI
-image execution are not claimed by these checks.
-
-## Output and crash ownership
-
-The shared Host process runner retains at most 4 MiB each of stdout and stderr by
-default. Excess bytes are consumed and discarded without terminating the child or
-changing its exit code. Truncated output has a visible marker plus JSON
-`stdout_truncated` / `stderr_truncated`; `stdout_bytes` / `stderr_bytes` report
-observed bytes before truncation. Do not interpret that prefix as complete output.
-Control subprocesses have the same boundary; oversized structured output must fail parsing.
-
-The `--json` result includes `environment`, `execution` (exit code, both streams
-and truncation fields), and `cleaned_up`. Execution success and cleanup success
-are separate outcomes.
-
-Before creation, a protected `ephemeral_runs` marker is persisted and a per-run
-Linux `flock` remains held throughout the run. Only after the owner exits and the
-lock can be acquired may reconciliation attempt bounded canonical deletion.
-A `run-` name, a marker alone or PID guessing is not deletion authority.
-Live-owner locks are skipped; failure retains `cleanup-required`. Unsupported
-platforms fail rather than substitute weaker ownership proof. SIGINT/SIGTERM
-cleanup uses a separate bounded context independent of execution cancellation.
-
-## Cleanup outcome ownership
-
-Implemented: normal completion, activation failure and abandoned-run recovery
-share bounded canonical runtime/scratch cleanup and one marker-outcome handler.
-Create failure uses the same marker handler, but never removes scratch data while
-canonical creation reports uncertain runtime ownership. A cleanup or marker
-persistence failure consistently returns recovery-required and retains the
-original cause. Retrying uses the existing startup/next-run reconciliation.
-The JSON shape and guest exit status are unchanged: cleaned_up reports completed
-runtime/scratch cleanup, while a failed marker removal still returns an error.
-Repository regressions cover marker-removal retry, activation failure,
-cancellation, retained Workspace/Store boundaries and partial scratch cleanup.
-
-## Interactive use and exact cleanup ownership
-
-```sh
-printf 'input\n' | haco run -i -- cat
-haco run -it --workspace managed:dev -- bash
-```
-
-TTY requires a real terminal. Guest terminal streams are combined by the PTY;
-plain `-i` retains separate stdout/stderr. EOF ends input, while disconnect requests
-cancellation. Actual exit and confirmed cleanup are required for a successful
-receipt; missing completion remains unknown and is never automatically replayed.
-The retained Workspace/OCI survive; temporary data follows existing cleanup.
-
-Before creation, the durable run marker fixes the exact Environment creation
-identity. Canonical creation checks that reservation; common deletion compares it
-under the lifecycle lock before touching the provider. Same-name recreation can
-never become an older run's cleanup target. Main's split lifecycle and shared
-cleanup-outcome handling remain; the transport owns no create/delete sequence.
-Missing ownership identities are refused. No old-version migration or fallback
-cleanup is added. See [ownership](../adr/0084-ephemeral-run-creation-ownership.md)
-and [bounded process streams](../adr/0085-bounded-process-streams.md).
+Captured output remains bounded and redacted under the shared logging rules.
+Internal process execution keeps command failures distinct from cleanup failures.
+See [temporary ownership](../adr/0020-runtime-owned-temporary-workspaces.md) and
+[lifecycle ownership](../adr/0002-environment-lifecycle-ownership.md).

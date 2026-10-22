@@ -1,4 +1,7 @@
 import importlib.util
+import contextlib
+import json
+import test_host_notification as notification_acceptance
 import os
 import hashlib
 from pathlib import Path
@@ -456,6 +459,105 @@ class NativeBinfmtTests(unittest.TestCase):
                         with self.assertRaises(ValueError):
                             interop.ensure_native_binfmt(root, generated, run)
                     run.assert_called_once_with(['systemctl', 'restart', 'systemd-binfmt.service'], check=True)
+
+
+class HostNotificationDiagnosticsTests(unittest.TestCase):
+    # systemd's key=value property API; field order is not significant.
+    valid = b'ActiveState=activating\nSubState=auto-restart\nResult=exit-code\nExecMainStatus=1\nNRestarts=2\n'
+
+    def runner(self, raw=None, code=0, error=None):
+        raw = self.valid if raw is None else raw
+        def observe(args, **kwargs):
+            self.assertEqual(args, ['systemctl', 'show', '--no-pager',
+                                   '--property=ActiveState,SubState,Result,ExecMainStatus,NRestarts',
+                                   'hacocoon-notify.service'])
+            self.assertEqual(kwargs['timeout'], 3)
+            self.assertEqual(kwargs['stderr'], subprocess.DEVNULL)
+            self.assertEqual(kwargs['stdin'], subprocess.DEVNULL)
+            self.assertFalse(kwargs['check'])
+            if error is not None:
+                raise error
+            kwargs['stdout'].write(raw)
+            return subprocess.CompletedProcess(args, code)
+        return mock.Mock(side_effect=observe)
+
+    def test_only_selected_validated_properties_are_recorded(self):
+        for raw in (self.valid, b'\n'.join(reversed(self.valid.splitlines())) + b'\n'):
+            result = notification_acceptance.notification_service_diagnostic(3, self.runner(raw))
+            self.assertEqual(result['original_exit_code'], 3)
+            self.assertEqual(result['observation'], 'observed')
+            self.assertEqual(result['properties'], {'ActiveState': 'activating', 'SubState': 'auto-restart',
+                             'Result': 'exit-code', 'ExecMainStatus': 1, 'NRestarts': 2})
+
+    def test_malformed_or_private_values_never_enter_diagnostics(self):
+        malformed = [self.valid + b'Environment=secret-token\n', self.valid + b'ActiveState=active\n',
+                     self.valid.replace(b'auto-restart', b'private-token'),
+                     self.valid.replace(b'NRestarts=2', b'NRestarts=-1'),
+                     self.valid.replace(b'NRestarts=2', b'NRestarts=4294967296'),
+                     self.valid.replace(b'ExecMainStatus=1', b'ExecMainStatus=2147483648'),
+                     self.valid.replace(b'NRestarts=2', 'NRestarts=２'.encode()),
+                     self.valid.replace(b'Result=exit-code\n', b''), b'\xff']
+        for raw in malformed:
+            result = notification_acceptance.notification_service_diagnostic(3, self.runner(raw))
+            self.assertEqual(result['observation'], 'invalid')
+            self.assertNotIn('properties', result)
+            self.assertNotIn('secret-token', json.dumps(result))
+            self.assertNotIn('private-token', json.dumps(result))
+        self.assertEqual(notification_acceptance.notification_service_diagnostic(3, self.runner(b'x' * 4097))['observation'], 'oversized')
+
+    def test_failed_observation_cannot_supply_plausible_state(self):
+        result = notification_acceptance.notification_service_diagnostic(3, self.runner(code=1))
+        self.assertEqual(result['observation'], 'query_failed')
+        self.assertNotIn('properties', result)
+        for error, expected in ((OSError('secret-token'), 'unavailable'),
+                                (subprocess.TimeoutExpired(['private-command'], 3, output=b'secret-token'), 'timeout')):
+            result = notification_acceptance.notification_service_diagnostic(3, self.runner(error=error))
+            self.assertEqual(result['observation'], expected)
+            self.assertEqual(result['original_exit_code'], 3)
+            self.assertNotIn('secret-token', json.dumps(result))
+
+    def test_success_does_not_probe_or_change_service(self):
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0))
+        notification_acceptance.require_notification_service_active(run)
+        run.assert_called_once_with(['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'], check=True)
+
+    def test_original_failure_survives_even_if_diagnostic_later_reads_active(self):
+        original = subprocess.CalledProcessError(3, ['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'])
+        active = self.valid.replace(b'activating', b'active').replace(b'auto-restart', b'running')
+        observer = self.runner(active)
+        def check(args, **kwargs):
+            if args[1] == 'is-active':
+                raise original
+            return observer(args, **kwargs)
+        run = mock.Mock(side_effect=check)
+        with contextlib.redirect_stderr(io.StringIO()) as output, self.assertRaises(subprocess.CalledProcessError) as raised:
+            notification_acceptance.require_notification_service_active(run)
+        self.assertIs(raised.exception, original)
+        self.assertEqual(run.call_count, 2)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report['original_exit_code'], 3)
+        self.assertEqual(report['properties']['ActiveState'], 'active')
+
+    def test_diagnostic_failure_never_replaces_original_failure(self):
+        for problem in (OSError('private'), subprocess.TimeoutExpired(['systemctl'], 3, output=b'private')):
+            original = subprocess.CalledProcessError(3, ['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'])
+            run = mock.Mock(side_effect=[original, problem])
+            with contextlib.redirect_stderr(io.StringIO()) as output, self.assertRaises(subprocess.CalledProcessError) as raised:
+                notification_acceptance.require_notification_service_active(run)
+            self.assertIs(raised.exception, original)
+            self.assertEqual(run.call_count, 2)
+            self.assertNotIn('private', output.getvalue())
+        original = subprocess.CalledProcessError(3, ['systemctl', 'is-active', '--quiet', 'hacocoon-notify.service'])
+        run = mock.Mock(side_effect=[original, OSError('private')])
+        with mock.patch('builtins.print', side_effect=OSError('closed output')), self.assertRaises(subprocess.CalledProcessError) as raised:
+            notification_acceptance.require_notification_service_active(run)
+        self.assertIs(raised.exception, original)
+        closed = io.StringIO()
+        closed.close()
+        run = mock.Mock(side_effect=[original, OSError('private')])
+        with contextlib.redirect_stderr(closed), self.assertRaises(subprocess.CalledProcessError) as raised:
+            notification_acceptance.require_notification_service_active(run)
+        self.assertIs(raised.exception, original)
 
 
 if __name__ == '__main__':

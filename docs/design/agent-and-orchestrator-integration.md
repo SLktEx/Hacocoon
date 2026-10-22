@@ -6,22 +6,10 @@ Hacocoon supplies Workspace, Environment, Execution and Policy/Capability bounda
 under a client or orchestrator. It does not own task graphs, model selection, token
 budgets, worktree orchestration, retries, code review or merge decisions.
 
-For a noninteractive command, use [temporary execution](temporary-execution.md):
-
-```bash
-haco run --workspace managed:review --read-only --json -- git status --short
-```
-
-The Workspace must be available for a new lease. A retained stopped Env still holds
-its lease. Agent tools must already exist in the selected Base or be prepared in a
-retained Env, and must support noninteractive input; an interactive agent shell
-is not implied by `haco run`. Use [ordinary SSH](client-and-interactive-access.md)
-for retained interactive work.
-
-The caller chooses independent Workspaces, invokes exact argv, consumes execution/
-truncation/cleanup results, then decides its own retry or review. It must not retry
-an unknown external outcome as though nothing happened. Runtime-owned cleanup
-and leases stay inside the canonical lifecycle.
+Create independent work with `haco open --new [IMAGE]`, or use `haco create IMAGE`
+for a stopped Environment. Use [ordinary SSH](client-and-interactive-access.md)
+for commands and interactive work. The caller owns orchestration, retry and review;
+Hacocoon owns lifecycle, leases and permission checks. See [creation](environment-creation.md).
 
 Development review belongs to the caller/GitHub/human. Security approval belongs
 to Hacocoon Policy and the trusted capability boundary. Notification delivery,

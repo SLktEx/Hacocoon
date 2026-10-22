@@ -121,8 +121,21 @@ func ServeTCP(ctx context.Context, listener net.Listener, spec Spec, dial GuestD
 	if err := validateLoopback(listener.Addr().String()); err != nil {
 		return err
 	}
-	stop := context.AfterFunc(ctx, func() { listener.Close() })
-	defer stop()
+	closed := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		_ = listener.Close()
+		close(closed)
+	})
+	defer func() {
+		if !stop() {
+			// Accept can return before the cancellation callback finishes Close.
+			// A duplicate Close does not necessarily wait for the original one.
+			<-closed
+		} else if ctx.Err() != nil {
+			// Cancellation won before its callback began; finish owned cleanup here.
+			_ = listener.Close()
+		}
+	}()
 	slots := make(chan struct{}, 16)
 	for {
 		client, err := listener.Accept()

@@ -73,7 +73,7 @@ rules for the fork.
 composition. Existing selected members come from the stopped source snapshot,
 including their Git index and dirty files. Names absent from the source must be
 registered Host repositories; those use the normal independent repository copy.
-Omitting `--repo` keeps all members. Explicit selection accepts one to eight
+Omitting `--repo` keeps all members. Explicit selection accepts one to 253
 distinct names. Unselected repositories remain in the source, and its OCI data
 is copied independently in full. No source data is deleted by selection.
 

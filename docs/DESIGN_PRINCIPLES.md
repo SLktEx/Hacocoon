@@ -18,7 +18,7 @@ A writable Workspace is working data, not a vault protected from the agent. The 
 
 ## Data outlives execution
 
-Environments are disposable. Ordinary deletion preserves Workspace/Git, retained OCI data and saved snapshots. Unsaved runtime state need not be recoverable. Recreate uses current retained data; snapshot restore uses saved data. The exact rules belong to [data lifetime](guides/data-lifetime.md) and [snapshots](design/environment-snapshots.md).
+Environment configuration is fixed at creation; working contents remain mutable. Deletion removes its automatic Workspace/Git/OCI data. Independent Volumes and saved Snapshots survive. A Snapshot supplies material for a new Environment. Existing broken Environments are never automatically repaired or recreated. See [creation semantics](design/environment-creation.md) and [data lifetime](guides/data-lifetime.md).
 
 Ownership identity and positive cleanup confirmation remain mandatory even for disposable execution. A stopped Environment still holds its leases. Ambiguous cleanup retains ownership and reports recovery-required.
 

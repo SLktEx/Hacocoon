@@ -2,7 +2,7 @@
 
 日本語 | [English](oci-image-deletion.md)
 
-Status: 部分実装。接続済み Store の実装と専用環境での実実行基盤検証は完了し、インストール済みコントローラー経由の受け入れ検証は未完了です。
+Status: 部分実装。接続済みStoreの実装と専用環境での実行基盤検証は完了しています。任意のguest実行基盤を備える導入済み接続Storeの検証は未完了で、Host・非接続Storeの限定した導入済み検証は後述します。
 
 ## 現在のコマンド
 
@@ -41,7 +41,7 @@ nerdctl の Docker 互換 inspect は設定 ID と container のイメージ名�
 
 ## 管理対象 Host source
 
-部分実装の実装です。専用環境の実実行基盤検証は成功し、インストール済みコントローラー経由の検証は未完了です。
+部分実装です。専用環境での実行基盤検証と、導入済みUbuntuでの限定したnerdctl Host一覧・削除検証は成功しました。導入済みDockerは未完了です。[範囲を限定した証拠](../status/acceptance-evidence.ja.md#installed-oci-cli)を参照してください。
 
 ```bash
 haco plugin oci image list --host
@@ -106,7 +106,7 @@ OCI module が固定した nerdctl 2.3.5 配布物の SHA-256 を検証し、設
 キャッシュは排他制御し、symlink・hardlink・不適切な権限・破損した内容を黙って置き換えず拒否します。
 アーカイブ内のパスで Host の出力先を選びません。署名付き download URL や応答 body を
 取得エラーに含めません。非 Linux と amd64 以外の自動配置は現在未対応です。
-ツール配置の native 検証は成功し、導入済みコントローラー全体の受け入れは未完了です。
+ツール配置のnative検証と、後述する限定したUbuntuの導入済みcontroller/CLI検証は成功しました。その他の導入構成・実行基盤の確認は未完了です。
 schema 移行・自動 backup・任意の実行ファイルやソケットを選ぶオプションはありません。
 
 maintenance は確認済みの既存 Store を指定し、`SkipDefaultResource` は併用しません。明示した Store は既定 Store の自動準備を通りません。矛盾する指定を正規のライフサイクルが拒否する契約を維持します。実 catalog／ライフサイクルの回帰テストで予約、元 Workspace 対応の保持、正常時と操作失敗時の後始末を確認します。
@@ -114,9 +114,34 @@ maintenance は確認済みの既存 Store を指定し、`SkipDefaultResource` 
 ## Controller／CLIの検証
 
 非接続nerdctlの製品構成・単体controller/CLIは`bd1c9a5`で成功しました。
-導入済みStandard全体、通常ユーザー・デスクトップ、非接続Dockerは未完了です。
+通常ユーザーによる導入済みUbuntuのHost・非接続nerdctl検証は`c745427`で成功しました。
+接続Storeのguest実行、デスクトップ・Windows、非接続Dockerの検証は未完了です。
 native primitive、自動ツール配備、模擬catalogの試験はそれぞれ異なる範囲です。
-[検証証拠](../status/acceptance-evidence.ja.md#storage)が成功・失敗・制約を保持します。
+[検証証拠](../status/acceptance-evidence.ja.md#installed-oci-cli)が正確なhead・CI merge、範囲、所要時間、残る制約を保持します。
+
+新規Ubuntuインストーラーの検証経路には`test/e2e/installed/oci_images.py`があります。
+通常ユーザーが導入済みCLIを使い、trusted Hostに製品が備えるnerdctl/BuildKitで
+一意のタグを付けた二つのローカル`FROM scratch`イメージを`--network none`で作り、
+Storeを明示せずEnvironmentを作成します。そのEnvironmentを削除した後、製品の
+非接続Storeのイメージ一覧・削除で実際の不変ID、独立した削除、同じWorkspaceの
+保持Storeの自動再利用、別Workspaceへの現在のHost内容のコピー、Hostにイメージが
+ある状態での`--no-oci`の選択と拒否を確認します。この限定した導入済み経路はUbuntuの
+初回試行で**成功**しました。実機の結果と模擬CLIを使う回帰試験は区別します。
+
+変更操作はすべて通常の製品コマンドで行います。導入先Physical Host上の固定された
+読み取り専用の権限付き観測で、保存済みHostレシピがないことを確認し、消去前には
+検証用レシピのハッシュとファイルシステム上の識別情報を照合し、消去後に不在を
+確認します。既存レシピ、リンクや安全でない親ディレクトリ、識別情報の変更、結果不明の
+変更操作は拒否します。これらは隔離された使い捨てrunnerでの時点確認であり、CLIに
+原子的な比較付き消去機能はありません。作成失敗の対象を後から所有物と見なしたり、
+結果不明の削除を再試行したり、未知・差し替え済みの対象を消去したりしません。
+失敗時は非公開の所有権記録を残し、最初のエラーを保持します。BuildKitキャッシュは
+runnerの破棄に任せ、検証経路は確認済みイメージと独立所有のStoreだけを削除します。
+
+通常Environmentに任意の実行基盤を導入せず、guest Policyや通信権限の追加、バイナリの
+転送、配布のためのイメージsave/loadは行いません。非接続Storeのメタデータ用ツールは
+製品の通常ダウンロード経路を使います。既定Baseでのオフラインコンテナ実行、認証付き
+registry、Windows、Docker、その他の実行基盤との互換性は別の未完了検証です。
 
 ## 未使用イメージ候補の確認
 

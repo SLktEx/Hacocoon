@@ -1,7 +1,6 @@
 package controlapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
 	eventsapp "github.com/SLktEx/Hacocoon/internal/events"
 	capabilityapp "github.com/SLktEx/Hacocoon/internal/policy"
 )
@@ -28,40 +26,6 @@ func (c *Client) InspectBase(ctx context.Context, name core.BaseName) (core.Base
 	var response core.BaseInfo
 	err := c.wire.Call(ctx, MethodBaseInspect, BaseInspectRequest{Name: name}, &response)
 	return response, err
-}
-
-func (c *Client) Run(ctx context.Context, spec runapp.Spec) (runapp.Result, error) {
-	conn, err := c.wire.OpenStream(ctx, MethodRun, spec)
-	if err != nil {
-		return runapp.Result{}, err
-	}
-	defer conn.Close()
-	data, err := io.ReadAll(io.LimitReader(conn, maxRunResultBytes+1))
-	if err != nil {
-		if ctx.Err() != nil {
-			return runapp.Result{}, ctx.Err()
-		}
-		return runapp.Result{}, fmt.Errorf("read run result: %w", err)
-	}
-	if len(data) > maxRunResultBytes {
-		return runapp.Result{}, fmt.Errorf("run result exceeds size limit: %w", control.ErrProtocol)
-	}
-	return decodeRunResult(data)
-}
-
-// Both run transports require an explicit receipt. A missing/null result must
-// not become a zero-valued execution result with a successful return status.
-func decodeRunResult(data []byte) (runapp.Result, error) {
-	var response struct {
-		Result *runapp.Result  `json:"result"`
-		Error  *responseStatus `json:"error,omitempty"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&response) != nil || response.Result == nil || decoder.Decode(new(any)) != io.EOF {
-		return runapp.Result{}, control.ErrProtocol
-	}
-	return *response.Result, responseError(response.Error)
 }
 
 func (c *Client) RequestCapability(ctx context.Context, request core.CapabilityRequest, approve func(context.Context, core.ApprovalRequest) (bool, error)) (core.CapabilityResult, error) {

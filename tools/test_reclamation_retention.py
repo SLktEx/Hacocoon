@@ -24,8 +24,8 @@ class RetentionTests(unittest.TestCase):
             return json.dumps(BASE)
         if args[:2] == ("snapshot", "list"):
             return json.dumps([SAVED])
-        if args[:2] == ("snapshot", "restore"):
-            return json.dumps({"environment": args[-1], "state": "running", "workspace": "independent", "oci": "independent-oci"})
+        if args[:2] == ("open", "--new"):
+            return json.dumps({"name": args[-1], "workspace": {"path": "managed:independent"}, "persistent_resource": {"id": "independent-oci"}})
         if args[:2] == ("env", "create"):
             return json.dumps({"name": args[-1], "base": BASE})
         return ""
@@ -44,7 +44,7 @@ class RetentionTests(unittest.TestCase):
         create = next(args for args in self.calls if args[:2] == ("env", "create"))
         self.assertEqual(create[create.index("--base") + 1], RECORD["base"])
         self.assertFalse(any("delete" in args for args in self.calls))
-        self.assertEqual(sum(args[:2] == ("snapshot", "restore") for args in self.calls), 1)
+        self.assertEqual(sum(args[:2] == ("open", "--new") for args in self.calls), 1)
 
     def test_explicit_manifest_does_not_require_product_environment_overrides(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -80,8 +80,8 @@ class RetentionTests(unittest.TestCase):
 
     def test_restore_cannot_reuse_current_data(self):
         def host(*args):
-            if args[:2] == ("snapshot", "restore"):
-                return json.dumps({"environment": args[-1], "state": "running", "workspace": RECORD["workspace"], "oci": RECORD["oci"]})
+            if args[:2] == ("open", "--new"):
+                return json.dumps({"name": args[-1], "workspace": {"path": "managed:" + RECORD["workspace"]}, "persistent_resource": {"id": RECORD["oci"]}})
             return self.host(*args)
         guest = Mock()
         with self.assertRaises(RuntimeError):

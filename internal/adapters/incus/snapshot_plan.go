@@ -18,7 +18,7 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 	if !core.ValidEnvironmentAttachments(source.Environment.Attachments) {
 		return nil, core.ErrInvalidArgument
 	}
-	if !strings.HasPrefix(id, "snap-") || len(id) != 37 || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:check", Owner: strings.TrimPrefix(id, "snap-")}) || !core.ValidEnvironmentInstanceID(source.InstanceID) || !strings.HasPrefix(source.Environment.Workspace.Path, "managed:") || source.Environment.RuntimeRef == trustedHostName {
+	if core.ValidateEnvironmentName(id) != nil || len(id) > 41 || !core.ValidEnvironmentInstanceID(source.InstanceID) || !strings.HasPrefix(source.Environment.Workspace.Path, "managed:") || source.Environment.RuntimeRef == trustedHostName {
 		return nil, core.ErrInvalidArgument
 	}
 	if validateManagedInstanceRef(source.Environment.RuntimeRef) != nil || r.managedWorkspace == nil {
@@ -177,6 +177,13 @@ func (r *Runtime) PlanSnapshot(ctx context.Context, source core.SnapshotSource, 
 		if d["type"] != "disk" && d["type"] != "nic" && d["type"] != "proxy" && d["type"] != "none" {
 			return nil, core.ErrUnsupported
 		}
+	}
+	image := snapshotImagePlan{Name: id, Owner: owner(), Rootfs: root}
+	if err := r.checkSnapshotImageName(ctx, image); err != nil {
+		return nil, err
+	}
+	if err := add(snapshotBinding{Image: &image}); err != nil {
+		return nil, err
 	}
 	return components, nil
 }

@@ -37,6 +37,7 @@ run_workflow_policy() {
   section "workflow-policy"
   python3 tools/check_ci_contracts.py
   python3 tools/test_ci_diagnostics.py
+  python3 tools/test_incus_vm_probe.py
   python3 tools/test_ci_cleanup.py
   python3 tools/test_ci_required_tests.py
   python3 tools/test_ci_history.py
@@ -165,6 +166,10 @@ run_test() {
   python3 tools/test_evacuation_selection.py
   python3 tools/test_cleanup_ci_base_asset.py
   python3 tools/test_forward_application.py
+  python3 tools/test_environment_exec_cancel.py
+  python3 tools/test_installed_workspace_input.py
+  python3 tools/test_installed_oci_images.py
+  python3 tools/test_controller_signals.py
   section "test"
   go test -count=1 -shuffle=615 ./...
   go vet ./...

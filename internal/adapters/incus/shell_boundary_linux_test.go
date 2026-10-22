@@ -202,17 +202,16 @@ func TestShellStreamPropagatesOutputFailureAndCancellation(t *testing.T) {
 	})
 }
 
-func TestDirectEnvironmentShellPreservesSeparateStreamsAndExit(t *testing.T) {
+func TestEnvironmentShellStreamPreservesBinaryInputAndExit(t *testing.T) {
 	dir := shellBoundaryChild(t, "/bin/cat\nprintf 'diagnostic' >&2\nexit 19\n")
 	r := New(&fakeRunner{})
 	var stdout, stderr bytes.Buffer
-	r.stdin, r.stdout, r.stderr = strings.NewReader("literal input"), &stdout, &stderr
-	err := r.ShellEnvironment(context.Background(), "haco-demo")
+	err := r.ShellEnvironmentStream(context.Background(), "haco-demo", strings.NewReader("literal\x00input\n"), &stdout, &stderr)
 	var exit *exec.ExitError
-	if !errors.As(err, &exit) || exit.ExitCode() != 19 || stdout.String() != "literal input" || stderr.String() != "diagnostic" {
-		t.Fatalf("lost direct shell result: %q / %q / %v", stdout.String(), stderr.String(), err)
+	if !errors.As(err, &exit) || exit.ExitCode() != 19 || stdout.String() != "literal\x00input\n" || stderr.String() != "diagnostic" {
+		t.Fatalf("lost streamed shell result: %q / %q / %v", stdout.String(), stderr.String(), err)
 	}
-	if want := []string{"exec", "haco-demo", "--project", "hacocoon", "--", "/bin/bash"}; !reflect.DeepEqual(shellBoundaryArgs(t, dir), want) {
-		t.Fatal("direct shell changed instance, project or command")
+	if want := []string{"exec", "haco-demo", "--project", "hacocoon", "--force-interactive", "--", "/usr/bin/env", "HACO_SHELL_CONTEXT=environment", "HACO_PS1=" + environmentPrompt("haco-demo"), "PROMPT_COMMAND=PS1=$HACO_PS1", "/bin/bash"}; !reflect.DeepEqual(shellBoundaryArgs(t, dir), want) {
+		t.Fatal("streamed shell changed instance, project or command")
 	}
 }

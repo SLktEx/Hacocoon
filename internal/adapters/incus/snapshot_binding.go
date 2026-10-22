@@ -16,6 +16,7 @@ type snapshotBinding struct {
 	Rootfs  *snapshotRootfsPlan `json:"rootfs,omitempty"`
 	Volume  *snapshotVolumePlan `json:"volume,omitempty"`
 	Base    *snapshotBasePlan   `json:"base,omitempty"`
+	Image   *snapshotImagePlan  `json:"image,omitempty"`
 }
 
 func (r *Runtime) snapshotComponent(binding snapshotBinding) (core.SnapshotComponent, error) {
@@ -23,6 +24,15 @@ func (r *Runtime) snapshotComponent(binding snapshotBinding) (core.SnapshotCompo
 		return core.SnapshotComponent{}, core.ErrInvalidArgument
 	}
 	c := core.SnapshotComponent{State: "planned"}
+	if binding.Image != nil {
+		if binding.Rootfs != nil || binding.Volume != nil || binding.Base != nil || binding.Image.validate() != nil {
+			return c, core.ErrInvalidArgument
+		}
+		c.Role, c.Owner, c.NativeRef = "image", binding.Image.Owner, "image/"+binding.Image.Name
+		data, err := json.Marshal(binding)
+		c.Binding = string(data)
+		return c, err
+	}
 	switch {
 	case binding.Rootfs != nil && binding.Volume == nil && binding.Base == nil:
 		p := *binding.Rootfs
@@ -83,6 +93,11 @@ func (r *Runtime) CreateSnapshotComponent(ctx context.Context, source core.Snaps
 		return core.ErrIncompatibleState
 	}
 	switch {
+	case b.Image != nil:
+		if b.Image.Rootfs.Source != source.Environment.RuntimeRef || b.Image.Rootfs.SourceInstanceID != source.InstanceID {
+			return core.ErrCapabilityStale
+		}
+		return r.createSnapshotImage(ctx, *b.Image)
 	case b.Rootfs != nil:
 		if b.Rootfs.Source != source.Environment.RuntimeRef || b.Rootfs.SourceInstanceID != source.InstanceID {
 			return core.ErrCapabilityStale
@@ -124,6 +139,9 @@ func (r *Runtime) VerifySnapshotComponent(ctx context.Context, c core.SnapshotCo
 		return core.ErrIncompatibleState
 	}
 	switch {
+	case b.Image != nil:
+		_, err := r.snapshotImage(ctx, *b.Image)
+		return err
 	case b.Rootfs != nil:
 		return r.verifySnapshotRootfs(ctx, *b.Rootfs)
 	case b.Volume != nil:
@@ -142,6 +160,8 @@ func (r *Runtime) DeleteSnapshotComponent(ctx context.Context, c core.SnapshotCo
 		return core.ErrIncompatibleState
 	}
 	switch {
+	case b.Image != nil:
+		return r.deleteSnapshotImage(ctx, *b.Image)
 	case b.Rootfs != nil:
 		return r.deleteSnapshotRootfs(ctx, *b.Rootfs)
 	case b.Volume != nil:

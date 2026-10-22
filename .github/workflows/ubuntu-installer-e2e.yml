@@ -20,6 +20,7 @@ jobs:
     env:
       GOTOOLCHAIN: local
       HACO_E2E_VERSION: v0.0.0-e2e
+      HACO_CI_RUNNER_ENVIRONMENT: github-hosted
     steps:
       - name: "[infrastructure] Check out candidate source"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -154,7 +155,11 @@ jobs:
 
       - name: "[product] Exercise installed product CLI lifecycle"
         shell: bash
-        run: sudo -u "$(id -un)" -- bash "$GITHUB_WORKSPACE/test/e2e/installed/lifecycle.sh"
+        run: |
+          sudo -u "$(id -un)" -- env \
+            GITHUB_ACTIONS="$GITHUB_ACTIONS" \
+            HACO_CI_RUNNER_ENVIRONMENT="$HACO_CI_RUNNER_ENVIRONMENT" \
+            bash "$GITHUB_WORKSPACE/test/e2e/installed/lifecycle.sh"
 
       - name: "[product] Verify installed network isolation and spoofing guards"
         shell: bash

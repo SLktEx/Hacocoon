@@ -12,7 +12,6 @@ const defaultCleanupTimeout = 30 * time.Second
 type environmentRuntime interface {
 	CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error)
 	ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	ShellEnvironment(context.Context, string) error
 	DeleteEnvironment(context.Context, string) error
 }
 
@@ -33,6 +32,8 @@ type environmentStore interface {
 }
 
 type Service struct {
+	checkSnapshotName          func(context.Context, string) error
+	deleteWorkspaceResource    func(context.Context, string, core.WorkspaceID) error
 	environmentResources       EnvironmentResources
 	selectEnvironmentResources func(context.Context, core.EnvironmentResourceRequest) ([]core.EnvironmentResourceSelection, error)
 	defaultResource            func(context.Context, core.Workspace) (core.PersistentResource, error)
@@ -41,6 +42,10 @@ type Service struct {
 	provider                   WorkspaceProvider
 	now                        func() time.Time
 	cleanupTimeout             time.Duration
+}
+
+func (s *Service) ConfigureWorkspaceResourceDeletion(remove func(context.Context, string, core.WorkspaceID) error) {
+	s.deleteWorkspaceResource = remove
 }
 
 func New(runtime environmentRuntime, store environmentStore) *Service {
@@ -61,4 +66,14 @@ func NewWithProvider(runtime environmentRuntime, store environmentStore, provide
 // Configure once at composition time, before serving concurrent requests.
 func (s *Service) ConfigureDefaultResource(resolve func(context.Context, core.Workspace) (core.PersistentResource, error)) {
 	s.defaultResource = resolve
+}
+
+func (s *Service) ConfigureSnapshotNames(check func(context.Context, string) error) {
+	s.checkSnapshotName = check
+}
+func (s *Service) LockResourceName(ctx context.Context, name string) (func(), error) {
+	if core.ValidateEnvironmentName(name) != nil || len(name) > 41 {
+		return nil, core.ErrInvalidArgument
+	}
+	return s.lockLifecycle(ctx, "resource-name", name)
 }

@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory() as temp:
 
     subprocess.run(
         [
-            "python3",
+            sys.executable,
             str(ROOT / "tools" / "package_installers.py"),
             "--dist",
             str(dist),
@@ -137,6 +137,7 @@ with tempfile.TemporaryDirectory() as temp:
 
             for required in (
                 '[switch]$InteractiveUserSetup', '[switch]$UseCachedWslImage',
+                '[switch]$DownloadWslImageOnly',
                 '$ManagedLoginUser = "hacocoon"', 'Ensure-ManagedWslLoginUser',
                 'Complete-InteractiveWslUserSetup', 'Configure-ManagedWslOobe',
                 'Invoke-WslRootShellScript', '"HACO_INSTALL_USER=$loginUser"',
@@ -187,6 +188,25 @@ with tempfile.TemporaryDirectory() as temp:
         if release_checksums.get(name) != digest(out / name):
             raise SystemExit(f"release checksum mismatch for {name}")
 
+    # The outer release checksums must not bless a Linux archive that disagrees
+    # with the GoReleaser checksum embedded in both installer bundles.
+    for arch in ("amd64", "arm64"):
+        bad_archive = dist / f"haco_linux_{arch}.tar.gz"
+        original = bad_archive.read_bytes()
+        bad_archive.write_bytes(original + b"corrupted-after-checksum")
+        rejected_out = temp_root / f"rejected-linux-{arch}"
+        rejected = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "package_installers.py"),
+             "--dist", str(dist), "--output", str(rejected_out),
+             "--version", VERSION, "--arch", arch],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if rejected.returncode == 0 or "Linux archive checksum mismatch" not in rejected.stderr:
+            raise SystemExit(f"corrupt Linux {arch} archive was not refused (exit {rejected.returncode})")
+        if list(rejected_out.iterdir()):
+            raise SystemExit(f"corrupt Linux {arch} archive published release files")
+        bad_archive.write_bytes(original)
+
     # Neither the reclaim helper nor the tunnel client may be published after
     # its verified archive bytes change. Both use the common extraction boundary.
     for component, label in (("wsl", "WSL helper"), ("tunnel", "tunnel")):
@@ -227,5 +247,14 @@ finally:
     sys.modules.pop(spec.name, None)
 if normalized != "Hacocoon Windows installation complete.":
     raise SystemExit(f"Windows terminal normalization deleted visible output: {normalized!r}")
+
+# Cache preparation is an image download, not an incomplete installation whose
+# failure can be hidden on cache hits. Keep it independent of WSL lifecycle.
+cache_workflow = (ROOT / ".github/workflows/windows-wsl-image-cache.yml").read_text(encoding="utf-8")
+if "& $installer -DownloadWslImageOnly" not in cache_workflow:
+    raise SystemExit("WSL cache warmer must use the download-only installer mode")
+for forbidden in ("-UseCachedWslImage", "-InstanceName", "wsl.exe", "continue-on-error"):
+    if forbidden in cache_workflow:
+        raise SystemExit(f"WSL cache warmer restored lifecycle work or hidden failure: {forbidden!r}")
 
 print("INSTALLER PACKAGES OK")

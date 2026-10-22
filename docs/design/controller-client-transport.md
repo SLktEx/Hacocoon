@@ -4,7 +4,7 @@ Pending approvals can be listed and decided through approval.pending / approval.
 
 [**日本語**](controller-client-transport.ja.md) | English
 
-Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and temporary execution. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
+Status: **partial**. The local Unix-domain protocol, Physical Host controller, trusted-host endpoint projection, client-only `haco-host`, typed Environment API and interactive streams are implemented. Product commands are listed in the [CLI reference](../reference/cli.md), including lifecycle, snapshots, transfer and execution in running Environments. PTY control framing and local client TCP forwarding are implemented; remote transport remains deferred.
 
 ## Summary
 
@@ -81,6 +81,16 @@ Development and tests may override the local path with `HACO_CONTROL_SOCKET`. Ro
 
 Startup and stale-socket handling fail closed when an existing path cannot be proven safe to reuse.
 
+The listener disables Go's pathname-only automatic unlink and captures the bound
+socket's file identity before setting permissions. Its first cleanup, including
+permission-setup failure, removes the pathname only when it still has the captured
+identity and file type. Missing, uninspectable and replaced paths are left alone;
+underlying listener-close results are preserved. This protects stable replacements
+after identity capture. Binding/capture, pathname-based permission setup and the
+identity-check/unlink pair are not atomic against hostile directory writers. The
+endpoint's parent must remain under trusted control; this cleanup rule does not
+change parent permissions or stale-socket startup policy.
+
 ## Trusted `haco-host` endpoint
 
 The trusted instance receives a single Incus `proxy` device named `haco-control` with the intended shape:
@@ -156,6 +166,21 @@ Each connection starts with a versioned, size-bounded JSON envelope. Requests id
 
 Protocol mismatch is explicit and never falls back to direct Incus access. The controller also bounds concurrently accepted connections.
 
+Each `Server.Serve` invocation owns the transports accepted from its listener.
+Before returning on cancellation, listener closure or an accept error, it closes
+its outstanding transports and stops its listener-cancellation watcher. Other
+listeners on the same server remain independent. The shared 256-connection limit
+counts connection handlers until they actually return, including handlers still
+running after transport closure. Shutdown closure can race a handler's normal
+connection closure; connection implementations must honor `net.Conn`'s concurrent
+call and I/O interruption contract. Shutdown relies on their `Close` returning.
+
+This is transport teardown, not a wait for arbitrary operations to finish. Handler
+contexts retain the caller's cancellation semantics; a client disconnect alone
+does not cancel bounded setup or release its exclusion. Forced shutdown can
+interrupt responses and streams. EOF does not establish operation success: the
+existing session completion and application-specific final receipts still apply.
+
 The typed Environment API currently includes:
 
 - create;
@@ -184,7 +209,7 @@ haco-host env create --workspace <path> <environment>
 haco-host env status <environment>
 haco-host env exec <environment> -- <command...>
 haco-host env shell <environment>
-haco-host env delete <environment>
+haco-host env delete [-f] <environment>
 haco-host doctor
 ```
 
@@ -202,6 +227,29 @@ require a completion identity in the handshake. If the peer omits it, the client
 closes the connection and reports a protocol error; EOF alone is not process
 completion. Update pre-1.0 clients and controllers together. See
 [the compatibility decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
+
+Environment shell execution uses only the caller-supplied stream path through
+Workspace, the provider router and the Incus adapter. Providers without that
+optional capability return unsupported. The unused direct-stdio shell entry
+points and adapter-owned standard streams are removed; no CLI or wire method
+changes. Shell preparation rejects invalid names before catalog access. See
+[the retirement decision](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
+
+On Linux/WSL, the shared terminal bridge owns a separate input descriptor for
+file-backed pipes and terminals. Remote EOF, output failure or
+cancellation restores the terminal, closes that descriptor and joins its input
+copier before returning. The caller's descriptor stays open and its file-status
+flags stay unchanged.
+Pipes and terminals are reopened through their pinned `/proc/self/fd` identity
+without acquiring a controlling terminal; terminal device identity is checked
+separately. PTY masters are refused because reopening allocates a different
+terminal. Unavailable or unpollable reopenings fail explicitly.
+Reopening also checks the underlying inode's read permission, so an inherited
+descriptor may be refused after a credential change. Regular files (including
+their read offsets), arbitrary caller-owned readers, sockets, non-terminal
+devices and other platforms retain their existing input semantics. Interrupting
+a blocking read remains the caller's responsibility; closing a non-pollable file
+cannot stop a stalled filesystem read.
 
 Raw streams remain for methods that define their own result/event framing, such
 as setup progress and transfer. Their transport supplies bytes and EOF; each
@@ -278,21 +326,34 @@ Still planned:
 - classify and migrate the remaining appropriate `haco` commands onto the controller client interface;
 - remove or explicitly deprecate compatibility aliases once their replacements are established;
 - move trusted Host-local tooling into the long-term `haco-host` namespaces;
-- streamed Execution framing with explicit stdout/stderr/exit metadata;
-- generic Environment forwarding;
 - remote transport only if a real use case requires it;
 - FD passing/zero-copy only if profiling demonstrates a worthwhile benefit.
 
-## Ephemeral execution cancellation
+## Environment execution and cancellation
 
-Status: **implemented transport and product temporary-run CLI**.
-`run.execute` uses a stream handshake followed by one bounded JSON result.
-No input frames are accepted. Closing the client connection or sending unexpected
-input cancels execution. Canonical run cleanup uses its independent deadline; the
-caller must not interpret disconnection as successful cleanup. Result writes have
-a 30-second deadline. Ordinary lifecycle RPCs retain their existing semantics.
-The previous pre-1.0 call form is replaced without retrying ambiguous executions.
-See [ADR 0018](../adr/0018-ephemeral-run-cancellation.md).
+`environment.process` serves both `haco exec` and `haco env exec`. It selects an
+existing running Environment, validates generation and Workspace ownership, and
+holds the canonical lifecycle lock until execution ends. Stopped Environments
+fail without automatic start. Disconnect cancels the command; it does not stop
+or delete the Environment.
+
+Once execution starts, observed local cancellation takes CLI exit-code 130
+precedence over a racing transport error or process result. Without local
+cancellation, the command retains its process exit status and ordinary errors.
+
+The maintained real-Incus fixture observes the launched shell's PID and Linux
+starttime before it replaces itself with `sleep`. Cancellation must return 130
+and remove that exact execution identity within the existing shared 30-second
+budget, before any Environment stop or cleanup. Ordinary `haco exec` checks
+absence (including PID reuse); an unreaped zombie is still present, and unknown
+observations fail. The unchanged Environment record, running status and guest
+PID1 starttime distinguish cancellation from stop/restart. This does not claim
+that `sleep` had already entered or that arbitrary descendants were reaped.
+Fixture unit tests alone do not establish real-Incus acceptance; see the
+[commit-bound native result](../status/acceptance-evidence.md#environment-exec-cancellation).
+Cleanup rechecks the saved creation record and retains unknown or changed targets;
+this is a point-in-time check, since the name-based CLI has no atomic
+compare-and-delete operation. Cleanup failure preserves the original failed observation.
 
 ## Daily Environment inspection
 
@@ -355,14 +416,14 @@ retains server-side lifecycle ownership until the bounded operation returns.
 There is no guest endpoint registration or new management authority. See
 [setup diagnostics](trusted-host.md#setup-progress-and-failure-diagnostics).
 
-## Temporary process streams
+## Environment process streams
 
-The negotiated `run.process` stream carries bounded stdin/stdout/stderr, explicit
-input EOF/credit and a final receipt after canonical cleanup. Disconnect cancels;
-receipt/frame or session-completion failure remains unconfirmed. It reuses existing
-TTY sizing and optional provider process contracts; clients receive no Incus
-authority. See [temporary execution](temporary-execution.md) and
-[ADR 0085](../adr/0085-bounded-process-streams.md).
+The stream carries bounded stdin/stdout/stderr, explicit EOF/credit and a required
+exit receipt. `-i` selects stdin, `-t` selects a PTY, and `-it` combines them;
+`-w` selects the guest working directory. Shared terminal sizing/restoration and
+provider process contracts remain; no Incus management authority reaches guests.
+The old public temporary-execution RPCs are removed. See
+[creation semantics](environment-creation.md).
 
 ## Client TCP listeners
 
@@ -394,9 +455,12 @@ remaining stream. An EOF-ignoring target cannot block acknowledged cancellation.
 
 No persistent Incus forwarding device is created; the existing `env forward`
 and SSH/preview lifecycle remain available. The native Windows companion below
-implements the Windows listener candidate; installed acceptance remains separate.
-A native Linux trusted-Host client listens inside that Host. Generic process
-caller consolidation remains partial. See [ADR 0091](../adr/0091-client-stream-forwarding.md).
+implements the Windows listener candidate; installed results are scoped in the
+[commit-bound acceptance evidence](../status/acceptance-evidence.md#incus-key-download).
+A native Linux trusted-Host client listens inside that Host. Supported shell
+clients use managed streams, and the unused direct-stdio Environment shell chain
+is removed; see [ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.md#boundaries-retained).
+Forwarding follows [ADR 0091](../adr/0091-client-stream-forwarding.md).
 
 ## Windows process transport
 
@@ -437,8 +501,10 @@ The installer permanently places the matching amd64/arm64 client and prints its
 absolute help command. No user PATH mutation is required. `haco-wsl.exe` keeps
 its installation/reclamation responsibilities. See [installer ownership](installer.md#windows-client-placement).
 The explicit companion entry remains available. Ordinary WSL `haco env tunnel`
-selects its installed Windows client automatically; installed Windows/WSL/Incus
-acceptance remains unfinished.
+selects its installed Windows client automatically. The installed Windows/WSL/Incus
+tunnel journey passed at `1054688e`; see the
+[scoped acceptance record](../status/acceptance-evidence.md#incus-key-download).
+Broader platform acceptance and earlier unresolved failures remain separate.
 
 ## Automatic Windows tunnel entry
 

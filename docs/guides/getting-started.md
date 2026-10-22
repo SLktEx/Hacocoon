@@ -50,14 +50,13 @@ follow its diagnosis before creating work.
 ## Add repositories and open Haco
 
 Run these commands in the **trusted management terminal** after installation.
-Replace OWNER/API and OWNER/WEB with repositories you may use. One repository is
-also sufficient. Private authentication stays in trusted `haco-host`: use
+Replace OWNER/API with a repository you may use. Registration is optional;
+without repositories the first open creates an empty Workspace. Private authentication stays in trusted `haco-host`: use
 `gh auth login --hostname github.com --git-protocol https` there when needed.
 Installation supplies Git and GitHub CLI as standard Host tools.
 
 ```bash
-haco repo add api https://github.com/OWNER/API.git
-haco repo add web https://github.com/OWNER/WEB.git
+haco repo add https://github.com/OWNER/API.git
 haco open
 ```
 
@@ -67,9 +66,12 @@ project files, default starting image, configured storage and Environment, then
 prepares SSH access and launches the client. Follow the progress on the terminal.
 No manual Workspace/Env creation or Base build is required.
 
-With two repositories, edit `/workspace/api` and `/workspace/web`. A single
-repository uses `/workspace`. Their independent Git metadata uses `haco://<id>`;
-the managed broker is connected automatically. Host credentials are not copied.
+One repository uses `/workspace`; collections use `/workspace/<repository-id>`.
+Find generated repository IDs with `haco repo ls`. Their independent Git metadata
+uses `haco://<id>`; the managed broker is connected automatically. Host credentials
+are not copied. `haco open` returns to the last opened Environment. With none,
+it creates one using the default Image; `haco image default [IMAGE]` displays or
+changes that setting. `haco open --new [IMAGE]` starts independent new work.
 
 ## Review required permissions
 
@@ -95,7 +97,7 @@ locally does not grant remote write permission.
 Inside the **Environment**, enter the appropriate repository:
 
 ```bash
-cd /workspace/api
+cd /workspace
 git status
 # Edit files and run this repository's build/test commands.
 ```
@@ -129,17 +131,16 @@ haco open
 ```
 
 Use the actual name from the list. Stop retains installed packages, project edits
-and configured persistent storage. Delete is different: `haco env delete <environment>`
-discards the root filesystem but retains project files and OCI data. Read
-[data lifetime](data-lifetime.md) before deletion. Explicit directory opens,
-Base choices and independent forks are explained in [Workspace workflow](../design/workspace-workflow.md).
+and configured persistent storage. `haco env delete <environment>` removes its
+rootfs, automatically owned Workspace and OCI data; explicit Volumes survive.
+Stop first or use `-f`. Read [data lifetime](data-lifetime.md) before deletion.
+Explicit directory workflows remain available for independently managed data.
 
-The default session supports one to eight repositories. Register the intended
-set before the first open. Changing registrations later does not overwrite the
-existing collection: use an explicit fork to preserve work while changing
-membership. If ownership is incomplete, inspect the reported state; never edit
-catalog files or guess provider cleanup targets. See the
-[default-session contract and limits](../design/default-development-session.md).
+Registration changes affect future Environments only. Use `haco open --new` to
+create work with the current set, or `haco open --new --snapshot SNAPSHOT` for
+saved configuration and data. Existing work is never rebuilt automatically.
+If ownership is incomplete, inspect the reported state; never edit catalog files
+or guess provider cleanup targets. See [creation semantics](../design/environment-creation.md).
 
 Repository tests and real-host acceptance are separate. Fresh installed Incus,
 Windows/WSL and desktop acceptance of this combined path remain pending.

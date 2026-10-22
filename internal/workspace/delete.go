@@ -13,6 +13,16 @@ import (
 func (s *Service) Delete(ctx context.Context, name string) error { return s.delete(ctx, name, nil, "") }
 
 func (s *Service) delete(ctx context.Context, name string, expected *core.Workspace, instance string) (err error) {
+	return s.deleteWithPolicy(ctx, name, expected, instance, false, false)
+}
+
+// DeleteUser enforces the public lifecycle policy under the same lock as start.
+// Internal failed-create/temporary cleanup continues to use exact-owner deletion.
+func (s *Service) DeleteUser(ctx context.Context, name string, force bool) error {
+	return s.deleteWithPolicy(ctx, name, nil, "", true, force)
+}
+
+func (s *Service) deleteWithPolicy(ctx context.Context, name string, expected *core.Workspace, instance string, user, force bool) (err error) {
 	started := time.Now()
 	ctx = logging.With(ctx, "operation", "delete_environment", "environment_id", name)
 	logger := logging.FromContext(ctx).With("component", "core")
@@ -56,7 +66,34 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 		if expected != nil && environment.Workspace != *expected {
 			return core.ErrIncompatibleState
 		}
-		return s.deleteAndFinalize(ctx, name, environment.RuntimeRef)
+		if user {
+			runtime, ok := s.runtime.(interface {
+				InspectEnvironment(context.Context, string) (core.EnvironmentRuntimeStatus, error)
+				StopEnvironment(context.Context, string) error
+			})
+			if !ok {
+				return core.ErrUnsupported
+			}
+			status, err := runtime.InspectEnvironment(ctx, environment.RuntimeRef)
+			if err != nil {
+				return err
+			}
+			if status.State == core.EnvironmentRunning {
+				if !force {
+					return fmt.Errorf("running Environment; stop it or use -f: %w", core.ErrStorageBusy)
+				}
+				if err := runtime.StopEnvironment(ctx, environment.RuntimeRef); err != nil {
+					return err
+				}
+			} else if status.State != core.EnvironmentStopped {
+				return core.ErrIncompatibleState
+			}
+		}
+		if err := s.deleteAndFinalize(ctx, name, environment.RuntimeRef); err != nil {
+			return err
+		}
+		return s.finishOwnedWorkspaceCleanup(ctx, name)
+
 	}
 	if !isNotFound(err) {
 		return err
@@ -64,7 +101,7 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 
 	lease, leaseErr := s.store.GetWorkspaceLease(ctx, name)
 	if isNotFound(leaseErr) {
-		return nil
+		return s.finishOwnedWorkspaceCleanup(ctx, name)
 	}
 	if leaseErr != nil {
 		return leaseErr
@@ -79,4 +116,25 @@ func (s *Service) delete(ctx context.Context, name string, expected *core.Worksp
 		return fmt.Errorf("workspace lease for %q has no runtime reference; refusing to reclaim without proof: %w", name, core.ErrRecoveryRequired)
 	}
 	return s.deleteAndFinalize(ctx, name, lease.RuntimeRef)
+}
+
+func (s *Service) finishOwnedWorkspaceCleanup(ctx context.Context, name string) error {
+	catalog, ok := s.store.(interface {
+		OwnedWorkspaceCleanup(context.Context, string) (core.Workspace, error)
+		FinalizeOwnedWorkspaceCleanup(context.Context, string, core.Workspace) error
+	})
+	if !ok {
+		return nil
+	}
+	work, err := catalog.OwnedWorkspaceCleanup(ctx, name)
+	if errors.Is(err, core.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.DeleteOwnedWorkspace(ctx, work); err != nil {
+		return errors.Join(err, core.ErrRecoveryRequired)
+	}
+	return catalog.FinalizeOwnedWorkspaceCleanup(ctx, name, work)
 }

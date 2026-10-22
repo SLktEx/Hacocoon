@@ -50,6 +50,14 @@ func (p *SandboxProvider) configureSandboxEnvironment(ctx context.Context, ref s
 	if err := p.attachEnvironmentResources(ctx, ref, spec.ResourceBinding()); err != nil {
 		return fmt.Errorf("place Environment data: %w", err)
 	}
+	if spec.DeferStart {
+		if spec.TemporaryWorkspace || spec.ResourceMaintenance {
+			return core.ErrInvalidArgument
+		}
+		// Immutable creation policy, not a step marker. Every start applies the
+		// same idempotent guest initialization for this generation.
+		return p.setAndVerifyConfig(ctx, ref, "user.hacocoon.creation", "stopped")
+	}
 	if result, err := p.runner.Run(ctx, "incus", "start", ref, "--project", p.project); err != nil {
 		reason := strings.TrimSpace(result.Stderr)
 		if reason == "" {

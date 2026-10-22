@@ -53,6 +53,9 @@ func run(parent context.Context, args []string) error {
 	// Register every management contract before publishing the endpoint. Any
 	// collision or invalid service prevents the whole controller from serving.
 	if err := errors.Join(
+		controlapi.RegisterCreation(server, app.Creation),
+		controlapi.RegisterVolumes(server, app.Creation),
+		controlapi.RegisterRemove(server, app.Environments),
 		controlapi.RegisterWorkflow(server, app.Workflow),
 		controlapi.RegisterNetworkRules(server, app.Networks, app.Configuration),
 		controlapi.RegisterNetwork(server, app.Networks),
@@ -68,7 +71,6 @@ func run(parent context.Context, args []string) error {
 		registerWorkspaceImport(server, app),
 		registerEnvironmentImport(server, app),
 		controlapi.RegisterEnvironmentCopy(server, app.EnvironmentCopy),
-		controlapi.RegisterSnapshotRestore(server, app.SnapshotRestore),
 		controlapi.RegisterSnapshots(server, app.Environments),
 		controlapi.RegisterEnvironmentStreams(server, app.Clients),
 		controlapi.RegisterStart(server, app.Environments),
@@ -78,7 +80,9 @@ func run(parent context.Context, args []string) error {
 		controlapi.RegisterRepositories(server, app.Repositories, app.GitBroker),
 		controlapi.RegisterOCIImages(server, app.OCIImages),
 		controlapi.RegisterOCIStores(server, app.PersistentResources),
-		controlapi.RegisterGeneral(server, app.Bases, app.Runner, app.Events, app.Capabilities),
+		controlapi.RegisterGeneral(server, app.Bases, app.Events, app.Capabilities),
+		controlapi.RegisterExec(server, app.Environments),
+		controlapi.RegisterImageCommands(server, app.ImageCommands, app.Environments),
 		controlapi.RegisterHost(server, app),
 		controlapi.RegisterProjectSetup(server, app.ProjectSetup),
 		controlapi.RegisterSetup(server, app),

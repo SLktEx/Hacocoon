@@ -210,7 +210,7 @@ func TestBundleImportOwnsDataAndFailureCleanup(t *testing.T) {
 	}
 }
 func TestBundleImportPreflightAndLegacyOffline(t *testing.T) {
-	for _, mode := range []string{"legacy", "single", "corrupt", "too-many"} {
+	for _, mode := range []string{"legacy", "single", "corrupt", "nine"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			if err := os.Chmod(root, 0700); err != nil {
@@ -220,7 +220,7 @@ func TestBundleImportPreflightAndLegacyOffline(t *testing.T) {
 			if mode == "legacy" {
 				version = 1
 			}
-			if mode == "too-many" {
+			if mode == "nine" {
 				count = 9
 			}
 			data := importBundle(t, version, count, false)
@@ -230,7 +230,7 @@ func TestBundleImportPreflightAndLegacyOffline(t *testing.T) {
 			f := &importFlow{t: t}
 			s := Importer{Catalog: f, Environments: f, Workspaces: f, Root: root}
 			result, err := s.Import(context.Background(), bytes.NewReader(data), "chosen", 1<<20)
-			if mode == "corrupt" || mode == "too-many" {
+			if mode == "corrupt" {
 				if err == nil || f.checks != 0 || len(f.inputs) != 0 {
 					t.Fatal("invalid bundle mutated state", err)
 				}

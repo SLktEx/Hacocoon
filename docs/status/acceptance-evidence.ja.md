@@ -2,9 +2,131 @@
 
 [English](acceptance-evidence.md) | 日本語
 
-状態: 検証記録。ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
+状態: 検証記録。明示したローカル候補を除き、ここに記載した試験は過去のコミットで実施されたものです。文書整理時に実機試験を再実行したという意味ではありません。現在の機能は[実装状況](../IMPLEMENTATION_STATUS.ja.md)を参照してください。
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
+
+<a id="incus-vm-hosted"></a>
+## GitHub-hosted Ubuntuでの任意Incus VM
+
+2026-10-09、source `19ceda9ecd17a77f6512da276e5cfce2397bf632`
+（[#744](https://github.com/SLktEx/Hacocoon/pull/744)、検証対象のPR mergeは
+`035d5c16d810c9c1ce0c38c772fd2cbe94d1015e`）で
+[VM実行能力の調査ジョブ](https://github.com/SLktEx/Hacocoon/actions/runs/37927938220/job/113811304884)
+が成功しました。run `37927938220`、attempt 1の結果は**このrunnerでは実行可能**です。
+Ubuntu 26.04.1、イメージ`ubuntu26/20260927.149.1`、x86_64 kernel
+`7.0.0-1012-azure`、Incus 7.0.1 package `1:7.0.1-ubuntu26.04-202609250211`、
+QEMU 11.1.1を使用しました。AMDの`svm`が見えていました。`/dev/kvm`はroot所有・
+mode 0660の文字デバイスで、通常クライアントには直接のアクセス権がありませんでした
+（errno 13）。それでもrootのIncus daemonはVMを実行でき、両者を正しく区別しました。
+
+通常のリポジトリー内probeで、CPU 2個・メモリー1 GiB・初期化済み`dir`プール上の
+rootディスクだけを持つUbuntu 26.04 VMを起動しました。profile継承・NIC・Hostの
+bind mount・管理socketはありません。イメージの固定fingerprintは
+`4d2727c7480d2f54d916a18bb092af876dd089df2fdc9de69beda9248b434f25`です。
+agent経由のexecでPID 1がsystemdで動作準備済みであることを確認し、停止の観測・
+再起動後にも確認しました。所有マーカーを照合したVM削除、常時実行するcleanup確認が
+成功し、最後の独立したinstance一覧も空でした。
+
+artifact `incus-vm-probe-1`（`11614369907`）には`status=supported`、
+`guest_systemd=ready_after_restart`、`cleanup=verified_absent`とrunner/SHA記録を
+保存しました。取得したarchiveのSHA256は
+`788285fa59881ac978fdf848e54357e9037d2d835b0759718fc47b0f08900cd6`です。
+これは調査したGitHub-hosted runnerで将来の任意Incus VMバックエンドを検討できる
+根拠です。HacocoonのVM実装、guestのネットワーク・ストレージポリシー受入、全runnerの
+保証、PR全体のgate成功ではありません。KVM非対応の分類はリポジトリー内回帰試験で
+確認しており、KVMのない実runnerでの受入ではありません。
+[調査契約](../reliability/ci-contracts.ja.md#任意のincus-vm実行能力)も参照してください。
+
+<a id="unified-creation-local"></a>
+
+## 作成経路統合：Issue #728のローカル候補
+
+2026-09-26、`9d63f193`を基点とするIssue #728の未commit作業ツリーで、
+`TestRealIncusSnapshotAggregateE2E`がWindows/WSL2、Ubuntu 26.04.1、Incus 7.0.1、
+Btrfs上で成功しました。CLIバイナリと専用のテストcontroller/catalogを使い、
+running/stoppedからの新Image付きSnapshot作成、export/import、`open --new --snapshot`、
+rootfs・Git・Workspace・OCIデータの独立性、新しい権限世代、元の稼働状態の保持、
+生成データ削除、所有資源のcleanupを確認しました。未commit・未追跡ファイルと未push commitも
+保持しました。最初はimport後にfixtureの20分上限へ達しましたが、テスト上限を45分にした
+再実行は1,754秒で成功しました。最初のfixtureも所有者を検証する正規APIでcleanupしました。
+既存ユーザーEnvironmentは試験対象にしていません。
+
+ローカルCIではGo 1.26.7によるtests/vet/race、CLI・orchestration E2E、隔離kernelの
+forwarding、文書・workflow検査、Linux/Windowsのsnapshot配布物生成を実行しました。
+Windowsネイティブの導入component試験ではファイルロック・所有者・junctionの拒否、
+PowerShell 5.1から実WSLへのリテラル引数転送、WSL停止待ちも成功しました。
+公開releaseやhosted CIの結果ではなく、ローカル作業ツリーの証拠です。標準Imageの新規導入、
+VS Code・SSH GUI、認証付きGit通信、稼働中OCIの整合性は今回再検証していません。
+native aggregateでは既存cache Imageの削除、live containerd転送、別gateの導入済みcontroller
+によるimportを明示的にskipしました。
+
+### 更新された main との統合
+
+2026-09-27、候補 `f2a2b78f` に main `4cbe853f` を統合し、Repository の再試行・進捗表示と
+Windows の再開処理を維持しました。文書、workflow policy、通常コマンド・orchestrator の
+E2E、隔離した kernel forwarding の試験に成功しました。実 Incus と試験専用の設定 catalog で
+通常 bootstrap の Image 取得経路も成功し、取得済み標準 Image が initial default として永続化され、
+再 setup も成功しました。既存 Image cache を利用した確認で、新規 Host 導入ではありません。
+Windows native component 試験では GUID・名前による停止対象の選択と、元の失敗・再開失敗の
+保持を確認しました。実 VHD の容量回収は実行していません。
+
+Go の全 package の通常・race 試験、vet、通知クライアントの JavaScript 32 件、VS Code
+packaging 2 件に成功しました。maintained `test`・`race` の初回実行では、Windows マウント上の
+ソースを使う既存 checkpoint black-box package が10分上限に達しました。その package だけ
+`go test [-race] -v -count=1 -timeout=30m ./tools/milestone` で再実行し、それぞれ1,060秒・
+1,032秒で成功しました。製品の時間制限は変更していません。
+
+同じ製品コードで maintained `release-config` もローカル Ubuntu 26.04 container 上で成功し、
+Linux/Windows の amd64・arm64 snapshot 配布物、installer bundle、全 checksum を検証しました。
+最初の最小 container には fixture が使う `/usr/bin/python3` が不足していましたが、試験の前提を
+追加して解消しました。installer コードは変更していません。
+
+最初の実 containerd aggregate 試験は書き込みデータの保存と export に成功した後、Host 側の
+Git 確認が Incus による UID 変換を拒否しました。既存の import・copy 確認と同様、provider が
+所有確認したパスだけをその Git 呼び出しで許可するよう試験を修正しました。製品の所有確認と
+global Git 設定は変更していません。失敗 fixture の保存・コピー資源は canonical cleanup で削除し、
+元・復元 Volume の不在を独立した一覧確認でも検証しました。
+これに先立つ旧 cache fingerprint 指定の実行は、Image の自動更新による不在を検出し、
+fixture 資源を作る前に拒否しました。
+
+次の実機試験では、実 CLI の export/import 後に containerd Image の同一性と停止済み container の
+書き込みデータを確認し、起動中の元 Environment から保存した Snapshot で新 Environment の作成にも
+成功しました。ただし JSON 判定が stderr の進捗を stdout に混ぜていました。修正 `5b5336cd` で
+出力を分離し、追加した回帰は race 付きでも成功しました。保全した専用 catalog だけを使う一時的な
+継続テストで元の残りの判定を繰り返し、619秒で成功しました。Snapshot open、独立コピー、
+Git・rootfs・OCI の保持、元 Environment の不変、使用中データの削除拒否、canonical cleanup を
+確認しています。一時ソースはコンパイル後に削除しました。独立した Incus inventory でも既存ユーザーの
+全 instance・Volume の保持と両 fixture 名の不在を確認し、完了した catalog には lifecycle lock の
+識別情報だけが残っています。
+
+これは分割したローカル実機検証で、修正後の aggregate 全体を一度に通した結果ではありません。
+既存 cache Image の削除と別 gate の導入済み controller による import は引き続き skip しました。
+保存した containerd 作業の明示 start は成功しましたが、稼働 task の移送、任意アプリケーションの
+整合性、復元後の SSH・VS Code GUI、認証付き Git の受入はこの試験では証明していません。
+
+### 作成経路統合の hosted 検証とプレビューのタイムアウト
+
+2026-09-27、`f43b9f7095cd1c6ad977326d5dd02876880acebc` は
+[通常テスト](https://github.com/SLktEx/Hacocoon/actions/runs/36299877273)、
+[品質検査](https://github.com/SLktEx/Hacocoon/actions/runs/36299877282)、
+[実 Incus](https://github.com/SLktEx/Hacocoon/actions/runs/36299877261)、
+[Ubuntu 配布物の導入](https://github.com/SLktEx/Hacocoon/actions/runs/36299877263)に成功しました。
+Incus では Snapshot aggregate 全体の連続実行と導入済み controller の転送経路も確認しました。
+SonarCloud の新規コードカバレッジは80.9%で、品質ゲートに成功しました。
+
+[Windows 実行](https://github.com/SLktEx/Hacocoon/actions/runs/36299877270)では、
+導入、lifecycle、egress、interop、customization、通知、容量回収に成功しました。
+最初の access ジョブは、既存の Edge headless プロセスの30秒上限
+（`test_windows_environment_ssh.ps1:470`）で失敗しました。その前の Windows HTTP 接続と
+Workspace marker の完全一致は成功し、独立した SSH、VS Code、転送、トンネルの確認も
+成功しました。同じコードで失敗ジョブを再実行すると、Edge 描画、preview 再利用・拒否を含む
+access ジョブ全体に成功しました。再実行のために時間制限・判定・製品動作を変更していません。
+
+証跡ゲートは再実行成功後も初回失敗を正しく保持しました。Edge タイムアウトの根本原因は
+未確認で、後続の成功がその解決や取り消しを意味するわけではありません。ゲートを緩和せず、
+次の候補でもこの制約を保持するために記録しています。これらの hosted 構成だけで認証付き Git、
+private registry、稼働 workload 移送、全ての物理 Host 構成を検証したとは扱いません。
 
 <a id="portless-ssh"></a>
 
@@ -133,12 +255,365 @@ Incus 7.0.1の導入と初回Host診断に成功しましたが、WSLの終了�
 |---|---|
 | PR #493, #501; `a2fcb72` / runs 34297739368, 34297739417 | スナップショット復元はBase実体の保持と元Envの削除に依存せず、権限を新規発行する。Base作成・Env作成・SSHはmachine-ID/stdio問題と600秒タイムアウトを経て成功。所有対象は不存在確認後のみ解放し、診断証拠は元の記録に残す。 |
 | PR #504–507; `c4842c2` | Workspace、作成したBase、Store全体、元リポジトリの削除を個別の実機試験で確認。Base試験ではWindowsのSSH aliasが初回失敗。元リポジトリ試験は初期化で停止した回があり、その後段のスキップを成功とは扱わない。 |
-| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | 接続中・Hostのイメージ操作は実行基盤アダプターの試験構成で成功。非接続nerdctlの配備と単体controller/CLIは588.51秒で成功し、未使用候補の確認付き削除も成功。導入済みcontroller/Standard全体と非接続Dockerは未完了。 |
+| `4d9038b7`; `bd1c9a5` / run 34417051340; `9484d06` / run 34493016558 | 接続中・Hostのイメージ操作は実行基盤アダプターの試験構成で成功。非接続nerdctlの配備と単体controller/CLIは588.51秒で成功し、未使用候補の確認付き削除も成功。これらの試験は導入済みcontroller/Standard構成の検証ではなく、後述の[限定した導入済み経路](#installed-oci-cli)が追加の証拠。非接続Dockerは未完了。 |
 | `f3f5557`, `ae0c245` | Docker 28.5.2/vfs、nerdctl 2.3.5/containerd 2.3.3の試験構成でHost OCI領域の隔離、停止中のコピー、完了証明に基づく復旧を確認。初回のroot不一致は修正前の失敗。不明なプロバイダー完了状態は引き続き解放を拒否。全バージョン・導入構成の合格ではない。 |
 | `5100d86` / run 34623036552, job 103341362151 | 公開reclaimの開始・結果確認が成功。Windows割当量は7,964,983,296→4,224,712,704バイト（3,740,270,592回収）。仮想1 TiB・Incus 128 GiBの容量は不変。Linux discard、指定WSLの停止・圧縮・再開、保持Workspace/OCI/スナップショットの復元を確認。 |
 | `4369fdb`, `d675c5a`, `de72119`; earlier Windows trials | Job関連の起動エラーの原因は未確定。`d675c5a`はaccess-denied 5でLinux未開始の未完了を保持。`de72119`はworker失敗を保存したが起動元へ通知しなかった。以前のOpenVirtualDiskエラー32とディスク段階だけの成功は統合回収の証明ではない。junction拒否は成功、一部symlink試験は権限不足でスキップ。既存環境・電源断・セッション間・中断workerの実機レビューは未確認。 |
 
 元の詳細、検証用構成の識別子、ログ・成果物へのリンクは [整理前の実装状況](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/IMPLEMENTATION_STATUS.md) および [当該設計の検証記録](https://github.com/SLktEx/Hacocoon/blob/73f63f23b4a57d2fefa5764c523798b1fa8e1962/docs/design/storage-reclamation.md)に固定コミットで保持されています。現在の操作手順としては使用しないでください。
+
+<a id="installed-oci-cli"></a>
+
+### 導入済みCLIでのHostイメージコピーと保持Store再利用
+
+PR #757のhead `c745427d3c63d8db844eb3142786421b71c26b82`を、
+`ce7860473e62409f9cf6c9649ba291dcb8c040fa`へのmerge
+`28b69814d30eba16b9cbcbe3fb8a94c241d9caba`としてcheckout・ビルドし、
+[新規Ubuntuの導入済み通常ユーザー経路が初回試行で成功](https://github.com/SLktEx/Hacocoon/actions/runs/38022165364/job/114125296512)しました。
+mergeのtreeはレビュー済みheadのtreeと一致します。
+`test/e2e/installed/oci_images.py`は通常ユーザーの`haco`コマンドと、
+製品がHostに導入済みのnerdctl/BuildKitを使用しました。
+
+一意のタグを付けた二つの`FROM scratch`イメージを`--network none`で作成し、
+実際のHostイメージデータを用意しました。通常のEnvironment作成がHost領域を自動コピーし、
+Storeの独立した所有権を確認しました。Storeの明示指定やイメージsave/loadは使いません。
+Environment削除後、製品の非接続Storeの一覧・削除で実際の不変イメージIDを確認し、
+コピーからの削除がHost一覧を変えないこと、同じWorkspaceの自動再作成で変更後の一覧と
+正確なStoreを再利用することを確認しました。別Workspaceには現在のHost一覧がコピーされました。
+Hostにイメージがある状態での`--no-oci`、Storeなしのイメージ参照拒否、矛盾するStore指定の
+拒否、所有するEnvironment・Store・Hostイメージだけの後始末も成功しました。
+
+Hostイメージ構築から後始末・PASSまでの追加OCI区間は約145秒で、Ubuntu jobの40分期限は
+変更していません。二つのイメージでの結果であり、大規模イメージ・大量削除・転送性能の
+実証ではありません。通常Environmentに実行基盤・パッケージやPolicy・通信権限を追加せず、
+Host管理ソケットも公開していません。非接続Storeのメタデータ用ツールは製品の通常準備経路を
+使いました。固定の読み取り専用レシピ観測と通常CLIによる保存・消去も成功し、
+BuildKitキャッシュは使い捨てrunnerの破棄に任せています。
+
+guest内のオフラインコンテナ実行は明示的に**未検証**です。既定Baseには任意の実行基盤が
+含まれません。現行の認証付きregistry取得とcredentialの後始末、Docker、Windows/WSLでの
+OCI再作成、その他の実行基盤・driverとの互換性、中断操作の組合せは未完了です。
+この限定結果で#275を完了とはせず、前掲の過去の失敗・スキップも置き換えません。
+旧版と独自layoutの移行は引き続き現在のissue範囲外です。
+
+<a id="host-oci-sharing"></a>
+
+### 実際の Host OCI 領域の共有容量計測
+
+PR #743 の head `6af9764d2ea4c7b0a01aa931c2cb1ec071ddb35e` を merge commit
+`0785baf61d9552fcd6f8de0972298a7427db5906` として試験し、
+[`TestRealIncusHostToolingE2E` が104.17秒で成功](https://github.com/SLktEx/Hacocoon/actions/runs/37928748494/job/113813959793)しました。
+専用 pool/project は `haco-area-6e4bcd1e35bce84c` で、正確な所有対象の後始末も成功。
+Ubuntu 26.04、Linux `7.0.0-1012-azure` x86_64、Go 1.27.0、Incus 7.0.1、
+Btrfs-progs 6.17.1、nerdctl 2.3.5、containerd 2.3.3、BuildKit 0.31.2 と
+native snapshotter を使用しました。BusyBox を元に実際に BuildKit で作ったイメージは
+`sha256:964017daedcd872403b9aef02dd51e47a727d2c42bfce6d57495e6f63f9980f7` です。
+
+[再現手順と計測の意味](../design/btrfs-storage-layout.ja.md)に従い、正確な所有対象を
+Incus 経由で一時停止して、`du --apparent-size --block-size=1`、
+`du --block-size=1`、`btrfs filesystem du --raw --summarize` を実行しました。
+Store 全体の主な測定値は次のとおりです。単位はすべてバイトです。
+
+| 対象・操作 | 論理容量 | 参照ブロック割当量 | extent 合計 | 排他的 extent | set-shared |
+|---|---:|---:|---:|---:|---:|
+| コピー前の Host | 23,136,518 | 23,183,360 | 22,994,944 | 5,120,000 | 8,937,472 |
+| ネイティブコピー後の Host | 23,136,518 | 23,183,360 | 22,994,944 | 0 | 14,057,472 |
+| ネイティブコピー後のコピー先 | 23,136,518 | 23,175,168 | 22,994,944 | 0 | 14,057,472 |
+| コンテナー書き込み前のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 307,200 | 13,754,368 |
+| 8 MiB 書き込み後のコピー先 | 35,970,962 | 36,069,376 | 35,856,384 | 8,732,672 | 13,717,504 |
+| コンテナー・タグ削除後のコピー先 | 23,136,518 | 23,179,264 | 22,999,040 | 352,256 | 13,709,312 |
+
+ネイティブコピー後、実際の containerd コンテンツ blob は両領域とも共有 extent が
+2,240,512 バイト、排他的 extent は0でした。コピー先の BuildKit データは
+set-shared が7,147,520バイト、排他的 extent は0でした。ネイティブの parent UUID、
+イメージ識別子の一致、オフライン実行、書き込みの独立性、元領域の削除も成功。
+コンテナーの書き込み層へ8,388,608バイトの乱数を書き込むと、参照ブロック割当量は
+12,890,112バイト、排他的 extent は8,425,472バイト増えました。ネイティブ snapshot
+によるイメージ参照やランタイムのメタデータも含むため、これらは書き込んだデータ量
+そのものではありません。元のイメージは引き続き実行でき、コピー先の書き込みを
+含みませんでした。
+
+ファイル長4,294,967,296バイトのスパース backing file は、ネイティブコピー前後で
+割当量が2,462,105,600から2,462,134,272バイトへ増加（+28,672）しました。
+次の基準値より前に受け手を準備しています。コンテナー書き込み前は3,013,103,616、
+後は3,021,672,448バイト（+8,568,832）。コンテナーと一つのタグを削除した後も
+元イメージと受け手の別タグは残り、backing file の割当量は3,021,905,920バイトで、
+物理容量の減少は観測していません。rootfs・メタデータの活動も含むプール全体の
+観測であり、独立したデバイス書き込み量、圧縮後の extent 長、export/import の増幅を
+表しません。全ログには両領域とコンテンツ・BuildKit 部分の測定値も残しています。
+
+最初の head `ae95116bb04122f672baf9046cc7597ab374b007` は
+[容量計測前に失敗](https://github.com/SLktEx/Hacocoon/actions/runs/37927891326/job/113811150446)しました。
+pull/build/reuse は成功しましたが、観測処理が標準の機能一覧を含む Btrfs の版表示を
+拒否しました。先頭行から版だけを取り出す処理と回帰試験で修正しています。以前の
+失敗と、その結果スキップした Packer 試験は別の記録として保持します。
+ローカルの対象試験・race・vet・lint・文書検査は成功しましたが、Incus/Btrfs が
+なかったため実機試験はスキップしました。実機の証拠は上記 hosted 結果です。
+次の節では、管理 Workspace の保存・復元・コピーについて限定した実測を追加します。
+Base と複数 Env、保存 rootfs の復元時の容量、archive/publish の増幅、Docker の各 driver、
+物理的な回収の完了、大規模負荷の計測は
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)に残ります。
+
+[後述の rootfs/Image 実測記録](#rootfs-image-sharing)は別の限定範囲を扱うもので、
+この Host OCI の実測記録を拡張するものではありません。
+
+<a id="workspace-sharing"></a>
+
+### 管理 Workspace の共有容量と論理削除
+
+PR #751 の head `729b3009495e76dc8db09df990eb83e55f63c9c8` を、main
+`f05d3d1554b405bfa2db5b83b7f1dd4f226992ca` との merge
+`a7060f189fadc98dc005bd7af75d8c3b41cc8d0e` として試験し、
+[`TestRealIncusSnapshotAggregateE2E` が229.01秒で成功](https://github.com/SLktEx/Hacocoon/actions/runs/37964529331/job/113935434154)しました。
+[実行した試験コード](https://github.com/SLktEx/Hacocoon/blob/729b3009495e76dc8db09df990eb83e55f63c9c8/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L804)は
+既存の Git・内容・所有権検査を維持し、正確な所有対象の後片付けも確認しました。
+fixture は `haco-aggregate-11705984157cdfa3`、Ubuntu 26.04、Linux
+`7.0.0-1012-azure` x86_64、Go 1.27.0、Incus 7.0.1、Btrfs-progs 6.17.1 です。
+キャッシュ済み入力イメージの fingerprint は
+`ffb1a536af31961dbc1976f5e0ca9a900ae43dbe50619fa179ad2963bd9d4173` でした。
+
+[計測手順](../design/btrfs-storage-layout.ja.md)では、選択した管理リポジトリのゲスト内で
+上限を設けた書き込みを行い、正規の保存、公開コマンドによる復元・コピー、所有権を確認した
+削除を使います。従来の合成データを直接準備する処理は計測区間より前に終わっています。
+物理領域の観測中はライフサイクルをロックし、稼働している正確な利用元だけを一時停止します。
+選択した Workspace ボリューム全体の値は次のとおりで、単位はバイトです。
+複数の対象をまとめた行は各対象で同じ値だったことを示し、合計ではありません。
+
+| 対象・操作 | 論理容量 | 参照ブロック割当量 | extent 合計 | 排他的 extent | set-shared |
+|---|---:|---:|---:|---:|---:|
+| Snapshot 前の元 Workspace | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| Snapshot 後の元・保存先、それぞれ | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| 元ファイルを unlink、Snapshot は保持 | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+| 元ファイルの unlink 後の保存先 | 8,416,620 | 8,511,488 | 8,404,992 | 8,388,608 | 12,288 |
+| 公開復元後の保存先・復元先、それぞれ | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| 公開コピー後のコピー先 | 8,416,620 | 8,511,488 | 8,404,992 | 0 | 8,400,896 |
+| コピー先だけに8 MiBを書き込んだ後 | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| Snapshot 削除後、復元元は保持 | 16,805,228 | 16,900,096 | 16,793,600 | 8,388,608 | 8,400,896 |
+| 元と Snapshot を削除した後のコピー先 | 16,805,228 | 16,900,096 | 16,793,600 | 16,777,216 | 12,288 |
+| 最後の有効な計測ファイルを unlink した後 | 28,012 | 122,880 | 16,384 | 0 | 12,288 |
+
+元の乱数ファイルは、論理容量・参照割当量・extent とも8,388,608バイトでした。
+保存前はすべて排他的でしたが、保存・復元・コピー先の計測ディレクトリでは排他的な
+extent が0、set-shared が8,388,608バイトになりました。SHA-256 は
+`c2d6ac8279f1a8189b1a6513aa10baecc10b48ea167e4940bcca9fc98f9d09b7` で不変でした。
+コピー先だけに8 MiBを書き込むと、Workspace 全体の参照割当量と排他的 extent が
+それぞれ正確に8,388,608バイト増え、保存先・復元元のデータは変わりませんでした。
+元と Snapshot を論理的に削除した後、この実行では残るコピーの計測データ16,777,216バイトが
+すべて排他的になりました。最後のゲスト内 unlink では、計測データの論理容量・参照割当量・
+extent がすべて0になり、別の Git/Workspace データは残りました。
+
+共有プールのスパース backing file の長さは137,438,953,472バイトで不変でした。
+観測した割当量は次のとおりです。
+
+| 段階 | プール全体の割当バイト数 |
+|---|---:|
+| Snapshot 前 | 745,246,720 |
+| Snapshot 後 | 748,982,272 |
+| 元ファイルを unlink、Snapshot は保持 | 750,309,376 |
+| 公開復元後 | 1,455,939,584 |
+| 公開コピー後 | 1,463,418,880 |
+| コピー先だけの書き込み後 | 1,472,823,296 |
+| Snapshot 削除後、復元元とコピー先は保持 | 1,474,723,840 |
+| 元と Snapshot を削除、コピー先は保持 | 1,476,001,792 |
+| 最後の有効な計測ファイルを unlink | 1,477,312,512 |
+
+この値には、他の rootfs・Image・メタデータ・Host の活動も含みます。元ファイルの
+unlink と復元の観測の間には集約試験の転送・ランタイム操作も入るため、大きな増加を
+Workspace 復元だけの費用とは見なしません。最後の unlink では16 MiBの有効な
+データ参照が消えましたが、backing 割当量は1,310,720バイト増えました。独立した物理
+書き込み量、圧縮後の削減量、discard、Windows VHDX の回収を証明するものではありません。
+FIEMAP と参照割当量は分け、コピー間で足し合わせません。
+
+各段階ではファイルシステムを一度同期し、一度観測するだけで、容量が減るまで待ったり
+再試行したりしません。[Btrfs filesystem sync](https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#subcommand)は
+削除済み subvolume の清掃を開始しますが、完了は待ちません。プロバイダー上の不在や
+今回観測した排他的 extent への変化だけで、一般に物理回収の完了を確定できるとは
+扱いません。全ジョブログには17件の領域計測、9件のプール計測、正確な所有権識別の
+ハッシュと後片付けの成功が残っています。この限定的な Workspace データの結果でも、
+保存 rootfs の容量、Base と複数 Env、archive/publish の増幅、物理回収の完了、大規模負荷は
+未完了です。
+
+<a id="rootfs-image-sharing"></a>
+
+### 保存済み rootfs の共有容量と通常 Image の再利用
+
+PR #752 の head `de3817208964ab0c0d0cbdb4123567b4a9e59bd2`を、
+`932790322bcd54d8b8aa6fda5a13eaec030c0f67`への検証用マージ
+`031d0a7b9996a661f7b9dda6e54a748320ccda5b`として checkout・ビルドし、
+[最初の実行で `TestRealIncusSnapshotAggregateE2E` が272.24秒で成功](https://github.com/SLktEx/Hacocoon/actions/runs/37992973385/job/114031637967)しました。
+[試験した fixture](https://github.com/SLktEx/Hacocoon/blob/de3817208964ab0c0d0cbdb4123567b4a9e59bd2/internal/adapters/incus/snapshot_aggregate_e2e_test.go#L448-L886)は
+`haco-aggregate-b632059ba14ffa2d`です。Ubuntu 26.04.1（OS 識別は26.04）、
+Linux `7.0.0-1012-azure` x86_64、Go 1.27.0、Incus 7.0.1、
+Btrfs-progs 6.17.1を使いました。入力のキャッシュ済み image の fingerprint は
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`、
+別に公開された通常 Image は `origin=snapshot-generated-image`、fingerprint は
+`d26206bc2cb3722868879881e882fbe8169178548a1883f3aab276aae35de4a4`です。
+
+[計測の契約](../design/btrfs-storage-layout.ja.md#rootfs-の保存と通常-image-の再利用の計測)は、
+保存済み rootfs のネイティブ保存・復元・コピーと、通常の位置引数
+`open --new IMAGE`による不変の最適化 cache からの初期化を区別します。
+正確な所有権、標準のロック順序、一時停止・再開、cache の読み取り専用属性、
+rootfs と親の識別、Host のマウント範囲の検査が成功しました。
+以下は rootfs 全体のバイト数で、固定の計測ファイル以外の実行時ファイルも含みます。
+
+| 領域 / 操作 | 論理容量 | 参照割当量 | extent 合計 | 排他 | 共有集合 |
+|---|---:|---:|---:|---:|---:|
+| 保存前の元 Env | 671,568,712 | 731,987,968 | 672,321,536 | 12,496,896 | 275,742,720 |
+| 保存直後の保存先（元 Env も同値） | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 288,100,352 |
+| 通常 Env 二つを作成後の Image cache | 671,568,712 | 731,987,968 | 672,321,536 | 0 | 281,776,128 |
+| 通常 Image の Env A | 680,050,419 | 740,478,976 | 680,804,352 | 8,486,912 | 281,776,128 |
+| 独立書き込み前の通常 Image Env B | 679,957,417 | 740,384,768 | 680,710,144 | 8,388,608 | 281,776,128 |
+| 独立書き込み後の通常 Image Env B | 688,441,496 | 748,871,680 | 689,197,056 | 16,879,616 | 281,776,128 |
+| 通常 Image Env 二つの削除後の cache | 671,568,712 | 731,987,968 | 672,321,536 | 672,321,536 | 0 |
+| 保存済み rootfs からの復元先 | 680,047,008 | 740,474,880 | 680,800,256 | 8,482,816 | 288,096,256 |
+| 独立書き込み前のコピー先 | 680,142,757 | 740,564,992 | 680,894,464 | 4,083,712 | 292,585,472 |
+| 独立書き込み後のコピー先 | 688,531,365 | 748,953,600 | 689,283,072 | 12,472,320 | 292,585,472 |
+| 元 Env と Snapshot 削除後のコピー先 | 688,531,355 | 748,953,600 | 689,283,072 | 29,458,432 | 275,742,720 |
+| 最後の計測ファイル unlink 後のコピー先 | 671,754,139 | 732,176,384 | 672,505,856 | 12,681,216 | 275,742,720 |
+
+元の計測ファイルは論理・参照割当・extent が各8,388,608バイトで、保存前は全て排他でした。
+保存後、保存済み rootfs からの復元後、コピー後は、対応する各計測領域の排他が0、
+共有集合が8,388,608バイトになりました。生成された Image の cache と通常 Env 二つでも、
+独立に同じ共有を観測しました。元ファイルの SHA-256 は
+`b7c7e4e6f5421e7f8ecec0aded73211eeafc25e52e6db5a00d84512f4c103618`のままでした。
+元ファイルを unlink した後、保存先の内容は変わらず、全て排他になりました。
+別に実体化された Image cache と Env の計測ファイルが共有されている間も同様です。
+Image 公開をまたいだ共有の証明ではありません。
+
+通常 Env B と復元後のコピー先にそれぞれ8 MiBを独立に書き込み、各計測領域の参照割当量・
+排他 extent は正確に8,388,608バイト増加しました。相手 Env、cache、保存先の内容は
+変わりませんでした。Env B の rootfs 全体では割当量が8,486,912バイト、排他 extent が
+8,491,008バイト増えました。実行時の活動が含まれるため、固定ファイルの増加量とは異なります。
+復元後のコピー先では rootfs 全体の割当量・排他 extent が各8,388,608バイト増えました。
+通常 Image Env 二つを削除した後、この実行では残った cache の rootfs 全体が排他に
+なりました。Snapshot と復元元を削除した後は、残ったコピー先の計測 extent
+16,777,216バイトが全て排他になりました。最後のゲスト内 unlink で計測領域の全カウンターが
+0となり、その他の rootfs データは残りました。排他への移行は観測結果であり、
+物理的な退役完了を待つための条件にはしていません。
+
+共有プールの sparse backing file の長さは137,438,953,472バイトのままでした。
+
+| 段階 | プール全体の割当バイト数 |
+|---|---:|
+| 保存前 | 748,027,904 |
+| 保存後 | 760,381,440 |
+| 元ファイル unlink、Snapshot 保持 | 761,937,920 |
+| 通常 Image Env 二つの作成後 | 1,108,312,064 |
+| 通常 Image Env B の書き込み後 | 1,118,994,432 |
+| 通常 Image Env 二つを削除、cache 保持 | 1,119,551,488 |
+| 公開コマンドによる復元後 | 1,816,449,024 |
+| 公開コマンドによるコピー後 | 1,824,456,704 |
+| コピー先だけの書き込み後 | 1,833,926,656 |
+| Snapshot 削除、復元元とコピー先を保持 | 1,845,264,384 |
+| 元 Env と Snapshot 削除、コピー先を保持 | 1,847,066,624 |
+| 最後のライブ計測ファイル unlink 後 | 1,848,442,880 |
+
+このプールには他の rootfs、Image、Workspace、メタデータ、Host の活動も含まれます。
+復元前には集約データの移送・import も行われています。プール差分を一つの操作に
+帰属させません。最後のライブファイル unlink では16 MiBの参照が消える一方、プールの
+割当量は1,376,256バイト増えました。物理回収の完了は観測していません。
+FIEMAP の長さは圧縮後のバイト数やデバイス書き込み量ではなく、領域別の値を
+足して一意な使用容量とみなすこともできません。
+
+全記録には rootfs・計測領域の27サンプル、プール全体の12サンプル、識別ハッシュに加え、
+既存の Workspace 領域17サンプル・プール9サンプルが残っています。
+正確に所有した Env・自動 Workspace、保存済み集約データの削除と fixture の不在確認が成功し、
+その後ジョブがプールと project を削除しました。catalog のロック識別は意図して残しています。
+元の入力 image の削除は、専用 image の削除許可がないため明示的にスキップしました。
+再実行はしていません。ローカル sandbox の失敗は、この hosted 成功とは別の結果です。
+一般的な Base ビルド・Packer の効率、archive/publish の増幅、より広い OCI 負荷、
+復元後の SSH・稼働アプリケーションの整合性、物理回収の完了、大規模負荷、Windows VHDXへの
+影響は、[#241](https://github.com/SLktEx/Hacocoon/issues/241)の今回の限定結果の範囲外です。
+
+<a id="archive-materialization"></a>
+
+### 保持する native archive と import 展開の実測
+
+PR #753 の head `375c4f0e3706d0bca697745164710532fddbe087`を、
+`83d8d91695a04f3c26f8f331d2eeec03428fa6c8`への検証用マージ
+`c9ba3ac33323c091c1c2450beafc3515dc65b1e1`として checkout・ビルドし、
+2026-10-09の[実機 run 38001081322、job 114059018186、初回実行](https://github.com/SLktEx/Hacocoon/actions/runs/38001081322/job/114059018186)で
+追加した archive 計測が成功しました。`TestRealIncusSnapshotAggregateE2E`は359.70秒、
+既存の`shipped-controller-import`子試験は23.71秒で成功しました。
+[試験した計測処理](https://github.com/SLktEx/Hacocoon/blob/375c4f0e3706d0bca697745164710532fddbe087/internal/adapters/incus/rootfs_archive_reuse_e2e_test.go#L21-L177)の fixture は`haco-aggregate-5d8450302b0f769c`です。
+Ubuntu 26.04.1（OS 識別は26.04）、Linux `7.0.0-1012-azure` x86_64、
+Go 1.27.0、Incus 7.0.1、Btrfs-progs 6.17.1を使いました。入力 cache の fingerprint は
+`08360c2fb053a234134c457588b90b733344188af95bddce1b2eba3ebb68b8b3`、通常 Image は
+`origin=snapshot-generated-image`、fingerprint は
+`ff8534d6dcc9812f9bb91fcd35d7f7ae2d168152d16c76180ca2465b960fdcf6`です。
+再現には[既存の集約試験のコマンド](../design/btrfs-storage-layout.ja.md#管理-workspace-のライフサイクル計測)と
+[archive 計測の契約](../design/btrfs-storage-layout.ja.md#保持する-native-archive-と-import-展開の計測)を使います。
+
+通常 Image の Env B に8 MiBの差分を書いた後、公開 CLI とコントローラーで export し、
+新しい移送先一つへ import しました。保持した`.haco`ファイルは
+**論理容量707,051,008バイト、参照割当量707,055,616バイト**
+（`st_blocks * 512`）でした。filesystem type は`61267`で、管理 Btrfs プールとは
+別です。export 後、import 後、移送先削除後の計3サンプルで、容量、component の
+ハッシュ、ファイル・ファイルシステムの識別が全て一致しました。
+
+- Archive SHA-256: `7a2563cce037bf1f76f01e2c83895292e943b2e5cd4251e58655985ef2747436`
+- `filesystem_identity_sha256`: `0ea4ec481550c1f15778cbb9377d5cc9b1ed9c1618bc483b6878bf807bbf3804`
+- `file_identity_sha256`: `e623bc1b1b4e7417f27f26308ccaee44ca57038cdc431eac25a2b3038e87dfeb`
+
+| 検証済み component role | バイト数 | SHA-256 |
+|---|---:|---|
+| `rootfs` | 707,044,352 | `aba634edadad8f15172559466e1d3e2be5eda671519375f177e3da98af5c6352` |
+| `workspace` | 3,584 | `bbcf3c547eef1e4150f975b841528a8cc1233a5232478234ccacbbd1e5401563` |
+
+component 二つの合計は707,047,936バイト、外側の付加分は3,072バイトです。
+この計測には OCI component はありません。従来の集約 export とその controller-import
+子試験は別の機能検証です。
+
+以下は rootfs 全体のバイト数です。元の4サンプル（export 前、export 後、import 後、
+移送先削除後）は全て同値でした。元の識別ハッシュは
+`ccf0385cac8a126aea407bc4b7d418b34e6cdc9681cffebcc8c9b96721a77580`、新しい移送先は
+`35d0b29d5cfb3b7c3c2b48a59b3c553b19219ec954cf7acab67ac510b6bc361f`です。
+
+| 領域 | 論理容量 | 参照割当量 | extent 合計 | 排他 | 共有集合 |
+|---|---:|---:|---:|---:|---:|
+| 元 | 688,443,469 | 748,875,776 | 689,197,056 | 16,879,616 | 281,337,856 |
+| 移送先 | 688,538,187 | 748,965,888 | 689,291,264 | 689,291,264 | 0 |
+
+各`base`・`delta`ファイルは論理容量・割当量・extent がそれぞれ正確に8,388,608バイトでした。
+元の`base`は排他0・共有集合8,388,608バイト、`delta`は排他8,388,608・共有集合0バイトで、
+全サンプルで不変でした。移送先の各ファイルは排他8,388,608・共有集合0バイトでした。
+両方の計測ディレクトリは論理容量・割当量・extent が各16,777,216バイトです。元の排他・
+共有集合は各8,388,608バイト、移送先の排他は16,777,216バイト、共有集合は0でした。
+元と移送先でゲスト内の所有者`0:0`を確認しました。各 SHA-256 は全サンプルで次の値を維持しました。
+
+- `base`: `293bf8567227610fc453daa3f7989e8b860b54b7e5d44d26e753848a9d1dbf49`
+- `delta`: `1ff32bf51e7e9472443465c9b93557dc24c716531c0aef8b606fa13ef23ea584`
+
+差分の関係は`separately_materialized_from_source`と記録されました。元の差分が export 前と
+import 後の両方で完全に排他的なため、この限定した実体化の判断ができます。元の rootfs
+全体は完全に排他的ではありません。ハッシュの一致や別々の共有集合の値から二つのファイル間の
+共有を推定せず、固有の物理バイト数や圧縮後の容量の計測とも扱いません。
+
+`whole_shared_pool`の4サンプルでは、backing file の論理長は137,438,953,472バイトでした。
+
+| 段階 | プール全体の割当バイト数 |
+|---|---:|
+| export 前 | 1,117,982,720 |
+| export 後 | 1,121,533,952 |
+| import 後 | 1,478,545,408 |
+| 移送先削除、archive 保持 | 1,481,560,064 |
+
+移送先削除後も割当量は3,014,656バイト増加しました。他のリソースやメタデータも同じ
+プールを使うため、差分を export・import・削除だけに帰属させず、物理回収の完了も主張しません。
+別のファイルシステムにある archive の割当量はプールの割当量とは別で、加算しません。
+
+同じ archive を読み取り可能なまま保持し、一時 Snapshot・image の正確な削除と、
+新しい移送先 Env・Workspace の native/catalog 不在確認が成功しました。その後、既存の
+最終 fixture 削除で archive も消し、集約リソースの不在を確認しました。catalog のロック識別は
+意図して残しています。入力 cache image の削除は、専用 image の削除許可がないため明示的に
+スキップしました。過去の失敗とは別の結果であり、今回はこの実機計測区間の受入成功です。
+
+移送の非圧縮 native archive と通常の Base 公開の圧縮経路は区別します。保持した値からは、
+一時 component・staging・import の最大容量、メモリーの最大値、デバイス書き込みの増幅、
+一般的な Base・Packer の効率は分かりません。これは
+[#241](https://github.com/SLktEx/Hacocoon/issues/241)の代表的な実体化・削除の結果であり、
+導入全体や災害復旧用バックアップの受入ではありません。普遍的なスケーリングや
+物理回収の成功を、この issue の追加完了条件にはしません。
 
 <a id="transfer"></a>
 
@@ -478,6 +953,29 @@ Linux側回収完了後、Windows停止を要求しましたが、`compact_attac
 既存のソース別成功は保持し、新headのCI成功へ読み替えません。
 
 
+<a id="environment-exec-cancellation"></a>
+## 永続 Environment 内の実行キャンセル
+
+PR [#754](https://github.com/SLktEx/Hacocoon/pull/754) の head
+[`bf699cec300e`](https://github.com/SLktEx/Hacocoon/commit/bf699cec300e119eb483dbaaf1abf3174ba595a6) と
+base [`5efd8b15e08b`](https://github.com/SLktEx/Hacocoon/commit/5efd8b15e08b7ec118bbd1e75aa62a33454d8271) を統合した
+merge [`84c9d182be6a`](https://github.com/SLktEx/Hacocoon/commit/84c9d182be6a4f4253dca9e8c2f081a630a1231f) を実行しました。
+[Incus run 38007854895 / job 114080710610](https://github.com/SLktEx/Hacocoon/actions/runs/38007854895/job/114080710610) は、
+Ubuntu 26.04.1・Incus 7.0.1 で初回の試行が PASS。2026-10-10 00:11:41 UTC に
+`ENVIRONMENT EXEC CANCEL / EXACT EXECUTION ABSENT / RUNNING ENV RETAINED: PASS` を記録しました。
+既存のバイナリ転送、実 PTY の編集・サイズ変更、終了値 17、端末復元、停止済み
+Environment での実行拒否も PASS です。
+
+Environment を停止する前に、キャンセルが CLI 終了値 130 を返し、通常の `haco exec` で、
+shell から exec へ引き継ぐ PID と開始時刻で特定した実行個体の消失を、共通の 30 秒期限内に
+確認しました。保存済みの Environment 識別情報、稼働状態、guest の PID1 開始時刻は
+変わっていません。取得する出力と識別・観測応答にはサイズ上限があります。この試験では
+実行個体の残存は見つからず、製品の修正を証明するものでもありません。`sleep` への移行完了や
+任意の子孫プロセスの回収は主張しません。この実機観測とローカルの試験補助の単体試験 18 件は
+別の証拠であり、単体試験だけでは実機受入とは扱いません。この限定された実機結果は、
+最終 head に対する全 workflow の検証を代替しません。
+
+
 <a id="cache-generation-foundation"></a>
 ## キャッシュ世代管理の基盤
 
@@ -721,6 +1219,82 @@ fixture selection-384863c4ef38、台帳 /var/lib/haco-selection-1381113910/state
 専用試験binaryを使い、導入済みCLIの受入とは分けます。Policy緩和・Envへの管理権限追加はありません。
 認証付きGit・人のGUI回答・導入済み入力・巨大レポ実測はこの実機試験では未実施です。
 
+### 導入済みLinuxの入力ゲート
+
+main `7a3a6b8b`を基にした候補で、既存の必須Ubuntu導入済みlifecycle経路に
+[`workspace_input.py`](../../test/e2e/installed/workspace_input.py)を追加しました。
+導入済みcontrollerへ通常の`repo add`、`workspace import`、パス指定の`open`、
+`exec`、停止・再開、Env/Workspaceの明示的な削除、sourceの登録解除を実行します。
+接続元は公開Hacocoonレポジトリで、
+入力は小さなローカルcheckoutと実際のlinked worktreeです。認証情報、private registry、
+controllerの差し替え、台帳編集、製品側の準備の修繕は不要です。
+Gitは[利用開始手順](../guides/getting-started.ja.md)に記載された、選択Imageの任意の前提ツールです。
+fixtureが所有する2つのEnvに限り、公開`config`と`exec`コマンドを使って、通常のUbuntuパッケージ経路で
+未導入のGitを入れます。各Envの一時ルールは`archive.ubuntu.com`と`security.ubuntu.com`への
+HTTP/80・HTTPS/443の4件だけで、有効期限は15分です。ワイルドカード・全Env・DNSの許可は追加しません。
+管理者許可は名前を対象とし、新規の単一runnerで生成した一意な名前だけに範囲を限定します。
+記録済み応答と設定前・`exec`直前の状態を照合します。instance単位の許可や名前指定実行の原子性は主張しません。
+各パッケージ操作の`finally`で完全一致するルールだけを消し、無関係のPolicyは保持します。
+変更済み・所有不明のルールは削除せず失敗し、runner破棄までEnvの削除・名前の再利用にも進みません。設定はrevision付きの公開snapshotで更新し、
+保護ファイルの直接編集や保存の自動再実行はしません。追加保存が未確認なら、snapshotにルールがなくても
+完了とは扱いません。遅れた保存が成立し得るため、保留記録とEnv名を保持します。削除保存が未確認なら、
+追加完了を確認済みであることと、その後の不在観測でのみ解決し、保存を再送しません。
+パッケージ失敗は失敗のまま扱い、Git・データの検証条件は変えません。すべてのBaseへのGit導入を要求せず、既定Imageも変えません。
+
+新規導入であることが実行の前提条件です。このfixtureは使い捨てのGitHub-hosted導入経路専用で、
+`GITHUB_ACTIONS=true`と`HACO_CI_RUNNER_ENVIRONMENT=github-hosted`の両方がなければ実行を拒否します。
+ただし、この目印自体が新規導入を証明するわけではありません。`repo list --json`が空であることの
+検査は追加の保護に限ります。公開一覧は除外済みsourceを表示せず、登録処理は同一のHTTPS/SSH/scp
+接続先を再利用するため、既存の導入環境では実行しないでください。想定と異なる登録結果は
+所有対象として扱わず、登録解除もせず、要求した識別情報とローカルの記録を調査用に保持します。
+公開APIが隠している記録を試験で検出したとは主張しません。
+import/openの応答は検証前に別の観測記録へ保存し、検証済みの応答だけをcleanupの所有対象にします。
+importは失敗時にも復旧用参照をJSONで返す場合がありますが、現在のopenは成功時だけJSONを返します。
+保存するのは上限付きの公開識別情報と状態だけで、生のコマンド出力や秘密情報は含めません。
+処理できた失敗では`INSTALLED_INPUT_FAILURE`のJSON行を既存のActionsログへ出し、runner破棄後も
+この限定した報告を残します。ローカルのsourceツリーはアップロードせず、runnerの突然の終了では
+失敗報告を出せない場合があります。
+
+選択したHEAD、stage/dirty/untrackedファイル、guest内の独立commit、別の管理Workspace、
+client側と共通Git管理情報が不変であることを区別して検証します。
+繰り返しopenと停止後の再開ではEnv/Workspaceの同一性を保持し、所有先の異なるパス参照は拒否します。
+Env/Workspaceのcleanupは記録した所有者と削除後の不在を確認し、結果不明の作成記録を保持します。
+`repo delete`は所有者を確認したsourceを選択対象から登録解除するだけです。
+`repo list`からの非表示は物理削除の証拠ではなく、native sourceデータは使い捨てrunnerの破棄まで
+意図的に保持します。purgeや以前のレポジトリ削除動作は追加しません。
+fixture/cleanupの回帰はリポジトリ内の証拠に限ります。下記の導入済み成功は追加経路だけの証拠で、
+issue #344のLinux SSH、接続一覧・forwarding、editor受入の完了は意味しません。
+既存のWindows受入とは分け、このfixtureで再実行や代替はしません。
+
+`be032d9f`の[Ubuntu run 37934157996](https://github.com/SLktEx/Hacocoon/actions/runs/37934157996)は
+導入と従来のlifecycleに成功後、最初のWorkspace importで接続がresetされ失敗しました。
+recovery-requiredの識別情報は限定した報告としてジョブログに残り、取り込んだEnvのopenには進んでいません。
+実際のreceiver、`net.Pipe`経由のupload framing、native archive stagingを通す構成要素回帰で、
+`$HACO_ROOT/transfers`が未作成の場合の失敗を再現しました。
+receiverは他のimport handlerと同じく、この非公開ディレクトリを初期化するようになりました。
+未作成・既存のディレクトリ、不安全な既存パス、失敗時の識別情報保持はローカルのrace付き回帰で成功しましたが、
+この時点では修正後の導入済み受入は未実施でした。最初の実機失敗を成功に言い換えず、fixture側の準備で回避もしません。
+
+`4e8f9464`の[Ubuntu run 37951046940](https://github.com/SLktEx/Hacocoon/actions/runs/37951046940)では、
+2つの独立importと初回openが成功しました。続くguest内Git検証は`git: not found`で失敗し、
+所有者を確認した対象のcleanupが完了し、限定した応答記録が残りました。これは記載済みの任意のGit前提で、
+import失敗やすべてのBaseを変更する要件ではありません。修正fixtureは上記のパッケージ許可経路を使います。
+ローカル回帰は以前の前提不足を再現し、Gitの検証条件を維持したまま、限定許可・cleanup・保存結果不明・
+Policy同時編集を確認します。この修正の導入済み実行を下記に記録します。別の既定・独自root登録回帰では、
+既定rootに触れずserviceを呼び出さずに、staging初期化がimport実行時まで行われないことを確認します。
+
+
+`23241a4`の[Ubuntu run 37954236509](https://github.com/SLktEx/Hacocoon/actions/runs/37954236509)と
+証拠ゲートが成功しました。導入済みlinked-worktree試験は、選択HEAD/index/作業ファイル、通常のguest commit、
+別Workspaceとclient/common Gitからの独立性、所有者不一致の拒否、再open、停止・再開、所有を確認した
+Env/Workspaceの削除、source登録解除を完了しました。ジョブログには2つのEnv削除、2つのWorkspace削除と、
+2026-10-09 15:52:58 UTCの最終PASSが残っています。このPASSは両方のパッケージ準備の`finally`と
+新しい設定読取で完全一致の許可削除を確認し、続く対象リソースの不在検査も成功した場合だけ出ます。
+これは実行コードに結び付いた検証証拠で、別の生Policy snapshotは保持しません。同じジョブの導入済み
+network検査も成功しました。外部SonarCloudは新規コードcoverage 100%で成功しました。
+これらの結果で過去の別のWindows/network失敗が解決したとは扱わず、issue #344のclient/接続要件も残ります。
+
+最終候補はこの限定成功の後にmain `23499701`を通常mergeします。統合後のexact-head CIは別の未完了確認です。
 
 ## 保持キャッシュ台帳の整理
 
@@ -1259,6 +1833,32 @@ Linux/Windowsパッケージ生成が45.49秒で成功した。導入・WSL停�
 待機時間・接続中ディスクの拒否・WSL全体設定は緩和していない。
 人の操作が必要な受入確認はリリース後の項目として維持する。
 
+<a id="tcp-listener-cancellation-close"></a>
+
+## TCP待受のキャンセルで終了完了を待つ
+
+2026-10-09、PR #748のhead `9172e2bbe3337e85c53a25187e154d7bdd1568ec`の
+[test run 37935376919 / Go 1.26 job 113835981590](https://github.com/SLktEx/Hacocoon/actions/runs/37935376919/job/113835981590)で、
+`TestNetworkListenerValidatesLoopbackAndClosesOnCancellation`が失敗しました。
+コマンド終了直後、同じTCPアドレスへ再度bindすると`address already in use`になりました。
+同じjobのWorkspace packageと新しいプロセス回復試験は成功しています。
+この失敗を保持し、同じheadの再実行で成功に置き換えていません。
+
+別の修正候補を`7a3a6b8b33b0265f2e79d46015836739542680c6`から作成し、
+channelで制御する待受とGoの`testing/synctest`で所有処理の不具合を再現しました。
+`Accept`は非同期の`Close`完了前に戻る場合があります。従来の`ServeTCP`は
+キャンセル処理の停止だけを試み、実行中の`Close`の完了を待っていませんでした。
+呼び出し元が重ねて`Close`しても、最初の処理がsocketを保持したまま戻る場合があります。
+決定的な3条件は変更前のmainで失敗し、実行中のキャンセル処理を待つか、開始前に
+キャンセルした場合に同期的に閉じる修正で成功しました。キャンセルを伴わないacceptの
+失敗と不正な待受の拒否では、呼び出し元の所有を維持します。
+sleepや実socketのタイミングで失敗点を選んでいません。
+
+ローカル候補はGo 1.26.7と1.27.2でnetwork package全体と変更していないCLIの
+待受・再bind試験に成功し、対象race、全体vet、差分lintも成功しました。
+即時再bindの厳密な判定、製品の期限、再試行方針は変更していません。
+これはcomponentの証拠であり、修正後の公開headと実provider・Windows受入は別に確認します。
+
 ## 通信コマンドの日英表示
 
 `0387258d`は通信結果と次の操作を共通の日英案内へ揃える。
@@ -1778,3 +2378,144 @@ PR #737のhead `90cea4a0` はquality/test/Ubuntu/Incusが成功。Windows run362
 暗黙のコマンドレット依存を.NETで読む固定データへ置換し、制限した環境・履歴クリア・既存期限を維持する。元のCI失敗を通知成功として扱わない。
 
 ローカルWindowsで所有通知の初回クリア・日英表示・削除が34.81秒で成功。自動読込なしの入力復元、不正形式拒否、中断時の終了待ち、診断の秘匿も成功。最初の隔離テストはConstrainedLanguageによって.NET呼び出しを拒否し、通常のネイティブ実行で成功した。Windowsポリシーや製品環境は変更していない。hosted CIの失敗は修正後の結果待ちで、人の承認回答は未実施。
+
+<a id="nested-packer"></a>
+
+## nested IncusによるPacker置換
+
+初回記録: main `d2bdbdff` からのIssue #566候補で、当時の実nested Packer受入は未完了だった。
+従来方式の失敗・未検証記録は履歴として維持し、新方式への変更を過去の成功証拠にはしません。
+
+2026-09-27のローカル検証は Go 1.26.7 と golangci-lint 2.13.2 を使用した。
+Packer、Base build/import/manage、Incus、controller API、CLIのテストと関連race検査は成功。
+変更行のlintは指摘0件。全体 `go vet ./...`、文書検査（19件の回帰検査を含む）、
+workflow-policy、`git diff --check` も成功した。
+標準の全体テストは `TestOrdinaryLargeGitFetchAndApprovedPush` の承認要求timeoutで失敗し、
+未変更main `d2bdbdff` でも同じ失敗が再現した。Windows共有パスでの最初の実行では
+milestone black-boxもtimeoutしたが、WSLネイティブの検証checkoutでは成功した。
+全体race実行では既存transportの `TestClientCannotSendInvalidRequests` の時間依存失敗も
+観測した。候補の関連packageのraceは別途成功した。全体成功とは記録しない。
+
+実Incus Packer E2Eは通常のtrusted Hostネットワーク準備で失敗した。
+既存 `haco-host0` が別projectの導入済みHostに使われているため、所有検査が再利用を拒否した。
+Packerの各段階には到達していない。保持したfixtureの正確なproject/poolは
+`haco-packer-e2e-b17070ddb4eaf6f0`。
+続いて独立した非特権の検証基盤 `haco-566-physical` と専用所有bridge
+`haco-566-test`（`10.71.201.0/24`）を作成したが、既存Docker forwarding設定下で
+外向きpackage取得がtimeoutした。当時はfixture限定のfirewall変更の明示承認待ちで、未適用だった。
+
+このためfresh nested daemon setup、実Packer/plugin取得・実行、export/stream/import、
+immutable revision再利用、cleanup、追加した実失敗ケースは当時**未受入**だった。
+CIは `ci_required_tests.py` により `TestRealIncusPackerBaseBuildE2E` を必須にしたが、
+この候補のhosted CIは未実行。SKIPや途中までの実行をPacker build成功に数えない。
+
+2026-09-27の続行確認: ユーザー承認により`haco-566-test`の送信と接続済み応答だけに
+限定した一時ルール2本を適用し、独立した検証基盤でIncus 7.0.1の導入・起動に成功した。
+fresh Hostの初回試行で`nftables`不足と、余分にnestedした検証基盤のID委譲範囲超過が
+判明した。製品Host setupに`nftables`を追加し、build profileのID範囲を65,536に限定した。
+検証基盤の委譲範囲も親から割り当てられた範囲に収めた。
+
+fixture `haco-packer-e2e-fbe80b3c42466d65`で通常のfresh Host setup、Packer 1.16.0の
+実導入、nested daemon初期化、Incus plugin 1.0.5の実取得・読み込み、validate、
+一時instance作成まで通った。build `228843315a966b96e64b545df11a7078`は起動中の
+`/tmp`初期化で転送済みscriptを見失い、shell provisionerで失敗した。build成功ではない。
+停止したHost、nested instance、receiptを保持し、検証bridge解放のためNICだけを外した。
+templateの転送先を標準Packer属性`remote_folder = "/root"`へ変更した。
+別の実Incus確認でdefault profileの単独削除は禁止と判明し、projectと一緒に削除するよう
+workerと回帰fixtureを修正した。
+
+archiveの64 GiB固定上限を既定1 TiBと`--max-image-size`指定へ変更した。
+サイズ計算、bounded stream超過拒否、65 GiB sparse fileのCLI確認、関連race、vet、
+変更箇所lint、docs、workflow確認は通った。TB規模の実画像の受入ではない。
+全体のlocal test再実行は既にmainでも再現済みのGit承認timeout
+（`TestOrdinaryLargeGitFetchAndApprovedPush`、89.81秒）で失敗した。
+
+修正後の`haco-packer-e2e-ff391d7466b03e08`では実shell script実行、image公開、
+native export（561,748,480 bytes、nested image
+`19964f9c33ccaa6344e485a2f9e1fe1689f6bb0f1bf2621250d26dc01b3cdf34`）まで到達した。
+build `d057e6789fdd9c195abd8ca75026b4c9`は既存import Envのroot disk quotaで失敗した。
+非特権のPhysical Host役fixtureではBtrfs quotaを適用できなかった。
+controller転送・検証は実行されたが、canonical Base revisionや通常Envの成功は未成立である。
+artifactとreceiptはrecovery-requiredで保持する。製品のresource limitは無効化せず、
+別のprivileged Physical Host役fixtureを準備した。その中の製品haco-hostと通常Envは
+通常の非特権設定とtrust boundaryを維持する。
+
+2026-09-27の最終実行: `TestRealIncusPackerBaseBuildE2E` は **PASS（2302.13秒）**。
+正確なproject/poolは `haco-packer-e2e-5405bbdd220ba630`。独立したWSLのPhysical Host役
+fixture `haco-566-physical-root` でIncus 7.0.1を使用した。通常のfresh Host setupで
+Packer 1.16.0とnested Incusを準備し、実plugin 1.0.5の取得・読み込み、HCL検証、
+別instanceでの`setup.sh`実行が成功した。native image export、上限付きcontroller API
+stream、既存archive import、immutable Base公開まで成功し、通常Envで
+`hello-from-packer`が返った。再build後の新Envは`hello-from-packer-two`を返し、
+旧Envは元のrevisionと出力を維持した。成功した両buildでnested一時instance・image・
+project・artifact・contextが残らないことを確認した。テストEnvと公開したテストBaseも
+既存lifecycle APIで削除した。
+
+実invalid HCL、plugin初期化失敗、provisioner失敗でも現在のBase pointerと旧Envを維持した。
+診断用receiptは `7a666170a99a7cdc54b2a17af9437f0c`、
+`0e5b22a4938be0e81d0aee2c0e1e0b5f`、`f29e7a76901f05b296049d0d597a941f`。
+export、stream中断、import／応答不明、cleanup、cancelは別のcomponent回帰でも検証した。
+これらの注入失敗を実providerの失敗受入と混同しない。
+
+最初の公開はIncus既定圧縮を使用した。WSL上の遅い圧縮を減らすため、2回目はfixtureだけを
+標準設定`images.compression_algorithm=none`へ変更した。運用中daemonの設定は変更していない。
+実Btrfs quotaを検証するPhysical Host役fixtureだけをprivilegedとし、製品Host・build・
+通常instanceは非特権のままである。controller endpointは標準transport/API/serviceと
+fixture専用stateを使い、運用中catalogは使用していない。承認されたbridgeルール2本は削除し、
+不在を確認し、Physical Host役fixture 2台は停止した。失敗時resourceは診断用に保持し、
+推測による削除はしていない。
+
+保守対象CIは実テストを必須とし、Packer stepの削除・条件付き化、test消失、SKIPを拒否する。
+約38分の実測を受け、有限の実行時間枠に余裕を追加した。workflow policyとcontract回帰は成功。
+hosted CI、arm64、TB規模の性能、導入済みproduction controllerでの受入は未検証。
+既に記録した全体テストのGit承認timeoutは失敗として残す。
+
+2026-09-28の続行変更: ユーザー指定でBase build/importの画像サイズと操作全体の固定上限を
+既定では外し、任意の`--max-image-size`は維持した。共通転送にEnvironment由来の64 GiB
+wire上限とclient/serverの30分deadlineが残っていたと判明した。先の1 TiB CLI設定と
+sparse file確認は、その全経路を証明していなかった。Baseの転送予算・deadlineを独立して
+指定し、Environment/Workspaceの既存制限は維持した。
+以前の2302.13秒の実Packer PASSは当時の版の証拠であり、今回の無制限設定や巨大画像の
+再受入とは扱わない。短命の実systemd probeで`RuntimeMaxUSec=infinity`と
+`LimitFSIZE=infinity`を確認し、終了後のinactiveも確認した。Physical HostでPacker/HCLは
+実行していない。巨大画像は未検証で、arm64は今回の依頼範囲外とする。
+
+続行変更の関連Goテスト（Incusを含む）、Base/Packer/CLI/controllerのrace、全体vet、変更箇所lint（指摘0件）、docs整合性、diff空白検査は成功した。2 TiB超のsparse fileでCLIのサイズ処理を確認し、実socketでdeadline方針、フレーム計数境界で旧64 GiB wire上限をまたぐ処理を確認した。その容量を実転送したという意味ではない。今回の上限方針変更では実Packer E2E全体を再実行していない。
+
+### 最新 main との統合と初回 hosted 検証
+
+候補 `8584817d22025204e91f3c83bb98d86d2d9f822e` は現在の Image/Environment
+作成契約を統合しています。hosted の Go 1.26/1.27 テスト、race、vet、lint、
+docs、Ubuntu installer は成功しました。追加した必須 Packer step は
+[run 36360380538](https://github.com/SLktEx/Hacocoon/actions/runs/36360380538) で、
+fresh Host setup、固定版 tooling、nested daemon 初期化の成功後、Packer build
+段階で失敗しました。80.32 秒で失敗しており、image build/import の acceptance
+ではありません。初回 Sonar 新規コード coverage も 61.7% で不合格でした。
+後続の回帰テスト追加と固定分類による診断で対応し、生の subprocess 出力の
+公開や必須テストの緩和は行いません。
+
+### fresh Ubuntu hosted Packerの受入
+
+候補 `dced0b45eb83349cd107d51614891b9ae68f3b83` は2026-09-28、必須の実Packer E2Eを
+**250.81秒でPASS**しました。[run 36363265837 / job 108744536151](https://github.com/SLktEx/Hacocoon/actions/runs/36363265837/job/108744536151)。
+fixtureの正確なproject/poolは `haco-packer-e2e-c9f0f66fdab2131f` です。
+初回hosted失敗は、対象Hostに限定したAppArmor namespace拒否を伴って再現しました。
+fresh Hostが起動後にnestingを有効化していたため、初回起動前の設定へ変更して
+Incusのnesting用mountとAppArmor namespaceの初期化を可能にしました。
+Hostの特権化やAppArmor回避は追加していません。作成時設定を回帰テストで検証します。
+
+通常のfresh setup、固定版Packer/pluginの取得とload、validate/build、実shell provisioner、
+nested image生成とnative export、controllerへのstream・検証・import・immutable公開が成功しました。
+通常Envで `hello-from-packer` が返り、再build後もそのEnvのrevisionと出力を維持しました。
+新規Envは新revisionから `hello-from-packer-two` を返しました。成功した両buildで
+nested temporary instance/image/project、transport artifact、build contextの不在を確認しました。
+実HCL不正・plugin init失敗・provisioner失敗でもcurrent Baseと既存Envを維持し、
+診断用receiptの所有権を保持しました。
+
+同じ候補でhosted Go 1.26/1.27、race、vet、lint/Sonar品質ゲート、docs、Ubuntu installer、
+全Incus jobが成功しました。JSON Base build、snapshot、Workspace/OCI transfer、cleanupも含みます。
+統合したnative WSLで `ci-local.sh test` と `ci-local.sh race` は最終的なsetup順序修正より前に
+成功し、修正後にはHost作成・所有権・診断のraceテストと変更箇所lintが成功しました。
+統合コードについては以前の全体テスト失敗を解消しています。この観測時点ではWindows jobは実行中です。
+過去の失敗は履歴として維持します。E2Eは通常のcontroller API/serviceと独立fixture stateを使い、
+導入済みproduction controllerの受入ではありません。64 GiB超/TBの実転送とarm64の受入は主張しません。

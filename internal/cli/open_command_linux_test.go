@@ -70,7 +70,7 @@ func TestOpenCommandRejectsInvalidModeBeforePreparation(t *testing.T) {
 	})
 	for _, args := range [][]string{
 		{"--unknown"}, {"--client", "other", "dev"}, {"dev", "extra"},
-		{"--json", "dev"}, {"--client", "none", "dev"}, {"--repo", "one", "dev"},
+		{"--json", "dev"}, {"--repo", "one", "dev"},
 		{"--name", "task", "dev"}, {"--base", "base", "dev"}, {"--oci", "none", "dev"},
 		{"--close", "dev"}, {"--no-browser", "dev"}, {"--port", "0", "dev"}, {"--port", "65536", "dev"}, {"--port", "8080", "--client", "ssh", "dev"},
 		{"--json", path}, {"--close", path}, {"--no-browser", path},

@@ -16,7 +16,7 @@
 </div>
 
 Hacocoonは、開発ツールを隔離された **Environment** で実行し、プロジェクトのファイルを
-永続的な **Workspace** に保存します。Hostの認証情報や外部サービスへのアクセスは
+**Workspace** に保存します。Hostの認証情報や外部サービスへのアクセスは
 権限の確認を経由します。エージェントにHostの管理権限を渡さずに、編集・ビルド・テストを任せられます。
 
 > [!WARNING]
@@ -32,14 +32,13 @@ Hacocoonは、開発ツールを隔離された **Environment** で実行し、�
 インストール後、信頼された管理環境 `haco-host` に入ったら、基本の流れは次のとおりです。
 
 ```bash
-haco repo add api https://github.com/OWNER/API.git
-haco repo add web https://github.com/OWNER/WEB.git
+haco repo add https://github.com/SLktEx/Hacocoon.git
 haco open
 ```
 
-URLを作業対象のリポジトリに置き換えてください。開発環境の準備・再利用は自動です。
-既定はRemote-SSHを導入したVS Codeで、シェルなら `haco open --client ssh` を使います。
-必要な権限は明示的に確認します。次回も `haco open` で同じ作業に戻れます。
+`open`は最後に開いたEnvironmentを再開します。新しい作業は`open --new [IMAGE]`、
+既定Imageの確認・変更は`image default [IMAGE]`を使います。Repository登録の変更は
+今後の作成だけに反映します。[作成とデータ所有](docs/design/environment-creation.ja.md)を参照してください。
 
 [初回操作と権限](docs/guides/getting-started.ja.md)を参照してください。
 Workspace・Environment・Base・ストレージ・通信・設定の明示的な操作も
@@ -52,9 +51,10 @@ Workspace・Environment・Base・ストレージ・通信・設定の明示的�
 | 対象 | 役割 | Environmentを削除した後 |
 |---|---|---|
 | Host | 管理操作、認証情報、コントローラーへの接続 | 残る |
-| Workspace | プロジェクトのファイルと独立したGit情報 | 未push・未追跡の作業も残る |
+| Workspace | プロジェクトのファイルと独立したGit情報 | 所有Environmentとともに削除 |
+| Volume | 作成時に選択する独立Workspace | 残る |
 | Environment | 実行中のツール、パッケージ、ルートファイルシステム | 削除される |
-| Base | 作成時の開始イメージ | 独立して残る。作成後の変更は取り込まない |
+| Image | 作成時の開始イメージ | 独立して残る。作成後の変更は取り込まない |
 | OCI Store | 任意のコンテナイメージ、管理情報、ビルドキャッシュ | 残る。コンテナの自動再開はしない |
 
 停止ならEnvironment自体も残ります。削除すると、そのルートファイルシステムは失われます。
@@ -64,7 +64,7 @@ Workspace・Environment・Base・ストレージ・通信・設定の明示的�
 ## 次に読む
 
 - [目的別ガイドと参照資料](docs/README.ja.md)：Git承認、SSH、セットアップ、プレビュー、保存・削除。
-- [Base](docs/design/base-images-and-custom-environments.md)：`haco base list`、内容の確認、ビルド。
+- [Image](docs/design/base-images-and-custom-environments.md)：`haco image list`、内容の確認、ビルド。
 - [任意のOCI Store](docs/design/persistent-oci-store.md)：`haco plugin oci`。CoreはDockerやcontainerdを必須にしません。
 - [セキュリティ設計](docs/security/security-architecture.md)：共有カーネルの限界と権限境界。
 - [実装状況](docs/IMPLEMENTATION_STATUS.ja.md)、[ロードマップ](docs/status/architecture-and-roadmap.md)、[バージョンと公開状況](docs/status/versioning-and-release-status.ja.md)。

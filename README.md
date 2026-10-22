@@ -14,7 +14,7 @@ A secure workspace runtime for people, developer tools and coding agents.
 </div>
 
 Hacocoon runs development tools in isolated **Environments**, keeps project files in
-retained **Workspaces**, and mediates access to Host credentials and external services.
+**Workspaces**, and mediates access to Host credentials and external services.
 An agent can edit, build and test without receiving Host management authority.
 
 > [!WARNING]
@@ -30,15 +30,13 @@ It identifies which terminal to use, required permissions and what data remains.
 After installing and entering trusted `haco-host`, the core sequence is:
 
 ```bash
-haco repo add api https://github.com/OWNER/API.git
-haco repo add web https://github.com/OWNER/WEB.git
+haco repo add https://github.com/SLktEx/Hacocoon.git
 haco open
 ```
 
-Replace the URLs with your repositories. Haco prepares and reuses the development
-environment automatically. VS Code with Remote-SSH is the default; use
-`haco open --client ssh` for a shell. Permission requests remain explicit.
-Repeat `haco open` to return to the same work.
+`open` resumes the last opened Environment. Use `open --new [IMAGE]` for new work
+and `image default [IMAGE]` to inspect or change the default. Repository registration
+changes only future Environments. See [creation and data ownership](docs/design/environment-creation.md).
 
 See [first use and permissions](docs/guides/getting-started.md). Explicit
 Workspace, Environment, Base, storage, network and configuration operations remain
@@ -51,9 +49,10 @@ retention, the eight-repository limit and later membership changes.
 | Object | Role | After Environment deletion |
 |---|---|---|
 | Host | Trusted management, credentials and controller access | Remains |
-| Workspace | Project files and independent Git metadata | Remains, including unpushed and untracked work |
+| Workspace | Environment-owned project files and Git metadata | Deleted with its Environment |
+| Volume | Independent Workspace selected at creation | Remains |
 | Environment | Running tools, packages and root filesystem | Deleted |
-| Base | Starting image selected at creation | Remains independently; it does not capture later edits |
+| Image | Starting image selected at creation | Remains independently; it does not capture later edits |
 | OCI Store | Optional container images, metadata and build cache | Remains; running containers are not resumed automatically |
 
 Stop preserves the Environment too. Delete discards its root filesystem.
@@ -63,7 +62,7 @@ Writable Workspace data remains writable by the agent; isolation is not a backup
 ## Next steps
 
 - [Task guides and references](docs/README.md): Git approvals, SSH, recipes, preview, snapshots and cleanup.
-- [Bases](docs/design/base-images-and-custom-environments.md): `haco base list`, inspect and build.
+- [Images](docs/design/base-images-and-custom-environments.md): `haco image list`, inspect and build.
 - [Optional OCI Stores](docs/design/persistent-oci-store.md): `haco plugin oci`; Core does not require Docker or containerd.
 - [Security architecture](docs/security/security-architecture.md): shared-kernel limits and trust boundaries.
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md), [roadmap](docs/status/architecture-and-roadmap.md), and [Versioning and release status](docs/status/versioning-and-release-status.md).

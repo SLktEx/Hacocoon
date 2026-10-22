@@ -47,6 +47,15 @@ for _stream in (sys.stdout, sys.stderr):
 
 TERMINAL_ARGV = ("cmd.exe",)
 INSTALL_COMPLETE_RE = re.compile(r"Hacocoon Windows installation complete\.", re.MULTILINE)
+INSTALL_FAILED_RE = re.compile(
+    r"^Hacocoon installation failed with exit code (-?[0-9]{1,10})\.[ \t]*\n",
+    re.MULTILINE,
+)
+INSTALL_PAUSED_RE = re.compile(
+    r"^Hacocoon installation is paused until Windows restarts\. "
+    r"Follow the saved continuation instructions\.[ \t]*\n",
+    re.MULTILINE,
+)
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_RE = re.compile(r"\x1b\][^\x07]*?(?:\x07|\x1b\\)")
@@ -81,6 +90,18 @@ def reject_failed_host_entry(text: str) -> None:
     # the session timeout or retry WSL entry and hide the original product error.
     if re.search(r"(?m)^haco: enter trusted haco-host:", text):
         raise RuntimeError("product: ordinary Host entry failed before its prompt")
+
+
+def reject_failed_install(text: str) -> None:
+    # These are the shipped BAT's final-result lines. Wait for the newline so
+    # ConPTY read boundaries cannot turn a partial/echoed line into a receipt.
+    # The parent cmd.exe remains alive after BAT failure; do not wait its session
+    # timeout, send another BAT, or repair the failed first-install attempt.
+    failed = INSTALL_FAILED_RE.search(text)
+    if failed:
+        raise RuntimeError(f"product: Windows installer failed with exit code {failed.group(1)}")
+    if INSTALL_PAUSED_RE.search(text):
+        raise RuntimeError("product: Windows installer requires a Windows restart (exit code 3010)")
 
 
 def run_phase(name: str, action, *args, **kwargs):
@@ -132,6 +153,9 @@ class TerminalProcess:
         )
         self.output = ""
         self._queue: queue.Queue[str | None] = queue.Queue()
+        self.reader_outcome = "running"
+        self.run_stop = "not_started"
+        self.observed_exit_status = None
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
 
@@ -140,9 +164,11 @@ class TerminalProcess:
             try:
                 chunk = self.proc.read(4096)
             except EOFError:
+                self.reader_outcome = "eof"
                 self._queue.put(None)
                 return
             except Exception as exc:  # pragma: no cover - runtime diagnostic
+                self.reader_outcome = "failed"
                 self._queue.put(f"\n[terminal reader error: {exc}]\n")
                 self._queue.put(None)
                 return
@@ -182,6 +208,8 @@ class TerminalProcess:
         responders = responders or []
         deadline = time.monotonic() + timeout
         dead_since: float | None = None
+        self.run_stop = "running"
+        self.observed_exit_status = None
 
         while time.monotonic() < deadline:
             try:
@@ -190,12 +218,14 @@ class TerminalProcess:
                 chunk = ""
 
             if chunk is None:
+                self.run_stop = "reader_done"
                 break
             if chunk:
                 dead_since = None
                 try:
                     self._consume(chunk, responders, on_output)
                 except Exception:
+                    self.run_stop = "callback_failed"
                     self.proc.terminate(force=True)
                     raise
                 continue
@@ -214,12 +244,15 @@ class TerminalProcess:
                     break
                 if pending:
                     self._consume(pending, responders, on_output)
+            self.run_stop = "process_exited"
             break
         else:
+            self.run_stop = "timeout"
             self.proc.terminate(force=True)
             raise RuntimeError("timed out waiting for exact user terminal session")
 
         exit_status = self.proc.exitstatus
+        self.observed_exit_status = exit_status
         if exit_status not in (None, 0):
             raise RuntimeError(f"terminal session failed with exit status {exit_status}")
         return normalize_terminal(self.output)
@@ -246,6 +279,8 @@ def run_bat(package_root: Path, *, use_cached_wsl_image: bool = False) -> None:
 
     def drive(output: str, process: TerminalProcess) -> None:
         nonlocal sent_bat, sent_exit
+        if sent_bat:
+            reject_failed_install(output)
         if not sent_bat and cmd_prompt_count(output):
             command = "install-windows.bat"
             if use_cached_wsl_image:

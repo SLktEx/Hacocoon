@@ -65,7 +65,7 @@ type WorkspaceLease struct {
 }
 
 // EphemeralRun is trusted host-side evidence that an Environment belongs to
-// haco run. Names alone are never sufficient proof because a user may create an
+// internal Image maintenance. Names alone are never sufficient proof because a user may create an
 // ordinary Environment whose name happens to start with "run-".
 type EphemeralRun struct {
 	InstanceID         string            `json:"instance_id,omitempty"`
@@ -76,6 +76,8 @@ type EphemeralRun struct {
 }
 
 type Environment struct {
+	OwnedWorkspace     bool                    `json:"owned_workspace,omitempty"`
+	Volume             string                  `json:"volume,omitempty"`
 	DNSMode            DNSMode                 `json:"dns_mode,omitempty"`
 	Attachments        []EnvironmentAttachment `json:"attachments,omitempty"`
 	PersistentResource PersistentResourceRef   `json:"persistent_resource,omitempty"`
@@ -89,7 +91,10 @@ type Environment struct {
 }
 
 type EnvironmentSpec struct {
-	DNSMode DNSMode
+	DeferStart     bool
+	OwnedWorkspace bool
+	Volume         string
+	DNSMode        DNSMode
 	// EphemeralInstance binds a trusted run reservation to canonical creation.
 	// It is not accepted by ordinary client Environment-create DTOs.
 	EphemeralInstance string
@@ -108,6 +113,7 @@ type EnvironmentSpec struct {
 }
 
 type EnvironmentRuntimeSpec struct {
+	DeferStart  bool
 	DNSMode     DNSMode
 	Attachments []EnvironmentRuntimeAttachment
 	// InstanceID binds the provider resource to the durable creation reservation.
@@ -173,3 +179,6 @@ func (lease WorkspaceLease) Equal(other WorkspaceLease) bool {
 	lease.Attachments, other.Attachments = nil, nil
 	return same && reflect.DeepEqual(lease, other)
 }
+
+// MaxWorkspaceRepositories bounds the aggregate to the supported disk attachment inventory.
+const MaxWorkspaceRepositories = 253

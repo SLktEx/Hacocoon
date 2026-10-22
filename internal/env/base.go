@@ -62,3 +62,22 @@ func (r *Router) PublishBase(ctx context.Context, env core.Environment, lease co
 	lease.RuntimeRef = native
 	return publisher.PublishBase(ctx, env, lease, name)
 }
+
+func (r *Router) CommitImage(ctx context.Context, env core.Environment, lease core.WorkspaceLease, name core.BaseName) (core.BaseInfo, error) {
+	if lease.RuntimeRef != env.RuntimeRef {
+		return core.BaseInfo{}, core.ErrCapabilityStale
+	}
+	provider, native, err := r.resolve(env.RuntimeRef)
+	if err != nil {
+		return core.BaseInfo{}, err
+	}
+	publisher, ok := provider.(interface {
+		CommitImage(context.Context, core.Environment, core.WorkspaceLease, core.BaseName) (core.BaseInfo, error)
+	})
+	if !ok {
+		return core.BaseInfo{}, core.ErrUnsupported
+	}
+	env.RuntimeRef = native
+	lease.RuntimeRef = native
+	return publisher.CommitImage(ctx, env, lease, name)
+}

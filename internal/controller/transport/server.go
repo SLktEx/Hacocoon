@@ -76,9 +76,20 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 	if s == nil || listener == nil {
 		return ErrInvalidArgument
 	}
+	connections := serveConnections{active: make(map[*servedConnection]struct{})}
+	stopWatch, watchDone := make(chan struct{}), make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		_ = listener.Close()
+		defer close(watchDone)
+		select {
+		case <-ctx.Done():
+			_ = listener.Close()
+		case <-stopWatch:
+		}
+	}()
+	defer func() {
+		close(stopWatch)
+		connections.close()
+		<-watchDone
 	}()
 	for {
 		conn, err := listener.Accept()
@@ -90,13 +101,54 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		}
 		select {
 		case s.connections <- struct{}{}:
+			owned := connections.add(conn)
 			go func() {
-				defer func() { <-s.connections }()
+				defer func() {
+					connections.remove(owned)
+					<-s.connections
+				}()
 				s.serveConn(ctx, conn)
 			}()
 		default:
 			_ = conn.Close()
 		}
+	}
+}
+
+// Each Serve owns only its accepted transports. Closing them interrupts I/O;
+// arbitrary handlers may still be running and keep their shared connection slot.
+type serveConnections struct {
+	mu     sync.Mutex
+	active map[*servedConnection]struct{}
+}
+
+// A separate identity avoids requiring a comparable net.Conn implementation or
+// wrapping away optional connection methods such as CloseWrite.
+type servedConnection struct{ conn net.Conn }
+
+func (c *serveConnections) add(conn net.Conn) *servedConnection {
+	owned := &servedConnection{conn: conn}
+	c.mu.Lock()
+	c.active[owned] = struct{}{}
+	c.mu.Unlock()
+	return owned
+}
+
+func (c *serveConnections) remove(owned *servedConnection) {
+	c.mu.Lock()
+	delete(c.active, owned)
+	c.mu.Unlock()
+}
+
+func (c *serveConnections) close() {
+	c.mu.Lock()
+	active := make([]net.Conn, 0, len(c.active))
+	for owned := range c.active {
+		active = append(active, owned.conn)
+	}
+	c.mu.Unlock()
+	for _, conn := range active {
+		_ = conn.Close()
 	}
 }
 

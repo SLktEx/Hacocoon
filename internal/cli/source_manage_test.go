@@ -59,16 +59,16 @@ func TestSourceCommandReviewsIdentityAndRefusesUnsafeDeletion(t *testing.T) {
 			var out, diagnostic bytes.Buffer
 			code := sourceManageCommand(context.Background(), c, args, strings.NewReader(input), &out, &diagnostic)
 			deleted := len(c.calls) == 2
-			if deleted != (mode == "yes" || mode == "failure") {
+			if deleted != (mode != "duplicate" && mode != "missing" && mode != "json") {
 				t.Fatal(c.calls, code, diagnostic.String())
 			}
 			if deleted && c.calls[1].Owner != o.Owner {
 				t.Fatal("review owner lost")
 			}
-			if (code == 0) != (mode == "yes" || mode == "json") {
+			if (code == 0) != (mode != "duplicate" && mode != "missing" && mode != "failure") {
 				t.Fatal(code, diagnostic.String())
 			}
-			if mode == "failure" && strings.Contains(out.String(), "Source repository deleted") {
+			if mode == "failure" && strings.Contains(out.String(), "Repository unregistered") {
 				t.Fatal("failure reported successful")
 			}
 		})

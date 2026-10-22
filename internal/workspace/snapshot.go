@@ -20,7 +20,7 @@ func (s *Service) withSnapshotSource(ctx context.Context, name string, operation
 	return s.withSnapshotSourceMode(ctx, name, false, operation)
 }
 
-func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quiesce bool, operation func(context.Context, core.SnapshotSource) error) error {
+func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, allowRunning bool, operation func(context.Context, core.SnapshotSource) error) error {
 	if _, err := validateEnvironmentName(name); err != nil {
 		return err
 	}
@@ -68,64 +68,16 @@ func (s *Service) withSnapshotSourceMode(ctx context.Context, name string, quies
 		}
 	}
 	wasRunning := status.State == core.EnvironmentRunning
-	if status.State != core.EnvironmentStopped && (!quiesce || !wasRunning) {
+	if status.State != core.EnvironmentStopped && (!allowRunning || !wasRunning) {
 		return fmt.Errorf("stop the Environment before snapshot: %w", core.ErrIncompatibleState)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	type lifecycleRuntime interface {
-		StopEnvironment(context.Context, string) error
-	}
-	var lifecycle lifecycleRuntime
-	if wasRunning {
-		var supported bool
-		lifecycle, supported = s.runtime.(lifecycleRuntime)
-		if !supported {
-			return core.ErrUnsupported
-		}
-		if err := lifecycle.StopEnvironment(ctx, environment.RuntimeRef); err != nil {
-			return fmt.Errorf("snapshot stop failed; inspect Environment state: %w", err)
-		}
-		stopped, err := runtime.InspectEnvironment(ctx, environment.RuntimeRef)
-		if err != nil {
-			return err
-		}
-		if stopped.State != core.EnvironmentStopped {
-			return fmt.Errorf("snapshot stop unconfirmed: %w", core.ErrIncompatibleState)
-		}
-		if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
-			return err
-		}
-	}
-	if err := ctx.Err(); err != nil {
+	if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
 		return err
 	}
-	if err := operation(ctx, core.SnapshotSource{Environment: environment, InstanceID: instance}); err != nil {
-		if wasRunning {
-			return fmt.Errorf("snapshot failed; Environment left stopped: %w", err)
-		}
-		return err
-	}
-	if wasRunning {
-		if err := s.checkLifecycleIdle(ctx, name); err != nil {
-			return err
-		}
-		if err := verifier.VerifyEnvironmentIdentity(ctx, environment.RuntimeRef, instance); err != nil {
-			return err
-		}
-		if err := s.startRuntimeWithLease(ctx, environment, lease); err != nil {
-			return fmt.Errorf("snapshot saved but Environment restart failed: %w", err)
-		}
-		running, err := runtime.InspectEnvironment(ctx, environment.RuntimeRef)
-		if err != nil {
-			return err
-		}
-		if running.State != core.EnvironmentRunning {
-			return fmt.Errorf("snapshot saved but Environment restart unconfirmed: %w", core.ErrIncompatibleState)
-		}
-	}
-	return nil
+	return operation(ctx, core.SnapshotSource{Environment: environment, InstanceID: instance})
 }
 
 func (s *Service) checkLifecycleIdle(ctx context.Context, name string) error {

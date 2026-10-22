@@ -57,6 +57,18 @@ done
 # Go module directories are read-only and must not become disposable user data.
 export HOME="$root/home"
 
+# Refuse missing Standard-egress prerequisites through the shipped process
+# before any socket-dependent fixture. The child cannot find Host commands.
+python3 "$(dirname "$0")/controller_startup.py" "$bin/haco-controller"
+
+# Exercise Main's actual SIGINT/SIGTERM handling with read-only ping readiness,
+# empty provider state, exact endpoint absence and retained private data.
+python3 "$(dirname "$0")/controller_signals.py" "$bin/haco-controller"
+
+# Exercise the shipped executable-name login routes before any controller is
+# available. The fixture owns its isolated environment and never changes users.
+python3 "$(dirname "$0")/login.py" "$bin/haco"
+
 # Only the executable entrypoint owns logging setup. Invalid configuration
 # must fail once, without a package initializer silently selecting defaults.
 if HACO_LOG_LEVEL=invalid "$bin/haco-controller" >"$root/controller-log.out" 2>"$root/controller-log.err"; then

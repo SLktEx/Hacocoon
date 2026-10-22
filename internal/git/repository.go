@@ -3,6 +3,7 @@ package gitrepo
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,7 @@ import (
 )
 
 type Object struct {
+	Excluded     bool   `json:"excluded,omitempty"`
 	RestoredFrom string `json:"restored_from,omitempty"`
 	Kind         string `json:"kind"`
 	ID           string `json:"id"`
@@ -52,36 +54,58 @@ func NewRepositoryService(root string, backend Backend) *RepositoryService {
 }
 
 func (s *RepositoryService) Add(ctx context.Context, id, remote string) (Object, error) {
-	if !gitadapter.ValidID(id) || gitadapter.ValidateRemote(remote) != nil {
+	canonical, err := gitadapter.CanonicalRemote(remote)
+	if err != nil || (id != "" && !gitadapter.ValidID(id)) {
 		return Object{}, core.ErrInvalidArgument
+	}
+	if gitadapter.ValidateRemote(remote) != nil {
+		remote = canonical
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	existing, err := s.readObject("repo", id)
-	switch {
-	case err == nil:
-		if existing.Repository != id || existing.Remote != remote || existing.Branch != "" {
-			return Object{}, core.ErrAlreadyExists
-		}
-		switch existing.State {
-		case "ready":
-			if err := s.Backend.InspectVolume(ctx, existing); err != nil {
-				return existing, errors.Join(err, core.ErrRecoveryRequired)
-			}
-			return existing, nil
-		case "creating", "created":
-			return s.resumePrepared(ctx, existing, func(ctx context.Context, object Object) error {
-				return s.Backend.CreateVolume(ctx, object, nil)
-			}, s.Backend.Populate)
-		default:
-			return existing, core.ErrIncompatibleState
-		}
-	case errors.Is(err, core.ErrNotFound):
-		return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote}, nil)
-	default:
+	sources, err := s.listObjects(ctx, "repo")
+	if err != nil {
 		return Object{}, err
 	}
+	for _, source := range sources {
+		normalized, err := gitadapter.CanonicalRemote(source.Remote)
+		if err != nil {
+			return Object{}, err
+		}
+		if normalized != canonical {
+			continue
+		}
+		if prepare, ok := s.Backend.(interface {
+			PrepareRepository(context.Context, Object) error
+		}); ok {
+			if err := prepare.PrepareRepository(ctx, source); err != nil {
+				return source, err
+			}
+		} else {
+			if source.State != "ready" {
+				var err error
+				source, err = s.resumePrepared(ctx, source, func(ctx context.Context, object Object) error {
+					return s.Backend.CreateVolume(ctx, object, nil)
+				}, s.Backend.Populate)
+				if err != nil {
+					return source, err
+				}
+			} else if err := s.Backend.InspectVolume(ctx, source); err != nil {
+				return source, errors.Join(err, core.ErrRecoveryRequired)
+			}
+		}
+		if _, err := s.resolveBranch(ctx, source, ""); err != nil {
+			return source, err
+		}
+		source.State = "ready"
+		source.Excluded = false
+		return source, s.save(source)
+	}
+	if id == "" {
+		sum := sha256.Sum256([]byte(canonical))
+		id = "repo-" + hex.EncodeToString(sum[:6])
+	}
+	return s.create(ctx, Object{Kind: "repo", ID: id, Repository: id, Remote: remote}, nil)
 }
 
 func (s *RepositoryService) CopyWorkspace(ctx context.Context, id, repository string) (Object, error) {
@@ -125,12 +149,12 @@ func (s *RepositoryService) resolveBranch(ctx context.Context, repo Object, bran
 // CopyWorkspaceSet reserves the entire immutable collection before creating
 // member volumes. Members have no independently resolvable state records.
 func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, repositories []string) (Object, error) {
-	if !gitadapter.ValidID(id) || len(repositories) < 2 || len(repositories) > 8 {
+	if !gitadapter.ValidID(id) || len(repositories) < 2 || len(repositories) > core.MaxWorkspaceRepositories {
 		return Object{}, core.ErrInvalidArgument
 	}
 	seen := map[string]bool{}
 	for _, repo := range repositories {
-		if !gitadapter.ValidID(repo) || !gitadapter.ValidID(id+"-"+repo) || seen[repo] {
+		if !gitadapter.ValidID(repo) || seen[repo] {
 			return Object{}, core.ErrInvalidArgument
 		}
 		seen[repo] = true
@@ -151,11 +175,13 @@ func (s *RepositoryService) CopyWorkspaceSet(ctx context.Context, id string, rep
 		if err != nil {
 			return Object{}, err
 		}
-		ref, err := s.Backend.Plan(ctx, "work", id+"-"+name)
+		owner := randomID()
+		memberID := workspaceMemberID(id, name, owner)
+		ref, err := s.Backend.Plan(ctx, "work", memberID)
 		if err != nil {
 			return Object{}, err
 		}
-		object.Members = append(object.Members, Object{Kind: "work", ID: id + "-" + name, Repository: name, Remote: source.Remote, Branch: branch, NativeRef: ref, Owner: randomID(), State: "creating"})
+		object.Members = append(object.Members, Object{Kind: "work", ID: memberID, Repository: name, Remote: source.Remote, Branch: branch, NativeRef: ref, Owner: owner, State: "creating"})
 		sources = append(sources, source)
 	}
 	return s.createPreparedSet(ctx, object, func(ctx context.Context, i int, member Object) error {
@@ -220,7 +246,7 @@ func validObject(o Object) bool {
 		}
 		return gitadapter.ValidID(o.Repository) && routing && o.NativeRef != ""
 	}
-	if o.Kind != "work" || len(o.Members) < 2 || len(o.Members) > 8 || o.NativeRef != "" || o.Repository != "" || o.Remote != "" || o.Branch != "" {
+	if o.Kind != "work" || len(o.Members) < 2 || len(o.Members) > core.MaxWorkspaceRepositories || o.NativeRef != "" || o.Repository != "" || o.Remote != "" || o.Branch != "" {
 		return false
 	}
 	seen := map[string]bool{}
@@ -314,6 +340,10 @@ func (s *RepositoryService) Get(kind, id string) (Object, error) {
 	if object.State != "ready" {
 		return object, fmt.Errorf("%s %s has incomplete preparation; owned data retained: %w", kind, id, core.ErrRecoveryRequired)
 	}
+	// Registry selection is not part of an existing Workspace Git authority.
+	if kind == "repo" {
+		object.Excluded = false
+	}
 	return object, nil
 }
 
@@ -404,7 +434,7 @@ func (s *RepositoryService) readObject(kind, id string) (Object, error) {
 	if err != nil {
 		return object, err
 	}
-	if len(content) > 16384 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !validObject(object) {
+	if len(content) > 1<<20 || json.Unmarshal(content, &object) != nil || object.ID != id || object.Kind != kind || !validObject(object) {
 		return Object{}, core.ErrIncompatibleState
 	}
 	return object, nil

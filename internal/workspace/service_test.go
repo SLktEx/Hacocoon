@@ -3,9 +3,11 @@ package workspace
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,8 +25,6 @@ type fakeEnvironmentRuntime struct {
 	execRequest   core.ExecutionRequest
 	execResult    core.ExecutionResult
 	execErr       error
-	shellRef      string
-	shellErr      error
 	deleteRefs    []string
 	deleteErr     error
 	cleanupCtxErr error
@@ -42,11 +42,6 @@ func (f *fakeEnvironmentRuntime) ExecEnvironment(_ context.Context, ref string, 
 	f.execRef = ref
 	f.execRequest = req
 	return f.execResult, f.execErr
-}
-
-func (f *fakeEnvironmentRuntime) ShellEnvironment(_ context.Context, ref string) error {
-	f.shellRef = ref
-	return f.shellErr
 }
 
 func (f *fakeEnvironmentRuntime) DeleteEnvironment(ctx context.Context, ref string) error {
@@ -331,12 +326,12 @@ func TestDeleteRemovesRuntimeBeforeMetadata(t *testing.T) {
 	}
 }
 
-func TestShellUsesStoredRuntimeReference(t *testing.T) {
-	runtime := &fakeEnvironmentRuntime{}
+func TestShellStreamUsesStoredRuntimeReference(t *testing.T) {
+	runtime := &shellStreamProvider{fakeEnvironmentRuntime: &fakeEnvironmentRuntime{}}
 	store := newFakeEnvironmentStore()
 	store.environments["demo"] = core.Environment{Name: "demo", RuntimeRef: "haco-demo"}
 
-	if err := New(runtime, store).Shell(context.Background(), "demo"); err != nil {
+	if err := New(runtime, store).ShellStream(context.Background(), "demo", strings.NewReader(""), io.Discard, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if runtime.shellRef != "haco-demo" {
@@ -359,7 +354,6 @@ func (b *blockingEnvironmentRuntime) CreateEnvironment(_ context.Context, spec c
 func (*blockingEnvironmentRuntime) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, nil
 }
-func (*blockingEnvironmentRuntime) ShellEnvironment(context.Context, string) error  { return nil }
 func (*blockingEnvironmentRuntime) DeleteEnvironment(context.Context, string) error { return nil }
 
 func TestCreateSerializesConcurrentWorkspaceLeaseAcquisition(t *testing.T) {

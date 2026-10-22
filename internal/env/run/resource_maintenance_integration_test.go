@@ -109,6 +109,3 @@ func (n *maintenanceNativeBoundary) DeleteEnvironment(_ context.Context, ref str
 func (*maintenanceNativeBoundary) ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error) {
 	return core.ExecutionResult{}, core.ErrUnsupported
 }
-func (*maintenanceNativeBoundary) ShellEnvironment(context.Context, string) error {
-	return core.ErrUnsupported
-}

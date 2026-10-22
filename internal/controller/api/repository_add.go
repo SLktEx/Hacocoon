@@ -33,8 +33,15 @@ func registerRepositoryAdd(server *control.Server, service repositoryAdder) erro
 		var req RepositoryAddRequest
 		decoder := json.NewDecoder(bytes.NewReader(raw))
 		decoder.DisallowUnknownFields()
-		if decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF || !gitadapter.ValidID(req.ID) || gitadapter.ValidateRemote(req.Remote) != nil {
+		if decoder.Decode(&req) != nil || decoder.Decode(new(any)) != io.EOF || (req.ID != "" && !gitadapter.ValidID(req.ID)) {
 			return nil, control.ErrInvalidArgument
+		}
+		canonical, err := gitadapter.CanonicalRemote(req.Remote)
+		if err != nil {
+			return nil, control.ErrInvalidArgument
+		}
+		if gitadapter.ValidateRemote(req.Remote) != nil {
+			req.Remote = canonical
 		}
 		return func(ctx context.Context, conn net.Conn) error {
 			ctx, cancel := context.WithCancel(ctx)
@@ -109,7 +116,9 @@ func (c *Client) AddRepository(ctx context.Context, req RepositoryAddRequest, pr
 			}
 			switch frame.Code {
 			case "":
-				if frame.Result.Kind != "repo" || frame.Result.ID != req.ID || frame.Result.Remote != req.Remote || frame.Result.Branch != "" || frame.Result.State != "ready" {
+				expectedRemote, inputErr := gitadapter.CanonicalRemote(req.Remote)
+				actualRemote, resultErr := gitadapter.CanonicalRemote(frame.Result.Remote)
+				if inputErr != nil || resultErr != nil || expectedRemote != actualRemote || frame.Result.Kind != "repo" || !gitadapter.ValidID(frame.Result.ID) || frame.Result.Branch != "" || frame.Result.State != "ready" {
 					return gitrepo.Object{}, control.ErrProtocol
 				}
 				return *frame.Result, nil

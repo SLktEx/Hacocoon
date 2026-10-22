@@ -24,6 +24,7 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 	environmentapp "github.com/SLktEx/Hacocoon/internal/env"
 	"github.com/SLktEx/Hacocoon/internal/env/copy"
+	"github.com/SLktEx/Hacocoon/internal/env/creation"
 	"github.com/SLktEx/Hacocoon/internal/env/transfer"
 	"github.com/SLktEx/Hacocoon/internal/git"
 	"github.com/SLktEx/Hacocoon/internal/host"
@@ -41,11 +42,12 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if os.Geteuid() != 0 || !safeIncusRef(pool) || !baseFingerprintPattern.MatchString(image) {
 		t.Fatal("root and explicit pool/full image required")
 	}
-	// The complete public export/import plus snapshot/restore/copy sequence performs
-	// several independent native archive passes. A dedicated run passed import and
-	// restore, then reached the former 12-minute fixture budget during copy. Keep a
-	// bounded test-only allowance; product operation deadlines are unchanged.
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	// Snapshot creation now publishes an independent Image as well as copying
+	// rootfs and data. This sequence also captures temporary export/copy images
+	// and verifies native import. On WSL the former 20-minute budget expired
+	// after a successful import. Keep this allowance test-only and bounded;
+	// product operation deadlines and the ordinary capture path stay unchanged.
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 	must := func(err error) {
 		t.Helper()
@@ -224,7 +226,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(r.deleteBaseStorage(ctx, baseIdentity))
 	snap, err := service.CaptureSnapshot(ctx, name)
 	must(err)
-	if snap.State != "ready" || len(snap.Components) != 4 {
+	if snap.State != "ready" || len(snap.Components) != 5 || snap.Image == nil || snap.Image.Name != core.BaseName(snap.ID) {
 		t.Fatal("incomplete aggregate", snap.ID, snap.State, len(snap.Components))
 	}
 	t.Logf("ready snapshot %s with %d components", snap.ID, len(snap.Components))
@@ -324,70 +326,6 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	write(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
 
 	command("sync")
-	prepared, err := service.PrepareSnapshotRestore(ctx, name, snap.ID)
-	must(err)
-	if prepared.State != "prepared" || len(prepared.Components) != 4 {
-		t.Fatal("restore staging incomplete")
-	}
-	prepared, err = reopened.GetSnapshotRestore(ctx, prepared.ID)
-	must(err)
-	for _, component := range prepared.Components {
-		must(runtime.VerifyRestoreComponent(ctx, component))
-		prefix := "haco-runtime-v1:" + environmentapp.ProviderIncus + ":"
-		if !strings.HasPrefix(component.NativeRef, prefix) {
-			t.Fatal("restore route absent")
-		}
-		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(component.NativeRef, prefix))
-		must(err)
-		local := component
-		local.NativeRef = string(decoded)
-		binding, err := r.decodeRestore(local)
-		must(err)
-		source, _, _, instance, err := r.restoreShape(binding)
-		must(err)
-		switch {
-		case component.Role == "rootfs":
-			read(rootPath(binding.target()), "root/snapshot-marker", "guest-only bytes")
-			write(filepath.Join(rootPath(binding.target()), "root"), "snapshot-marker", "edited staged rootfs")
-		case !instance && component.Role == "oci":
-			read(volumePath(binding.target()), "containerd/data", "actual stored bytes")
-			read(volumePath(binding.target()), "docker/volumes/data", "persistent volume bytes")
-			write(volumePath(binding.target()), "containerd/data", "edited staged OCI")
-		case !instance:
-			path := volumePath(binding.target())
-			device := source.Volume.Device
-			if command("git", "-C", path, "rev-parse", "HEAD") != commits[device] {
-				t.Fatal("staged Git commit missing")
-			}
-			read(path, "tracked", "uncommitted "+device)
-			read(path, "untracked", "untracked "+device)
-			if _, err := os.Lstat(filepath.Join(path, ".git", "objects", "info", "alternates")); !os.IsNotExist(err) {
-				t.Fatal("staged Git depends on source objects", err)
-			}
-			write(path, "tracked", "edited staged work")
-		}
-	}
-	if prepared.Before.ID != "" {
-		t.Fatal("restore made an automatic backup")
-	}
-	rawCatalog, err := os.ReadFile(filepath.Join(dir, "state.json"))
-	must(err)
-	var inventoryCatalog struct {
-		Snapshots map[string]core.Snapshot `json:"snapshots"`
-	}
-	must(json.Unmarshal(rawCatalog, &inventoryCatalog))
-	if len(inventoryCatalog.Snapshots) != 1 {
-		t.Fatal("unexpected automatic snapshot")
-	}
-	read(rootPath(native), "root/snapshot-marker", "changed current work")
-	for _, m := range mounts {
-		read(volumePath(m.Volume), "tracked", "changed "+m.Device)
-		read(volumePath(m.Volume), "untracked", "changed untracked "+m.Device)
-	}
-	read(volumePath("haco-persistent-"+resource.Owner), "containerd/data", "changed containerd")
-	read(volumePath("haco-persistent-"+resource.Owner), "docker/volumes/data", "changed Docker volume")
-	must(service.CleanupSnapshotRestore(ctx, prepared.ID))
-	t.Log("PASS four-component restore preparation without Base or automatic backup, durable reload, saved rootfs/Git/OCI bytes staged, current work unchanged, staging edits independent, owned staging cleanup; no Environment replacement performed")
 	must(r.VerifyEnvironmentIdentity(ctx, native, id))
 	must(service.Delete(ctx, name))
 	if _, err := environmenttransfer.Inspect(readExport(), 4<<30); err != nil {
@@ -434,7 +372,9 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	must(err)
 	for _, m := range restoredMounts {
 		path := volumePath(m.Volume)
-		if command("git", "-C", path, "rev-parse", "HEAD") != commits[m.Device] {
+		// Booting the unprivileged OCI fixture shifts volume ownership. Trust
+		// only this provider-verified fixture path for this read, never globally.
+		if command("git", "-c", "safe.directory="+path, "-C", path, "rev-parse", "HEAD") != commits[m.Device] {
 			t.Fatal("restored unpushed commit lost")
 		}
 		read(path, "tracked", "uncommitted "+m.Device)
@@ -474,6 +414,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	resumedRouter, err := environmentapp.NewRouter(environmentapp.ProviderIncus, environmentapp.Register(environmentapp.ProviderIncus, sandbox))
 	must(err)
 	resumedService := workspace.NewWithProvider(resumedRouter, reopened, aggregateWorkspaceResolver{reopenedRepositories})
+	resumedService.ConfigureWorkspaceResourceDeletion(restoredStores.DeleteForWorkspace)
 	resumedEnv, err := resumedService.CreateFromSnapshot(ctx, core.EnvironmentSpec{Name: resumedName, WorkspacePath: resumedPath, PersistentResource: restoredOCI.ID}, snap.ID)
 	must(err)
 	resumedID, err := reopened.EnvironmentInstance(ctx, resumedEnv)
@@ -503,16 +444,44 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		t.Fatal("OCI data unavailable")
 	}
 	// Exercise the shipped CLI through a private real controller socket, with
-	// real Incus stopped copies and automatic restart of this running runtime.
+	// real Incus independent copies without stopping the running source.
 	binary := os.Getenv("HACO_E2E_SNAPSHOT_CLI")
-	var cliSavedID string
+	var cliSavedID, measurementHash, rootfsHash string
+	measurement := workspaceStorageObserver{t: t, ctx: ctx, runtime: r, catalog: reopened, pool: pool}
+	measurementSource := workspaceStorageArea{label: "source", work: reloadedWork, env: resumedEnv, generation: resumedID}
+	rootfsMeasurement := rootfsStorageObserver{t: t, ctx: ctx, runtime: r, catalog: reopened, pool: pool}
+	rootfsSource := rootfsStorageArea{label: "source", live: &rootfsLiveIdentity{env: resumedEnv, generation: resumedID}}
 	if binary != "" {
+		// Earlier synthetic setup writes are outside this interval. Every new
+		// measurement payload mutation goes through this exact owned guest.
+		rootfsMeasurement.guest(rootfsSource, `test ! -e "$1"; mkdir -- "$1"; dd if=/dev/urandom of="$1/base" bs=1048576 count=8 status=none conv=fsync`)
+		rootBefore := rootfsMeasurement.observe("before_snapshot", rootfsSource)["source"]
+		rootfsHash = rootBefore.Hashes["base"]
+		if len(rootBefore.Hashes) != 1 || rootfsHash == "" || rootBefore.Payload.AllocatedBytes == 0 || rootBefore.Payload.ExtentTotalBytes == 0 || rootBefore.Payload.ExtentExclusiveBytes != rootBefore.Payload.ExtentTotalBytes || rootBefore.Payload.ExtentSetSharedBytes != 0 {
+			t.Fatal("rootfs measurement payload allocation unavailable")
+		}
+		measurement.metadata(image)
+		measurement.guest(measurementSource, `test ! -e "$1"; mkdir -- "$1"; dd if=/dev/urandom of="$1/base" bs=1048576 count=8 status=none conv=fsync`)
+		before := measurement.observe("before_snapshot", measurementSource)["source"]
+		measurementHash = before.Hashes["base"]
+		if len(before.Hashes) != 1 || measurementHash == "" || before.Payload.AllocatedBytes == 0 || before.Payload.ExtentTotalBytes == 0 {
+			t.Fatal("Workspace measurement payload allocation unavailable")
+		}
 		func() {
 			server := control.NewServer()
 			must(controlapi.RegisterManagedWorkspaces(server, resumedService))
 			must(controlapi.RegisterSnapshots(server, resumedService))
-			must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
+			must(controlapi.RegisterCreation(server, &creation.Service{Catalog: reopened, Images: resumedRouter, Workspaces: restoredRepositories, Environments: resumedService, Snapshots: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
+			must(controlapi.RegisterRepositories(server, restoredRepositories, gitrepo.NewBroker(restoredRepositories, reopened, filepath.Join(dir, "git-sockets"))))
 			must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
+			archiveExporter := environmenttransfer.Exporter{Snapshots: resumedService, Root: dir, Component: resumedRouter.ExportSnapshotComponent, Workspaces: resumedRouter.ExportSnapshotWorkspaces}
+			archiveImporter := environmenttransfer.Importer{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores, Root: dir, StoreKind: OCIStoreKind}
+			must(controlapi.RegisterEnvironmentExport(server, func(ctx context.Context, source string) (environmenttransfer.ExportResult, error) {
+				return archiveExporter.ExportStopped(ctx, source, 4<<30)
+			}))
+			must(controlapi.RegisterEnvironmentImport(server, func(ctx context.Context, source io.Reader, name string) (environmenttransfer.ImportResult, error) {
+				return archiveImporter.Import(ctx, source, name, 4<<30)
+			}))
 			socket := filepath.Join(dir, "cli.sock")
 			listener, err := control.ListenUnix(socket, 0600)
 			must(err)
@@ -542,11 +511,36 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 				t.Fatal("incomplete CLI save", saved)
 			}
 			cliSavedID = saved[0].ID
+			measurementSaved, err := reopened.GetSnapshot(ctx, cliSavedID)
+			must(err)
+			savedArea := workspaceStorageArea{label: "saved", saved: &measurementSaved}
+			rootfsSaved := rootfsStorageArea{label: "saved", saved: &measurementSaved}
+			if measurementSaved.Image == nil {
+				t.Fatal("Snapshot-generated Image missing")
+			}
+			rootfsMeasurement.metadata(*measurementSaved.Image)
+			rootCaptured := rootfsMeasurement.observe("after_snapshot", rootfsSource, rootfsSaved)
+			must(requireSharedRootfsPayload(rootCaptured["source"], rootfsHash))
+			must(requireSharedRootfsPayload(rootCaptured["saved"], rootfsHash))
+			rootfsMeasurement.guest(rootfsSource, `rm -- "$1/base"; sync`)
+			rootUnlinked := rootfsMeasurement.observe("source_unlink_snapshot_retained", rootfsSource, rootfsSaved)
+			if len(rootUnlinked["source"].Hashes) != 0 || rootUnlinked["source"].Payload.ExtentTotalBytes != 0 || rootUnlinked["saved"].Hashes["base"] != rootfsHash {
+				t.Fatal("logical rootfs unlink or saved retention unproven")
+			}
+			measureSnapshotImageReuse(rootfsMeasurement, binary, measurementSaved, rootfsHash, resumedService, restoredRepositories, &archiveImporter)
+			copied := measurement.observe("after_snapshot", measurementSource, savedArea)
+			must(requireSharedWorkspacePayload(copied["source"], measurementHash))
+			must(requireSharedWorkspacePayload(copied["saved"], measurementHash))
+			measurement.guest(measurementSource, `rm -- "$1/base"; sync`)
+			deleted := measurement.observe("source_unlink_snapshot_retained", measurementSource, savedArea)
+			if len(deleted["source"].Hashes) != 0 || deleted["source"].Payload.ExtentTotalBytes != 0 || deleted["source"].Payload.LogicalBytes >= copied["source"].Payload.LogicalBytes || deleted["saved"].Hashes["base"] != measurementHash {
+				t.Fatal("logical source deletion or saved payload retention unproven")
+			}
 			t.Logf("public CLI saved %s from running %s", cliSavedID, resumedName)
 			current, err := r.InspectEnvironment(ctx, resumed.Ref)
 			must(err)
 			if current.State != core.EnvironmentRunning {
-				t.Fatal("source not resumed", current)
+				t.Fatal("source state changed", current)
 			}
 			listed := invoke("snapshot", "list", "--json", resumedName)
 			found := false
@@ -684,7 +678,8 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		}
 		server := control.NewServer()
 		must(controlapi.RegisterSnapshots(server, resumedService))
-		must(controlapi.RegisterSnapshotRestore(server, &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}))
+		must(controlapi.RegisterCreation(server, &creation.Service{Catalog: reopened, Images: resumedRouter, Workspaces: restoredRepositories, Environments: resumedService, Snapshots: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
+		must(controlapi.RegisterRepositories(server, restoredRepositories, gitrepo.NewBroker(restoredRepositories, reopened, filepath.Join(dir, "git-sockets"))))
 		must(controlapi.RegisterEnvironmentCopy(server, &environmentcopy.Service{Catalog: reopened, Snapshots: resumedService, Restorer: &snapshotrestore.Service{Catalog: reopened, Environments: resumedService, Workspaces: restoredRepositories, Stores: &restoredStores}}))
 		socket := filepath.Join(dir, "delete.sock")
 		listener, err := control.ListenUnix(socket, 0600)
@@ -711,12 +706,16 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			<-done
 			t.Fatal("save disappeared with source", listed)
 		}
-		restoreOutput, restoreErr := exec.CommandContext(ctx, binary, "snapshot", "restore", "--json", cliSavedID, resumedName).CombinedOutput()
-		var restored snapshotrestore.Result
-		if restoreErr != nil || json.Unmarshal(restoreOutput, &restored) != nil || restored.State != "running" {
+		restoreOutput, restoreErr := aggregateCLIOutput(ctx, binary, "open", "--new", "--snapshot", cliSavedID, "--name", resumedName, "--client", "none", "--json")
+		var opened core.Environment
+		if restoreErr != nil || json.Unmarshal(restoreOutput, &opened) != nil {
 			stop()
 			<-done
 			t.Fatalf("public restore: %v: %s", restoreErr, restoreOutput)
+		}
+		restored := snapshotrestore.Result{Environment: opened.Name, Workspace: strings.TrimPrefix(opened.Workspace.Path, "managed:"), State: "running"}
+		if opened.PersistentResource.ID != "" {
+			restored.OCI = opened.PersistentResource.ID
 		}
 		publicEnv, err := reopened.GetEnvironment(ctx, restored.Environment)
 		must(err)
@@ -729,6 +728,16 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		must(err)
 		publicOCI, err := reopened.GetPersistentResource(ctx, restored.OCI)
 		must(err)
+		measurementRestored := workspaceStorageArea{label: "restored", work: publicWork, env: publicEnv, generation: publicGeneration}
+		measurementSaved := workspaceStorageArea{label: "saved", saved: &saved}
+		rootfsSaved := rootfsStorageArea{label: "saved", saved: &saved}
+		rootfsRestored := rootfsStorageArea{label: "restored", live: &rootfsLiveIdentity{env: publicEnv, generation: publicGeneration}}
+		rootRestored := rootfsMeasurement.observe("after_public_restore", rootfsSaved, rootfsRestored)
+		must(requireSharedRootfsPayload(rootRestored["saved"], rootfsHash))
+		must(requireSharedRootfsPayload(rootRestored["restored"], rootfsHash))
+		restoredBytes := measurement.observe("after_public_restore", measurementSaved, measurementRestored)
+		must(requireSharedWorkspacePayload(restoredBytes["saved"], measurementHash))
+		must(requireSharedWorkspacePayload(restoredBytes["restored"], measurementHash))
 		publicMounts, err := repository.WorkspaceAttachments(ctx, publicWork)
 		must(err)
 		for _, m := range publicMounts {
@@ -777,6 +786,28 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if len(afterCopies) != len(beforeCopies) {
 			t.Fatal("copy retained temporary save")
 		}
+		measurementCopy := workspaceStorageArea{label: "copy", work: copiedWork, env: copiedEnv, generation: copiedGeneration}
+		rootfsCopy := rootfsStorageArea{label: "copy", live: &rootfsLiveIdentity{env: copiedEnv, generation: copiedGeneration}}
+		rootBeforeWrite := rootfsMeasurement.observe("after_public_copy", rootfsSaved, rootfsRestored, rootfsCopy)
+		for _, area := range []string{"saved", "restored", "copy"} {
+			must(requireSharedRootfsPayload(rootBeforeWrite[area], rootfsHash))
+		}
+		rootfsMeasurement.guest(rootfsCopy, `test ! -e "$1/delta"; dd if=/dev/urandom of="$1/delta" bs=1048576 count=8 status=none conv=fsync`)
+		rootAfterWrite := rootfsMeasurement.observe("after_copy_write", rootfsSaved, rootfsRestored, rootfsCopy)
+		must(requireIndependentRootfsWrite(rootBeforeWrite["copy"], rootAfterWrite["copy"], rootfsHash))
+		must(requireSharedRootfsPayload(rootAfterWrite["saved"], rootfsHash))
+		must(requireSharedRootfsPayload(rootAfterWrite["restored"], rootfsHash))
+		beforeWrite := measurement.observe("after_public_copy", measurementSaved, measurementRestored, measurementCopy)
+		for _, area := range []string{"saved", "restored", "copy"} {
+			must(requireSharedWorkspacePayload(beforeWrite[area], measurementHash))
+		}
+		measurement.guest(measurementCopy, `test ! -e "$1/delta"; dd if=/dev/urandom of="$1/delta" bs=1048576 count=8 status=none conv=fsync`)
+		afterWrite := measurement.observe("after_copy_write", measurementSaved, measurementRestored, measurementCopy)
+		if len(afterWrite["copy"].Hashes) != 2 || afterWrite["copy"].Hashes["base"] != measurementHash || afterWrite["copy"].Hashes["delta"] == "" || afterWrite["copy"].Payload.LogicalBytes <= beforeWrite["copy"].Payload.LogicalBytes || afterWrite["copy"].Payload.AllocatedBytes <= beforeWrite["copy"].Payload.AllocatedBytes || afterWrite["copy"].Payload.ExtentExclusiveBytes <= beforeWrite["copy"].Payload.ExtentExclusiveBytes {
+			t.Fatal("independent Workspace write allocation unproven")
+		}
+		must(requireSharedWorkspacePayload(afterWrite["saved"], measurementHash))
+		must(requireSharedWorkspacePayload(afterWrite["restored"], measurementHash))
 		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "guest-only bytes" {
 			t.Fatal("copied rootfs lost")
 		}
@@ -802,7 +833,30 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 		if _, err := reopened.GetSnapshot(ctx, cliSavedID); !errors.Is(err, core.ErrNotFound) {
 			t.Fatal("save not deleted", err)
 		}
+		rootfsMeasurement.observe("snapshot_deleted_restored_and_copy_retained", rootfsRestored, rootfsCopy)
+		measurement.observe("snapshot_deleted_restored_and_copy_retained", measurementRestored, measurementCopy)
 		must(resumedService.Delete(ctx, publicEnv.Name))
+		rootLast := rootfsMeasurement.observe("source_and_snapshot_deleted_copy_retained", rootfsCopy)["copy"]
+		if rootLast.Hashes["base"] != rootfsHash || rootLast.Hashes["delta"] != rootAfterWrite["copy"].Hashes["delta"] {
+			t.Fatal("logical reference deletion changed surviving rootfs")
+		}
+		rootfsMeasurement.guest(rootfsCopy, `rm -- "$1/base" "$1/delta"; sync`)
+		rootUnlinked := rootfsMeasurement.observe("last_live_payload_unlinked", rootfsCopy)["copy"]
+		if len(rootUnlinked.Hashes) != 0 || rootUnlinked.Payload.ExtentTotalBytes != 0 || rootUnlinked.Payload.LogicalBytes >= rootLast.Payload.LogicalBytes {
+			t.Fatal("last live rootfs payload unlink unproven")
+		}
+		lastCopy := measurement.observe("source_and_snapshot_deleted_copy_retained", measurementCopy)["copy"]
+		if lastCopy.Hashes["base"] != measurementHash || lastCopy.Hashes["delta"] != afterWrite["copy"].Hashes["delta"] {
+			t.Fatal("logical reference deletion changed surviving Workspace")
+		}
+		// Provider absence does not fence Btrfs's asynchronous subvolume cleaner.
+		// Record shared/exclusive changes once; never sleep/retry for exclusive
+		// bytes or infer backing-file reclamation from logical object deletion.
+		measurement.guest(measurementCopy, `rm -- "$1/base" "$1/delta"; sync`)
+		lastUnlink := measurement.observe("last_live_payload_unlinked", measurementCopy)["copy"]
+		if len(lastUnlink.Hashes) != 0 || lastUnlink.Payload.ExtentTotalBytes != 0 || lastUnlink.Payload.LogicalBytes >= lastCopy.Payload.LogicalBytes {
+			t.Fatal("last live Workspace payload deletion unproven")
+		}
 		if command("incus", "exec", "haco-"+copyName, "--project", r.project, "--", "cat", "/root/snapshot-marker") != "copied" {
 			t.Fatal("copy depends on deleted source")
 		}
@@ -823,25 +877,17 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 			t.Fatal("copied OCI lost")
 		}
 		must(resumedService.Delete(ctx, copyName))
-		must(resumedService.CleanupRestoredData(ctx, copiedEnv.Workspace, func(ctx context.Context) error {
-			if err := restoredStores.DeleteRestoredCopy(ctx, copiedOCI); err != nil {
-				return err
+		for _, work := range []gitrepo.Object{copiedWork, publicWork} {
+			if _, err := restoredRepositories.Get("work", work.ID); !errors.Is(err, core.ErrNotFound) {
+				t.Fatalf("owned Workspace retained: %s: %v", work.ID, err)
 			}
-			return restoredRepositories.DeleteRestoredCopy(ctx, copiedWork)
-		}))
-		t.Log("PASS public Env copy: running source refused, stopped source copied, temporary save removed, fresh generation, independent rootfs/Work/OCI after source deletion, owned cleanup")
-
-		must(persistent.Verify(ctx, publicOCI))
-		for _, m := range publicMounts {
-			read(volumePath(m.Volume), "tracked", "uncommitted "+m.Device)
 		}
-		must(resumedService.CleanupRestoredData(ctx, publicEnv.Workspace, func(ctx context.Context) error {
-			if err := restoredStores.DeleteRestoredCopy(ctx, publicOCI); err != nil {
-				return err
+		for _, store := range []core.PersistentResource{copiedOCI, publicOCI} {
+			if _, err := reopened.GetPersistentResource(ctx, store.ID); !errors.Is(err, core.ErrNotFound) {
+				t.Fatalf("owned OCI store retained: %s: %v", store.ID, err)
 			}
-			return restoredRepositories.DeleteRestoredCopy(ctx, publicWork)
-		}))
-		t.Log("PASS public snapshot create/list/restore/delete: one-command restore after source deletion, fresh generation and independent rootfs/Git/OCI, saved-copy deletion, normal Env deletion retaining data, owned restored-data cleanup; actual restored SSH handshake not tested")
+		}
+		t.Log("PASS snapshot create/list/delete and open --new --snapshot: independent rootfs/Git/OCI, source unchanged, generated Workspace cleanup; restored SSH handshake not tested")
 	}
 	must(persistent.Verify(ctx, restoredOCI))
 	for _, m := range restoredMounts {
@@ -963,7 +1009,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 				read(path, "containerd/data", "actual stored bytes")
 				read(path, "docker/volumes/data", "persistent volume bytes")
 			} else {
-				if command("git", "-C", path, "rev-parse", "HEAD") != commits[p.Device] {
+				if command("git", "-c", "safe.directory="+path, "-C", path, "rev-parse", "HEAD") != commits[p.Device] {
 					t.Fatal("unpushed commit lost")
 				}
 				read(path, "tracked", "uncommitted "+p.Device)
@@ -983,7 +1029,7 @@ func TestRealIncusSnapshotAggregateE2E(t *testing.T) {
 	if retainedLocks {
 		t.Logf("Fixture resources are absent; persistent catalog lock identities retained at %s", filepath.Join(dir, "lifecycle-locks"))
 	}
-	t.Log("PASS canonical catalog/coordinator/provider route; complete four-component save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public CLI coverage reported separately; restored SSH handshake/live OCI consistency not tested.")
+	t.Log("PASS canonical catalog/coordinator/provider route; complete Image/rootfs/Workspace/OCI save; restart readback; source Environment/volumes deleted; independent Git and data retained; owned snapshot cleanup. No snapshot Base material retained; image deletion reported separately; public CLI coverage reported separately; restored SSH handshake/live OCI consistency not tested.")
 }
 
 // Called only after the fixture's controllers have joined and every owned
@@ -1015,6 +1061,30 @@ func cleanupAggregateRecoveryFiles(dir string) (bool, error) {
 		return false, os.Remove(dir)
 	}
 	return true, nil
+}
+
+// JSON is a stdout contract; progress and other diagnostics belong on stderr.
+func aggregateCLIOutput(ctx context.Context, binary string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, binary, args...)
+	var diagnostic strings.Builder
+	cmd.Stderr = &diagnostic
+	output, err := cmd.Output()
+	if err != nil {
+		return output, fmt.Errorf("%w: %s", err, diagnostic.String())
+	}
+	return output, nil
+}
+
+func TestAggregateCLIOutputSeparatesProgress(t *testing.T) {
+	output, err := aggregateCLIOutput(context.Background(), "sh", "-c", `printf 'Preparing environment...\n' >&2; printf '{"name":"fixture"}\n'`)
+	var environment core.Environment
+	if err != nil || json.Unmarshal(output, &environment) != nil || environment.Name != "fixture" {
+		t.Fatalf("progress contaminated JSON: %v: %s", err, output)
+	}
+	_, err = aggregateCLIOutput(context.Background(), "sh", "-c", `printf 'fixture failure\n' >&2; exit 7`)
+	if err == nil || !strings.Contains(err.Error(), "fixture failure") {
+		t.Fatalf("failed command lost diagnostic: %v", err)
+	}
 }
 
 // The fixture uses the same trusted registry lookup as application composition.

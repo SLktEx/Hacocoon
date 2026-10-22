@@ -2,8 +2,6 @@ package incus
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"reflect"
 	"strings"
@@ -11,7 +9,8 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-// restoreBinding is an independent staging copy, not a runnable Environment.
+// Legacy staging ownership is decoded only for verification and cleanup.
+// New staging creation is retired; new consumers use canonical Environment creation.
 // The saved component is a complete immutable source ownership receipt.
 type restoreBinding struct {
 	Version int                    `json:"version"`
@@ -79,131 +78,6 @@ func (r *Runtime) decodeRestore(c core.SnapshotComponent) (restoreBinding, error
 		return b, core.ErrCapabilityStale
 	}
 	return b, nil
-}
-func (r *Runtime) PlanSnapshotRestore(ctx context.Context, saved core.Snapshot, id string) ([]core.SnapshotComponent, error) {
-	if !strings.HasPrefix(id, "restore-") || len(id) != 40 || !core.ValidPersistentResourceRef(core.PersistentResourceRef{ID: "oci:restore", Owner: strings.TrimPrefix(id, "restore-")}) || saved.State != "ready" || len(saved.Components) < 2 || len(saved.Components) > 256 {
-		return nil, core.ErrInvalidArgument
-	}
-	out := []core.SnapshotComponent{}
-	for _, src := range saved.Components {
-		// Legacy Base material remains catalogued, but rootfs is self-contained.
-		if src.Role == "base" {
-			continue
-		}
-		if err := r.VerifySnapshotComponent(ctx, src); err != nil {
-			return nil, err
-		}
-		var nonce [16]byte
-		_, _ = rand.Read(nonce[:])
-		c, err := r.restoreComponent(restoreBinding{Version: 1, Project: r.project, Owner: hex.EncodeToString(nonce[:]), Source: src})
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, nil
-}
-func (r *Runtime) CreateRestoreComponent(ctx context.Context, saved core.Snapshot, c core.SnapshotComponent) error {
-	b, err := r.decodeRestore(c)
-	if err != nil {
-		return err
-	}
-	if c.State != "planned" || saved.State != "ready" {
-		return core.ErrIncompatibleState
-	}
-	matches := 0
-	for _, src := range saved.Components {
-		if src == b.Source {
-			matches++
-		}
-	}
-	if matches != 1 {
-		return core.ErrCapabilityStale
-	}
-	source, pool, native, instance, err := r.restoreShape(b)
-	if err != nil {
-		return err
-	}
-	var sourceConfig map[string]string
-	sourceDevices := map[string]map[string]string{}
-	if instance {
-		var found *snapshotInstanceObservation
-		if source.Rootfs != nil {
-			found, err = r.snapshotRootfsObservation(ctx, *source.Rootfs, true)
-		} else {
-			found, err = r.snapshotBaseObservation(ctx, *source.Base)
-		}
-		if err != nil {
-			return err
-		}
-		if found == nil {
-			return core.ErrNotFound
-		}
-		sourceConfig = found.Config
-		for k := range found.Devices {
-			sourceDevices[k] = map[string]string{"type": "none"}
-		}
-		for k := range found.ExpandedDevices {
-			sourceDevices[k] = map[string]string{"type": "none"}
-		}
-	} else {
-		found, err := r.snapshotVolumeObservation(ctx, *source.Volume, true)
-		if err != nil {
-			return err
-		}
-		if found == nil {
-			return core.ErrNotFound
-		}
-		sourceConfig = found.Config
-	}
-	out, err := r.runner.Run(ctx, "incus", "query", "/1.0/storage-pools/"+pool)
-	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
-		return core.ErrRuntimeUnavailable
-	}
-	var storage struct{ Name, Driver string }
-	if json.Unmarshal([]byte(out.Stdout), &storage) != nil || storage.Name != pool || storage.Driver != "btrfs" {
-		return core.ErrIncompatibleState
-	}
-	config := map[string]string{}
-	// Explicit empty values prevent inheritance of source ownership/config.
-	for k := range sourceConfig {
-		config[k] = ""
-	}
-	keys := []string{"volatile.idmap.last", "volatile.idmap.next"}
-	if instance {
-		config = clearedSnapshotInstanceConfig(sourceConfig)
-		keys = []string{"volatile.idmap.current", "volatile.idmap.next", "volatile.last_state.idmap"}
-	}
-	for _, k := range keys {
-		value := sourceConfig[k]
-		if value == "" {
-			continue
-		}
-		var mapping []json.RawMessage
-		if json.Unmarshal([]byte(value), &mapping) != nil || mapping == nil {
-			return core.ErrIncompatibleState
-		}
-		config[k] = value
-	}
-	for k, v := range b.config(instance) {
-		config[k] = v
-	}
-	endpoint := "/1.0/storage-pools/" + pool + "/volumes/custom?project=" + r.project
-	request := map[string]any{"name": b.target(), "type": "custom", "content_type": "filesystem", "config": config, "source": map[string]any{"type": "copy", "name": native, "pool": pool, "project": r.project, "volume_only": true}}
-	if instance {
-		sourceDevices["root"] = map[string]string{"type": "disk", "path": "/", "pool": pool}
-		endpoint = "/1.0/instances?project=" + r.project
-		request = map[string]any{"name": b.target(), "type": "container", "ephemeral": false, "profiles": []string{}, "config": config, "devices": sourceDevices, "source": map[string]any{"type": "copy", "source": native, "project": r.project, "instance_only": true, "live": false}}
-	}
-	data, err := json.Marshal(request)
-	if err != nil {
-		return err
-	}
-	out, err = r.runner.Run(ctx, "incus", "query", "-X", "POST", "--wait", endpoint, "--data", string(data))
-	if err != nil || out.ExitCode != 0 || out.StdoutTruncated {
-		return core.ErrRecoveryRequired
-	}
-	return nil // Caller durably records completion before another provider call.
 }
 func restoreConfigMatches(config, expected map[string]string) bool {
 	for k, v := range expected {

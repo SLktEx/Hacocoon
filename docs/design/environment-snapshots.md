@@ -1,55 +1,31 @@
-# Environment snapshots and restore
+# Environment snapshots as creation sources
 
-Status: **partial**. Public capture/list/delete, independent restore copies and
-canonical saved-rootfs creation and public restore into a new Env are implemented.
-Replacement switching and broader host acceptance remain partial. See [implementation status](../IMPLEMENTATION_STATUS.md).
+Snapshots are independent sources for new Environments. Capture preserves the
+source running/stopped state and creates an ordinary reusable Image alongside the
+Workspace, OCI data and Snapshot metadata. See [creation selection](environment-creation.md).
 
 ## Daily snapshot commands
 
 ```bash
 haco snapshot create dev
-haco snapshot list dev
-haco snapshot inspect snap-0123456789abcdef0123456789abcdef
-haco snapshot restore snap-0123456789abcdef0123456789abcdef new-dev
-haco snapshot delete snap-0123456789abcdef0123456789abcdef
+haco snapshot list
+haco snapshot inspect SNAPSHOT
+haco open --new --snapshot SNAPSHOT
+haco snapshot delete SNAPSHOT
 ```
 
-`create` requires a managed Workspace. It holds the normal lifecycle locks,
-verifies the current generation, and stops a running Env through Incus before
-copying. It restarts that same generation only after the complete save is ready;
-an already stopped Env stays stopped. Expect interruption of running processes.
-This saves filesystem data, not process state or live database consistency.
+Capture requires a managed Workspace and holds the canonical lifecycle locks.
+It never stops or restarts the source. Stop application writers yourself when
+application consistency matters: live filesystem copies do not promise database
+or cross-volume transaction consistency. Failure retains exact owned identities
+for explicit cleanup; it does not change the source state.
 
-`list` without an Env shows all saved records, including incomplete captures and
-saves whose source Env has been deleted. `create` and `list` support `--json`
-before the positional argument. Results contain IDs/state and aggregate counts,
-not private storage bindings or management configuration.
-
-A failed capture stays stopped; a partial save keeps its ID and ownership record.
-Inspect with `list`, then explicitly delete that ID to clean its owned components
-before starting the source again. If saving completed but restart failed, the
-command returns failure while retaining the ready ID. Use normal Env status/start
-to inspect and resume it. A disconnected client is not proof that capture failed:
-check `list` before retrying. No automatic backup or runtime rollback is created.
-
-`delete` requires the full ID and affects only the saved copies. It preserves
-current Env/Workspace/OCI data, checks active restore reservations, and retains
-ownership records when cleanup cannot establish positive absence. This is the
-explicit removal operation for complete or incomplete saved data.
-
-## Restore by environment name
-
-`haco snapshot restore --latest dev restored-dev` selects the newest ready save
-for `dev` by its recorded capture-start time, then restores that exact saved ID
-through the ordinary independent-Environment lifecycle. The source Env may have
-been deleted. Incomplete saves are not selected. A deleted selected save or failed
-restore never causes fallback to an older save or an automatic second attempt.
-
-New captures persist `created_at` before creating any component. It is presentation
-metadata, not ownership evidence. Unknown times or equal newest times require an
-explicit ID from `haco snapshot list`; existing data is not rewritten to invent a
-date. Human output identifies the chosen save before restoration; `--json` retains
-the ordinary restore result. Source data and existing Environments are preserved.
+Snapshot creation also publishes its saved rootfs as an ordinary Image. The saved
+Image reference is independent of the configured default. New Environment creation
+copies saved data and never uses the current Repository registry or replaces an
+existing Environment. Snapshot deletion only deletes saved resources; existing
+independent Environments remain. There is no public restore command or in-place
+rollback. List/inspect also show incomplete saves and saves whose source is gone.
 
 ## Inspect a failed deletion
 
@@ -83,7 +59,7 @@ recommends raw subvolume deletion, pool deletion or dropping catalog ownership.
 ## Incus owns storage and runtime operations
 
 Hacocoon starts from Incus instance, custom-volume, copy, device and lifecycle
-operations. The supported aggregate is a stopped Incus container and managed
+operations. The supported aggregate is an Incus container and managed
 Workspace/OCI volumes in one Incus Btrfs pool. Incus provides COW copies; Hacocoon
 does not implement a storage engine or a generic fallback for other backends.
 Other drivers are currently unsupported for this aggregate, not assumed to have
@@ -99,6 +75,7 @@ and [instance backup guide](https://linuxcontainers.org/incus/docs/main/howto/in
 
 A complete manifest owns:
 
+- an ordinary Image published from the captured rootfs;
 - one independent stopped rootfs instance;
 - every registered managed Workspace volume, including Git objects, unpushed
   commits, uncommitted and untracked files;
@@ -112,7 +89,7 @@ Environment creation resolves its Base to an Incus image and does not automatica
 create another retained Base instance.
 
 Old snapshots may still own a Base component. Keep that record and its storage
-until explicit snapshot deletion. New restore preparation skips that legacy
+until explicit snapshot deletion. New Environment creation skips that legacy
 component, without modifying the source manifest. Legacy Base verification and
 exact-owned cleanup remain for existing material; they are not a new retention
 layer. See [ADR 0040](../adr/0040-incus-first-snapshots.md).
@@ -121,14 +98,14 @@ layer. See [ADR 0040](../adr/0040-incus-first-snapshots.md).
 
 `internal/workspace` holds canonical Environment then Workspace locks and checks
 the current active lease and fresh creation identity. `internal/adapters/incus`
-enumerates the full device/volume inventory, verifies ownership, stopped state,
+enumerates the full device/volume inventory, verifies ownership and valid runtime state,
 exclusive attachments and Btrfs placement. External-path Workspaces remain
 unsupported here because guest stop does not exclude Host writers.
 
 The catalog reserves planned exact identities before creation. Each successful
 create is durably recorded before another fallible provider call. All components
 must verify before the aggregate becomes ready. Partial results are never a
-successful snapshot. Stopped-source reservations protect data consistency until
+successful snapshot. Source reservations protect resource ownership until
 the incomplete capture is explicitly cleaned up; this is not a promise of full
 runtime crash recovery.
 
@@ -144,42 +121,23 @@ staging and runnable copies. Incus's `volatile.last_state.ready` is reset to
 requires a boolean even for this volatile key. This does not preserve processes
 or old authority, and changes no saved-data schema.
 
-## Internal restore preparation
+## Retired staging records
 
-The implemented flow is: select a ready snapshot, verify its required saved
-components, reserve the current target identity and independent destination names,
-copy rootfs/Workspace/OCI, record each completion, and verify the complete result.
-Current Environment data remains untouched. No automatic pre-restore backup,
-rollback snapshot or hidden equivalent is created. Save explicitly first if the
-current state should be retained after a future explicit replacement.
-
-This internal staging API creates stopped/unattached copies, not a runnable
-Environment. It remains available for its recorded preparations and exact-owned
-cleanup; the public command does not require users to prepare bindings or invoke
-this API. [Public restore](#restore-into-a-new-environment) composes normal data
-registration and canonical creation directly, with a new creation ID, current
-network/security configuration and fresh connection credentials. It refuses an
-existing target name and never adopts the old source's devices, grants or
-authentication. Same-name recreation must not inherit the prior generation's
-approvals.
-
-On failure, the service attempts bounded cleanup under the existing locks. It
-returns failure even if cleanup succeeds, without retaining a recovery reservation.
-If cleanup cannot confirm absence, the error reports the restore ID and preserves
-exact destinations for `CleanupSnapshotRestore`. Both paths remove only verified
-owned copies, positively check absence and keep records on ambiguous results.
-Retry cleanup or start a fresh preparation after cleanup. There is no activation
-rollback or automatic resume from every crash point. Public restore preserves
-these limits; a published Env with a start failure is retained for ordinary start.
+The old preparation API has been removed. New Snapshot consumers create a new
+Environment through the common creation service. Legacy staging ownership is
+still read and validated so an upgrade cannot lose provider ownership. The
+migration-only `CleanupLegacySnapshotRestore` removes only exact owned copies
+and retains records when absence cannot be confirmed. No new staging or in-place
+replacement can be requested. Remove this compatibility reader after supported
+catalogs no longer contain legacy preparations.
 
 ## Lifetime and ordinary recreation
 
-Normal Env delete removes the runnable instance, not Workspace, retained OCI,
-explicit persistent data or saved snapshots. Recreate checks those associations,
-deletes the old runtime and creates a new one with current data and setup.
-Unsaved rootfs/process/temp/manual changes can be lost. Snapshot restore instead
-uses the saved point-in-time data. Saving rootfs makes that copy persistent even
-though the executing Environment remains disposable.
+Deleting an Environment created by `open --new` or `create` removes its automatic
+Workspace and associated OCI data after the runtime is positively absent.
+Explicit Volumes, legacy independently managed Workspaces and saved Snapshots
+survive. Snapshot-based creation uses independent saved data and never replaces
+an existing Environment. See [creation and ownership](environment-creation.md).
 
 ## Catalog upgrade
 
@@ -253,7 +211,7 @@ cleanup fails. Unknown ownership/attachment/absence retains the registry record;
 `CleanupRestoredWorkspace` retries incomplete copies. Once ready, it can only
 release a pending source reservation; it never deletes published volumes. Release
 failure retains the registry ownership record for retry. A ready Workspace with
-no pending reservation is rejected by failure cleanup. The normal Env delete lifetime is unchanged. No
+no pending reservation is rejected by failure cleanup. Environment-owned Workspace cleanup follows the creation ownership flag. No
 backup of current data, ownership transfer of the saved volumes, or crash-resume
 state machine is introduced.
 
@@ -271,7 +229,7 @@ state machine is introduced.
 - `internal/env`: routing and qualification of Incus native references.
 - `internal/core`: small manifests and domain identity types.
 
-`SnapshotBackend` and `RestoreBackend` keep native storage mechanics testable and
+`SnapshotBackend` and the migration-only cleanup contract keep native storage mechanics testable and
 out of orchestration. The catalog interface protects receipts and atomic checks.
 `SnapshotWorkspaceCatalog` provides only atomic begin/finish source guards to
 the registry; it introduces no native storage abstraction or runtime recovery state.
@@ -316,17 +274,15 @@ Do not relabel a new catalog as schema 12 or earlier or run an old writer agains
 upgrades need no manual saved-data rewrite. The unpublished schema 9 remains
 explicitly unsupported.
 
-The public restore service now prepares these bindings. Replacement switching
-remains planned; no automatic backup is introduced.
+The shared Snapshot creation-source service prepares these bindings. In-place replacement is not supported.
 
 ## Restore into a new Environment
 
-Implemented: `haco snapshot restore [--json] <snapshot-id> [new-env]` creates
-independent normal Workspace/OCI copies and a fresh runtime from saved rootfs,
-then starts it through the canonical lifecycle. No Base/cache lookup, Git network
-operation, automatic backup or old approval replay occurs. Omit the name to use
-`<source>-restored` (source prefix limited to 48 characters). Existing names and
-incomplete creation leases are refused; there is no implicit replacement.
+`haco open --new --snapshot SNAPSHOT [--name NAME]` creates independent normal
+Workspace/OCI copies and a fresh runtime from saved rootfs, with saved Image
+provenance, then starts and opens it. Names are normally generated. Existing names
+and incomplete leases are refused. Current Image defaults, Git registrations and
+old approval authority are never replayed.
 
 The application service in `internal/snapshot/restore` orders existing registry,
 Store and Environment operations. Each native copy owns its source reservation;
@@ -353,8 +309,7 @@ No manual saved-data migration is required for this public command.
 
 Implemented: capture and independent copy include every enrolled
 named data volume. Exact source ownership, parent creation, mount path and the
-protected complete-data binding must agree. Running capture resumes through the
-same resource-aware path as ordinary start. Saved data volumes remain independent
+protected complete-data binding must agree. Running capture preserves the source state. Saved data volumes remain independent
 of their deleted source Env and are deleted with the snapshot.
 
 Restoration reserves new child identities together with the saved source and the

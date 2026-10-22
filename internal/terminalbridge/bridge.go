@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -58,6 +59,16 @@ func BridgeWithTerminal(
 		return errors.New("invalid interactive controller stream")
 	}
 
+	// The transport observes the caller directly and can close before its
+	// cancellation reaches the signal context below. Preserve that cancellation
+	// even when stream teardown or terminal restoration finishes first.
+	callerCtx := ctx
+	defer func() {
+		if err := callerCtx.Err(); err != nil {
+			retErr = err
+		}
+	}()
+
 	// The caller can enter raw mode below, so process termination must first turn
 	// into cooperative session cancellation. This gives the bridge a chance to
 	// close the controller stream and run the terminal restore defer instead of
@@ -67,6 +78,35 @@ func BridgeWithTerminal(
 	ctx, stopSignals := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGHUP)
 	defer stopSignals()
 	defer stream.Close()
+
+	stdin, closeInput, err := ownInput(stdin)
+	if err != nil {
+		return err
+	}
+	var inputDone chan error
+	var inputErr error
+	inputFinished := false
+	if closeInput != nil {
+		// Registered before terminal restoration: stop resize observation and
+		// restore the terminal while this descriptor is still open, then
+		// interrupt and join the input copier before returning to its caller.
+		defer func() {
+			closeInput()
+			if inputDone != nil {
+				if !inputFinished {
+					inputErr = <-inputDone
+					// Closing the stream also releases a copier blocked in
+					// Write. Do not turn that teardown into process failure.
+					if errors.Is(inputErr, io.ErrClosedPipe) {
+						inputErr = nil
+					}
+				}
+				if retErr == nil && inputErr != nil && !errors.Is(inputErr, net.ErrClosed) && !errors.Is(inputErr, os.ErrClosed) {
+					retErr = inputErr
+				}
+			}
+		}()
+	}
 
 	restoreTerminal, err := prepareTerminal(stdin)
 	if err != nil {
@@ -96,7 +136,7 @@ func BridgeWithTerminal(
 		}
 	}()
 
-	inputDone := make(chan error, 1)
+	inputDone = make(chan error, 1)
 	go func() {
 		_, copyErr := io.Copy(stream, stdin)
 		if closer, ok := stream.(interface{ CloseWrite() error }); ok {
@@ -108,16 +148,26 @@ func BridgeWithTerminal(
 	}()
 
 	_, outputErr := io.Copy(stdout, stream)
+	if closeInput != nil {
+		// Preserve input failures that completed before output teardown.
+		select {
+		case inputErr = <-inputDone:
+			inputFinished = true
+		default:
+		}
+	}
 	_ = stream.Close()
 	if outputErr != nil && !errors.Is(outputErr, net.ErrClosed) && ctx.Err() == nil {
 		return outputErr
 	}
-	select {
-	case inputErr := <-inputDone:
-		if inputErr != nil && !errors.Is(inputErr, net.ErrClosed) && ctx.Err() == nil {
-			return inputErr
+	if closeInput == nil {
+		select {
+		case inputErr := <-inputDone:
+			if inputErr != nil && !errors.Is(inputErr, net.ErrClosed) && ctx.Err() == nil {
+				return inputErr
+			}
+		default:
 		}
-	default:
 	}
 	return ctx.Err()
 }

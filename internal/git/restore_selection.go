@@ -8,12 +8,12 @@ import (
 )
 
 // ValidateRepositorySelection accepts nil for the complete saved membership.
-// An explicit selection must contain one to eight distinct logical names.
+// An explicit selection must contain distinct supported distinct logical names.
 func ValidateRepositorySelection(repositories []string) error {
 	if repositories == nil {
 		return nil
 	}
-	if len(repositories) < 1 || len(repositories) > 8 {
+	if len(repositories) < 1 || len(repositories) > core.MaxWorkspaceRepositories {
 		return core.ErrInvalidArgument
 	}
 	seen := map[string]bool{}
@@ -40,7 +40,7 @@ func (s *RepositoryService) restoreSources(ctx context.Context, backend savedWor
 	if err != nil {
 		return nil, err
 	}
-	if len(all) < 1 || len(all) > 8 {
+	if len(all) < 1 || len(all) > core.MaxWorkspaceRepositories {
 		return nil, core.ErrIncompatibleState
 	}
 	byName := map[string]SavedWorkspace{}

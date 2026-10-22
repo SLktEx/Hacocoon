@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/SLktEx/Hacocoon/internal/adapters/incus"
@@ -124,8 +125,12 @@ func TestWorkspaceLifecycleCrossesRealProcessBoundary(t *testing.T) {
 		t.Fatalf("exec error = %T %v", err, err)
 	}
 
-	if err := service.Shell(ctx, "demo"); err != nil {
-		t.Fatalf("shell process path failed: %v", err)
+	var shellStdout, shellStderr strings.Builder
+	if err := service.ShellStream(ctx, "demo", strings.NewReader("printf 'shell output'; printf 'shell diagnostic' >&2; exit 19\n"), &shellStdout, &shellStderr); !errors.As(err, &exitErr) || exitErr.ExitCode() != 19 {
+		t.Fatalf("shell process path lost exit status: %v", err)
+	}
+	if shellStdout.String() != "shell output" || shellStderr.String() != "shell diagnostic" {
+		t.Fatalf("shell process path lost separate streams: %q / %q", shellStdout.String(), shellStderr.String())
 	}
 
 	if err := service.Delete(ctx, "demo"); err != nil {

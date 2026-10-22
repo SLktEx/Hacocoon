@@ -29,7 +29,6 @@ func (f *fakeProvider) ExecEnvironment(_ context.Context, ref string, _ core.Exe
 	f.execRef = ref
 	return core.ExecutionResult{ExitCode: 7}, nil
 }
-func (*fakeProvider) ShellEnvironment(context.Context, string) error { return nil }
 func (f *fakeProvider) DeleteEnvironment(_ context.Context, ref string) error {
 	f.deleted = ref
 	return nil

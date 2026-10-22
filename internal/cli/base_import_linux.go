@@ -23,7 +23,7 @@ func loadBaseImport(ctx context.Context, client baseImportClient, path string, r
 	if err != nil {
 		return basebuild.Result{}, err
 	}
-	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > basebuild.MaxArchiveBytes {
+	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > req.ArchiveLimit() || req.Validate() != nil {
 		return basebuild.Result{}, core.ErrInvalidArgument
 	}
 	stop := context.AfterFunc(ctx, func() { _ = file.Close() })

@@ -4,7 +4,7 @@
 
 日本語 | [**English**](controller-client-transport.md)
 
-Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、一時実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
+Status: **部分実装**。Local Unix domain プロトコル、Physical Host コントローラー、trusted-host 接続先投影、クライアント専用 `haco-host`、typed Environment API、対話ストリームは実装済み。製品の操作は[CLI参照](../reference/cli.ja.md)に集約します。ライフサイクル、スナップショット、転送、実行中のEnvironment内でのコマンド実行は実装済みです。PTY制御と同一PCのTCP転送は実装済みです。遠隔通信は今回の対象外です。
 
 ## 概要
 
@@ -78,6 +78,16 @@ localhost TCP listenerは不要です。将来remote 通信が本当に必要に
 Development/testでは`HACO_CONTROL_SOCKET`でlocal パスを上書きできます。ただしroot 権限でtrusted-hostを照合・調整する経路では、inherited environmentによって任意のHost ソケットへredirectされないよう固定のPhysical Host 接続先を使います。
 
 既存パスが安全な古いソケットだと証明できない場合は安全側で拒否します。
+
+リスナーはGoのパス名だけに基づく自動削除を無効にし、権限を設定する前に、
+bindしたソケットのファイル識別情報を記録します。権限設定失敗時を含む最初の
+後始末では、パスの識別情報とファイル種別が記録時と一致する場合だけ削除します。
+不存在・検査不能・置換済みのパスには触れず、下位リスナーのclose結果を維持します。
+これは識別情報の記録後に置き換えられ、その後変化していないパスを保護するものです。
+bindと識別情報の取得、パスに基づく権限設定、識別情報の照合と削除は、悪意ある
+ディレクトリ書き込みに対して不可分ではありません。接続先の親ディレクトリは
+信頼できる主体の管理下に保つ必要があります。この後始末の規則は、親の権限や
+起動時の古いソケットの扱いを変更しません。
 
 ## Trusted `haco-host` endpoint
 
@@ -154,6 +164,21 @@ inventory 検査は各5秒、疎通（起動待ちと検査）は10秒、server 
 
 Protocol mismatchは明示的なerrorとし、direct Incus accessへ代替経路しません。Controllerはaccepted 接続数も上限付きのにします。
 
+`Server.Serve`の各呼び出しは、その待受から受け入れた接続を所有します。
+キャンセル、待受の終了、接続受入のエラーで戻る前に、残っている接続を閉じ、
+待受のキャンセル監視を終了します。同じserverの別の待受には影響しません。
+共有する同時接続上限の256件には、通信を閉じた後も処理が続く場合を含め、
+接続処理が実際に戻るまで数えます。終了時の切断とハンドラーの通常の切断は
+同時に起こり得るため、接続実装は`net.Conn`の並行呼び出しとI/O中断の契約を
+満たす必要があります。終了処理は、その`Close`が戻ることを前提とします。
+
+これは通信の後始末であり、任意の操作が完了するまで待つ処理ではありません。
+ハンドラーのcontextには呼出元のキャンセル条件をそのまま渡します。
+クライアントが切断しただけでは、期限付きsetupをキャンセルしたり、その排他を
+解除したりしません。強制終了では応答やストリームが途切れる場合があります。
+EOFだけでは操作の成功を確認できず、既存のセッション完了確認や各APIの
+最終結果の確認が引き続き必要です。
+
 現在のtyped Environment APIは次を含みます。
 
 - 作成
@@ -182,7 +207,7 @@ haco-host env create --workspace <path> <environment>
 haco-host env status <environment>
 haco-host env exec <environment> -- <command...>
 haco-host env shell <environment>
-haco-host env delete <environment>
+haco-host env delete [-f] <environment>
 haco-host doctor
 ```
 
@@ -199,6 +224,26 @@ Stream handshakeでは可能な検証を成功 acknowledgementより前に行い
 必須とします。peerが識別子を省略した場合、clientは接続を閉じてプロトコルエラーを
 返します。EOFだけをプロセス終了の証拠にはしません。pre-1.0のclientとcontrollerは
 一緒に更新してください。[互換処理を廃止する判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
+
+Envのシェル実行は、Workspace、provider router、Incus adapterを通る、呼出元指定の
+ストリーム経路に一本化します。この任意機能を持たないproviderは未対応エラーを返します。
+未使用の標準入出力への直接接続とadapterが保持する標準ストリームは削除し、CLIや
+通信APIは変更しません。シェル準備はcatalogへのアクセス前に不正な名前を拒否します。
+[廃止の判断](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
+
+Linux/WSLの共通端末ブリッジは、ファイルとして渡されたパイプと端末に
+専用の入力記述子を用意します。接続先のEOF、出力失敗、中止では、端末を復元してから
+専用記述子を閉じ、入力転送処理の終了を待って戻ります。呼出元の記述子は閉じず、
+ファイル状態フラグも変更しません。
+パイプと端末は、保持した記述子の`/proc/self/fd`経由で同一性を確認して開き直し、
+制御端末を新たに取得しません。実際の端末deviceの同一性も別に確認します。
+PTYのmasterは開き直すと別の端末になるため拒否します。
+開き直せない場合や読み取り待ちを中断できない場合は
+明示的に失敗します。開き直す際は元のinodeの読み取り権限も確認されるため、
+資格情報の変更前から引き継いだ記述子でも拒否される場合があります。
+通常ファイルの読み取り位置、呼出元が所有する任意のreader、socket、端末以外のdeviceと
+他のplatformは従来の入力動作を維持し、ブロックする読み取りの中断は呼出元が担当します。
+読み取り待ちを監視できない通常ファイルでは、closeでもファイルシステム内の待ちを中断できません。
 
 setup進捗やデータ転送など、結果・イベントの形式を独自に定めるAPIには生の
 ストリームを使います。通信層が返すのはバイト列とEOFであり、完了確認は各APIの
@@ -270,20 +315,32 @@ BaselineはUnix domain ソケット上の通常のGo buffered 転送です。Loc
 - 残る`haco` コマンドをclassifyし、適切なものをコントローラークライアント interfaceへ移行
 - replacementが確立したcompatibility aliasをremoveまたは明示deprecate
 - 信頼された Host-local ツールをlong-termの`haco-host` 名前空間へ移行
-- stdout/stderr/exit メタデータを持つstreamed Execution framing
-- generic Environment 転送
 - 実需が出た場合のみremote 通信
 - profilingで必要性が示された場合のみFD passing / zero-copy
 
-## 一時実行のキャンセル
+## Environment実行とキャンセル
 
-状態: **通信と製品の一時実行 CLI は実装済み**。
-`run.execute` はストリーム handshake の後、サイズ制限付きの JSON 結果を1つ返します。
-入力 frame は受け付けません。クライアント接続の切断や想定外の入力で execution を中断します。
-正規の run 後始末は独立した期限を使い、呼出元は切断を削除成功と扱ってはいけません。
-結果の書込み期限は30秒です。通常のライフサイクル RPC の意味は変えません。
-pre-1.0 の旧 call 形式は置き換え、結果が不明な実行を自動で再試行しません。
-詳細は [ADR 0018](../adr/0018-ephemeral-run-cancellation.md) を参照してください。
+`environment.process` は `haco exec` と `haco env exec` の共通経路です。
+既存の起動中Environmentだけを選び、所有権・generation・Workspace leaseを確認し、
+削除と共通のlifecycle lockを実行終了まで保持します。停止中は失敗し、自動起動しません。
+切断時はコマンドを中断しますがEnvironmentを削除・停止しません。
+
+実行開始後にローカルで中止を確認した場合、同時に返された通信エラーや実行結果よりも
+CLIの終了値130を優先します。ローカルの中止がなければ、コマンドの終了値と通常の
+エラーをそのまま扱います。
+
+実 Incus の保守対象試験は、起動した shell が `sleep` に置き換わる前に PID と Linux の
+開始時刻を記録します。中止は終了値 130 を返し、既存の共通 30 秒期限内にその実行個体が
+消えたことを、Environment の停止や後片付けより前に確認する必要があります。
+通常の `haco exec` で不在（PID の再利用を含む）を観測し、未回収の zombie は残存と扱い、
+観測不明は失敗にします。Environment の登録情報、起動状態、guest の PID1 開始時刻が
+変わっていないことも確認し、停止・再起動による消失と区別します。`sleep` への移行完了や
+任意の子孫プロセスの回収を保証する試験ではありません。
+試験補助の単体試験だけでは実 Incus の受入成功とは扱いません。
+[ソースを特定した実機結果](../status/acceptance-evidence.ja.md#environment-exec-cancellation)を参照してください。
+後片付けは保存した作成記録を再確認し、不明・変更済みの対象は残します。名前を指定する
+CLI に比較と削除を一体で実行する機能はないため、この照合はその時点の確認に限ります。
+後片付けの失敗が起きても、先に失敗した観測結果は保持します。
 
 ## 日常の Environment 確認
 
@@ -332,12 +389,12 @@ Windows 操作権限も与えません。[対象識別の取得](storage-reclama
 
 `system.setup.progress`は既存の特権管理socketだけで利用する、上限付きJSONイベントstreamです。`system.setup`と一つの排他を共有し、同じserviceを呼びます。固定stage/state/reason、所要時間、controller生成の相関IDを返します。完了には最終frameを要求し、EOFを成功とみなしません。CLIは別の変更要求へfallbackしません。接続断でも時間制限付き処理が戻るまでserver側のlifecycle所有権を維持します。guest endpointや新たな管理権限は追加しません。[setup診断](trusted-host.ja.md#setupの進捗と失敗診断)を参照してください。
 
-## 一時実行の双方向転送
+## Environmentの双方向実行
 
-`run.process`は上限付きのstdin/stdout/stderr、入力終了・受信可能量、共通cleanup後の結果を転送します。
-接続切断時は中断し、結果や通信完了が確認できなければ不明として残します。既存の端末サイズ制御と
-providerの任意の実行契約を使い、clientにIncus管理権限を渡しません。[一時実行](temporary-execution.ja.md)と
-[ADR 0085](../adr/0085-bounded-process-streams.md)を参照してください。
+上限付きstdin/stdout/stderr、EOF・受信可能量、明示的な終了結果を転送します。
+`-i` は標準入力、`-t` はPTYを選び、`-it`も使えます。`-w`は作業ディレクトリを指定します。
+端末のサイズ変更と復元を共通処理で行い、guestへIncus管理権限を渡しません。
+旧一時実行の公開RPCは撤去しました。[作成仕様](environment-creation.ja.md)を参照してください。
 
 ## client側TCP待受
 
@@ -365,8 +422,11 @@ controller側の1時間の絶対期限が上限です。EOFを無視する接続
 
 永続Incus転送deviceは作りません。既存の`env forward`とSSH／previewは利用できます。
 Windows側待受から`wsl.exe`を通す公開companionは以下の実装候補です。導入済み
-Windows／WSL経由の受入は未確認です。通常のLinuxのtrusted Host clientはHost内で待ち受けます。
-汎用process callerの統合もpartialです。[ADR 0091](../adr/0091-client-stream-forwarding.ja.md)を参照してください。
+環境での結果と検証範囲は[コミットごとの受入記録](../status/acceptance-evidence.ja.md#incus-key-download)を参照してください。
+通常のLinuxのtrusted Host clientはHost内で待ち受けます。対応するシェルクライアントは
+管理ストリームを使い、未使用のEnvシェルの標準入出力への直接接続は削除済みです。
+[ADR 0107](../adr/0107-responsibility-layout-and-cli-retirement.ja.md#維持する境界)を参照してください。
+転送の契約は[ADR 0091](../adr/0091-client-stream-forwarding.ja.md)に従います。
 
 ## Windowsのプロセス転送
 
@@ -400,7 +460,9 @@ optionより先に置きます。Linux/Windowsで引数・対象準備・同時1
 表示します。利用者のPATH変更は不要です。`haco-wsl.exe`は導入・容量回収の責務を
 維持します。[配置と所有権](installer.md#windows-client-placement)を参照してください。
 明示的な公開入口も利用できます。WSLの`haco env tunnel`は導入済みWindowsクライアントを
-自動選択します。導入済みWindows/WSL/Incusの受入は残件です。
+自動選択します。導入済みWindows/WSL/Incusの転送手順は`1054688e`で成功しました。
+検証範囲は[受入記録](../status/acceptance-evidence.ja.md#incus-key-download)を参照してください。
+より広いプラットフォームの受入と過去の未解決の失敗は別途残ります。
 
 ## SSHとTCP転送の共通処理
 

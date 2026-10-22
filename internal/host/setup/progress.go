@@ -33,6 +33,8 @@ func ValidStage(s string) bool {
 		return true
 	case "setup", "client_validation", "project", "storage", "copy_recovery", "trusted_host_inspect", "trusted_host_create", "trusted_host_network", "controller_endpoint", "trusted_host_start", "host_tools", "wsl_interop", "client_mode", "client_provision", "host_storage", "host_packages", "host_tooling", "host_services", "notification_setup", "customization":
 		return true
+	case "default_image_read", "default_image_project", "default_image_resolve", "default_image_copy", "default_image_write":
+		return true
 	}
 	return false
 }

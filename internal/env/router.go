@@ -20,7 +20,6 @@ const (
 type Provider interface {
 	CreateEnvironment(context.Context, core.EnvironmentRuntimeSpec) (core.EnvironmentRuntime, error)
 	ExecEnvironment(context.Context, string, core.ExecutionRequest) (core.ExecutionResult, error)
-	ShellEnvironment(context.Context, string) error
 	DeleteEnvironment(context.Context, string) error
 }
 
@@ -121,14 +120,6 @@ func (r *Router) ExecEnvironment(ctx context.Context, rawRef string, req core.Ex
 		}
 	}
 	return provider.ExecEnvironment(ctx, ref, req)
-}
-
-func (r *Router) ShellEnvironment(ctx context.Context, rawRef string) error {
-	provider, ref, err := r.resolve(rawRef)
-	if err != nil {
-		return err
-	}
-	return provider.ShellEnvironment(ctx, ref)
 }
 
 func (r *Router) DeleteEnvironment(ctx context.Context, rawRef string) error {

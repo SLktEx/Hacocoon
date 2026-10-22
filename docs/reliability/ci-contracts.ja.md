@@ -150,3 +150,67 @@ repository test だけで Issue #615 の native 再現性条件を満たした�
 candidate/run に結び付いた結果を受入証拠に記録する。
 
 Windowsのnative受入は、子プロセスが既存の30分制限に達した場合も、そこまでの工程出力を保持する。各出力は4 MiBまでで、先に成功表示があっても時間切れは失敗のまま扱う。切り詰めた場合は明示する。子プロセスの終了を確認してから診断を返し、製品操作を再試行しない。
+
+## 任意のIncus VM実行能力
+
+既存Incusワークフローの`incus-vm-probe`は、新しいUbuntu 26.04のGitHub-hosted
+runnerで独立して動き、#258の基盤能力を調べます。HacocoonのVMバックエンドの
+追加やsystem-container契約の変更ではありません。完了した`supported`、または
+根拠のある`unsupported`を調査の成功とします。準備・イメージ取得・ネットワーク・
+観測・ライフサイクル・削除の失敗はジョブの失敗で、実行能力は未確定です。
+containerへの代替、失敗の黙認、self-hosted runnerの要件はありません。
+
+署名鍵を固定した7.0 LTS共通準備を再利用し、このrunnerだけに同じ版の`incus`
+パッケージとVM依存を追加します。ドライバー能力のキャッシュを更新するためdaemonを
+再起動します。`images:ubuntu/26.04 --vm`をCPU 2個・メモリー1 GiB・初期化済み既定
+プールのrootディスクで起動します。profileを継承せず、NIC・Hostディレクトリー・
+管理socketを接続しません。agent経由のexecでPID 1がsystemd、状態がrunning/degraded
+であることを確認し、停止を観測して再起動後も繰り返します。作成できたイメージの
+fingerprintを結果に保存します。
+
+`receipt.json`にはKVMデバイス・権限・クライアントAPIの観測、x86の仮想化
+フラグ、必須のIncus/kernel/OS識別情報、起動終了値、ライフサイクル結果、VM不在の確認を
+記録します。同梱の基盤記録にはrunnerイメージ・SHA・run・attemptを残します。
+クライアントの`/dev/kvm`アクセス権をroot daemonの権限と同一視しません。
+デバイス不在に加え、実際の起動がIncus固有のKVM不在エラーを返した場合だけ
+`unsupported`にします。サーバー識別情報の欠落・不正、不明な起動エラー、権限不足、
+タイムアウトは未確定のままです。
+生のprovider出力・任意設定・環境変数全体・認証情報は保存しません。
+
+エラー判定はIncus 7.0.1の
+[instance type拒否](https://github.com/lxc/incus/blob/v7.0.1/internal/server/instance/instance_utils.go)と
+[QEMUドライバー観測](https://github.com/lxc/incus/blob/v7.0.1/internal/server/instance/drivers/driver_qemu.go)、
+[remote operationのエラー形式](https://github.com/lxc/incus/blob/v7.0.1/client/util.go)に
+基づきます。他の観測はIncus JSON APIのinstance/server/operation項目を使い、
+空のoperation mapを省略しないraw応答の本文を検証します。raw queryはAPIエラーでも
+終了値0となるため、CLI終了値とAPI成功の両方を確認します。KVM診断には
+[Linux KVM API](https://docs.kernel.org/virt/kvm/api.html#kvm-get-api-version)を使います。
+試験は実行成功、正確な拒否、クライアント権限差、不正・失敗した観測、部分作成、
+タイムアウト、所有者差替え、削除失敗を扱います。fixtureの成功は実VMの受入ではありません。
+
+初期化済みの隔離Incusホストでも、GitHub専用分岐なしで同じ処理を実行できます。
+未使用の数字による名前と、自分だけが開ける記録先ディレクトリーを選びます。
+
+```bash
+receipt_root="$(mktemp -d)"
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py probe --name hci-123-1-vm
+TMPDIR="$receipt_root" python3 tools/incus_vm_probe.py cleanup --name hci-123-1-vm
+```
+
+記録先は`$receipt_root/hacocoon-incus-vm-probe-<uid>-hci-123-1-vm/receipt.json`です。
+`<uid>`は実行ユーザーの実効UIDです。CIもrunner temp配下に同じ規則の専用ディレクトリーを
+使います。任意の出力パスを指定する引数はありません。ディレクトリーを0700で排他的に
+作成し、所有者・権限・symlink不在を検証したdescriptorを保持します。固定名の0600記録を
+descriptor相対で読み書きし、既存ファイルの種類・識別の変化は拒否します。読み取りは64 KiB
+までです。更新は同じディレクトリー内の排他的な一時ファイルから置換し、記録と
+ディレクトリーをfsyncします。親パスの差替えで別の場所へ書き込みません。
+
+作成・削除は指定した名前とランダムな所有マーカーのVMだけです。既存名・既存記録先は
+拒否します。公開されたサーバー証明書のfingerprintを起動前に保存し、cleanupが別daemonを
+見ていたら停止します。削除前にdaemon処理の完了とVM所有を照合し、最後に不在を確認します。
+一覧取得の失敗は削除許可になりません。予約前にsetupが失敗して専用ディレクトリーが
+存在しなければcleanupは不要です。既存の不完全・不正な記録は失敗のままにします。
+通常のイメージ取得キャッシュはdaemonに残します。中断後の削除には元と同じ`TMPDIR`と
+名前を使い、次の調査には新しい名前かtemp rootを使います。`supported`はそのrunnerで
+将来の任意バックエンドを検討できる根拠であり、製品の受入や全GitHub runnerイメージの
+保証ではありません。決定的な実行結果は[受入記録](../status/acceptance-evidence.ja.md)に残します。

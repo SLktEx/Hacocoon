@@ -197,7 +197,7 @@ func (s *Selector) repositoryPaths(work core.Workspace) (map[string]string, erro
 	if err != nil {
 		return nil, err
 	}
-	if object.ID != id || object.Kind != "work" || object.State != "ready" || len(object.Members) > 8 || core.WorkspaceID("workspace:managed:"+object.Owner) != work.ID {
+	if object.ID != id || object.Kind != "work" || object.State != "ready" || len(object.Members) > core.MaxWorkspaceRepositories || core.WorkspaceID("workspace:managed:"+object.Owner) != work.ID {
 		return nil, core.ErrCapabilityStale
 	}
 	owner, err := hex.DecodeString(object.Owner)

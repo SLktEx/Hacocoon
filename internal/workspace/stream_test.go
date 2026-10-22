@@ -14,6 +14,8 @@ import (
 type shellStreamProvider struct {
 	*fakeEnvironmentRuntime
 	calls    int
+	shellRef string
+	shellErr error
 	terminal core.TerminalMetadata
 }
 

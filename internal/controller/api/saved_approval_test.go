@@ -23,7 +23,7 @@ func (f *savedWireCapabilities) RequestWithDecision(ctx context.Context, r core.
 func TestSavedApprovalCrossesControllerStream(t *testing.T) {
 	service := &savedWireCapabilities{}
 	path := doctorTestSocket(t, func(s *control.Server) {
-		if err := RegisterGeneral(s, fakeBases{}, fakeRunner{}, fakeEvents{}, service); err != nil {
+		if err := RegisterGeneral(s, fakeBases{}, fakeEvents{}, service); err != nil {
 			t.Fatal(err)
 		}
 	})

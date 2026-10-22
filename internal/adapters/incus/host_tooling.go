@@ -4,14 +4,21 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strconv"
 	"time"
 
+	installtools "github.com/SLktEx/Hacocoon/install"
 	"github.com/SLktEx/Hacocoon/internal/core"
 	"github.com/SLktEx/Hacocoon/internal/host/setup"
 )
 
 //go:embed host_tooling.py
-var hostToolingScript string
+var hostToolingSource string
+
+//go:embed host_packer.py
+var hostPackerScript string
+
+var hostToolingScript = "INCUS_LTS_SCRIPT = " + strconv.Quote(installtools.IncusLTS) + "\n" + hostPackerScript + "\n" + hostToolingSource
 
 // Incus start and systemctl's private socket can be ready before the system
 // D-Bus used by systemd-run. Probe that exact bus before dispatching a mutation.
@@ -49,8 +56,13 @@ func (b *PersistentResourceBackend) ProvisionHostTools(ctx context.Context, sour
 		(i.Config["security.privileged"] != "" && i.Config["security.privileged"] != "false") {
 		return core.ErrRecoveryRequired
 	}
-	for _, stage := range []string{"host_packages", "host_tooling", "host_services"} {
-		if err := hostsetup.Step(ctx, stage, func() error {
+	for _, stage := range []string{"host_packages", "host_tooling", "host_services", "host_packer"} {
+		if err := hostsetup.Step(ctx, func() string {
+			if stage == "host_packer" {
+				return "host_tooling"
+			}
+			return stage
+		}(), func() error {
 			seconds := int64(600)
 			if deadline, ok := ctx.Deadline(); ok {
 				if remaining := int64(time.Until(deadline).Seconds()) - 10; remaining < seconds {

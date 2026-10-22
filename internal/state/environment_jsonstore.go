@@ -11,20 +11,23 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/core"
 )
 
-const environmentStateVersion = 16 // 9 was an unpublished replacement prototype; reject it.
+const environmentStateVersion = 17 // 9 was an unpublished replacement prototype; reject it.
 const previousEnvironmentStateVersion = 2
 
 type environmentFileState struct {
-	ResourceGenerations map[string]core.ResourceGeneration `json:"resource_generations,omitempty"`
-	WorkspaceCopies     map[string]snapshotWorkspaceCopy   `json:"snapshot_workspace_copies,omitempty"`
-	Restores            map[string]core.SnapshotRestore    `json:"restores,omitempty"`
-	BaseAssets          map[string]core.BaseAsset          `json:"base_assets,omitempty"`
-	Snapshots           map[string]core.Snapshot           `json:"snapshots,omitempty"`
-	PersistentResources map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
-	Version             int                                `json:"version"`
-	Environments        map[string]core.Environment        `json:"environments"`
-	Leases              map[string]core.WorkspaceLease     `json:"workspace_leases,omitempty"`
-	EphemeralRuns       map[string]core.EphemeralRun       `json:"ephemeral_runs,omitempty"`
+	OwnedWorkspaceCleanup map[string]core.Workspace          `json:"owned_workspace_cleanup,omitempty"`
+	DefaultImage          core.BaseName                      `json:"default_image,omitempty"`
+	LastOpened            string                             `json:"last_opened,omitempty"`
+	ResourceGenerations   map[string]core.ResourceGeneration `json:"resource_generations,omitempty"`
+	WorkspaceCopies       map[string]snapshotWorkspaceCopy   `json:"snapshot_workspace_copies,omitempty"`
+	Restores              map[string]core.SnapshotRestore    `json:"restores,omitempty"`
+	BaseAssets            map[string]core.BaseAsset          `json:"base_assets,omitempty"`
+	Snapshots             map[string]core.Snapshot           `json:"snapshots,omitempty"`
+	PersistentResources   map[string]core.PersistentResource `json:"persistent_resources,omitempty"`
+	Version               int                                `json:"version"`
+	Environments          map[string]core.Environment        `json:"environments"`
+	Leases                map[string]core.WorkspaceLease     `json:"workspace_leases,omitempty"`
+	EphemeralRuns         map[string]core.EphemeralRun       `json:"ephemeral_runs,omitempty"`
 }
 
 type EnvironmentJSONStore struct {
@@ -38,16 +41,17 @@ func NewEnvironmentJSONStore(path string) *EnvironmentJSONStore {
 
 func newEnvironmentFileState() environmentFileState {
 	return environmentFileState{
-		ResourceGenerations: map[string]core.ResourceGeneration{},
-		WorkspaceCopies:     map[string]snapshotWorkspaceCopy{},
-		Restores:            map[string]core.SnapshotRestore{},
-		BaseAssets:          map[string]core.BaseAsset{},
-		Snapshots:           map[string]core.Snapshot{},
-		PersistentResources: map[string]core.PersistentResource{},
-		Version:             environmentStateVersion,
-		Environments:        map[string]core.Environment{},
-		Leases:              map[string]core.WorkspaceLease{},
-		EphemeralRuns:       map[string]core.EphemeralRun{},
+		OwnedWorkspaceCleanup: map[string]core.Workspace{},
+		ResourceGenerations:   map[string]core.ResourceGeneration{},
+		WorkspaceCopies:       map[string]snapshotWorkspaceCopy{},
+		Restores:              map[string]core.SnapshotRestore{},
+		BaseAssets:            map[string]core.BaseAsset{},
+		Snapshots:             map[string]core.Snapshot{},
+		PersistentResources:   map[string]core.PersistentResource{},
+		Version:               environmentStateVersion,
+		Environments:          map[string]core.Environment{},
+		Leases:                map[string]core.WorkspaceLease{},
+		EphemeralRuns:         map[string]core.EphemeralRun{},
 	}
 }
 
@@ -91,6 +95,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 	if data.ResourceGenerations == nil {
 		data.ResourceGenerations = map[string]core.ResourceGeneration{}
 	}
+	if data.OwnedWorkspaceCleanup == nil {
+		data.OwnedWorkspaceCleanup = map[string]core.Workspace{}
+	}
 	if err := normalizeEnvironmentState(&data); err != nil {
 		return environmentFileState{}, err
 	}
@@ -98,6 +105,9 @@ func (s *EnvironmentJSONStore) readEnvironments() (environmentFileState, error) 
 }
 
 func (s *EnvironmentJSONStore) writeEnvironments(data environmentFileState) error {
+	if err := validateOwnedWorkspaceCleanup(data); err != nil {
+		return err
+	}
 	if err := validateEnvironmentResources(data); err != nil {
 		return err
 	}

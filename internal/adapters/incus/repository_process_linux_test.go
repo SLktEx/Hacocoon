@@ -242,6 +242,9 @@ func TestRepositoryPopulateDetachesWorkspaceBeforeReturningSuccess(t *testing.T)
 					}
 					return repositoryJSON(t, observed), nil
 				}
+				if reflect.DeepEqual(args, []string{"query", "/1.0/instances/haco-host?project=hacocoon"}) {
+					return repositoryJSON(t, map[string]any{"name": "haco-host", "type": "container", "config": map[string]string{trustedHostRoleKey: trustedHostRoleValue}, "devices": map[string]any{}, "expanded_devices": map[string]any{}}), nil
+				}
 				root := "/var/lib/hacocoon-workspaces"
 				if kind == "repo" {
 					root = "/var/lib/hacocoon-repos"

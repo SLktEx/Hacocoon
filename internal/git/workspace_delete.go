@@ -63,6 +63,9 @@ func (s *RepositoryService) DeleteWorkspace(ctx context.Context, id, owner strin
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	object, err := s.readObject("work", id)
+	if errors.Is(err, core.ErrNotFound) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

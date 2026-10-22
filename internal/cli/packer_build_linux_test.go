@@ -3,33 +3,30 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"github.com/SLktEx/Hacocoon/internal/core"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/SLktEx/Hacocoon/internal/base/build"
-	"github.com/SLktEx/Hacocoon/internal/controller/api"
-	"github.com/SLktEx/Hacocoon/internal/controller/transport"
-	"github.com/SLktEx/Hacocoon/internal/core"
+	basebuild "github.com/SLktEx/Hacocoon/internal/base/build"
+	controlapi "github.com/SLktEx/Hacocoon/internal/controller/api"
+	control "github.com/SLktEx/Hacocoon/internal/controller/transport"
 )
 
 type cliPackerFixture struct {
-	calls []basebuild.Definition
-	fail  bool
+	calls      int
+	definition basebuild.Definition
+	result     basebuild.Result
+	failure    error
 }
 
-func (f *cliPackerFixture) Build(_ context.Context, d basebuild.Definition) (basebuild.Result, error) {
-	f.calls = append(f.calls, d)
-	if f.fail {
-		return basebuild.Result{State: "failed", Stage: "validate", Execution: &core.ExecutionResult{ExitCode: 2, Stderr: "private-source\x1b[2J"}}, core.ErrRuntimeUnavailable
-	}
-	return basebuild.Result{State: "ready", Base: core.BaseInfo{Name: d.Name}}, nil
+func (f *cliPackerFixture) Build(_ context.Context, definition basebuild.Definition) (basebuild.Result, error) {
+	f.calls++
+	f.definition = definition
+	return f.result, f.failure
 }
-
-func TestPackerBuildCLITransfersFilesAndGatesPrivateFailureOutput(t *testing.T) {
-	setCLITestLocale(t, "en_US.UTF-8")
+func TestPackerCannotReachControllerDefinitionBuilder(t *testing.T) {
 	fixture := &cliPackerFixture{}
 	server := control.NewServer()
 	if err := controlapi.RegisterBaseBuild(server, fixture); err != nil {
@@ -46,61 +43,65 @@ func TestPackerBuildCLITransfersFilesAndGatesPrivateFailureOutput(t *testing.T) 
 	t.Cleanup(func() { cancel(); <-done })
 	t.Setenv("HACO_CONTROL_SOCKET", socket)
 	directory := t.TempDir()
-	files := map[string]string{"base.pkr.hcl": "source \"null\" \"base\" {}\n", "setup.sh": "printf '%s' '$literal'\n", ".env": "must-not-transfer"}
-	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(data), 0600); err != nil {
-			t.Fatal(err)
+	if err := os.WriteFile(filepath.Join(directory, "base.pkr.hcl"), []byte("source"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"base", "build", "--name", "../invalid", directory},
+		{"base", "build", "--name", "tools", "--from", "haco/ubuntu-26.04", directory},
+		{"base", "build", "--name", "tools", "--builder", "builder", directory},
+	} {
+		code, _, _ := captureRun(t, args...)
+		if code != 2 || fixture.calls != 0 {
+			t.Fatal("invalid request reached controller", code)
 		}
 	}
-	for _, failed := range []bool{false, true} {
-		fixture.fail = failed
-		for _, machine := range []bool{false, true} {
-			for _, output := range []bool{false, true} {
-				args := []string{"base", "build", "--name", "tools", "--from", "haco/ubuntu-26.04", "--builder", "packer-tools"}
-				if machine {
-					args = append(args, "--json")
-				}
-				if output {
-					args = append(args, "--output")
-				}
-				args = append(args, directory)
-				code, stdout, stderr := captureRun(t, args...)
-				if (code == 1) != failed || code > 1 {
-					t.Fatalf("exit=%d stderr=%q", code, stderr)
-				}
-				if strings.Contains(stdout+stderr, "\x1b") {
-					t.Fatal("guest terminal controls were displayed")
-				}
-				if strings.Contains(stdout+stderr, "private-source") != (failed && output) {
-					t.Fatal("private output opt-in differs", stdout, stderr)
-				}
-				if machine {
-					var receipt basebuild.Result
-					if err := json.Unmarshal([]byte(stdout), &receipt); err != nil {
-						t.Fatal(err)
-					}
-					if (receipt.Execution != nil) != (failed && output) {
-						t.Fatal("private JSON receipt differs", receipt)
-					}
-					if failed && receipt.Stage != "validate" {
-						t.Fatal("failure stage lost")
-					}
-				}
-			}
+
+}
+
+func TestJSONDefinitionCLIStillUsesCanonicalControllerBuild(t *testing.T) {
+	fixture := &cliPackerFixture{result: basebuild.Result{Base: core.BaseInfo{Name: "tools", Revision: core.BaseRevision("sha256:" + strings.Repeat("a", 64))}, State: "ready"}}
+	server := control.NewServer()
+	if err := controlapi.RegisterBaseBuild(server, fixture); err != nil {
+		t.Fatal(err)
+	}
+	socket := filepath.Join(t.TempDir(), "control.sock")
+	listener, err := control.ListenUnix(socket, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(ctx, listener) }()
+	t.Cleanup(func() { cancel(); <-done })
+	t.Setenv("HACO_CONTROL_SOCKET", socket)
+	file := filepath.Join(t.TempDir(), "base.json")
+	if err := os.WriteFile(file, []byte(`{"name":"tools","from":"source","run":"echo json-builder"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range []string{"ready", "publication-unconfirmed"} {
+		fixture.result.State = state
+		expected := 0
+		if state != "ready" {
+			fixture.failure = core.ErrRecoveryRequired
+			fixture.result.Builder = "retained-builder"
+			expected = 1
+		}
+		code, out, _ := captureRun(t, "base", "build", "--builder", "json-builder", "--json", file)
+		var result basebuild.Result
+		if code != expected || json.Unmarshal([]byte(out), &result) != nil || result.State != state || fixture.definition.BuilderName != "json-builder" || fixture.definition.Run != "echo json-builder" || fixture.definition.From != "source" {
+			t.Fatal(code, out, fixture.definition)
 		}
 	}
-	for _, got := range fixture.calls {
-		want := basebuild.Definition{Name: "tools", From: "haco/ubuntu-26.04", BuilderName: "packer-tools", Packer: &basebuild.PackerTemplate{Files: []basebuild.SourceFile{{Path: "base.pkr.hcl", Data: []byte(files["base.pkr.hcl"])}, {Path: "setup.sh", Data: []byte(files["setup.sh"])}}}}
-		if !reflect.DeepEqual(got, want) {
-			t.Fatal("HCL/script bytes or hidden-file exclusion changed", got)
+	before := fixture.calls
+	for _, args := range [][]string{{"--max-image-size", "2TiB", file}, {"--builder", "../foreign", file}, {"--unknown"}, {}, {"--help"}} {
+		code, _, _ := captureRun(t, append([]string{"base", "build"}, args...)...)
+		expected := 2
+		if len(args) > 0 && args[0] == "--help" {
+			expected = 0
 		}
-	}
-	code, _, _ := captureRun(t, "base", "build", "--name", "../invalid", directory)
-	if code != 2 || len(fixture.calls) != 8 {
-		t.Fatal("invalid request reached controller")
-	}
-	code, _, _ = captureRun(t, "base", "build", "--name", "tools", "--builder", "../tools", directory)
-	if code != 2 || len(fixture.calls) != 8 {
-		t.Fatal("invalid builder reached controller")
+		if code != expected || fixture.calls != before {
+			t.Fatal("invalid definition reached controller", args, code)
+		}
 	}
 }

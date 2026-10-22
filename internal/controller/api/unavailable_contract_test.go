@@ -14,7 +14,6 @@ import (
 	"github.com/SLktEx/Hacocoon/internal/base/build"
 	"github.com/SLktEx/Hacocoon/internal/controller/transport"
 	"github.com/SLktEx/Hacocoon/internal/core"
-	runapp "github.com/SLktEx/Hacocoon/internal/env/run"
 	"github.com/SLktEx/Hacocoon/internal/events"
 	"github.com/SLktEx/Hacocoon/internal/host/recipes"
 	"github.com/SLktEx/Hacocoon/internal/policy"
@@ -33,7 +32,7 @@ func TestUnavailableControllerCannotCreateReceiptsOrReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	spec := runapp.Spec{WorkspacePath: "/retained", Argv: []string{"true"}}
+	spec := core.ProcessRequest{Argv: []string{"true"}}
 	for _, tc := range []struct {
 		name string
 		call func() (any, error)
@@ -44,9 +43,6 @@ func TestUnavailableControllerCannotCreateReceiptsOrReplay(t *testing.T) {
 		}},
 		{"snapshot-create", func() (any, error) {
 			return client.Snapshot(ctx, SnapshotRequest{Operation: "create", Environment: "dev"})
-		}},
-		{"snapshot-restore", func() (any, error) {
-			return client.RestoreSnapshot(ctx, SnapshotRestoreRequest{ID: "snap-" + strings.Repeat("a", 32), Environment: "restored"})
 		}},
 		{"workspace-reference", func() (any, error) {
 			return client.WorkspaceWorkflow(ctx, WorkflowRequest{Operation: "reference", Reference: &workflow.Reference{Name: "saved"}})
@@ -59,9 +55,8 @@ func TestUnavailableControllerCannotCreateReceiptsOrReplay(t *testing.T) {
 		{"open-forward", func() (any, error) {
 			return client.OpenEnvironmentForward(ctx, core.EnvironmentTCPForward{Environment: "dev", Instance: "env-" + strings.Repeat("a", 32), Address: "127.0.0.1", Port: 8080})
 		}},
-		{"run", func() (any, error) { return client.Run(ctx, spec) }},
-		{"run-process", func() (any, error) {
-			return client.RunStream(ctx, spec, false, strings.NewReader(""), io.Discard, io.Discard)
+		{"exec-process", func() (any, error) {
+			return client.ExecStream(ctx, "dev", spec, strings.NewReader(""), io.Discard, io.Discard)
 		}},
 		{"setup", func() (any, error) { return nil, client.SetupHost(ctx, recipes.Update{}) }},
 		{"setup-progress", func() (any, error) { return nil, client.SetupHostProgress(ctx, recipes.Update{}, nil) }},
