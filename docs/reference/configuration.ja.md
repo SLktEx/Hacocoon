@@ -38,7 +38,8 @@ haco config --file configuration.json
 失敗時は編集したファイルを残します。保存成功だけでは接続中の通信を取り消しません。
 表示に失敗しても、設定の再適用や新たな許可は行いません。
 
-Git はリポジトリ・remote・ref・fast-forward を固定します。
+Git の保存済み承認範囲は repository・remote・target ref・update kind を固定します。
+管理者ルールでは明示的なワイルドカードを指定できますが、これは保存範囲より広い権限です。
 [Policy の意味](../design/policy-and-capability-foundation.md)と
 [Git の手順](../guides/git-workflow.ja.md)を参照してください。
 
@@ -62,6 +63,58 @@ Policy の詳細は通知内容 に載せません。[ADR 0027](../adr/0027-revi
 次要求への反映を確認します。製品 CLI／コントローラー E2E は確認・エディター・ファイル反映・
 競合拒否を扱います。導入済み Windows／WSL の受け入れを示すものではありません。
 
+
+## Capability の定義を調べる
+
+ルールを編集する前に、信頼された Host の実行中コントローラーに登録された
+本番用スキーマを確認できます。
+
+```bash
+haco config capabilities
+haco config capabilities --json
+```
+
+読み取り専用の定義であり、現在の Policy・認証情報・保留中の操作・Provider の
+利用可否を取得するものではありません。承認要求・操作実行・ルール変更・方針保存は
+行いません。定義のない Provider があれば、不完全な一覧を返さず失敗します。
+デモ用の `local.echo` は除外します。定義の説明と JSON は言語によらず共通で、
+コマンドの案内は日英に対応します。
+
+JSON の version `1` は `matching` と `capabilities` を含みます。Capability・操作・
+必須属性名はソート済みです。各操作は説明、`resource` の意味、必須 `attributes`、
+列挙可能な `values`、注意事項の `notes` を示します。CLI が別の一覧を持つのではなく、
+登録された Provider が定義を提供します。通常の操作準備や利用可否確認を回避できる
+という意味ではありません。
+
+Capability と action は完全一致です。resource・environment・各属性値は完全一致か
+明示的な `"*"` で照合し、部分的な glob は使えません。要求の全属性名が必要で、余分な
+属性も一致しません。空文字とキーの省略は別で、Environment の省略は空の要求だけに
+一致します。列挙値は正規化された要求の値で、意図した Policy のワイルドカードまで
+禁止するものではありません。通常は完全一致を使い、広い権限は明示的に確認します。
+Environment 単位の保存範囲は、さらに信頼された作成 ID に結び付きます。
+
+例えば、次の管理者ルールは `dev` から一つのホスト名への HTTPS 接続で承認を求めます。
+revision を保持したスナップショットの `policy.rules` に挿入します。
+これは置き換え用設定文書全体ではありません。
+
+```json
+{
+  "capability": "network.egress",
+  "action": "connect",
+  "resource": "example.com",
+  "environment": "dev",
+  "attributes": {"protocol": "https", "port": "443"},
+  "decision": "require-approval"
+}
+```
+
+`network.resolve/lookup` は独立した明示的 DNS 操作です。HTTP/HTTPS proxy は
+`network.egress/connect` の許可後に信頼された Host で名前解決し、同じ proxy 要求に
+二重の DNS 承認は求めません。network.connect は準備済み接続先の識別情報・アドレス・
+制限時間を別に示します。Git push は `target_ref` と `update_kind` を含み、後者の要求値は
+`fast-forward` または `create` です。Git の保存範囲で広げるのは `operation_id`・
+`old_oid`・`new_oid` のみです。AWS は account/profile/region と S3 の
+bucket/prefix/key の権限を説明し、実際の認証情報やアカウントの値は表示しません。
 
 ## 検証範囲
 

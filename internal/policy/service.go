@@ -53,6 +53,8 @@ type Service struct {
 	approval   ApprovalProvider
 	audit      AuditSink
 	providers  map[string]Provider
+	catalog    CapabilityCatalog
+	catalogErr error
 	now        func() time.Time
 }
 
@@ -71,12 +73,17 @@ func New(policy PolicyEvaluator, approval ApprovalProvider, audit AuditSink, pro
 		}
 		registered[name] = provider
 	}
+	// Discovery fails closed for incomplete metadata without changing the
+	// execution contract of existing provider implementations.
+	catalog, catalogErr := buildCapabilityCatalog(registered)
 	return &Service{
-		policy:    policy,
-		approval:  approval,
-		audit:     audit,
-		providers: registered,
-		now:       time.Now,
+		policy:     policy,
+		approval:   approval,
+		audit:      audit,
+		providers:  registered,
+		catalog:    catalog,
+		catalogErr: catalogErr,
+		now:        time.Now,
 	}, nil
 }
 
