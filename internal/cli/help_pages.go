@@ -35,7 +35,8 @@ var helpPages = []helpPage{
 	{Path: "inspect", Syntax: "[--json] ENV", Message: "command.env.status", Example: "haco inspect work"},
 
 	{Path: "setup", Syntax: "[--script <path> | --clear-script | --reapply-script | --script-result] [environment]", Message: "help.setup", Example: "haco setup dev"},
-	{Path: "config", Syntax: "[--edit | --file <file> | --json]", Message: "help.config", Example: "haco config"},
+	{Path: "config", Syntax: "[--edit | --file <file> | --json] | capabilities [--json]", Message: "help.config", Example: "haco config"},
+	{Path: "config capabilities", Syntax: "[--json]", Message: "config.capabilities_help", Example: "haco config capabilities"},
 	{Path: "approve", Syntax: "[--list] [--json] [request-id]", Message: "help.approve", Example: "haco approve --list"},
 	{Path: "doctor", Syntax: "[--json] [--fix] [environment]", Message: "help.doctor", Example: "haco doctor dev"},
 	{Path: "reclaim", Syntax: "[--yes | --status | --review [--yes]]", Message: "help.reclaim", Example: "haco reclaim --status"},

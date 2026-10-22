@@ -36,6 +36,10 @@ func runConfiguration(args []string) int {
 }
 
 func configurationCommand(ctx context.Context, client configurationClient, args []string, out, diagnostic io.Writer, edit func(context.Context, capability.PolicySnapshot) (capability.PolicySnapshot, string, error)) int {
+	if len(args) > 0 && args[0] == "capabilities" {
+		catalogClient, _ := client.(capabilityCatalogClient)
+		return capabilityCatalogCommand(ctx, catalogClient, args[1:], out, diagnostic)
+	}
 	flags := flag.NewFlagSet("haco config", flag.ContinueOnError)
 	configureCLIFlags(flags, diagnostic)
 	interactive := flags.Bool("edit", false, cliMessage("detail.config_edit"))

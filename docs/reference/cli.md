@@ -17,7 +17,7 @@ help and version require no controller.
 | Build identity | `haco version [--json]`, `haco --version` | [Build identity](build-release-identity.md) |
 | Host/project setup | `haco setup [--script <path> \| --clear-script] [environment]` | [Host](../design/trusted-host.md), [project](../design/project-setup.md); omitted target means trusted Host; Host-only `haco setup --reapply-script` and `haco setup --script-result` reapply or inspect user customization |
 | Diagnostics | `haco doctor [--json] [--fix] [environment]` | Host by default; failed/skipped checks return nonzero |
-| Policy | `haco config`, `--edit` or `--file <json>` | [Configuration](configuration.md) |
+| Policy | `haco config`, `--edit` or `--file <json>`; `haco config capabilities [--json]` | [Configuration](configuration.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [Subtree editing and Env application](experimental-vscode.md) |
 | Approval | `haco approve [--json] [request-id]`; `haco approve --list` | [Review](../design/pending-approval-review.md); interactive selection/saved choices |
 | Source | `haco repo add <URL>`; `list [--json]`; `delete <id>` | [Git](../guides/git-workflow.md); branch-independent registration |

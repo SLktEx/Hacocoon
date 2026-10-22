@@ -72,6 +72,14 @@ Audit directories and files are tightened to private permissions before security
 
 Capability names are unique identities. Duplicate or invalid provider names fail service construction instead of using last-registration-wins behavior.
 
+Registered production providers also own static Policy schema descriptors. The
+service snapshots and validates them at registration; metadata discovery fails
+closed if any production provider lacks a descriptor. Discovery is exposed only
+on the trusted management API and never evaluates Policy or invokes execution.
+The local demonstration provider is not advertised. See
+[capability discovery](../reference/configuration.md#discover-capability-schemas)
+for the command, JSON shape and matching semantics.
+
 ## In scope
 
 - Capability-provider interface.
