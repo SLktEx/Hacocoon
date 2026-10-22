@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Component regressions for read-only Windows user-path assertions."""
+import base64
+import copy
 import importlib.util
 from contextlib import contextmanager, ExitStack, redirect_stdout
 import io
@@ -417,7 +419,225 @@ class EnvironmentBoundaryTest(unittest.TestCase):
             self.assertEqual(gate.inherited_child_environment(), {"RUNNER_TEMP": "fixture-directory"})
 
 
+class DNSMasqRestartEvidenceTest(unittest.TestCase):
+    # Fixed scalar/argv fixture follows Incus shared/subprocess.Process and
+    # internal/server/network/driver_bridge.go, not localized CLI output:
+    # https://github.com/lxc/incus/commit/5472f997327b4c991a821f37ebaf004bc32e6850
+    # https://github.com/lxc/incus/commit/80774bd96b31737acf35b1bf6d1bb8592ba33a67
+    # Zabbly depends on dnsmasq-base; its Ubuntu 26.04 executable is:
+    # https://packages.ubuntu.com/resolute/amd64/dnsmasq-base/filelist
+    BOOT = "8e951216-a1e4-4397-818a-4710984907ad"
+    NS = {"boot": BOOT, "init_start": 200, "pidns": 222}
+    ARCHIVE = gate.BOOT_ARCHIVE + "/retired-" + "a" * 32 + "/networks/haco-host0/dnsmasq.pid"
+    COMMAND = (b"dnsmasq\0--keep-in-foreground\0--interface=haco-host0\0"
+               b"--interface-name=_gateway.incus,haco-host0\0"
+               b"--conf-file=/var/lib/incus/networks/haco-host0/dnsmasq.raw\0-u\0incus\0")
+
+    def record(self, *, pid=400, started=300, legacy=False):
+        value = (f"name: dnsmasq\nargs: [--keep-in-foreground, --interface=haco-host0,\n"
+                 f"    --conf-file=/var/lib/incus/networks/haco-host0/dnsmasq.raw, -u, incus]\n"
+                 f'apparmor: ""\ncwd: ""\npid: {pid}\n')
+        if not legacy:
+            value += f"start_time: {started}\nboot_id: {self.BOOT}\n"
+        return (value + "uid: 0\ngid: 0\nset_groups: false\nsysprocattr: null\n").encode()
+
+    def snapshot(self, *, old=False, legacy=False, version="7.0.2"):
+        record = self.record(pid=100 if old else 400, started=150 if old else 300, legacy=legacy)
+        return {"namespace": dict(self.NS, init_start=100, pidns=111) if old else dict(self.NS),
+                "record": record, "identity": gate.dnsmasq_identity(record),
+                "archives": {}, "version": version}
+
+    @contextmanager
+    def observation(self, *, legacy=False, version="7.0.2"):
+        self.raw_record = self.record(legacy=legacy)
+        self.command = self.COMMAND
+        self.executable = "/usr/sbin/dnsmasq"
+        self.stat = "400 (dnsmasq worker) S " + "0 " * 18 + "300 0"
+        self.pidns = "222"
+        self.files = {gate.DNSMASQ_RECORD: self.raw_record}
+        self.paths = ""
+        def inspect(*args):
+            if args == ("base64", "--wrap=0", "--", "/proc/400/cmdline"):
+                return base64.b64encode(self.command).decode()
+            if args[:3] == ("base64", "--wrap=0", "--"):
+                return base64.b64encode(self.files[args[3]]).decode()
+            if args == ("readlink", "--", "/proc/400/exe"):
+                return self.executable
+            if args == ("cat", "/proc/400/stat"):
+                return self.stat
+            if args == ("stat", "-Lc", "%i", "/proc/400/ns/pid"):
+                return self.pidns
+            if args == ("find", gate.BOOT_ARCHIVE, "-type", "f", "-path", "*/networks/haco-host0/dnsmasq.pid"):
+                return self.paths
+            if args == ("incus", "query", "/1.0"):
+                return json.dumps({"environment": {"server_version": version}})
+            raise AssertionError(f"unexpected or mutating observation: {args}")
+        with patch.object(gate, "inspect_root", side_effect=inspect) as observer, \
+                patch.object(gate, "boot_guard_namespace", return_value=dict(self.NS)) as namespace:
+            yield observer, namespace
+
+    def test_supported_serialized_identity_and_legacy_record(self):
+        self.assertEqual(gate.dnsmasq_identity(self.record()), (400, 300, self.BOOT))
+        self.assertIsNone(gate.dnsmasq_identity(self.record(legacy=True)))
+        for legacy, version in ((False, "7.0.2"), (False, "7.0.10"), (True, "7.0.1")):
+            with self.subTest(legacy=legacy, version=version), self.observation(legacy=legacy, version=version):
+                self.assertEqual(gate.dnsmasq_restart_snapshot(), self.snapshot(legacy=legacy, version=version))
+
+    def test_new_archive_must_retain_exact_previous_bytes(self):
+        previous, current = self.snapshot(old=True, legacy=True, version="7.0.1"), self.snapshot(legacy=True, version="7.0.1")
+        current["archives"][self.ARCHIVE] = previous["record"]
+        gate.assert_dnsmasq_restart(previous, current)
+        for changed in (previous["record"].rstrip(), self.record(), b"unrelated historical record"):
+            with self.subTest(record=changed):
+                current["archives"][self.ARCHIVE] = changed
+                with self.assertRaisesRegex(RuntimeError, "retained exactly"):
+                    gate.assert_dnsmasq_restart(previous, current)
+
+    def test_historical_archive_cannot_substitute_for_this_restart(self):
+        previous, current = self.snapshot(old=True, legacy=True), self.snapshot(legacy=True)
+        previous["archives"][self.ARCHIVE] = previous["record"]
+        current["archives"] = dict(previous["archives"])
+        with self.assertRaisesRegex(RuntimeError, "lacks archive"):
+            gate.assert_dnsmasq_restart(previous, current)
+        current["archives"][self.ARCHIVE] = b"changed"
+        with self.assertRaisesRegex(RuntimeError, "not retained exactly"):
+            gate.assert_dnsmasq_restart(previous, current)
+        current["archives"] = {}
+        with self.assertRaisesRegex(RuntimeError, "not retained exactly"):
+            gate.assert_dnsmasq_restart(previous, current)
+
+    def test_clean_stop_requires_fresh_identity_and_supported_provider(self):
+        previous, current = self.snapshot(old=True), self.snapshot()
+        gate.assert_dnsmasq_restart(previous, current)
+        for target, field, value in (("previous", "identity", None), ("current", "identity", None),
+                                     ("previous", "version", "7.0.1"), ("current", "version", "7.0.1"),
+                                     ("current", "identity", previous["identity"]),
+                                     ("current", "namespace", previous["namespace"])):
+            before, after = copy.deepcopy(previous), copy.deepcopy(current)
+            (before if target == "previous" else after)[field] = value
+            with self.subTest(target=target, field=field), self.assertRaises(RuntimeError):
+                gate.assert_dnsmasq_restart(before, after)
+        current["archives"][self.ARCHIVE] = b"wrong record"
+        with self.assertRaisesRegex(RuntimeError, "retained exactly"):
+            gate.assert_dnsmasq_restart(previous, current)  # Cannot fall back past bad archive evidence.
+
+    def test_malformed_missing_or_duplicate_identity_fails_closed(self):
+        record = self.record()
+        bad = [b"", b"x" * 65537, record + b"pid: 401\n", record + b"start_time: 300\n",
+               record + f"boot_id: {self.BOOT}\n".encode(), record + b"name: dnsmasq\n",
+               record.replace(b"pid: 400", b"pid: 0"), record.replace(b"pid: 400", b"pid: 2147483648"),
+               record.replace(b"pid: 400", b"pid: true"), record.replace(b"pid: 400", b'pid: "400"'),
+               record.replace(b"start_time: 300", b"start_time: -1"),
+               record.replace(b"start_time: 300", b"start_time: 0"),
+               record.replace(b"start_time: 300", b"start_time: 18446744073709551616"),
+               record.replace(b"start_time: 300\n", b""),
+               record.replace(f"boot_id: {self.BOOT}\n".encode(), b""),
+               record.replace(self.BOOT.encode(), self.BOOT.upper().encode()),
+               record.replace(self.BOOT.encode(), b"not-a-uuid"),
+               record.replace(b"pid: 400", b"pid : 400"),
+               record.replace(b"pid: 400", b"pid: 400\n  pid: 401"), record + b"---\npid: 500\n"]
+        for malformed in bad:
+            with self.subTest(record=malformed), self.assertRaises((RuntimeError, ValueError)):
+                gate.dnsmasq_identity(malformed)
+
+    def test_wrong_boot_start_namespace_process_and_command_are_rejected(self):
+        changes = [("stat", "400 (dnsmasq) S " + "0 " * 18 + "301"),
+                   ("stat", "400 (dnsmasq) Z " + "0 " * 18 + "300"),
+                   ("stat", "not proc stat"), ("pidns", "333"),
+                   ("executable", "/tmp/dnsmasq"), ("executable", "/usr/bin/sleep"),
+                   ("command", self.COMMAND.replace(b"dnsmasq\0", b"other\0", 1)),
+                   ("command", self.COMMAND.replace(b"haco-host0/dnsmasq.raw", b"other/dnsmasq.raw")),
+                   ("command", self.COMMAND + b"--conf-file=/tmp/other\0"),
+                   ("command", self.COMMAND + b"-C/tmp/other\0"),
+                   ("command", self.COMMAND + b"--interface\0other\0"),
+                   ("command", self.COMMAND + b"-iother\0"),
+                   ("command", self.COMMAND.replace(b"--interface=haco-host0", b"--interface=other")),
+                   ("command", self.COMMAND.rstrip(b"\0"))]
+        for field, value in changes:
+            with self.subTest(field=field, value=value), self.observation(), self.assertRaises(RuntimeError):
+                setattr(self, field, value)
+                gate.dnsmasq_restart_snapshot()
+        for namespace in (dict(self.NS, boot="b312cf19-3e4c-48aa-8e90-d15c64a3853f"),
+                          dict(self.NS, init_start=301)):
+            with self.observation() as (_, marker), self.assertRaises(RuntimeError):
+                marker.return_value = namespace
+                gate.dnsmasq_restart_snapshot()
+
+    def test_failed_or_changing_observations_do_not_become_absence(self):
+        for failure in (FileNotFoundError(), PermissionError(),
+                        gate.subprocess.CalledProcessError(1, "cat", output=b"plausible"),
+                        gate.subprocess.TimeoutExpired("cat", 1)):
+            with self.subTest(failure=type(failure).__name__), self.observation() as (observer, _):
+                observer.side_effect = failure
+                with self.assertRaises(type(failure)):
+                    gate.dnsmasq_restart_snapshot()
+        with self.observation() as (_, marker), self.assertRaisesRegex(RuntimeError, "changed during"):
+            marker.side_effect = [self.NS, dict(self.NS, pidns=333)]
+            gate.dnsmasq_restart_snapshot()
+        with self.observation() as (observer, _), self.assertRaisesRegex(RuntimeError, "changed during"):
+            inspect, queries = observer.side_effect, []
+            def changed_version(*args):
+                if args == ("incus", "query", "/1.0"):
+                    queries.append(args)
+                    if len(queries) > 1:
+                        return '{"environment":{"server_version":"7.0.3"}}'
+                return inspect(*args)
+            observer.side_effect = changed_version
+            gate.dnsmasq_restart_snapshot()
+        for helper, values in (("inspect_bytes", [self.record(), self.COMMAND, self.COMMAND, self.record() + b"\n"]),
+                               ("dnsmasq_process", [(300, 222, self.COMMAND), (300, 222, self.COMMAND + b"other\0")]),
+                               ("dnsmasq_archives", [{}, {self.ARCHIVE: self.record()}])):
+            with self.subTest(helper=helper), self.observation(), patch.object(gate, helper, side_effect=values):
+                with self.assertRaisesRegex(RuntimeError, "changed during"):
+                    gate.dnsmasq_restart_snapshot()
+
+    def test_unsupported_versions_and_archive_paths_fail(self):
+        for version in ("7.0.0", "7.1.0", "8.0.2", "7.0.2-dev", "7.0.02", None, 7):
+            with self.subTest(version=version), self.observation(version=version), self.assertRaises(RuntimeError):
+                gate.dnsmasq_restart_snapshot()
+        for path in (self.ARCHIVE + "\n" + self.ARCHIVE,
+                     gate.BOOT_ARCHIVE + "/other/networks/haco-host0/dnsmasq.pid"):
+            with self.observation(), self.assertRaisesRegex(RuntimeError, "archive path"):
+                self.paths = path
+                gate.dnsmasq_archives()
+
+    def test_byte_reader_preserves_record_whitespace_and_checks_command_exit(self):
+        with patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=base64.b64encode(b"record\n\n"))) as run:
+            self.assertEqual(gate.inspect_bytes(gate.DNSMASQ_RECORD), b"record\n\n")
+            self.assertTrue(run.call_args.kwargs["check"])
+        with patch.object(gate, "inspect_root", return_value="not base64"), self.assertRaises(ValueError):
+            gate.inspect_bytes(gate.DNSMASQ_RECORD)
+
+
 class JourneyModeTest(unittest.TestCase):
+    def test_restart_evidence_brackets_ordinary_stop_and_all_host_checks(self):
+        phases = []
+        previous, current = {"before": True}, {"after": True}
+        with ExitStack() as stack:
+            for name in ("run_bat", "assert_host", "host_session", "assert_doctor_report"):
+                stack.enter_context(patch.object(gate, name))
+            stack.enter_context(patch.object(gate.subprocess, "run"))
+            stack.enter_context(patch.object(gate, "observe", return_value="{}"))
+            stack.enter_context(patch.object(gate, "sudo_policy_digest", return_value="unchanged"))
+            snapshots = stack.enter_context(patch.object(gate, "dnsmasq_restart_snapshot", side_effect=[previous, current]))
+            acceptance = stack.enter_context(patch.object(gate, "assert_dnsmasq_restart"))
+            def phase(name, action, *args, **kwargs):
+                phases.append(name)
+                if name == "terminate":
+                    self.assertEqual(snapshots.call_count, 1)
+                return action(*args, **kwargs)
+            stack.enter_context(patch.object(gate, "run_phase", side_effect=phase))
+            gate.run_user_journey(Path("package"), use_cached_wsl_image=True)
+            acceptance.assert_called_once_with(previous, current)
+            self.assertEqual(snapshots.call_count, 2)
+            self.assertEqual(gate.assert_host.call_count, 3)
+            self.assertEqual(gate.host_session.call_count, 3)
+            self.assertEqual(gate.run_bat.call_count, 2)
+            self.assertEqual(gate.subprocess.run.call_count, 2)
+        self.assertEqual(phases, ["initial-install", "installed-host-assertions", "initial-host-entry",
+                                 "terminate", "restart-host-entry", "restarted-host-assertions",
+                                 "reinstall", "reinstalled-host-entry", "reinstalled-host-assertions"])
+
     def test_fresh_only_stops_before_restart_and_reinstall(self):
         phases = []
         def record(name, *args, **kwargs):
