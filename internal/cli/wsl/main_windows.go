@@ -121,11 +121,11 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	if err != nil {
 		fields := []any{"component", "host", "operation", operation, "error", err}
 		if args[0] == "_launch" {
-			stage, nativeCode := wslreclaim.WorkerLaunchFailure(err)
-			_ = json.NewEncoder(stdout).Encode(reclamation.InvocationFailureReceipt{Failure: reclamation.InvocationFailure{Phase: "launch", Stage: stage, NativeError: nativeCode}})
-			fields = append(fields, "stage", stage)
-			if nativeCode != 0 {
-				fields = append(fields, "native_error", nativeCode)
+			failure := wslreclaim.WorkerLaunchFailure(err)
+			_ = json.NewEncoder(stdout).Encode(reclamation.InvocationFailureReceipt{Failure: failure})
+			fields = append(fields, "stage", failure.Stage)
+			if failure.NativeError != 0 {
+				fields = append(fields, "native_error", failure.NativeError)
 			}
 		}
 		logger.Error("Windows continuation failed", fields...)

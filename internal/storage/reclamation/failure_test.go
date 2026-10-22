@@ -41,3 +41,51 @@ func TestInvocationDiagnosticsPreserveNativeCodeAndRejectCrossPhaseStages(t *tes
 		})
 	}
 }
+
+func TestJobObservationStatesAreStrictAndOptional(t *testing.T) {
+	truth, falsity := true, false
+	flags := &reclamation.JobLimitFlags{BreakawayOK: &falsity, SilentBreakawayOK: &truth, KillOnJobClose: &falsity}
+	for _, tc := range []struct {
+		name        string
+		observation reclamation.JobObservation
+		valid       bool
+	}{
+		{"observed", reclamation.JobObservation{State: "observed", Flags: flags}, true},
+		{"not in job", reclamation.JobObservation{State: "not_in_job"}, true},
+		{"membership unavailable", reclamation.JobObservation{State: "unavailable", UnavailableAt: "membership", NativeError: 0xffffffff}, true},
+		{"limits unavailable", reclamation.JobObservation{State: "unavailable", UnavailableAt: "limits"}, true},
+		{"missing flags", reclamation.JobObservation{State: "observed"}, false},
+		{"missing boolean", reclamation.JobObservation{State: "observed", Flags: &reclamation.JobLimitFlags{}}, false},
+		{"false absent flags", reclamation.JobObservation{State: "not_in_job", Flags: flags}, false},
+		{"absent with error", reclamation.JobObservation{State: "not_in_job", NativeError: 5}, false},
+		{"unknown false flags", reclamation.JobObservation{State: "unavailable", UnavailableAt: "limits", Flags: flags}, false},
+		{"unknown query", reclamation.JobObservation{State: "unavailable", UnavailableAt: "private-path"}, false},
+		{"unknown state", reclamation.JobObservation{State: "private-path"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.observation.Valid() != tc.valid {
+				t.Fatal(tc.observation)
+			}
+		})
+	}
+	o := &reclamation.LaunchJobObservation{BeforeStart: reclamation.JobObservation{State: "not_in_job"}, AfterFailure: reclamation.JobObservation{State: "unavailable", UnavailableAt: "membership"}, OuterJobs: "unknown"}
+	f := reclamation.InvocationFailure{Phase: "launch", Stage: "process_start", Job: o}
+	if !f.Valid() {
+		t.Fatal(f)
+	}
+	for _, stage := range []string{"pin_executable", "readiness", "other"} {
+		f.Stage = stage
+		if f.Valid() {
+			t.Fatal("unexpected observation stage", stage)
+		}
+	}
+	f.Phase = "prepare"
+	f.Stage = "intent"
+	if f.Valid() {
+		t.Fatal("launch observation on preparation")
+	}
+	o.OuterJobs = "not_in_job"
+	if o.Valid() {
+		t.Fatal("outer Jobs claimed observed")
+	}
+}

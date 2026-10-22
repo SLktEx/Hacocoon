@@ -3,10 +3,11 @@
 import importlib.util
 import base64
 import io
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from pathlib import Path
 import json
 import os
+import queue
 import re
 import subprocess
 import sys
@@ -20,11 +21,173 @@ from unittest.mock import Mock, call, patch
 spec = importlib.util.spec_from_file_location("reclaim_gate", Path(__file__).resolve().parents[1] / "test/e2e/windows/reclamation.py")
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
+terminal_driver = gate.load_driver("reclaim_terminal_driver", "install.py")
 OP = "{11111111-1111-4111-8111-111111111111}"
 PROCESSES = {"helpers": [], "counts": {"wslhost.exe": 0, "wsl.exe": 0, "vmmemWSL": 1}}
 
 
 class ReclamationUserPathTests(unittest.TestCase):
+    def test_wsl_version_observation_is_numeric_bounded_and_private(self):
+        # Labels and suffix shapes from Microsoft's WSL issue fixture, not a
+        # promise that localized presentation is a stable machine interface:
+        # https://github.com/microsoft/WSL/issues/41555
+        fixture = ("WSL version: 2.7.13.0\r\nKernel version: 6.18.33.2-2\r\n"
+                   "WSLg version: 1.0.73.2\r\nMSRDC version: 1.2.7214\r\n"
+                   "Direct3D version: 1.611.1-81528511\r\n"
+                   "DXCore version: 10.0.26100.1-240331-1435.ge-release\r\n"
+                   "Windows version: 10.0.26200.9445\r\n")
+        expected = {"state": "observed", "versions": {"wsl": "2.7.13.0", "kernel": None,
+                    "wslg": "1.0.73.2", "msrdc": "1.2.7214", "direct3d": None,
+                    "dxcore": None, "windows": "10.0.26200.9445"}}
+        for encoding in ("utf-8", "utf-8-sig", "utf-16", "utf-16-le"):
+            with self.subTest(encoding=encoding):
+                self.assertEqual(gate.wsl_version_summary(fixture.encode(encoding)), expected)
+        numeric = gate.wsl_version_summary(b"WSL version: 1.2\nKernel version: 4294967295.0.1.2.3")
+        self.assertEqual(numeric["versions"]["kernel"], "4294967295.0.1.2.3")
+        for data in (b"", b"\xff", b"x" * 16385, b"\n" * 17, "not bytes",
+                     b"WSL version: 1.2\nWSL version: 1.2", b"WSL version: 1.2\nprivate: secret",
+                     "WSL バージョン: 2.7.13.0".encode(), b"WSL-Version: 2.7.13.0"):
+            with self.subTest(data=str(data)[:60]):
+                self.assertEqual(gate.wsl_version_summary(data), {"state": "unavailable"})
+        for value in ("private-token", "1.2-secret", "1.2/secret", "1.2:secret", "1.-2",
+                      "-1.2", "1", "1.2.3.4.5.6", "4294967296.1", "12345678901.1", "１.２"):
+            with self.subTest(value=value):
+                self.assertEqual(gate.wsl_version_summary(("WSL version: " + value).encode()),
+                                 {"state": "unavailable"})
+                summary = gate.wsl_version_summary(("WSL version: 1.2\nKernel version: " + value).encode())
+                self.assertIsNone(summary["versions"]["kernel"])
+                self.assertNotIn("private", json.dumps(summary))
+
+    def test_wsl_version_uses_one_windows_direct_bounded_observation(self):
+        for result in (b"WSL version: 3.0.1.0", RuntimeError("private capture error"),
+                       OSError("private access error"), subprocess.TimeoutExpired("private", 25)):
+            with self.subTest(result=result), patch.dict(gate.os.environ, {"SystemRoot": "C:/Windows"}), \
+                 patch.object(gate, "capture_observation", side_effect=result if isinstance(result, Exception) else None,
+                              return_value=result) as capture:
+                summary = gate.observe_wsl_version()
+                capture.assert_called_once_with([str(Path("C:/Windows") / "System32/wsl.exe"), "--version"])
+                self.assertEqual(summary["state"], "unavailable" if isinstance(result, Exception) else "observed")
+                self.assertNotIn("private", json.dumps(summary))
+
+    def test_uncertain_public_dispatch_stays_failed_after_one_latest_status_observation(self):
+        cases = [({"operation": OP, "state": state, "secret": "private-token"}, state)
+                 for state in ("pending", "failed", "complete", "interrupted")]
+        cases += [({"operation": "", "state": "none"}, "none"), (None, "unrecognized"),
+                  ({"operation": OP, "state": "none"}, "unrecognized"),
+                  ({"state": "unknown", "private": "secret"}, "unrecognized"),
+                  (RuntimeError("private malformed response"), "unavailable"),
+                  (subprocess.TimeoutExpired("private status command", 25), "unavailable")]
+        for failure_text in ("Dispatch result unavailable", "起動結果を確認できません。"):
+            for status, expected in cases:
+                with self.subTest(failure=failure_text, status=status):
+                    events = []
+                    terminal = object.__new__(terminal_driver.TerminalProcess)
+                    terminal.proc = Mock()
+                    terminal.proc.write.side_effect = lambda command: events.append(("write", command))
+                    terminal.output = ""
+                    terminal._queue = queue.Queue()
+                    for chunk in ("C:\\>", "\nroot@haco-host:~# ",
+                                  "\nNo saved reclamation result. No operation was started by this status check.\n"
+                                  "HACO_ABSENT_STATUS_EXIT:0\n", "\n" + failure_text):
+                        terminal._queue.put(chunk)
+                    driver = SimpleNamespace(TerminalProcess=lambda: terminal,
+                                             cmd_prompt_count=lambda text: "C:\\>" in text,
+                                             reject_failed_host_entry=Mock(),
+                                             RetainUncertainTerminalError=terminal_driver.RetainUncertainTerminalError)
+                    installed = SimpleNamespace(registration=lambda: OP)
+                    retention = Mock()
+                    version = {"state": "unavailable"} if expected == "unavailable" else gate.wsl_version_summary(b"WSL version: 3.0.1.0")
+                    def capture(command):
+                        events.append(("capture", command))
+                        if expected == "unavailable":
+                            raise RuntimeError("private predispatch observation failure")
+                        return b"WSL version: 3.0.1.0"
+                    reads = []
+                    def read(command):
+                        events.append(("read", command))
+                        reads.append(command)
+                        if len(reads) < 3:
+                            return {"operation": "", "state": "none"}
+                        if len(reads) == 3:
+                            # The failure stage must already be latched while
+                            # its diagnostic read is still in progress.
+                            run.call_args.kwargs["on_output"](terminal.output, terminal)
+                        if isinstance(status, Exception):
+                            raise status
+                        return status
+                    observations = []
+                    with patch.object(gate, "os", SimpleNamespace(name="nt", environ={"SystemRoot": "C:/Windows", "LOCALAPPDATA": "C:/fixture"})), \
+                         patch.object(gate.Path, "is_file", return_value=True), \
+                         patch.object(gate.sys, "argv", ["reclamation.py", "--retention-manifest", "fixture.json"]), \
+                         patch.object(gate, "load_driver", side_effect=[driver, installed, retention]), \
+                         patch.object(gate, "read_json", side_effect=read), \
+                         patch.object(gate, "capture_observation", side_effect=capture), \
+                         patch.object(gate, "report_observation", side_effect=observations.append), \
+                         patch.object(terminal, "run", wraps=terminal.run) as run, \
+                         patch.object(gate, "wait_for_worker") as wait, \
+                         patch.object(gate, "ProcessStartObserver", return_value=nullcontext()), \
+                         patch("builtins.print"), redirect_stdout(io.StringIO()):
+                        with self.assertRaisesRegex(terminal_driver.RetainUncertainTerminalError,
+                                                    "^Public dispatch failed; no retry or WSL reentry$"):
+                            gate.main()
+                        # Later delivery cannot repeat inspection or convert an
+                        # uncertain journey to a successful dispatch/reentry.
+                        callback = run.call_args.kwargs["on_output"]
+                        callback(terminal.output + "\n" + failure_text, terminal)
+                        callback(terminal.output + "\nWorker dispatched; reclamation is not yet confirmed.\nC:\\>", terminal)
+                    self.assertEqual(len(reads), 3)
+                    self.assertTrue(all(command[1:] == ["_status", OP] for command in reads))
+                    self.assertEqual(sum(kind == "capture" for kind, _ in events), 1)
+                    capture_index = next(i for i, event in enumerate(events) if event[0] == "capture")
+                    dispatch_index = events.index(("write", "haco reclaim --yes\r\n"))
+                    self.assertLess(capture_index, dispatch_index)
+                    self.assertEqual(events[dispatch_index + 1:], [("read", reads[-1])])
+                    failures = [row for row in observations if row["operation"] == "reclamation_dispatch_failure"]
+                    self.assertEqual(len(failures), 1)
+                    self.assertEqual(failures[0]["scope"], "registration_latest")
+                    self.assertEqual(failures[0]["saved_result"]["worker_result"], expected)
+                    self.assertEqual(failures[0]["predispatch_wsl_version"], version)
+                    self.assertNotIn(OP, json.dumps(failures))
+                    self.assertNotIn("private", json.dumps(failures))
+                    self.assertNotIn("secret", json.dumps(failures))
+                    wait.assert_not_called()
+                    self.assertEqual(terminal.run_stop, "callback_failed")
+                    terminal.proc.terminate.assert_not_called()
+                    retention.verify_installed.assert_not_called()
+
+    def test_terminal_retention_is_explicit_and_ordinary_errors_still_terminate(self):
+        for error in (RuntimeError("ordinary callback failure"),
+                      terminal_driver.RetainUncertainTerminalError("uncertain callback failure")):
+            terminal = object.__new__(terminal_driver.TerminalProcess)
+            terminal.proc = Mock()
+            terminal.output = ""
+            terminal._queue = queue.Queue()
+            terminal._queue.put("fixture terminal output")
+            with self.subTest(error=error), redirect_stdout(io.StringIO()):
+                with self.assertRaises(type(error)) as raised:
+                    terminal.run(on_output=Mock(side_effect=error))
+            self.assertIs(raised.exception, error)
+            self.assertEqual(terminal.run_stop, "callback_failed")
+            if isinstance(error, terminal_driver.RetainUncertainTerminalError):
+                terminal.proc.terminate.assert_not_called()
+            else:
+                terminal.proc.terminate.assert_called_once_with(force=True)
+        terminal = object.__new__(terminal_driver.TerminalProcess)
+        terminal.proc = Mock()
+        with self.assertRaisesRegex(RuntimeError, "timed out waiting for exact user terminal session"):
+            terminal.run(timeout=0)
+        self.assertEqual(terminal.run_stop, "timeout")
+        terminal.proc.terminate.assert_called_once_with(force=True)
+
+    def test_dispatch_diagnostics_output_failure_does_not_replace_primary_failure(self):
+        for error in (BrokenPipeError("private"), ValueError("private")):
+            with self.subTest(error=error), patch.object(gate, "read_json", return_value={"state": "complete"}) as read, \
+                 patch("builtins.print", side_effect=error):
+                with self.assertRaisesRegex(RuntimeError, "original dispatch failure"):
+                    gate.report_dispatch_failure(Path("fixture-haco-wsl.exe"), OP, {"state": "unavailable"})
+                    raise RuntimeError("original dispatch failure")
+                read.assert_called_once_with(["fixture-haco-wsl.exe", "_status", OP])
+
     def test_observation_requires_success_and_complete_bounded_json(self):
         valid = b'\xef\xbb\xbf{"state":"none","operation":""}\n'
         exact_limit = json.dumps("x" * 16382).encode()
