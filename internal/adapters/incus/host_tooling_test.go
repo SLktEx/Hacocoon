@@ -72,7 +72,7 @@ func TestHostToolingRequiresOwnedSourceAndReportsBoundedStages(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux Host operation lock")
 	}
-	for _, mode := range []string{"ok", "foreign", "profile", "privileged", "not-nested", "pending-copy", "creating", "packages-fail", "tooling-fail", "services-fail", "truncated", "canceled"} {
+	for _, mode := range []string{"ok", "foreign", "profile", "privileged", "not-nested", "pending-copy", "creating", "packages-fail", "package-receipt", "package-receipt-success", "canceled-receipt", "tooling-fail", "services-fail", "truncated", "canceled"} {
 		t.Run(mode, func(t *testing.T) {
 			source := core.PersistentResource{ID: "oci-source:host", Kind: OCIStoreKind, Owner: strings.Repeat("a", 32), NativeRef: "pool/haco-persistent-" + strings.Repeat("a", 32), SourceOnly: true, State: "ready"}
 			volume := persistentVolumeObservation{Name: "haco-persistent-" + source.Owner, Type: "custom", ContentType: "filesystem", Config: map[string]string{"user.hacocoon.owner": source.Owner, "user.hacocoon.resource": source.ID, "user.hacocoon.kind": source.Kind, "user.hacocoon.source-only": "true"}, UsedBy: []string{"/1.0/instances/haco-host?project=hacocoon"}}
@@ -119,6 +119,17 @@ func TestHostToolingRequiresOwnedSourceAndReportsBoundedStages(t *testing.T) {
 						cancel()
 						return host.Result{}, nil
 					}
+					if stage == "host_packages" && (mode == "package-receipt" || mode == "package-receipt-success" || mode == "canceled-receipt") {
+						result := host.Result{ExitCode: 1, Stdout: "haco-host-packages-v1:install:timeout\n", Stderr: "secret package data"}
+						if mode == "package-receipt-success" {
+							result.ExitCode = 0
+							return result, nil
+						}
+						if mode == "canceled-receipt" {
+							cancel()
+						}
+						return result, errors.New("secret backend data")
+					}
 					if mode == "truncated" {
 						return host.Result{StdoutTruncated: true}, nil
 					}
@@ -132,7 +143,7 @@ func TestHostToolingRequiresOwnedSourceAndReportsBoundedStages(t *testing.T) {
 				}
 			}}
 			err := (&PersistentResourceBackend{Runtime: New(runner)}).ProvisionHostTools(ctx, source)
-			if mode == "ok" {
+			if mode == "ok" || mode == "package-receipt-success" {
 				if err != nil || !reflect.DeepEqual(stages, []string{"host_packages", "host_tooling", "host_services", "host_packer"}) {
 					t.Fatalf("stages=%v err=%v", stages, err)
 				}
@@ -142,6 +153,12 @@ func TestHostToolingRequiresOwnedSourceAndReportsBoundedStages(t *testing.T) {
 				}
 				if strings.Contains(err.Error(), "secret") {
 					t.Fatal("helper output leaked")
+				}
+				if mode == "package-receipt" && (!errors.Is(err, core.ErrRuntimeUnavailable) || hostsetup.Reason(err) != "packages_install_timeout" || len(stages) != 1) {
+					t.Fatal("lost package failure or continued after failure", err, stages)
+				}
+				if mode == "canceled-receipt" && (!errors.Is(err, context.Canceled) || hostsetup.Reason(err) != "canceled") {
+					t.Fatal("package receipt overrode cancellation", err)
 				}
 				if len(stages) > 0 {
 					stage, _ := hostsetup.Details(err)

@@ -273,6 +273,30 @@ COM activation failures include `activation_stage` (initialize/register/create/d
 
 Notification refresh failures now preserve fixed service-operation reasons (`notification_enable_state_failed`, `notification_activity_failed`, `notification_disable_failed`, `notification_reload_failed`, `notification_failure_state_failed`, `notification_reset_failed`, `notification_enable_failed`, `notification_restart_failed`) at the existing setup boundary. Private helper exits 50–57 are recognized only for refresh. Raw output is not forwarded and cancellation retains precedence.
 
+Host package failures use the existing `host_packages` stage and fixed
+`packages_<phase>_<kind>` reasons. Phases are `query`, `update`, `install`,
+`git_verify` and `gh_verify`; kinds are `timeout`, `exit` and `other`, classified
+only from the exception type. The helper writes one unbuffered, fixed ASCII
+receipt; the adapter accepts only an exact allowlisted receipt of at most 64 bytes
+with exit 1 in package mode and neither output stream truncated. Missing,
+malformed or unrelated output retains `unavailable`. Diagnostic write failures
+preserve the original exception, and cancellation/deadline precedence is unchanged.
+The controller still owns the single setup ERROR. No package names, arguments,
+repositories, raw errors or subprocess output enter these diagnostics; a phase
+does not identify a mirror, lock or network cause.
+
+For each Git prerequisite command, the installed workspace-input fixture emits
+at most five fixed
+`INSTALLED_INPUT_GIT_PHASE` markers (`inspect`, `update`, `install`, `verify`,
+`complete`) on its existing inherited stderr, independently of captured stdout
+or `TimeoutExpired`. Markers identify the start of a step, except `complete`,
+which follows successful Git version verification. Missing markers do not prove
+which boundary failed. Writes are best effort, with write failures and SIGPIPE
+ignored only in the diagnostic subshell; execution and cleanup are unchanged.
+No additional raw subprocess text is emitted: existing APT stderr still streams
+as before, while Host-helper output and captured installed stdout remain private.
+See [package preparation evidence](../status/acceptance-evidence.md#package-preparation-diagnostics).
+
 Git reconciliation reuses the synchronized capability audit: fixed git-push-started/confirmed/observed records carry request and Environment creation identities, source ownership, registered remote, ref and old/new OIDs. Observation records retain a separate read-request identity. These are audit facts, not operational log dumps; credentials, raw subprocess output and complete Git configuration are excluded.
 
 Cache management returns named area results separately from diagnostics. Its failure boundary logs only the fixed operation name and classified failure code with component `cache`; settings documents, paths, native responses and raw errors are not logged.

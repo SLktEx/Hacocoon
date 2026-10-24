@@ -9,6 +9,7 @@ import (
 
 	installtools "github.com/SLktEx/Hacocoon/install"
 	"github.com/SLktEx/Hacocoon/internal/core"
+	"github.com/SLktEx/Hacocoon/internal/host"
 	"github.com/SLktEx/Hacocoon/internal/host/setup"
 )
 
@@ -73,7 +74,8 @@ func (b *PersistentResourceBackend) ProvisionHostTools(ctx context.Context, sour
 				return context.DeadlineExceeded
 			}
 			// Guest cgroup timeout and fixed unit also bound descendants/overlap
-			// after controller loss. No helper output is copied into diagnostics.
+			// after controller loss. Only a fixed package failure receipt may
+			// classify diagnostics; arbitrary helper output is never forwarded.
 			result, runErr := b.Runtime.runner.Run(ctx, "incus", "exec", trustedHostName, "--project", b.Runtime.project, "--",
 				"/bin/sh", "-ec", hostToolingSystemdReady, "haco-host-tooling",
 				"/usr/bin/systemd-run", "--unit=hacocoon-host-tooling", "--description=Hacocoon standard Host tooling", "--expand-environment=no", "--collect", "--wait", "--pipe", "--quiet",
@@ -84,7 +86,7 @@ func (b *PersistentResourceBackend) ProvisionHostTools(ctx context.Context, sour
 				return ctx.Err()
 			}
 			if runErr != nil || result.ExitCode != 0 || result.StdoutTruncated || result.StderrTruncated {
-				return core.ErrRuntimeUnavailable
+				return hostToolingFailure(stage, result)
 			}
 			return nil
 		}); err != nil {
@@ -92,4 +94,20 @@ func (b *PersistentResourceBackend) ProvisionHostTools(ctx context.Context, sour
 		}
 	}
 	return b.VerifyHostSource(ctx, source)
+}
+
+func hostToolingFailure(stage string, result host.Result) error {
+	// An exit alone could belong to Incus/systemd rather than the package
+	// helper. Admit only one complete self-authored receipt in its exact mode.
+	if stage == "host_packages" && result.ExitCode == 1 &&
+		!result.StdoutTruncated && !result.StderrTruncated && len(result.Stdout) <= 64 {
+		for _, phase := range []string{"query", "update", "install", "git_verify", "gh_verify"} {
+			for _, kind := range []string{"timeout", "exit", "other"} {
+				if result.Stdout == "haco-host-packages-v1:"+phase+":"+kind+"\n" {
+					return &hostsetup.PackageFailure{Phase: phase, Kind: kind}
+				}
+			}
+		}
+	}
+	return core.ErrRuntimeUnavailable
 }

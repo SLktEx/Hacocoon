@@ -445,6 +445,15 @@ CLI の観測上限16分は維持し、キャンセルは client の観測を終
 中断は優先して扱います。生出力を理由へ取り込みません。unit所有確認、無効化の維持、
 正常サービスの再利用、起動確認、回数制限付き再起動は変更しません。
 
+パッケージ準備は `stage=host_packages` を維持します。検証済みの補助プログラムの
+失敗記録から `reason=packages_<phase>_<kind>` を付けます。phase は `query`、
+`update`、`install`、`git_verify`、`gh_verify`、kind は `timeout`、`exit`、`other` です。
+失敗したサブコマンドと例外の種類を示すだけで、ミラー、ロック、ネットワークの原因は
+断定しません。所定の失敗終了値と切り詰めのない完全一致の記録だけを受け付け、
+記録の欠落や不正は従来の `unavailable` とします。中断と外側の期限を優先します。
+パッケージ一覧、署名検証付き取得元、コマンド順序、実行回数、制限時間、資源の所有権は
+変更せず、サブプロセスの生出力もログへ出しません。
+
 現在の状態は`haco doctor`で確認します。WSL/Linuxの**Physical Host**で管理者が`journalctl -u haco-controller.service --since '30 minutes ago' --no-pager`を実行し、表示されたrequest IDを探せます。保存・ローテーションはsystemd-journaldが管理します。既存の`HACO_LOG_LEVEL=debug`と`HACO_LOG_FORMAT=json`を利用できますが、client側設定でcontrollerのDEBUGを遠隔有効化はしません。DEBUGでもredactionを維持します。
 
 Host setupには承認操作はありません。busyは別setupの実行中を表し、承認待ちとは異なります。Capability承認は`haco approve`で別に扱います。Ctrl+Cは観測を終了し、既存lifecycle RPC同様controllerの時間制限付き処理は接続断後も続く可能性があります。排他は実際の処理終了まで保持します。通信断、最終応答欠落、古いcontrollerとの不一致から変更処理を再送したり成功表示したりしません。
