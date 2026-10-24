@@ -6,6 +6,48 @@ Status: recorded acceptance evidence. Except for explicitly marked local candida
 
 Read each pass, failure and skip within its fixture and candidate. A narrower or later pass does not establish the cause of a different failure. Maintain evidence that changes support decisions and unresolved limits here, rather than appending daily run logs.
 
+<a id="package-preparation-diagnostics"></a>
+## Package preparation failure attribution
+
+Package failures on the following 2026-10-22 candidates remain unresolved. These
+observations motivate bounded diagnostics, not a package-policy or timeout change:
+
+- [PR #769](https://github.com/SLktEx/Hacocoon/pull/769), source
+  `e1e597e72ed117f17359e378eabfca0e62e3559a`: the
+  [Incus job](https://github.com/SLktEx/Hacocoon/actions/runs/39759130157/job/119759083313)
+  reported `host_packages` unavailable after 371.10 seconds. The log did not
+  identify the failed subprocess or distinguish timeout from a nonzero exit.
+- [PR #770](https://github.com/SLktEx/Hacocoon/pull/770), source
+  `f9dc4fb66b89ac80586596f46f8406774e10662f`: in the initial
+  [Incus job](https://github.com/SLktEx/Hacocoon/actions/runs/39759268350/job/119759068759),
+  `TestRealIncusHostToolingE2E` passed; the later fresh-Host preparation in
+  `TestRealIncusPackerBaseBuildE2E` failed with `host_packages` unavailable.
+  A later product-job pass does not explain this failure or erase CI history.
+- [PR #771](https://github.com/SLktEx/Hacocoon/pull/771), source
+  `68a8b64316b02b55cc40c04f0a4c88854fa8e66b`: both Workspace imports and opens
+  succeeded in the
+  [Ubuntu journey](https://github.com/SLktEx/Hacocoon/actions/runs/39767011980/job/119784861937).
+  The first Git prerequisite execution then reached the existing 300-second
+  client timeout. Its combined inspect/update/install/verify script had no
+  phase evidence surviving the captured stdout. Cleanup removed the fixture's
+  exact temporary grants and owned resources; the cause of the timeout is unknown.
+
+Durations alone cannot establish an APT timeout, lock, mirror, network or exec
+startup failure. A separately observed package hash mismatch does not establish
+the cause of these sanitized failures.
+
+The current diagnostic candidate adds only fixed Host package phase/failure
+reasons and best-effort installed-input Git phase markers on the existing stderr
+stream. See the [logging contract](../reference/logging.md) and
+[Host tool contract](../design/trusted-host.md#standard-host-tools). A phase marker
+means that a step started, except `complete`, emitted after successful Git
+verification; absent markers cannot prove
+which boundary failed. Commands, execution counts, timeouts, package sources,
+trust checks, temporary grants and cleanup remain unchanged. No additional raw
+subprocess output is exposed. This is an attribution improvement, not evidence
+that the failures are fixed, a reviewed infrastructure resolution, or a reason
+to reset the [CI history gate](../reliability/ci-contracts.md).
+
 <a id="incus-vm-hosted"></a>
 ## Optional Incus VM on GitHub-hosted Ubuntu
 

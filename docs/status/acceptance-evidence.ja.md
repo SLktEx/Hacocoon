@@ -6,6 +6,47 @@
 
 成功・失敗・スキップは試験構成に結び付けて読みます。同じ実行内の一部成功や後続の成功だけで、別の失敗原因が解決したとは判断しません。日々の実行ログを追記するのではなく、判断を変える証拠と未解決事項だけを更新します。
 
+<a id="package-preparation-diagnostics"></a>
+## パッケージ準備の失敗箇所の診断
+
+次の 2026-10-22 の候補で発生したパッケージ関連の失敗は未解決。
+必要なのは限定した診断情報であり、パッケージのポリシーや制限時間の変更ではない。
+
+- [PR #769](https://github.com/SLktEx/Hacocoon/pull/769)、source
+  `e1e597e72ed117f17359e378eabfca0e62e3559a` の
+  [Incus job](https://github.com/SLktEx/Hacocoon/actions/runs/39759130157/job/119759083313)
+  は 371.10 秒後に `host_packages` unavailable を報告した。失敗した子プロセスや、
+  タイムアウトか非ゼロ終了かを区別できる記録はない。
+- [PR #770](https://github.com/SLktEx/Hacocoon/pull/770)、source
+  `f9dc4fb66b89ac80586596f46f8406774e10662f` の最初の
+  [Incus job](https://github.com/SLktEx/Hacocoon/actions/runs/39759268350/job/119759068759)
+  では `TestRealIncusHostToolingE2E` は成功した。その後の
+  `TestRealIncusPackerBaseBuildE2E` が新しい Host を準備する際に
+  `host_packages` unavailable となった。後の製品テストの成功は、この失敗の原因を
+  説明せず、CI の失敗履歴も取り消さない。
+- [PR #771](https://github.com/SLktEx/Hacocoon/pull/771)、source
+  `68a8b64316b02b55cc40c04f0a4c88854fa8e66b` の
+  [Ubuntu journey](https://github.com/SLktEx/Hacocoon/actions/runs/39767011980/job/119784861937)
+  では両 Workspace の import と open が成功した。その後、最初の Git 前提条件の
+  実行が既存の 300 秒のクライアント制限に達した。確認・更新・導入・検証をまとめた
+  スクリプトの stdout は捕捉され、失敗時に処理段階を特定できる記録は残らなかった。
+  cleanup は一時的な完全一致の権限と所有する資源を削除したが、タイムアウトの原因は不明。
+
+経過時間だけでは APT のタイムアウト、ロック、ミラー、ネットワーク、exec 開始の
+どれが原因かは分からない。別に観測されたパッケージのハッシュ不一致を、これらの
+出力が制限された失敗の原因とみなしてはいけない。
+
+現在の診断候補は Host のパッケージ処理段階と失敗種別を固定値で追加し、installed-input
+の Git 準備段階を既存の stderr へ best effort で出すだけ。
+[ログ契約](../reference/logging.ja.md) と
+[Host ツール契約](../design/trusted-host.ja.md) を参照。
+段階のマーカーは開始を示す。ただし `complete` は Git の検証成功後に出す。
+マーカーがないだけで失敗箇所を
+断定することもできない。コマンド、実行回数、制限時間、パッケージの取得元、信頼性の
+検証、一時権限、cleanup は変更せず、生の子プロセス出力を追加公開しない。
+これは失敗箇所の診断改善であり、原因の修正やインフラ解決の確認ではなく、
+[CI 履歴ゲート](../reliability/ci-contracts.ja.md) をリセットする理由にもならない。
+
 <a id="incus-vm-hosted"></a>
 ## GitHub-hosted Ubuntuでの任意Incus VM
 

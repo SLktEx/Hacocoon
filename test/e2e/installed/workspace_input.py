@@ -25,12 +25,22 @@ import uuid
 UPSTREAM = "https://github.com/SLktEx/Hacocoon.git"
 REPORT_LIMIT = 16384
 GIT_PREREQUISITE = '''
+git_prerequisite_phase() {
+  # Best effort on the existing stderr stream. Ignore SIGPIPE only in this
+  # diagnostic subshell, never in the package or Git commands that follow.
+  (trap '' PIPE; printf 'INSTALLED_INPUT_GIT_PHASE %s\\n' "$1" >&2) || :
+}
+git_prerequisite_phase inspect
 if ! command -v git >/dev/null 2>&1; then
+  git_prerequisite_phase update
   apt-get update
+  git_prerequisite_phase install
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git
 fi
+git_prerequisite_phase verify
 command -v git >/dev/null
 git --version
+git_prerequisite_phase complete
 '''
 
 
