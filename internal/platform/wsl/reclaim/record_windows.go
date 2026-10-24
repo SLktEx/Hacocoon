@@ -100,6 +100,24 @@ func (r operationRecord) validate() error {
 
 func (s *operationStore) read() (operationRecord, error) { return s.readValue("Operation") }
 
+// Preparation must not reopen WSL merely to discover that a prior handoff is
+// still uncertain. This read-only early refusal is not permission for a new
+// intent: beginVersion retains all target, terminal-state and review checks.
+// The caller holds the same continuation guard used by beginVersion.
+func (s *operationStore) refusePendingPreparation() error {
+	current, err := s.read()
+	if errors.Is(err, registry.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if current.State == "pending" {
+		return errOperationNeedsReview
+	}
+	return nil
+}
+
 func (s *operationStore) readValue(name string) (operationRecord, error) {
 	var r operationRecord
 	// Fixed allocation even for a hostile registry value. Require our canonical
