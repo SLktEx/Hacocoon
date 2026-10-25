@@ -100,8 +100,14 @@ function Get-HacocoonWindowsDataRoot {
 }
 
 function Install-HacocoonWindowsBinary([string]$Source, [string]$RegistrationId, [string]$ExpectedHash, [string]$BinaryName = 'haco-wsl.exe') {
-    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe')) { throw 'Unknown installed Windows component.' }
-    $area = if ($BinaryName -ceq 'haco-wsl.exe') { 'reclamation' } else { 'client' }
+    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe', 'haco-reclaim.exe')) { throw 'Unknown installed Windows component.' }
+    # Each component owns its own manifest; the internal worker's enrollment
+    # and executable pins must remain independent from public client updates.
+    $area = switch -CaseSensitive ($BinaryName) {
+        'haco-wsl.exe' { 'reclamation' }
+        'haco-tunnel.exe' { 'client' }
+        'haco-reclaim.exe' { 'reclaim-client' }
+    }
     $id = [guid]::Empty
     if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty -or $ExpectedHash -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid installed helper identity.' }
     $root = Get-HacocoonWindowsDataRoot
@@ -164,7 +170,7 @@ function Install-HacocoonWindowsBinary([string]$Source, [string]$RegistrationId,
 }
 
 function Install-HacocoonBundledWindowsBinary([string]$BundleRoot, [string]$RegistrationId, [string]$BinaryName) {
-    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe')) { throw 'Unknown bundled Windows component.' }
+    if ($BinaryName -cnotin @('haco-wsl.exe', 'haco-tunnel.exe', 'haco-reclaim.exe')) { throw 'Unknown bundled Windows component.' }
     $id = [guid]::Empty
     if (-not [guid]::TryParse($RegistrationId, [ref]$id) -or $id -eq [guid]::Empty) { throw 'Invalid component registration.' }
     $source = Join-Path $BundleRoot $BinaryName
@@ -935,6 +941,7 @@ if (-not $SkipIncus) {
     if ($binding.ExitCode -ne 0) { throw 'Managed WSL registration capture failed; existing records were retained.' }
     Invoke-WslEnrollment $PSScriptRoot $managedRegistrationId
     $installedTunnel = Install-HacocoonBundledWindowsBinary $PSScriptRoot $managedRegistrationId 'haco-tunnel.exe'
+    $installedReclaim = Install-HacocoonBundledWindowsBinary $PSScriptRoot $managedRegistrationId 'haco-reclaim.exe'
     Configure-WslPost $InstanceName $loginUser
     $probe = Invoke-WslCapture @("--distribution", $InstanceName, "--user", "root", "--exec", "incus", "exec", "haco-host", "--project", "hacocoon", "--", "/usr/local/bin/haco-host", "doctor")
     if ($probe.ExitCode -ne 0) { throw "WSL post-install haco-host acceptance failed." }
@@ -961,5 +968,7 @@ if ($SkipIncus) {
     Write-Host "Next: wsl -d $InstanceName"
     $quotedTunnel = $installedTunnel.Replace("'", "''")
     Write-Host "Windows TCP forwarding help: & '$quotedTunnel' --distribution '$InstanceName' --help"
+    $quotedReclaim = $installedReclaim.Replace("'", "''")
+    Write-Host "Windows storage reclamation help: & '$quotedReclaim' --help"
     Write-Host "Physical Host recovery: wsl -d $InstanceName -u root"
 }

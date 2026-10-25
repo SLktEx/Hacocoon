@@ -37,6 +37,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, enroll fu
 
 type helperActions struct {
 	prepare           func(context.Context, string) (wslreclaim.PreparedStatus, error)
+	prepareNative     func(context.Context, string) (wslreclaim.PreparedStatus, error)
 	review            func(context.Context, string, string) error
 	interruptedReview func(context.Context, string, string) error
 	enroll            func(context.Context, string) error
@@ -52,7 +53,7 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 	}
 	statusRequest := args[0] == "_status" && (len(args) == 2 || len(args) == 3)
 	operationRequest := len(args) == 3 && (args[0] == "_launch" || args[0] == "_continue" || args[0] == "_review-failed" || args[0] == "_review-interrupted")
-	prepareRequest := args[0] == "_prepare" && len(args) == 2
+	prepareRequest := (args[0] == "_prepare" || args[0] == "_prepare-native") && len(args) == 2
 	if !statusRequest && !operationRequest && !prepareRequest {
 		fmt.Fprintln(stderr, "Invalid internal Windows helper arguments.")
 		return 2
@@ -63,7 +64,11 @@ func dispatch(ctx context.Context, args []string, stdout, stderr io.Writer, acti
 		return 2
 	}
 	if prepareRequest {
-		prepared, prepareErr := actions.prepare(ctx, args[1])
+		prepare := actions.prepare
+		if args[0] == "_prepare-native" {
+			prepare = actions.prepareNative
+		}
+		prepared, prepareErr := prepare(ctx, args[1])
 		if prepareErr != nil {
 			failure := wslreclaim.PreparationFailure(prepareErr)
 			logger.Error("Windows continuation preparation failed", "component", "host", "operation", "prepare_wsl_worker", "stage", failure.Stage, "native_error", failure.NativeError, "error", prepareErr)
@@ -144,7 +149,7 @@ func Main() {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{prepare: wslreclaim.PrepareWorker, latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, interruptedReview: wslreclaim.ReviewInterruptedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
+	code := dispatch(ctx, os.Args[1:], os.Stdout, os.Stderr, helperActions{prepare: wslreclaim.PrepareWorker, prepareNative: wslreclaim.PrepareNativeWorker, latest: wslreclaim.ReadLatestPreparedStatus, review: wslreclaim.ReviewFailedOperation, interruptedReview: wslreclaim.ReviewInterruptedOperation, enroll: wslreclaim.EnrollInstallation, launch: wslreclaim.LaunchPreparedWorker, worker: wslreclaim.ExecutePreparedWorker, status: wslreclaim.ReadPreparedStatus})
 	cancel()
 	stop()
 	os.Exit(code)

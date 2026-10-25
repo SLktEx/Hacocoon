@@ -37,6 +37,7 @@ help and version require no controller.
 | Copy | `haco env copy [--json] <stopped-env> [new-env]` | Default `<source>-copy`; [copy](../design/environment-copy.md) |
 | Transfer | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux; defaults `<env>.haco` / `<source>-imported`; [transfer](../design/environment-transfer.md) |
 | Disk allocation | `haco reclaim [--yes \| --status \| --review [--yes]]` | Managed Windows/WSL only; [reclamation](../design/storage-reclamation.md) |
+| Windows-native reclaim candidate | `haco-reclaim.exe --distribution <name> [--yes \| --status]`; standalone `--help` | Source/local validation only; native acceptance pending. [Fresh-only entry](../design/storage-reclamation.md#windows-native-entry-candidate) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.md); profile default `default`; guest forbids `--env` |
 
 `haco env switch-base` is explicitly disabled. Product `haco` has no top-level

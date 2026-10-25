@@ -2,6 +2,7 @@
 package winprocess
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,12 +19,39 @@ import (
 // Private holds exact kernel ownership, never a PID/name-based cleanup target.
 // Close must succeed before a caller releases a launch reservation.
 type Private struct {
-	Input   *os.File
-	Output  *os.File
-	job     windows.Handle
-	process windows.Handle
-	once    sync.Once
-	err     error
+	Input     *os.File
+	Output    *os.File
+	job       windows.Handle
+	process   windows.Handle
+	processMu sync.Mutex
+	once      sync.Once
+	err       error
+}
+
+// Wait observes the exact root's successful exit without terminating it. It
+// does not release ownership or establish Windows descendant absence; callers
+// must still inspect Close. Concurrent Close never reopens a process by PID.
+func (p *Private) Wait(ctx context.Context) error {
+	return waitRootExit(ctx, func() (bool, uint32, error) {
+		p.processMu.Lock()
+		defer p.processMu.Unlock()
+		if p.process == 0 {
+			return false, 0, errors.New("private process observation is closed")
+		}
+		state, err := windows.WaitForSingleObject(p.process, 0)
+		if err != nil {
+			return false, 0, err
+		}
+		if state == uint32(windows.WAIT_TIMEOUT) {
+			return false, 0, nil
+		}
+		if state != windows.WAIT_OBJECT_0 {
+			return false, 0, errors.New("private process exit is unconfirmed")
+		}
+		var code uint32
+		err = windows.GetExitCodeProcess(p.process, &code)
+		return err == nil, code, err
+	})
 }
 
 // Start attaches the process to a private kill-on-close job at creation, before
@@ -144,7 +172,12 @@ func (p *Private) Close() error {
 	p.once.Do(func() {
 		p.Input.Close()
 		p.Output.Close()
-		defer windows.CloseHandle(p.process)
+		defer func() {
+			p.processMu.Lock()
+			defer p.processMu.Unlock()
+			p.err = errors.Join(p.err, windows.CloseHandle(p.process))
+			p.process = 0
+		}()
 		if err := windows.TerminateJobObject(p.job, 1); err != nil {
 			p.err = err
 			return

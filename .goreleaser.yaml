@@ -90,6 +90,15 @@ builds:
     flags: [-trimpath]
     ldflags: [-s -w]
 
+  - id: haco-reclaim
+    main: ./cmd/haco-reclaim
+    binary: haco-reclaim
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+
 archives:
   - id: haco
     ids:
@@ -116,6 +125,11 @@ archives:
     ids: [haco-tunnel]
     formats: [zip]
     name_template: "haco_tunnel_{{ .Os }}_{{ .Arch }}"
+
+  - id: windows-reclaim
+    ids: [haco-reclaim]
+    formats: [zip]
+    name_template: "haco_reclaim_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt

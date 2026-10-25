@@ -126,6 +126,28 @@ func (r registration) withReclamationTarget(ctx context.Context, visit func(*ope
 // Preparation alone supplies a native-only preflight. Continuation and explicit
 // review must still accept their exact pending handoff under the same guards.
 func (r registration) withReclamationTargetPreflight(ctx context.Context, preflight func(*operationStore) error, visit func(*operationStore, *pinnedDisk, installationObservation) error) (err error) {
+	return r.withEnrolledReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, enrolled installationObservation) error {
+		identity, err := readReclamationInstallation(ctx, func() error {
+			if preflight != nil {
+				return preflight(records)
+			}
+			return nil
+		}, r.readInstallation)
+		if err != nil {
+			return err
+		}
+		target := enrolled
+		target.Installation = identity
+		if err := records.requireBinding(target); err != nil {
+			return targetStage("binding", err)
+		}
+		return visit(records, pin, target)
+	})
+}
+
+// Native authority is checked without starting WSL. The native preparation
+// reader composes its owned discovery inside this same canonical reservation.
+func (r registration) withEnrolledReclamationTarget(ctx context.Context, visit func(*operationStore, *pinnedDisk, installationObservation) error) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -136,14 +158,18 @@ func (r registration) withReclamationTargetPreflight(ctx context.Context, prefli
 	if err != nil {
 		return targetStage("exclusion", err)
 	}
-	defer func() { err = errors.Join(err, guard.Close()) }()
+	defer func() { err = closePreparationReservation(err, guard.Close) }()
 	// Keep native notification peers from reopening this WSL between stop and
 	// compaction/resume. The registration/disk checks remain mutation authority.
 	launchGuard, err := wslcoord.AcquireLaunch(r.Name)
 	if err != nil {
 		return targetStage("exclusion", err)
 	}
-	defer func() { err = errors.Join(err, launchGuard.Close()) }()
+	defer func() {
+		// As with private review startup, uncertain Windows descendant cleanup
+		// keeps the reservation until this helper owner exits.
+		err = closePreparationReservation(err, launchGuard.Close)
+	}()
 	path, err := r.diskPath()
 	if err != nil {
 		return targetStage("disk_path", err)
@@ -169,20 +195,7 @@ func (r registration) withReclamationTargetPreflight(ctx context.Context, prefli
 	if enrolled.Target.Registration != r || enrolled.Target.Disk != pin.identity || enrolled.Target.WindowsOwner != user.User.Sid.String() {
 		return targetStage("binding", errors.New("managed WSL registration, owner or disk differs from enrollment"))
 	}
-	identity, err := readReclamationInstallation(ctx, func() error {
-		if preflight != nil {
-			return preflight(records)
-		}
-		return nil
-	}, r.readInstallation)
-	if err != nil {
-		return err
-	}
-	target := installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
-	if err := records.requireBinding(target); err != nil {
-		return targetStage("binding", err)
-	}
-	return visit(records, pin, target)
+	return visit(records, pin, enrolled.Target)
 }
 
 // Keep the preparation check before the first WSL access, while its caller

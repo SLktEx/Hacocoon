@@ -38,6 +38,7 @@ help・versionにコントローラーは不要です。
 | コピー | `haco env copy [--json] <stopped-env> [new-env]` | 既定名は`<source>-copy`。[コピー](../design/environment-copy.md) |
 | 移送 | `haco env export [--json] <stopped-env> [file.haco]`; `import [--json] <file.haco> [new-env]` | Linux。既定は`<env>.haco` / `<source>-imported`。[移送](../design/environment-transfer.ja.md) |
 | ディスク割当回収 | `haco reclaim [--yes \| --status \| --review [--yes]]` | 管理Windows/WSLのみ。[容量回収](../design/storage-reclamation.ja.md) |
+| Windowsネイティブ回収の候補 | `haco-reclaim.exe --distribution <name> [--yes \| --status]`; 単独の`--help` | ソース・ローカル検証のみ。実機受入は未完了。[新しい操作専用の起動](../design/storage-reclamation.ja.md#windowsネイティブ起動の候補) |
 | AWS | `haco aws s3 ls [--env <name>] [--profile <name>] [--region <region>] s3://bucket/prefix`; `haco aws s3 cp [same options] s3://bucket/key <file>` | [AWS](../design/aws-operations.ja.md)。プロファイルの既定は`default`。ゲストでは`--env`禁止 |
 
 `haco env switch-base`は明示的に無効です。製品`haco`にはroot直下の

@@ -2,7 +2,9 @@
 
 [日本語](storage-reclamation.ja.md) | English
 
-Status: **implemented; native Windows/WSL CI acceptance passed**.
+Status: **existing operation implemented; historical native Windows/WSL acceptance passed**.
+The Windows-native entry below is a source candidate, not runtime-accepted. Recent
+worker-creation failures do not prove safe uncertain-worker retention.
 This operation recovers unused allocation without deleting objects or shrinking
 capacity. Existing-installation and interrupted-worker acceptance remain separate.
 
@@ -41,6 +43,35 @@ Continuation and explicit review retain their separate pending-state rules.
 
 A historical installation needs the current normal installer and permanent helper.
 No separate Linux-only public reclamation command is provided.
+
+## Windows-native entry candidate
+
+The source candidate adds a separately installed Windows companion:
+
+```powershell
+& <installed-haco-reclaim.exe> --distribution Hacocoon
+& <installed-haco-reclaim.exe> --distribution Hacocoon --status
+```
+
+The installer prints its location. Standalone `--help` describes the command.
+`--yes` skips confirmation and is required for redirected input. This is a new
+explicit operation, not automatic retry or a replacement for failure review.
+Native `--status` enters no WSL and pins no disk; failed/interrupted results remain
+nonzero, and no result is reported as `none` without creating or clearing history.
+
+Native enrollment/exclusion/history checks precede any WSL identity read. Owned
+Windows discovery Job members must be absent before fresh intent; this does not
+prove absence of Linux processes created by WSL Service. Cleanup uncertainty
+refuses intent and retains reservations until helper exit. Final canonical
+identity/replacement checks remain. Launch uses the existing helper and only the
+fresh ID returned by this preparation, once. Missing, partial or canceled replies
+remain unknown, with no status-ID substitution, automatic review or fallback.
+
+The frontend owns ordinary observation handles, no PTY or worker Job. Its handle
+close does not terminate a helper/worker, but external Job, console, runner and OS
+shutdown remain risks. Local mocks and cross-compilation are not native acceptance.
+Separate explicit synthetic component verification still does not establish safe
+real reclamation. See [ADR 0115](../adr/0115-native-windows-reclamation-entry.md).
 
 ## Reviewing through haco
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"syscall"
 	"testing"
@@ -289,5 +290,63 @@ func TestInterruptedReviewUsesOnlyExactReviewAction(t *testing.T) {
 		if !fail && !strings.Contains(out.String(), "unknown outcome") {
 			t.Fatal(out.String())
 		}
+	}
+}
+
+func TestNativePreparationIsSeparateAndNeverLaunches(t *testing.T) {
+	t.Setenv("HACO_LOG_FORMAT", "json")
+	for _, args := range [][]string{{"_prepare-native"}, {"_prepare-native", "r", "extra"}} {
+		var out, log bytes.Buffer
+		if code := dispatch(context.Background(), args, &out, &log, helperActions{}); code != 2 || out.Len() != 0 {
+			t.Fatal("invalid native preparation arguments accepted", code)
+		}
+	}
+	for _, mode := range []string{"success", "failure", "output-failure", "canceled"} {
+		t.Run(mode, func(t *testing.T) {
+			var out, log bytes.Buffer
+			var writer io.Writer = &out
+			if mode == "output-failure" {
+				writer = rejectedPreparedOutput{}
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if mode == "canceled" {
+				cancel()
+			}
+			calls := 0
+			actions := helperActions{
+				prepare: func(context.Context, string) (wslreclaim.PreparedStatus, error) {
+					t.Fatal("native preparation fell back to legacy path")
+					return wslreclaim.PreparedStatus{}, nil
+				},
+				prepareNative: func(ctx context.Context, registration string) (wslreclaim.PreparedStatus, error) {
+					calls++
+					if registration != "registration" {
+						t.Fatal("changed registration")
+					}
+					if err := ctx.Err(); err != nil {
+						return wslreclaim.PreparedStatus{}, err
+					}
+					if mode == "failure" {
+						return wslreclaim.PreparedStatus{}, errors.New("token=private-native-preparation")
+					}
+					return wslreclaim.PreparedStatus{Operation: "operation", State: "pending"}, nil
+				},
+				launch: func(context.Context, string, string) (int, error) {
+					t.Fatal("preparation dispatched a worker")
+					return 0, nil
+				},
+			}
+			code := dispatch(ctx, []string{"_prepare-native", "registration"}, writer, &log, actions)
+			if calls != 1 || (code == 0) != (mode == "success") || strings.Contains(log.String(), "private-native-preparation") || strings.Contains(out.String(), "private-native-preparation") {
+				t.Fatal("native preparation boundary differs", code, calls, out.String(), log.String())
+			}
+			if mode == "success" {
+				var prepared wslreclaim.PreparedStatus
+				if json.Unmarshal(out.Bytes(), &prepared) != nil || prepared.State != "pending" || prepared.Operation != "operation" || prepared.Observation != nil {
+					t.Fatal("preparation claimed execution", out.String())
+				}
+			}
+		})
 	}
 }

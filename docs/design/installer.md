@@ -146,3 +146,13 @@ separate from the automated native process checks.
 ## Windows client placement
 
 The Windows package also carries the checksummed `haco-tunnel.exe`. Shared component placement stores it under the current Windows user and exact WSL registration, rejecting redirected paths or mismatched ownership. It has no reclamation enrollment authority. The completion screen prints the installed path and help command; ordinary WSL entry discovers the same client.
+
+The Windows-native reclamation source candidate also bundles the separately
+checksummed `haco-reclaim.exe` for amd64 and arm64. The same placement checks
+store it in `Hacocoon/reclaim-client/<registration>` under LocalAppData, separate
+from the enrolled `reclamation` helper directory and its ownership record. The
+installer prints a help command but never invokes the new client. This adds the
+fourth Windows companion archive and updates the existing amd64 package
+projection from nine to ten total build matrices; it does not change acceptance
+gates, workflow triggers or reclamation jobs. Native client execution and installed
+reclamation acceptance remain pending ([ADR 0115](../adr/0115-native-windows-reclamation-entry.md)).

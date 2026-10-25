@@ -537,11 +537,70 @@ try {
     [IO.File]::Delete($enrollChecksums)
     [IO.Directory]::Delete($enrollTestRoot, $false)
 }
+# Public clients use the same checksummed placement, but must not be executed.
+# These fixtures only read/write temporary ordinary files and mock placement.
+$clientBundleRoot = Join-Path ([IO.Path]::GetTempPath()) ('haco-client-bundle-' + [guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($clientBundleRoot)
+$clientChecksums = Join-Path $clientBundleRoot 'checksums.txt'
+$clientId = [guid]::NewGuid().ToString('B')
+$realInstallClient = ${function:Install-HacocoonWindowsBinary}
+function Install-HacocoonWindowsBinary([string]$Source, [string]$RegistrationId, [string]$ExpectedHash, [string]$BinaryName) {
+    Assert-Equal $Source $clientSource
+    Assert-Equal $RegistrationId $clientId
+    Assert-Equal $ExpectedHash $clientHash
+    Assert-Equal $BinaryName $clientBinary
+    $script:clientPlacements++
+    return 'not-an-executable-client-fixture'
+}
+try {
+    foreach ($clientBinary in @('haco-tunnel.exe', 'haco-reclaim.exe')) {
+        $clientSource = Join-Path $clientBundleRoot $clientBinary
+        [IO.File]::WriteAllText($clientSource, 'public client fixture only')
+        $clientHash = Get-Sha256Hex $clientSource
+        $validChecksum = $clientHash + '  ' + $clientBinary
+        $script:clientPlacements = 0
+        foreach ($lines in @('', 'bad', ($validChecksum + "`n" + $validChecksum), (('0' * 64) + '  ' + $clientBinary))) {
+            [IO.File]::WriteAllText($clientChecksums, $lines)
+            $rejected = $false
+            try { Install-HacocoonBundledWindowsBinary $clientBundleRoot $clientId $clientBinary | Out-Null } catch { $rejected = $true }
+            Assert-Equal $rejected $true
+            Assert-Equal $script:clientPlacements 0
+        }
+        [IO.File]::WriteAllText($clientChecksums, $validChecksum)
+        [IO.File]::WriteAllText($clientSource, 'tampered public client fixture')
+        $rejected = $false
+        try { Install-HacocoonBundledWindowsBinary $clientBundleRoot $clientId $clientBinary | Out-Null } catch { $rejected = $true }
+        Assert-Equal $rejected $true
+        Assert-Equal $script:clientPlacements 0
+        [IO.File]::Delete($clientSource)
+        $rejected = $false
+        try { Install-HacocoonBundledWindowsBinary $clientBundleRoot $clientId $clientBinary | Out-Null } catch { $rejected = $true }
+        Assert-Equal $rejected $true
+        Assert-Equal $script:clientPlacements 0
+        [IO.File]::WriteAllText($clientSource, 'public client fixture only')
+        [IO.File]::Delete($clientChecksums)
+        $rejected = $false
+        try { Install-HacocoonBundledWindowsBinary $clientBundleRoot $clientId $clientBinary | Out-Null } catch { $rejected = $true }
+        Assert-Equal $rejected $true
+        Assert-Equal $script:clientPlacements 0
+        [IO.File]::WriteAllText($clientChecksums, $validChecksum)
+        Assert-Equal (Install-HacocoonBundledWindowsBinary $clientBundleRoot $clientId $clientBinary) 'not-an-executable-client-fixture'
+        Assert-Equal $script:clientPlacements 1
+        [IO.File]::Delete($clientSource)
+    }
+} finally {
+    Set-Item -LiteralPath function:Install-HacocoonWindowsBinary -Value $realInstallClient
+    foreach ($clientBinary in @('haco-tunnel.exe', 'haco-reclaim.exe')) {
+        [IO.File]::Delete((Join-Path $clientBundleRoot $clientBinary))
+    }
+    [IO.File]::Delete($clientChecksums)
+    [IO.Directory]::Delete($clientBundleRoot, $false)
+}
 # Win32 sharing and junction semantics must be exercised by the Windows job.
 # Linux PowerShell runs the common component cases above; it cannot establish
 # Windows native acceptance. Keep every native assertion active on Windows.
 if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-foreach ($component in @(@{ Binary='haco-wsl.exe'; Area='reclamation' }, @{ Binary='haco-tunnel.exe'; Area='client' })) {
+foreach ($component in @(@{ Binary='haco-wsl.exe'; Area='reclamation' }, @{ Binary='haco-tunnel.exe'; Area='client' }, @{ Binary='haco-reclaim.exe'; Area='reclaim-client' })) {
 $helperBinary = $component.Binary
 # Real ordinary-file installation is isolated from the user's actual app folder.
 $realDataRoot = ${function:Get-HacocoonWindowsDataRoot}

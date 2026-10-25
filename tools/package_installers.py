@@ -5,6 +5,7 @@ import argparse
 import gzip
 import hashlib
 import io
+import re
 from pathlib import Path
 import shutil
 import tarfile
@@ -25,11 +26,16 @@ def sha256(path: Path) -> str:
 
 
 def archive_checksum_line(dist_checksums: Path, archive_name: str) -> str:
+    matches = []
     for raw in dist_checksums.read_text(encoding="utf-8").splitlines():
         parts = raw.split(None, 1)
-        if len(parts) == 2 and parts[1].lstrip("*") == archive_name:
-            return f"{parts[0]}  {archive_name}\n"
-    raise ValueError(f"checksum not found for {archive_name}")
+        if len(parts) == 2 and parts[1] in (archive_name, "*" + archive_name):
+            matches.append(parts[0])
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one checksum for {archive_name}")
+    if re.fullmatch(r"[a-f0-9]{64}", matches[0]) is None:
+        raise ValueError(f"invalid checksum for {archive_name}")
+    return f"{matches[0]}  {archive_name}\n"
 
 
 def add_zip_file(zf: zipfile.ZipFile, source: Path, name: str, mode: int) -> None:
@@ -63,7 +69,7 @@ def add_tar_bytes(tf: tarfile.TarFile, data: bytes, name: str, mode: int) -> Non
 
 
 def windows_binary(archive: Path, component: str, binary: str) -> bytes:
-    label = {"review": "review", "wsl": "WSL helper", "tunnel": "tunnel"}[component]
+    label = {"review": "review", "wsl": "WSL helper", "tunnel": "tunnel", "reclaim": "reclaim client"}[component]
     native = archive.parent / archive.name.replace("haco_linux_", f"haco_{component}_windows_").replace(".tar.gz", ".zip")
     expected = archive_checksum_line(archive.parent / "checksums.txt", native.name).split()[0]
     if sha256(native) != expected:
@@ -77,7 +83,8 @@ def windows_binary(archive: Path, component: str, binary: str) -> bytes:
 
 def package_windows(output: Path, archive: Path, checksum_line: str, version: str) -> None:
     binaries = {name: windows_binary(archive, component, name) for component, name in
-                (("review", "haco-review.exe"), ("wsl", "haco-wsl.exe"), ("tunnel", "haco-tunnel.exe"))}
+                (("review", "haco-review.exe"), ("wsl", "haco-wsl.exe"),
+                 ("tunnel", "haco-tunnel.exe"), ("reclaim", "haco-reclaim.exe"))}
     for name, data in binaries.items():
         checksum_line += hashlib.sha256(data).hexdigest() + "  " + name + "\n"
 
