@@ -109,40 +109,68 @@ func runNativeFixture(t *testing.T, scenario string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := driver.Wait(ctx); err != nil {
-		t.Fatal("synthetic native scenario did not exit successfully")
-	}
-	if err := readFixtureSuccess(ctx, driver.Output); err != nil {
+	waitErr := driver.Wait(ctx)
+	// A failed exit may still carry one fixed diagnostic stage. Reading it never
+	// converts the failed exit into success or changes the owned-Job cleanup.
+	raw, err := readFixtureResult(ctx, driver.Output)
+	if err != nil {
 		t.Fatal("synthetic native scenario receipt was not confirmed")
+	}
+	if err := decodeFixtureResult(raw, waitErr); err != nil {
+		t.Fatal(err) // Decoder errors contain fixed allowlisted text only.
 	}
 }
 
 // Do not use an unbounded reader even for fixture diagnostics. Driver stdout is
-// exactly OK\n or FAIL\n, not arbitrary child output or environment contents.
-func readFixtureSuccess(ctx context.Context, file *os.File) error {
+// exactly OK\n, FAIL\n or an allowlisted failure stage, never arbitrary child
+// output, underlying errors, paths or environment contents.
+func readFixtureResult(ctx context.Context, file *os.File) ([]byte, error) {
 	p := nativeProcess{output: windows.Handle(file.Fd())}
 	var raw []byte
-	var buffer [4]byte
+	var buffer [fixtureReceiptLimit + 1]byte
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return nil, err
 		}
 		n, eof, err := p.read(buffer[:])
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if n > 3-len(raw) {
-			return errors.New("oversized fixture receipt")
+		if n > fixtureReceiptLimit-len(raw) {
+			return nil, errors.New("oversized fixture receipt")
 		}
 		raw = append(raw, buffer[:n]...)
 		if eof {
-			if !bytes.Equal(raw, []byte("OK\n")) {
-				return errors.New("missing fixture receipt")
-			}
-			return nil
+			return raw, nil
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// AllocConsole initializes standard handles. Keep an exact, noninheritable
+// duplicate of the driver result pipe before any scenario changes its console.
+// This duplicates no process ownership and is closed before successful exit.
+func runFixtureScenario(name string) int {
+	source := windows.Handle(os.Stdout.Fd())
+	if kind, err := windows.GetFileType(source); err != nil || kind != windows.FILE_TYPE_PIPE {
+		return 1
+	}
+	var held windows.Handle
+	if err := windows.DuplicateHandle(windows.CurrentProcess(), source, windows.CurrentProcess(), &held, 0, false, windows.DUPLICATE_SAME_ACCESS); err != nil {
+		return 1
+	}
+	output := os.NewFile(uintptr(held), "synthetic-result-pipe")
+	if output == nil {
+		_ = windows.CloseHandle(held)
+		return 1
+	}
+	scenarioErr := nativeFixtureScenario(name)
+	_, writeErr := io.WriteString(output, encodeFixtureResult(scenarioErr))
+	closeErr := output.Close()
+	if scenarioErr != nil || writeErr != nil || closeErr != nil {
+		return 1
+	}
+	return 0
 }
 
 // Only fixed self-test modes are accepted. No arbitrary program, command, path,
@@ -163,14 +191,7 @@ func TestNativeReclaimFixtureProcess(t *testing.T) {
 		if _, err := io.ReadFull(os.Stdin, gate[:]); err != nil || gate[0] != 1 {
 			os.Exit(2)
 		}
-		if err := nativeFixtureScenario(args[2]); err != nil {
-			_, _ = io.WriteString(os.Stdout, "FAIL\n")
-			os.Exit(1)
-		}
-		if _, err := io.WriteString(os.Stdout, "OK\n"); err != nil {
-			os.Exit(1)
-		}
-		os.Exit(0)
+		os.Exit(runFixtureScenario(args[2]))
 	case "child":
 		os.Exit(nativeFixtureChild(args[2], args[3:]))
 	default:

@@ -33,6 +33,12 @@ func nativeRedirectedFixture(ctx context.Context) (err error) {
 }
 
 func nativeConsoleFixture(ctx context.Context) (err error) {
+	stage := "console-abi"
+	defer func() {
+		if err != nil {
+			err = &fixtureStageError{stage: stage, cause: err}
+		}
+	}()
 	// Independent SDK layout expectations, not generated from the Go struct.
 	// https://learn.microsoft.com/en-us/windows/console/input-record-str
 	// https://learn.microsoft.com/en-us/windows/console/key-event-record-str
@@ -40,14 +46,17 @@ func nativeConsoleFixture(ctx context.Context) (err error) {
 	if unsafe.Sizeof(record) != 20 || unsafe.Offsetof(record.keyDown) != 4 || unsafe.Offsetof(record.repeat) != 8 || unsafe.Offsetof(record.character) != 14 || unsafe.Offsetof(record.controlState) != 16 {
 		return errors.New("console event ABI mismatch")
 	}
+	stage = "console-api"
 	kernel := windows.NewLazySystemDLL("kernel32.dll")
 	getConsole := kernel.NewProc("GetConsoleWindow")
 	if err := getConsole.Find(); err != nil {
 		return err
 	}
+	stage = "console-existing"
 	if existing, _, _ := getConsole.Call(); existing != 0 {
 		return errors.New("fixture unexpectedly inherited a console")
 	}
+	stage = "console-api"
 	allocate, free := kernel.NewProc("AllocConsole"), kernel.NewProc("FreeConsole")
 	if err := allocate.Find(); err != nil {
 		return err
@@ -55,17 +64,28 @@ func nativeConsoleFixture(ctx context.Context) (err error) {
 	if err := free.Find(); err != nil {
 		return err
 	}
-	// The isolated CREATE_NO_WINDOW scenario driver allocates its own console.
-	// It never attaches to, flushes, or changes modes on the developer's console.
+	// CREATE_NO_WINDOW is not DETACHED_PROCESS. Normalize only this isolated
+	// scenario driver's attachment before allocating its own fresh console.
+	// FreeConsole succeeds even if it was already detached. Never attach to,
+	// flush, or change modes on the developer's console. The driver retains a
+	// separate exact pipe handle for its bounded result across console changes.
+	// https://learn.microsoft.com/en-us/windows/console/freeconsole
 	// https://learn.microsoft.com/en-us/windows/console/allocconsole
+	stage = "console-detach"
+	if ok, _, callErr := free.Call(); ok == 0 {
+		return callErr
+	}
+	stage = "console-allocate"
 	if ok, _, callErr := allocate.Call(); ok == 0 {
 		return callErr
 	}
 	defer func() {
 		if ok, _, callErr := free.Call(); ok == 0 {
+			stage = "console-cleanup"
 			err = errors.Join(err, callErr)
 		}
 	}()
+	stage = "console-input"
 	name, err := windows.UTF16PtrFromString("CONIN$")
 	if err != nil {
 		return err
@@ -78,7 +98,13 @@ func nativeConsoleFixture(ctx context.Context) (err error) {
 	if input == nil {
 		return errors.Join(errors.New("console input wrapper unavailable"), windows.CloseHandle(handle))
 	}
-	defer func() { err = errors.Join(err, input.Close()) }()
+	defer func() {
+		if closeErr := input.Close(); closeErr != nil {
+			stage = "console-cleanup"
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	stage = "console-mode"
 	var original uint32
 	if err := windows.GetConsoleMode(handle, &original); err != nil {
 		return err
@@ -86,8 +112,10 @@ func nativeConsoleFixture(ctx context.Context) (err error) {
 	defer func() {
 		var mode uint32
 		if readErr := windows.GetConsoleMode(handle, &mode); readErr != nil {
+			stage = "console-cleanup"
 			err = errors.Join(err, readErr)
 		} else if mode != original {
+			stage = "console-cleanup"
 			err = errors.Join(err, errors.New("confirmation changed console mode"))
 		}
 	}()
@@ -95,34 +123,42 @@ func nativeConsoleFixture(ctx context.Context) (err error) {
 	// A fresh console has no affirmative input. Non-key notifications may occur;
 	// the production NOWAIT reader must still honor cancellation without a reader
 	// goroutine, blocking cooked read or console-mode changes.
+	stage = "console-cancel"
 	canceled, stop := context.WithTimeout(ctx, 75*time.Millisecond)
 	confirmed, readErr := confirmConsole(canceled, input, io.Discard, cliui.English)
 	stop()
 	if confirmed || !errors.Is(readErr, context.DeadlineExceeded) {
 		return errors.New("empty console did not honor bounded cancellation")
 	}
+	stage = "console-write"
 	if err := writeFixtureConsoleKeys(handle, []fixtureConsoleKey{{character: 'y', down: true, repeat: 1}, {character: 'e', down: true, repeat: 1}, {character: 's', down: true, repeat: 1}, {character: '\r', down: true, repeat: 1}}); err != nil {
 		return err
 	}
+	stage = "console-confirm"
 	if confirmed, readErr = confirmConsole(ctx, input, io.Discard, cliui.English); readErr != nil || !confirmed {
 		return errors.New("SDK-layout console confirmation was not accepted")
 	}
+	stage = "console-write"
 	if err := writeFixtureConsoleKeys(handle, []fixtureConsoleKey{{character: 'y', down: false, repeat: 1}, {character: '\r', down: true, repeat: 1}}); err != nil {
 		return err
 	}
+	stage = "console-key-up"
 	if confirmed, readErr = confirmConsole(ctx, input, io.Discard, cliui.English); readErr != nil || confirmed {
 		return errors.New("key-up event granted confirmation")
 	}
 	for _, sample := range []struct {
-		keys []fixtureConsoleKey
-		yes  bool
+		keys  []fixtureConsoleKey
+		yes   bool
+		stage string
 	}{
-		{[]fixtureConsoleKey{{character: 'y', down: true, repeat: 2}, {character: '\r', down: true, repeat: 1}}, false},
-		{[]fixtureConsoleKey{{character: 'y', down: true, repeat: 1}, {character: 'x', down: true, repeat: 1}, {character: '\b', down: true, repeat: 1}, {character: '\r', down: true, repeat: 1}}, true},
+		{[]fixtureConsoleKey{{character: 'y', down: true, repeat: 2}, {character: '\r', down: true, repeat: 1}}, false, "console-repeat"},
+		{[]fixtureConsoleKey{{character: 'y', down: true, repeat: 1}, {character: 'x', down: true, repeat: 1}, {character: '\b', down: true, repeat: 1}, {character: '\r', down: true, repeat: 1}}, true, "console-backspace"},
 	} {
+		stage = "console-write"
 		if err := writeFixtureConsoleKeys(handle, sample.keys); err != nil {
 			return err
 		}
+		stage = sample.stage
 		if confirmed, readErr = confirmConsole(ctx, input, io.Discard, cliui.English); readErr != nil || confirmed != sample.yes {
 			return errors.New("native console repeat or backspace result differs")
 		}
