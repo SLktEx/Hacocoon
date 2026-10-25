@@ -1,0 +1,75 @@
+# Proposed publication artifact only. Not installed in .github/workflows.
+# Exact reviewed product-and-fixture source is the required parent.
+name: native-reclaim-components
+on:
+  push:
+    branches: [validation/native-reclaim-components-20261024]
+permissions:
+  contents: read
+concurrency:
+  group: native-reclaim-components-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  synthetic-windows-amd64:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/validation/native-reclaim-components-20261024'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      HACO_TEST_NATIVE_RECLAIM_COMPONENTS: '1'
+      HACO_SOURCE_COMMIT: 4832f3e9ce2b6447ba1b958aa529d3231964f961
+    steps:
+      - name: Check out the exact isolated verification head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Refuse any unreviewed source or non-isolated input
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_ARCH -cne 'X64') { throw 'Expected isolated Windows amd64 runner.' }
+          $actual = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actual -cne $env:GITHUB_SHA) { throw 'Head identity mismatch.' }
+          $parent = (git rev-parse HEAD^).Trim()
+          if ($LASTEXITCODE -ne 0 -or $parent -cne $env:HACO_SOURCE_COMMIT) { throw 'Reviewed source parent mismatch.' }
+          $changed = @(git diff --name-only $env:HACO_SOURCE_COMMIT HEAD)
+          if ($LASTEXITCODE -ne 0 -or $changed.Count -ne 1 -or $changed[0] -cne '.github/workflows/native-reclaim-components.yml') { throw 'Verification commit changed product source.' }
+          [ordered]@{ schema=1; source_sha=$parent; run_sha=$actual; run=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT; runner_os='Windows'; runner_arch='X64'; scope='synthetic-components-only-no-wsl' } | ConvertTo-Json -Compress | Set-Content -Encoding utf8 verification-metadata.json
+      - name: Set up the pinned official Go compiler
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.7
+          check-latest: false
+          cache: false
+      - name: Require every synthetic frontend fixture to pass exactly once
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = 'TestNativeFrontendTransport,TestNativeFrontendHandleInheritance,TestNativeFrontendConsole,TestNativeFrontendPinnedFiles'
+          python tools/ci_required_tests.py --expect $expected -- go test -count=1 -failfast -v -timeout 4m ./internal/cli/reclaimnative -run '^(TestNativeFrontendTransport|TestNativeFrontendHandleInheritance|TestNativeFrontendConsole|TestNativeFrontendPinnedFiles)$' > native-frontend.log 2>&1
+          $result = $LASTEXITCODE
+          Get-Content -LiteralPath native-frontend.log
+          if ($result -ne 0) { throw 'Synthetic frontend execution or cleanup was not proven; do not retry automatically.' }
+      - name: Require exact-handle private-process fixture results
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = 'TestPrivateWaitRejectsNonzeroExitDespiteOutput,TestPrivateWaitAndConcurrentCloseKeepExactHandleOwnership,TestPrivateRootExitStillRequiresDescendantCleanupAndLeavesPeers,TestPrivateCloseCachesRootHandleCloseFailure'
+          python tools/ci_required_tests.py --expect $expected -- go test -count=1 -failfast -v -timeout 4m ./internal/platform/winprocess -run '^(TestPrivateWaitRejectsNonzeroExitDespiteOutput|TestPrivateWaitAndConcurrentCloseKeepExactHandleOwnership|TestPrivateRootExitStillRequiresDescendantCleanupAndLeavesPeers|TestPrivateCloseCachesRootHandleCloseFailure)$' > native-ownership.log 2>&1
+          $result = $LASTEXITCODE
+          Get-Content -LiteralPath native-ownership.log
+          if ($result -ne 0) { throw 'Synthetic ownership execution or cleanup was not proven; do not retry automatically.' }
+      - name: Preserve bounded verification evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-reclaim-components-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            verification-metadata.json
+            ci-test-results.jsonl
+            native-frontend.log
+            native-ownership.log
+          if-no-files-found: error
+          retention-days: 30
