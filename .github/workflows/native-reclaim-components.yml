@@ -18,7 +18,7 @@ jobs:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
       HACO_TEST_NATIVE_RECLAIM_COMPONENTS: '1'
-      HACO_SOURCE_COMMIT: 4832f3e9ce2b6447ba1b958aa529d3231964f961
+      HACO_SOURCE_COMMIT: 78523db094e22e07b2a26eb73797e980e59132a4
     steps:
       - name: Check out the exact isolated verification head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
