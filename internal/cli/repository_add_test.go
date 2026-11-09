@@ -48,6 +48,43 @@ func TestProductRepoAddKeepsJSONAndProgressSeparate(t *testing.T) {
 	}
 }
 
+func TestProductRepoAddWithoutID(t *testing.T) {
+	const remote = "https://github.com/example/repo.git"
+	const generatedID = "repo-0123456789ab"
+	server := control.NewServer()
+	if err := server.RegisterStream(controlapi.MethodRepositoryAdd, func(_ context.Context, raw json.RawMessage) (control.Stream, error) {
+		var req controlapi.RepositoryAddRequest
+		if err := json.Unmarshal(raw, &req); err != nil || req.ID != "" || req.Remote != remote {
+			t.Errorf("unexpected URL-only registration: %s", raw)
+		}
+		return func(_ context.Context, c net.Conn) error {
+			result := "{\"done\":true,\"result\":{\"kind\":\"repo\",\"id\":\"" + generatedID + "\",\"remote\":\"" + remote + "\",\"state\":\"ready\"}}\n"
+			_, err := io.WriteString(c, result)
+			return err
+		}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "control.sock")
+	listener, err := control.ListenUnix(path, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(ctx, listener) }()
+	defer func() { cancel(); <-done }()
+	t.Setenv("HACO_CONTROL_SOCKET", path)
+
+	var out, diag bytes.Buffer
+	if code := repositoryCommand(ctx, "repo", []string{"add", remote}, &out, &diag); code != 0 {
+		t.Fatal(code, &diag)
+	}
+	if !strings.Contains(out.String(), generatedID) {
+		t.Fatalf("generated repository ID missing: stdout=%q stderr=%q", out.String(), diag.String())
+	}
+}
+
 func TestProductRepoAddRejectsOldRegistrationSyntax(t *testing.T) {
 	for _, args := range [][]string{{"clone", "--branch", "main", "sample", "https://github.com/example/repo.git"}, {"add", "--branch", "main", "sample", "https://github.com/example/repo.git"}} {
 		var out, diag bytes.Buffer

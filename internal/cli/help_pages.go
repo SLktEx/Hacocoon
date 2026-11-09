@@ -65,7 +65,7 @@ var helpPages = []helpPage{
 	{Path: "env export", Syntax: "[--json] <stopped-env> [file.haco]", Message: "command.env.export", Example: "haco env export dev dev.haco"},
 	{Path: "env import", Syntax: "[--json] <file.haco> [new-env]", Message: "command.env.import", Example: "haco env import dev.haco restored"},
 	{Path: "repo", Syntax: "<command>", Message: "command.repo", Example: "haco repo list"},
-	{Path: "repo add", Syntax: "[--json] <id> <URL>", Message: "command.repo.add", Example: "haco repo add sample https://github.com/OWNER/REPO.git"},
+	{Path: "repo add", Syntax: "[--json] [<id>] <URL>", Message: "command.repo.add", Example: "haco repo add https://github.com/OWNER/REPO.git"},
 	{Path: "repo list", Syntax: "[--json]", Message: "command.repo.list", Example: "haco repo list"},
 	{Path: "repo delete", Syntax: "[--yes] <id>", Message: "command.repo.delete", Example: "haco repo delete source"},
 	{Path: "workspace", Syntax: "<command>", Message: "command.workspace", Example: "haco workspace list"},
