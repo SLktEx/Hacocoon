@@ -72,7 +72,7 @@ func init() {
 	set([]string{"env copy"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[new-env]", "detail.copy_name")}, []cliui.HelpField{json})
 	set([]string{"env export"}, []cliui.HelpField{field("<stopped-env>", "detail.stopped"), field("[file.haco]", "detail.archive_out")}, []cliui.HelpField{json})
 	set([]string{"env import"}, []cliui.HelpField{field("<file.haco>", "detail.archive_in"), field("[new-env]", "detail.import_name")}, []cliui.HelpField{json})
-	set([]string{"repo add"}, []cliui.HelpField{field("<URL>", "detail.remote")}, nil, "detail.read_access")
+	set([]string{"repo add"}, []cliui.HelpField{field("[<id>]", "detail.repo"), field("<URL>", "detail.remote")}, nil, "detail.read_access")
 	set([]string{"repo delete"}, []cliui.HelpField{field("<id>", "detail.repo")}, []cliui.HelpField{yes})
 	set([]string{"workspace create"}, []cliui.HelpField{field("<workspace>", "detail.workspace_new")}, []cliui.HelpField{repos, field("--branch <branch>", "detail.branch")})
 	set([]string{"workspace prepare"}, nil, []cliui.HelpField{path, repos, name, base, oci})
