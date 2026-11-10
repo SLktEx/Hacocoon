@@ -62,6 +62,7 @@ func run(parent context.Context, args []string) error {
 		controlapi.RegisterReviews(server, app.Reviews),
 		controlapi.RegisterCache(server, app.Cache),
 		controlapi.RegisterConfiguration(server, app.Configuration),
+		controlapi.RegisterCapabilityCatalog(server, app.Capabilities),
 		controlapi.Register(server, app.Environments, app.Clients),
 		controlapi.RegisterForwardStreams(server, app.Clients),
 		controlapi.RegisterBaseManage(server, app.BaseManage),

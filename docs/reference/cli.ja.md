@@ -18,7 +18,7 @@ help・versionにコントローラーは不要です。
 | Host・プロジェクト設定 | `haco setup [--script <path> \| --clear-script] [environment]` | [Host](../design/trusted-host.ja.md)・[プロジェクト](../design/project-setup.ja.md)。対象省略時は信頼済みHost |
 | Host設定の再適用・結果 | `haco setup --reapply-script`、`haco setup --script-result` | [Host設定](../design/trusted-host.ja.md); Host専用 |
 | 診断 | `haco doctor [--json] [--fix] [environment]` | 既定はHost。失敗・スキップは非ゼロで終了 |
-| ポリシー | `haco config`, `--edit` or `--file <json>` | [設定](configuration.ja.md) |
+| ポリシー | `haco config`, `--edit` or `--file <json>`; `haco config capabilities [--json]` | [設定](configuration.ja.md) |
 | Experimental VS Code | `haco experimental edit vscode [--file <yaml> \| --json [ - ]]` | [サブツリー編集とEnvへの反映](experimental-vscode.ja.md) |
 | 承認 | `haco approve [--json] [request-id]`; `haco approve --list` | [承認確認](../design/pending-approval-review.ja.md)。対話選択・範囲保存 |
 | 元リポジトリ | `haco repo add <URL>`; `list [--json]`; `delete <id>` | [Git](../guides/git-workflow.ja.md)。ブランチを指定せず登録 |
