@@ -96,6 +96,7 @@ var commandCatalog = map[string]translation{
 	"reclaim.stage.readiness":      {"worker startup acknowledgement", "起動した処理の応答確認"},
 	"reclaim.stage.other":          {"an unclassified operation", "未分類の操作"},
 	"reclaim.native_error":         {"Windows error code: %d", "Windowsエラー番号: %d"},
+	"reclaim.job_scope":            {"Launcher Job observations only; outer Jobs and the cause of the launch failure remain unknown.", "起動側の直近のJobだけを観測しています。外側のJobや起動失敗の原因は不明です。"},
 	"reclaim.inspect":              {"Inspect haco reclaim --status before another action. A failed launch response does not prove the worker never started.", "次の操作の前に haco reclaim --status で確認してください。起動応答の失敗だけでは、処理が始まっていないと断定できません。"},
 	"reclaim.installation":         {"Reopen the selected Hacocoon installation and inspect haco doctor. Keep saved registration and disk data; do not replace them to bypass this check.", "対象のHacocoonを開き直し、haco doctor で確認してください。保存された登録情報やディスクを消したり差し替えたりせず、原因を確認してください。"},
 	"reclaim.access":               {"Use the Windows account that installed this Hacocoon and inspect haco doctor. Retain the existing disk and saved result.", "このHacocoonを導入したWindowsアカウントで haco doctor を確認してください。既存ディスクと保存結果は残してください。"},

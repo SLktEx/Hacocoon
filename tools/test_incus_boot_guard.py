@@ -56,6 +56,21 @@ class BootGuardTests(unittest.TestCase):
         self.assertEqual([p.read_bytes() for p in archives], [original])
         self.assertEqual(self.marker(), NEW)
 
+    def test_clean_provider_stop_advances_marker_without_fabricating_archive(self):
+        self.run_guard()
+        path = self.record()
+        config = path.parent / 'dnsmasq.raw'
+        config.write_text('preserve network configuration')
+        path.unlink()  # Model Incus 7.0.2's normal stop cleanup in this private fixture.
+        with patch.object(os, 'kill', side_effect=AssertionError('must never signal')):
+            self.run_guard(NEW)
+        self.assertEqual(self.marker(), NEW)
+        self.assertEqual(config.read_text(), 'preserve network configuration')
+        self.assertFalse(path.exists())
+        self.assertEqual(list(self.state.glob('retired-*')), [])
+        self.run_guard(NEW, available=True)
+        self.assertEqual(list(self.state.glob('retired-*')), [])
+
     def test_same_namespace_restart_retains_current_records(self):
         self.run_guard()
         path = self.record()

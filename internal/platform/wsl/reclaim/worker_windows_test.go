@@ -297,9 +297,9 @@ func TestWorkerLaunchDiagnosticsUseFixedStagesAndNativeCodes(t *testing.T) {
 		{&workerLaunchError{stage: "readiness", err: errors.New("token=private")}, "readiness", 0},
 		{&workerLaunchError{stage: "token=private", err: errors.New("private")}, "other", 0},
 	} {
-		stage, code := WorkerLaunchFailure(tc.err)
-		if stage != tc.stage || code != tc.code {
-			t.Fatal(stage, code)
+		failure := WorkerLaunchFailure(tc.err)
+		if failure.Stage != tc.stage || failure.NativeError != tc.code {
+			t.Fatal(failure)
 		}
 	}
 }

@@ -80,6 +80,8 @@ def failure_summary(result):
     # Fixed vocabulary/booleans only: never emit arbitrary child fields or logs.
     if not isinstance(result, dict):
         return {"worker_result": "unrecognized"}
+    if result == {"operation": "", "state": "none"}:
+        return {"worker_result": "none"}
     allowed = {"identity_unavailable", "identity_changed", "pool_unavailable", "pool_trim_failed", "outer_trim_failed", "cleanup_failed", "canceled"}
     linux = result.get("linux")
     linux = linux if isinstance(linux, dict) else {}
@@ -183,6 +185,61 @@ def read_json(command):
         return json.loads(capture_observation(command).decode("utf-8-sig"))
     except (UnicodeError, ValueError):
         raise RuntimeError("Windows read-only observation invalid") from None
+
+
+def wsl_version_summary(data):
+    # --version is documented as WSL/component information, not the version of
+    # an already-running service. Human labels are not a stable/localized API:
+    # accept only these known labels and numeric values; all else is unavailable.
+    # https://learn.microsoft.com/windows/wsl/basic-commands#check-wsl-version
+    labels = {"WSL version": "wsl", "Kernel version": "kernel", "WSLg version": "wslg",
+              "MSRDC version": "msrdc", "Direct3D version": "direct3d",
+              "DXCore version": "dxcore", "Windows version": "windows"}
+    unavailable = {"state": "unavailable"}
+    if not isinstance(data, bytes) or not 0 < len(data) <= 16384:
+        return unavailable
+    try:
+        encoding = "utf-16" if data.startswith(b"\xff\xfe") else "utf-16-le" if b"\0" in data else "utf-8-sig"
+        lines = data.decode(encoding).splitlines()
+    except UnicodeError:
+        return unavailable
+    if len(lines) > 16:
+        return unavailable
+    versions = dict.fromkeys(labels.values())
+    seen = set()
+    for line in lines:
+        if not line.strip():
+            continue
+        label, separator, value = line.strip().partition(":")
+        if not separator or label not in labels or label in seen:
+            return unavailable
+        seen.add(label)
+        value = value.strip()
+        if re.fullmatch(r"[0-9]{1,10}(?:\.[0-9]{1,10}){1,4}", value) and all(int(part) <= 0xffffffff for part in value.split(".")):
+            versions[labels[label]] = value
+    # Null component versions are unavailable, not truncated numeric prefixes.
+    return {"state": "observed", "versions": versions} if versions["wsl"] is not None else unavailable
+
+
+def observe_wsl_version():
+    try:
+        executable = Path(os.environ["SystemRoot"]) / "System32/wsl.exe"
+        return wsl_version_summary(capture_observation([str(executable), "--version"]))
+    except (OSError, KeyError, RuntimeError, subprocess.TimeoutExpired):
+        return {"state": "unavailable"}
+
+
+def report_dispatch_failure(helper, registration, version):
+    # One Windows-direct read, never WSL/replay/review. This is the registration's
+    # latest saved result, not proof of the exact unsuccessful public invocation.
+    summary = {"worker_result": "unavailable"}
+    try:
+        summary = failure_summary(read_json([str(helper), "_status", registration]))
+    except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired):
+        pass
+    report_observation({"component": "ci", "operation": "reclamation_dispatch_failure",
+                        "scope": "registration_latest", "saved_result": summary,
+                        "predispatch_wsl_version": version})
 
 
 def process_origin_script():
@@ -488,6 +545,11 @@ def main():
     retention = reclamation_retention.load_manifest(args.retention_manifest)
     report_phase("fresh_history")
     require_absent_history(read_json([str(helper), "_status", reg]))
+    # Observe once before the first dispatch/shutdown-sensitive interval. Never
+    # run wsl.exe again to obtain diagnostics after an uncertain dispatch.
+    wsl_version = observe_wsl_version()
+    report_observation({"component": "ci", "operation": "reclamation_wsl_version",
+                        "scope": "installed_executable", **wsl_version})
     report_phase("terminal_start")
     terminal = driver.TerminalProcess()
     stage, sent_at = 0, 0
@@ -495,6 +557,8 @@ def main():
 
     def drive(output, process):
         nonlocal stage, sent_at, terminal_confirmed
+        if stage == -1:
+            return
         fresh = output[sent_at:]
         if stage in (1, 4):
             driver.reject_failed_host_entry(fresh)
@@ -531,7 +595,9 @@ def main():
                 stage, sent_at = 3, len(output)
         elif stage == 2 and any(text in fresh for text in ("could not be confirmed", "Dispatch result unavailable", "Managed Windows installation unavailable",
                                                           "Windowsの容量回収結果を確認できません。", "起動結果を確認できません。", "Windowsの導入情報を確認できません。")):
-            raise RuntimeError("Public dispatch failed; no retry or WSL reentry")
+            stage = -1  # Latch before observation: no repeat read or dispatch.
+            report_dispatch_failure(helper, reg, wsl_version)
+            raise driver.RetainUncertainTerminalError("Public dispatch failed; no retry or WSL reentry")
         elif stage == 3 and driver.cmd_prompt_count(fresh):
             report_phase("host_reentry")
             process.write("wsl -d Hacocoon\r\n")
