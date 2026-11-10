@@ -1,8 +1,10 @@
 import importlib.util
+import contextlib
 import io
 import os
 from pathlib import Path
 import subprocess
+import runpy
 import sys
 import tarfile
 import tempfile
@@ -145,10 +147,106 @@ class HostToolingTests(unittest.TestCase):
                              [["/usr/bin/git", "--version"], ["/usr/bin/gh", "--version"]])
         absent = subprocess.CompletedProcess([], 1, b"")
         with mock.patch.object(tooling.subprocess, "run", return_value=absent), \
-                mock.patch.object(tooling, "run", side_effect=RuntimeError) as run:
+                mock.patch.object(tooling, "run", side_effect=RuntimeError) as run, \
+                mock.patch.object(tooling.os, "write"):
             with self.assertRaises(RuntimeError):
                 tooling.packages()
             self.assertEqual(run.call_count, 1)
+
+    def test_package_calls_and_receipts_preserve_operation_contract(self):
+        required = ("git", "gh", "ca-certificates", "iptables", "nftables", "curl",
+                    "gnupg", "dnsmasq-base", "uidmap")
+        query = [("query", ["/usr/bin/dpkg-query", "-W", "-f=${Status}", name], 15)
+                 for name in required]
+        install = [
+            ("update", ["/usr/bin/apt-get", "-o", "Acquire::Retries=2", "update"], 180),
+            ("install", ["/usr/bin/apt-get", "-o", "DPkg::Lock::Timeout=60", "install", "-y",
+                         "--no-install-recommends", *required], 360),
+        ]
+        verify = [("git_verify", ["/usr/bin/git", "--version"], 120),
+                  ("gh_verify", ["/usr/bin/gh", "--version"], 120)]
+        failures = {
+            "timeout": subprocess.TimeoutExpired(["SECRET-command"], 1,
+                                                 output=b"SECRET-output", stderr=b"SECRET-error"),
+            "exit": subprocess.CalledProcessError(100, ["SECRET-command"],
+                                                 output=b"SECRET-output", stderr=b"SECRET-error"),
+            "other": OSError("SECRET-path-and-error"),
+        }
+        cases = [(True, "", "", None), (False, "", "", None)]
+        cases += [(False, phase, kind, error) for phase in ("query", "update", "install", "git_verify", "gh_verify")
+                  for kind, error in failures.items()]
+        for installed, failed_phase, kind, failure in cases:
+            with self.subTest(installed=installed, phase=failed_phase, kind=kind):
+                expected = query + ([] if installed else install) + verify
+                calls = []
+                output, diagnostic = io.StringIO(), io.StringIO()
+
+                def command(argv, **kwargs):
+                    phase, wanted, timeout = expected[len(calls)]
+                    calls.append(argv)
+                    self.assertEqual(argv, wanted)
+                    options = {"env": tooling.ENV, "timeout": timeout,
+                               "stdout": subprocess.PIPE if phase == "query" else subprocess.DEVNULL,
+                               "stderr": subprocess.DEVNULL, "check": phase != "query"}
+                    if phase != "query":
+                        options["stdin"] = subprocess.DEVNULL
+                    self.assertEqual(kwargs, options)
+                    if phase == failed_phase:
+                        raise failure
+                    return subprocess.CompletedProcess(argv, 0 if installed or phase != "query" else 1,
+                                                       b"install ok installed" if installed else b"SECRET-status")
+
+                def write_receipt(fd, data):
+                    self.assertEqual(fd, 1)
+                    return output.write(data.decode("ascii"))
+
+                with mock.patch.object(tooling.subprocess, "run", side_effect=command), \
+                        mock.patch.object(tooling.os, "write", side_effect=write_receipt), \
+                        contextlib.redirect_stdout(output), contextlib.redirect_stderr(diagnostic):
+                    if failure is None:
+                        tooling.packages()
+                        count = len(expected)
+                    else:
+                        with self.assertRaises(type(failure)) as raised:
+                            tooling.packages()
+                        self.assertIs(raised.exception, failure)
+                        count = next(i + 1 for i, step in enumerate(expected) if step[0] == failed_phase)
+                self.assertEqual(len(calls), count)
+                receipt = "haco-host-packages-v1:" + failed_phase + ":" + kind + "\n" if failure else ""
+                self.assertEqual(output.getvalue(), receipt)
+                self.assertLessEqual(len(receipt.encode()), 64)
+                self.assertEqual(diagnostic.getvalue(), "")
+
+    def test_package_receipt_failure_or_unknown_phase_preserves_original_error(self):
+        failure = RuntimeError("SECRET-original")
+        for write_failure in (OSError("SECRET-observer"), BrokenPipeError("SECRET-pipe"), 1):
+            write = mock.Mock(side_effect=write_failure) if isinstance(write_failure, Exception) else mock.Mock(return_value=write_failure)
+            with self.subTest(write_failure=write_failure), mock.patch.object(tooling.os, "write", write):
+                with self.assertRaises(RuntimeError) as raised:
+                    tooling.package_step("install", mock.Mock(side_effect=failure))
+                self.assertIs(raised.exception, failure)
+                self.assertEqual(write.call_count, 1)
+        output = io.StringIO()
+        with mock.patch.object(tooling.os, "write") as write, contextlib.redirect_stdout(output), self.assertRaises(RuntimeError) as raised:
+            tooling.package_step("SECRET-unknown-phase", mock.Mock(side_effect=failure))
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(output.getvalue(), "")
+        write.assert_not_called()
+
+    def test_package_main_emits_fixed_receipt_and_keeps_exit_one(self):
+        for mode, receipt in (("host_packages", "haco-host-packages-v1:query:timeout\n"),
+                              ("SECRET-unknown-mode", "")):
+            output, diagnostic = io.StringIO(), io.StringIO()
+            failure = subprocess.TimeoutExpired(["SECRET-command"], 15, stderr=b"SECRET-stderr")
+            with self.subTest(mode=mode), mock.patch.object(tooling.subprocess, "run", side_effect=failure), \
+                    mock.patch.object(tooling.os, "write", side_effect=lambda fd, data: output.write(data.decode("ascii"))), \
+                    mock.patch.object(sys, "argv", [str(spec.origin), mode]), \
+                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(diagnostic):
+                with self.assertRaises(SystemExit) as raised:
+                    runpy.run_path(spec.origin, run_name="__main__")
+            self.assertEqual(raised.exception.code, 1)
+            self.assertEqual(output.getvalue(), receipt)
+            self.assertEqual(diagnostic.getvalue(), "")
 
     def test_fresh_packages_include_nested_firewall_backend(self):
         absent = subprocess.CompletedProcess([], 1, b"")

@@ -44,6 +44,12 @@ func ValidReason(s string) bool {
 		return true
 	case "notification_enable_state_failed", "notification_activity_failed", "notification_disable_failed", "notification_reload_failed", "notification_failure_state_failed", "notification_reset_failed", "notification_enable_failed", "notification_restart_failed":
 		return true
+	case "packages_query_timeout", "packages_query_exit", "packages_query_other",
+		"packages_update_timeout", "packages_update_exit", "packages_update_other",
+		"packages_install_timeout", "packages_install_exit", "packages_install_other",
+		"packages_git_verify_timeout", "packages_git_verify_exit", "packages_git_verify_other",
+		"packages_gh_verify_timeout", "packages_gh_verify_exit", "packages_gh_verify_other":
+		return true
 	}
 	return false
 }
@@ -52,6 +58,7 @@ var ErrNativeBinfmtIncompatible = errors.New("native WSL binfmt registration inc
 
 func Reason(err error) string {
 	var notification *NotificationServiceFailure
+	var packages *PackageFailure
 	switch {
 	case errors.Is(err, ErrNativeBinfmtIncompatible):
 		return "native_binfmt_incompatible"
@@ -61,6 +68,8 @@ func Reason(err error) string {
 		return "timeout"
 	case errors.As(err, &notification):
 		return notification.reason()
+	case errors.As(err, &packages):
+		return packages.reason()
 	case errors.Is(err, core.ErrRecoveryRequired):
 		return "recovery_required"
 	case errors.Is(err, core.ErrIncompatibleState):

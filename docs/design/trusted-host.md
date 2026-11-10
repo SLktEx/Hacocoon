@@ -487,6 +487,16 @@ remain failures and cancellation takes precedence. Raw helper output never
 becomes a reason. Existing unit ownership, disabled-service preservation,
 healthy-service reuse, startup checks and bounded restart rules are unchanged.
 
+Package preparation keeps `stage=host_packages`. A validated helper failure
+receipt adds `reason=packages_<phase>_<kind>`: phases are `query`, `update`,
+`install`, `git_verify` and `gh_verify`; kinds are `timeout`, `exit` and `other`.
+These identify the failed subcommand and exception category, not a mirror, lock
+or network diagnosis. Only the exact package-helper receipt with its expected
+failure exit and untruncated output is accepted; absent or malformed receipts
+retain `unavailable`. Cancellation and enclosing deadlines still take precedence.
+The package list, signed repositories, command order, execution counts, budgets
+and resource ownership are unchanged. No raw subprocess output is logged.
+
 Use `haco doctor` to inspect current readiness. On the WSL/Linux **Physical Host**,
 an administrator can read `journalctl -u haco-controller.service --since
 '30 minutes ago' --no-pager` and locate the printed request ID. Journal retention

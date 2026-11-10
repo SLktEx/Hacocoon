@@ -5,6 +5,7 @@ import contextlib
 import copy
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -199,9 +200,83 @@ esac
                 if present:
                     self.assertFalse(log.exists())
                     self.assertIn("retained", result.stdout)
+                    phases = ["inspect", "verify", "complete"]
                 else:
                     self.assertEqual(log.read_text().splitlines(), ["update", "install -y --no-install-recommends git"])
                     self.assertIn("fixture", result.stdout)
+                    phases = ["inspect", "update", "install", "verify", "complete"]
+                self.assertEqual(result.stderr.splitlines(),
+                                 ["INSTALLED_INPUT_GIT_PHASE " + phase for phase in phases])
+
+    def test_guest_package_failure_preserves_exit_and_last_started_phase(self):
+        for failed in ("update", "install", "verify"):
+            with self.subTest(failed=failed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                apt = root / "apt-get"
+                apt.write_text('''#!/bin/sh
+if [ "$1" = "$FAIL_PHASE" ]; then exit 73; fi
+if [ "$1" = install ]; then
+  printf '#!/bin/sh\\nexit 74\\n' > "$GIT_BINARY"
+  /bin/chmod 0700 "$GIT_BINARY"
+fi
+''')
+                apt.chmod(0o700)
+                result = subprocess.run(["/bin/sh", "-ceu", acceptance.GIT_PREREQUISITE],
+                                        env={"PATH": directory, "FAIL_PHASE": failed,
+                                             "GIT_BINARY": str(root / "git")},
+                                        text=True, capture_output=True)
+                self.assertEqual(result.returncode, 74 if failed == "verify" else 73)
+                self.assertEqual(result.stderr.splitlines()[-1], "INSTALLED_INPUT_GIT_PHASE " + failed)
+                self.assertNotIn("complete", result.stderr)
+
+    def test_phase_diagnostics_do_not_fail_commands_with_closed_stderr(self):
+        # A failed diagnostic write must not introduce a new operation failure.
+        script = "exec 2>&-\ngit() { :; }\n" + acceptance.GIT_PREREQUISITE
+        result = subprocess.run(["/bin/sh", "-ceu", script], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+
+    def test_phase_diagnostics_do_not_kill_commands_with_broken_stderr_pipe(self):
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            result = subprocess.run(["/bin/sh", "-ceu", "git() { :; }\n" + acceptance.GIT_PREREQUISITE],
+                                    stdout=subprocess.PIPE, stderr=write_fd)
+        finally:
+            os.close(write_fd)
+        self.assertEqual(result.returncode, 0)
+
+    def test_phase_stderr_survives_real_timeout_without_exposing_captured_stdout(self):
+        actual_run = subprocess.run
+        calls = []
+        with tempfile.TemporaryFile() as diagnostic:
+            def timed_run(args, **kwargs):
+                calls.append((args, kwargs.copy()))
+                self.assertEqual(kwargs["timeout"], 300)
+                self.assertEqual(kwargs["stdout"], subprocess.PIPE)
+                self.assertNotIn("stderr", kwargs)
+                # Only this test's elapsed clock is shortened. The real script
+                # reaches Git verify and blocks, while stderr is already public.
+                script = "git() { printf 'private-captured-output'; exec /bin/sleep 3; }\n" + acceptance.GIT_PREREQUISITE
+                return actual_run(["/bin/sh", "-ceu", script], **dict(kwargs, timeout=1, stderr=diagnostic))
+            with mock.patch.object(acceptance.subprocess, "run", side_effect=timed_run):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    acceptance.run("haco", "exec", "fixture", "--", "sh", "-ceu", acceptance.GIT_PREREQUISITE)
+            diagnostic.seek(0)
+            output = diagnostic.read().decode()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(output.splitlines(), ["INSTALLED_INPUT_GIT_PHASE inspect", "INSTALLED_INPUT_GIT_PHASE verify"])
+        self.assertNotIn("private-captured-output", output)
+
+    def test_package_timeout_removes_exact_grants_without_retry(self):
+        def timeout(*args):
+            self.commands.append(args)
+            raise subprocess.TimeoutExpired(args, 300, output=b"private-captured-output")
+        self.fixture.haco = timeout
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.fixture.prepare_git(self.environment)
+        self.assertEqual(self.policy, self.original)
+        self.assertEqual(self.fixture.package_rules, [])
+        self.assertEqual(len(self.commands), 1)
 
     def test_uncertain_saved_grant_is_inspected_and_removed_without_package_execution(self):
         self.fail_save_after_write = True

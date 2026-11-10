@@ -199,6 +199,27 @@ COM起動の失敗は固定の`activation_stage`（initialize/register/create/di
 
 通知準備の失敗は既存のsetup境界で固定のサービス操作理由（notification_enable_state_failed、notification_activity_failed、notification_disable_failed、notification_reload_failed、notification_failure_state_failed、notification_reset_failed、notification_enable_failed、notification_restart_failed）を保持する。非公開helperの終了値50〜57は通知refreshだけで解釈し、生の出力は転送しない。中止を優先する。
 
+Host のパッケージ失敗は既存の `host_packages` 段階と固定の
+`packages_<phase>_<kind>` 理由を使います。phase は `query`、`update`、`install`、
+`git_verify`、`gh_verify`、kind は例外の型だけで分類した `timeout`、`exit`、`other` です。
+補助プログラムは固定の ASCII 記録をバッファなしで一度書き込みます。アダプターは
+パッケージモード、終了値 1、両出力の切り詰めなしという条件で、64 バイト以内の
+許可リストと完全一致する記録だけを受け付けます。記録の欠落、不正、無関係な出力は
+`unavailable` のままです。診断の書き込み失敗で元の例外を置き換えず、中断・期限の
+優先順位も変えません。setup の ERROR は引き続き controller だけが記録します。
+パッケージ名、引数、取得元、生のエラーやサブプロセス出力は診断へ含めません。
+段階からミラー、ロック、ネットワークの原因を断定しません。
+
+導入済み workspace-input の fixture は、Git 前提条件のコマンドごとに、既存の継承した標準エラーへ固定の
+`INSTALLED_INPUT_GIT_PHASE` 記録を最大 5 個出力します。値は `inspect`、`update`、
+`install`、`verify`、`complete` で、取得した標準出力や `TimeoutExpired` に依存しません。
+各記録は処理開始を示し、`complete` だけは Git バージョン確認の成功後に出力します。
+記録の欠落から失敗箇所を断定しません。診断専用の subshell 内だけで書き込み失敗と
+SIGPIPE を無視し、処理の実行や終了処理は変えません。生のサブプロセス出力は追加せず、
+既存の APT 標準エラーは従来どおり流します。Host 補助プログラムの出力と取得した
+導入済みコマンドの標準出力は非公開のままです。
+[パッケージ準備の検証記録](../status/acceptance-evidence.ja.md#package-preparation-diagnostics)を参照してください。
+
 Git照合は共通の同期済みCapability監査を使う。固定git-push-started/confirmed/observed記録へ要求・Env作成・取得元所有権・登録済みremote・ref・旧新OIDを保存し、照合は読み取り要求を別に記録する。これは監査上の事実であり、認証情報・subprocessの生出力・Git設定全体をログへ出さない。
 
 キャッシュ管理は領域別の結果と診断を分けます。失敗を報告する境界ではcomponentを`cache`とし、固定した操作名と分類済み失敗コードだけを記録します。設定文書、パス、基盤の応答、生のエラーはログへ出しません。

@@ -124,23 +124,46 @@ def run(argv, timeout=120):
                           check=True, timeout=timeout)
 
 
+def package_step(phase, operation, *args, **kwargs):
+    """Observe a fixed package operation without exposing its output or error."""
+    try:
+        return operation(*args, **kwargs)
+    except Exception as error:
+        if phase in ("query", "update", "install", "git_verify", "gh_verify"):
+            kind = "other"
+            if isinstance(error, subprocess.TimeoutExpired):
+                kind = "timeout"
+            elif isinstance(error, subprocess.CalledProcessError):
+                kind = "exit"
+            try:
+                # Only this self-authored receipt is public. A diagnostic write
+                # failure must not replace the original operation failure.
+                # One unbuffered write also avoids a failed final flush changing
+                # interpreter shutdown after the original exception is handled.
+                os.write(1, ("haco-host-packages-v1:" + phase + ":" + kind + "\n").encode("ascii"))
+            except Exception:
+                pass
+        raise
+
+
 def packages():
     # Ubuntu's signed configured repositories, including universe. Do not add
     # third-party apt keys/sources or install/upgrade unrelated runtime packages.
     required = ("git", "gh", "ca-certificates", "iptables", "nftables", "curl", "gnupg", "dnsmasq-base", "uidmap")
     missing = []
     for name in required:
-        result = subprocess.run(["/usr/bin/dpkg-query", "-W", "-f=${Status}", name],
-                                env=ENV, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                timeout=15, check=False)
+        result = package_step("query", subprocess.run,
+                              ["/usr/bin/dpkg-query", "-W", "-f=${Status}", name],
+                              env=ENV, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              timeout=15, check=False)
         if result.returncode or result.stdout != b"install ok installed":
             missing.append(name)
     if missing:
-        run(["/usr/bin/apt-get", "-o", "Acquire::Retries=2", "update"], 180)
-        run(["/usr/bin/apt-get", "-o", "DPkg::Lock::Timeout=60", "install", "-y",
-             "--no-install-recommends", *missing], 360)
-    run(["/usr/bin/git", "--version"])
-    run(["/usr/bin/gh", "--version"])
+        package_step("update", run, ["/usr/bin/apt-get", "-o", "Acquire::Retries=2", "update"], 180)
+        package_step("install", run, ["/usr/bin/apt-get", "-o", "DPkg::Lock::Timeout=60", "install", "-y",
+                                     "--no-install-recommends", *missing], 360)
+    package_step("git_verify", run, ["/usr/bin/git", "--version"])
+    package_step("gh_verify", run, ["/usr/bin/gh", "--version"])
 
 
 def download(arch):
