@@ -31,6 +31,14 @@ enrollment fails closed. A lost reply can coexist with running work; inspect sta
 before any new attempt. Pending means unknown completion. Failed status returns
 nonzero and preserves evidence. Status never launches, replays or clears work.
 
+Native helper preparation checks the saved current operation under its existing
+exclusion, launch reservation and native enrollment checks before reading the
+installed identity through WSL. Pending or malformed/unreadable evidence refuses
+that identity read without changing the record. Missing or valid terminal state
+still proceeds through the ordinary identity and final intent checks; this early
+refusal does not authorize replacement, acknowledge failure or repair worker launch.
+Continuation and explicit review retain their separate pending-state rules.
+
 A historical installation needs the current normal installer and permanent helper.
 No separate Linux-only public reclamation command is provided.
 

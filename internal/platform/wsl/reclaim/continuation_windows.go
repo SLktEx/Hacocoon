@@ -120,6 +120,12 @@ type continuationObservation struct {
 // withReclamationTarget holds exclusion and native pins through the entire
 // action. Prepared handoff does not bypass any ordinary mutation authorization.
 func (r registration) withReclamationTarget(ctx context.Context, visit func(*operationStore, *pinnedDisk, installationObservation) error) (err error) {
+	return r.withReclamationTargetPreflight(ctx, nil, visit)
+}
+
+// Preparation alone supplies a native-only preflight. Continuation and explicit
+// review must still accept their exact pending handoff under the same guards.
+func (r registration) withReclamationTargetPreflight(ctx context.Context, preflight func(*operationStore) error, visit func(*operationStore, *pinnedDisk, installationObservation) error) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -163,15 +169,33 @@ func (r registration) withReclamationTarget(ctx context.Context, visit func(*ope
 	if enrolled.Target.Registration != r || enrolled.Target.Disk != pin.identity || enrolled.Target.WindowsOwner != user.User.Sid.String() {
 		return targetStage("binding", errors.New("managed WSL registration, owner or disk differs from enrollment"))
 	}
-	identity, err := r.readInstallation(ctx)
+	identity, err := readReclamationInstallation(ctx, func() error {
+		if preflight != nil {
+			return preflight(records)
+		}
+		return nil
+	}, r.readInstallation)
 	if err != nil {
-		return targetStage("installation", err)
+		return err
 	}
 	target := installationObservation{Registration: r, Installation: identity, Disk: pin.identity, WindowsOwner: user.User.Sid.String()}
 	if err := records.requireBinding(target); err != nil {
 		return targetStage("binding", err)
 	}
 	return visit(records, pin, target)
+}
+
+// Keep the preparation check before the first WSL access, while its caller
+// holds the continuation/launch guards, pins and verified native enrollment.
+func readReclamationInstallation(ctx context.Context, preflight func() error, read func(context.Context) (installationIdentity, error)) (installationIdentity, error) {
+	if err := ctx.Err(); err != nil {
+		return installationIdentity{}, targetStage("installation", err)
+	}
+	if err := preflight(); err != nil {
+		return installationIdentity{}, targetStage("intent", err)
+	}
+	identity, err := read(ctx)
+	return identity, targetStage("installation", err)
 }
 
 // prepareContinuation records one exact future execution before launching its
@@ -181,7 +205,7 @@ func (r registration) prepareContinuation(ctx context.Context) (operationRecord,
 }
 
 func (r registration) prepareContinuationVersion(ctx context.Context, version int) (intent operationRecord, err error) {
-	err = r.withReclamationTarget(ctx, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
+	err = r.withReclamationTargetPreflight(ctx, (*operationStore).refusePendingPreparation, func(records *operationStore, pin *pinnedDisk, _ installationObservation) error {
 		var beginErr error
 		intent, beginErr = records.beginVersion(r, pin.identity, version)
 		return targetStage("intent", beginErr)
